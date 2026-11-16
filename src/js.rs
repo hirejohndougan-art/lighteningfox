@@ -191,7 +191,10 @@ fn n_set_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     if let Some(id) = valid(id) {
         with_dom_mut(|d| {
             if let NodeData::Element { attrs, .. } = &mut d.nodes[id].data {
-                attrs.insert(name, value);
+                match attrs.iter_mut().find(|(k, _)| *k == name) {
+                    Some(slot) => slot.1 = value,
+                    None => attrs.push((name, value)),
+                }
             }
         });
     }
@@ -204,7 +207,7 @@ fn n_remove_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     if let Some(id) = valid(id) {
         with_dom_mut(|d| {
             if let NodeData::Element { attrs, .. } = &mut d.nodes[id].data {
-                attrs.remove(&name);
+                attrs.retain(|(k, _)| *k != name);
             }
         });
     }
@@ -216,7 +219,7 @@ fn n_attr_names(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
     let names: Vec<String> = valid(id)
         .map(|id| {
             with_dom(|d| match &d.nodes[id].data {
-                NodeData::Element { attrs, .. } => attrs.keys().cloned().collect(),
+                NodeData::Element { attrs, .. } => attrs.iter().map(|(k, _)| k.clone()).collect(),
                 _ => vec![],
             })
         })
@@ -299,7 +302,7 @@ fn n_by_id(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 
 fn n_create(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let tag = arg_str(a, 0, ctx)?;
-    let id = with_dom_mut(|d| d.create(NodeData::Element { tag, attrs: HashMap::new() }));
+    let id = with_dom_mut(|d| d.create(NodeData::Element { tag, attrs: Vec::new() }));
     Ok(JsValue::from(id as f64))
 }
 
@@ -324,7 +327,7 @@ fn n_write(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
             }
             None => (d.find_all("body").first().copied().unwrap_or(Dom::ROOT), None),
         };
-        let tmp = d.create(NodeData::Element { tag: "#fragment".into(), attrs: HashMap::new() });
+        let tmp = d.create(NodeData::Element { tag: "#fragment".into(), attrs: Vec::new() });
         d.graft(&frag, Dom::ROOT, tmp);
         for k in d.nodes[tmp].children.clone() {
             d.insert(parent, k, before);

@@ -10,7 +10,7 @@ net.rs     html.rs       dom.rs    css.rs          style.rs        layout.rs  pa
 ```
 
 Crates are used only for the plumbing: `minifb` (a window and a pixel buffer),
-`fontdue` (turning a font file's glyph outlines into pixels), `ureq` (HTTP/TLS), `png` (screenshots)
+`ab_glyph` (turning a font file's glyph outlines into pixels, on demand), `ureq` (HTTP/TLS), `png` (screenshots)
 and **Boa** (`boa_engine`), a JavaScript engine written in Rust.
 
 ## JavaScript
@@ -102,6 +102,22 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
 - **Interaction**: address bar, scrolling, clickable links, back history, resize reflow
 
 Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
+
+## Memory
+
+Measured with a window open (RSS), after the memory work:
+
+| Page | Before | After |
+|---|---|---|
+| Start page | 108 MB | 16 MB |
+| Modern layout test page | 118 MB | 25 MB |
+| Images test page | 122 MB | 29 MB |
+| 70,000-element page | 168 MB | 38 MB |
+
+What changed: font glyphs load on first use (was ~88 MB up front), computed styles are shared,
+JavaScript starts only on pages with scripts, words on a line are one display item, attributes are
+a short list, freed memory goes back to the OS, and the window polls slowly when idle.
+`LF_MEM_PROBE=1 lighteningfox <url>` prints memory after each loading stage.
 
 ## Tests
 

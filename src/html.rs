@@ -3,7 +3,6 @@
 //! common implied closes (<p>, <li>, <td>...) are handled.
 
 use crate::dom::{Dom, NodeData, NodeId};
-use std::collections::HashMap;
 
 const VOID: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr",
@@ -123,14 +122,14 @@ fn flush(dom: &mut Dom, stack: &[NodeId], text: &mut String) {
 }
 
 /// Parse `tagname attr="v" ...>` starting just after '<'.
-fn parse_tag(c: &[char], mut i: usize) -> (String, HashMap<String, String>, bool, usize) {
+fn parse_tag(c: &[char], mut i: usize) -> (String, Vec<(String, String)>, bool, usize) {
     let n = c.len();
     let mut tag = String::new();
     while i < n && !c[i].is_whitespace() && c[i] != '>' && c[i] != '/' {
         tag.push(c[i].to_ascii_lowercase());
         i += 1;
     }
-    let mut attrs = HashMap::new();
+    let mut attrs: Vec<(String, String)> = Vec::new();
     let mut self_closing = false;
     loop {
         while i < n && c[i].is_whitespace() {
@@ -178,11 +177,15 @@ fn parse_tag(c: &[char], mut i: usize) -> (String, HashMap<String, String>, bool
             }
         }
         if !name.is_empty() {
-            attrs.entry(name).or_insert_with(|| decode_entities(&value));
+            // The first occurrence of an attribute wins, as in browsers.
+            if !attrs.iter().any(|(k, _)| *k == name) {
+                attrs.push((name, decode_entities(&value)));
+            }
         } else {
             i += 1; // skip junk character
         }
     }
+    attrs.shrink_to_fit();
     (tag, attrs, self_closing, i)
 }
 

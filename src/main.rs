@@ -54,9 +54,10 @@ struct Page {
     url: String,
     title: String,
     sheets: Vec<css::Stylesheet>,
-    styles: Vec<style::Style>,
+    styles: Vec<Rc<style::Style>>,
     images: images::Images,
-    js: js::Js,
+    /// The JavaScript engine, started only for pages that have scripts.
+    js: Option<js::Js>,
     /// The page has :hover rules, so mouse moves can change its styles.
     hover_rules: bool,
 }
@@ -160,7 +161,7 @@ fn fetch_page(url: &str) -> Prepared {
     Prepared { url: final_url, dom, sheets, images, scripts }
 }
 
-fn background_urls(styles: &[style::Style]) -> Vec<String> {
+fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
     let mut urls: Vec<String> = Vec::new();
     for st in styles {
         if let Some(style::BgImage::Url(u)) = &st.bg.image {
@@ -175,15 +176,38 @@ fn background_urls(styles: &[style::Style]) -> Vec<String> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    js::set_dom(p.dom);
-    let mut js = js::Js::new(&p.url);
-    js.run_scripts(&p.url, &p.scripts);
+    let Prepared { url, dom, sheets, images, scripts } = p;
+    // Start JavaScript only if the page has scripts or inline event handlers:
+    // the engine costs several megabytes even when it has nothing to run.
+    let has_scripts = dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
+        dom::NodeData::Element { tag, attrs } => tag == "script" || attrs.iter().any(|(k, _)| k.starts_with("on")),
+        _ => false,
+    });
+    js::set_dom(dom);
+    let js = has_scripts.then(|| {
+        let mut js = js::Js::new(&url);
+        js.run_scripts(&url, &scripts);
+        js
+    });
     js::take_dirty();
     style::set_hover(None);
-    let hover_rules = style::uses_hover(&p.sheets);
-    let mut page = Page { url: p.url, title: String::new(), sheets: p.sheets, styles: Vec::new(), images: p.images, js, hover_rules };
+    let hover_rules = style::uses_hover(&sheets);
+    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules };
     page.restyle();
+    release_free_memory();
     page
+}
+
+/// Hand memory freed by the previous page back to the operating system.
+/// (glibc otherwise keeps it reserved for the process.)
+fn release_free_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    unsafe {
+        unsafe extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
+        malloc_trim(0);
+    }
 }
 
 fn load(url: &str) -> Page {
@@ -220,6 +244,11 @@ fn main() {
         }
         i += 1;
     }
+    let rss = || std::fs::read_to_string("/proc/self/statm").ok().and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0) * 4 / 1024;
+    let probe = std::env::var("LF_MEM_PROBE").is_ok();
+    if probe {
+        eprintln!("[mem] start: {} MB", rss());
+    }
     let fonts = match Fonts::load() {
         Ok(f) => f,
         Err(e) => {
@@ -227,6 +256,17 @@ fn main() {
             std::process::exit(1);
         }
     };
+    if probe {
+        eprintln!("[mem] fonts loaded: {} MB", rss());
+        let js = js::Js::new("about:blank");
+        eprintln!("[mem] + one JS engine: {} MB", rss());
+        drop(js);
+        let page = load(&url);
+        eprintln!("[mem] + page loaded: {} MB", rss());
+        let lay = page.layout(&fonts, width as f32, 768.0);
+        eprintln!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
+        return;
+    }
     match png {
         Some(out) => render_png(&fonts, &url, width, &out),
         None => run_window(&fonts, &url, width),
@@ -258,7 +298,8 @@ fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     let (page, lay, canvas) = render_page(fonts, url, width);
     let height = canvas.h;
     save_png(&canvas, out).expect("write png");
-    let st = &page.js.stats;
+    let st = page.js.as_ref().map(|j| j.stats.clone()).unwrap_or_default();
+    let st = &st;
     eprintln!(
         "{}: {} nodes, {} display items, {}x{} px, {:?} total | JS: {} scripts, {} errors, {:?}",
         page.url,
@@ -290,6 +331,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             std::process::exit(1);
         });
     window.set_target_fps(60);
+    let mut idle_frames = 0u32;
+    let mut slow = false;
     let typed = Rc::new(RefCell::new(Vec::new()));
     window.set_input_callback(Box::new(Typed(typed.clone())));
 
@@ -328,7 +371,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             dirty = true;
         }
         // JavaScript: run due timers; restyle and reflow if the DOM changed.
-        page.js.tick();
+        if let Some(js) = page.js.as_mut() {
+            js.tick();
+        }
         if js::take_dirty() {
             page.restyle();
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
@@ -448,7 +493,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 } else {
                     // Let the page's JavaScript see the click first.
                     let node = lay.hit_at(mx, view_y, scroll);
-                    let allowed = node.map_or(true, |n| page.js.click(n));
+                    let allowed = match (node, page.js.as_mut()) {
+                        (Some(n), Some(js)) => js.click(n),
+                        _ => true,
+                    };
                     if js::take_dirty() {
                         page.restyle();
                         reflow = true;
@@ -523,6 +571,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 Go::Reload => {}
             }
             page = build_page(prepared);
+            release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             scroll = 0.0;
             address = page.url.clone();
@@ -535,6 +584,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             dirty = true;
         }
 
+        // Idle: poll less often. Anything happening (input, redraws, loading) goes back to 60 fps.
+        let active = dirty || loading.is_some() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
+        if active {
+            idle_frames = 0;
+            if slow {
+                window.set_target_fps(60);
+                slow = false;
+            }
+        } else {
+            idle_frames += 1;
+            if idle_frames > 90 && !slow {
+                window.set_target_fps(12);
+                slow = true;
+            }
+        }
         if dirty {
             let spin = loading.as_ref().map(|l| l.started.elapsed().as_secs_f32());
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin };

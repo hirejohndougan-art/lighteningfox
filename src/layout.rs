@@ -8,6 +8,7 @@ use crate::images::Images;
 use crate::paint::Item;
 use crate::style::{Align, AlignItems, Color, Display, Justify, Len, ListStyle, Position, Style, TableRole, VAlign};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
@@ -62,7 +63,7 @@ pub struct Layout {
     pub page_bg: Color,
 }
 
-pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     let mut cx = Ctx {
         dom,
         styles,
@@ -100,7 +101,7 @@ pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width
 
 struct Ctx<'a> {
     dom: &'a Dom,
-    styles: &'a [Style],
+    styles: &'a [Rc<Style>],
     fonts: &'a Fonts,
     images: &'a Images,
     items: Vec<Item>,
@@ -1553,6 +1554,7 @@ impl<'a> Ctx<'a> {
                 };
             let baseline = cy + above;
             let mut prev_underline_end: Option<(f32, NodeId)> = None;
+            let mut last_text: Option<(NodeId, f32)> = None;
             // Inline box backgrounds go under this line's text: collect, then insert.
             let line_start = self.items.len();
             let mut boxes: Vec<(usize, Item)> = Vec::new();
@@ -1584,7 +1586,23 @@ impl<'a> Ctx<'a> {
                         let s = &self.styles[*node];
                         let (font, size) = self.font_of(*node);
                         if !s.hidden {
-                            self.items.push(Item::Text { x: px, y: baseline, text: text.clone(), font, size, color: s.color });
+                            // Words of the same text run on one line become one text item
+                            // ("Hello world" instead of "Hello" + "world"): far fewer items.
+                            let space = self.fonts.advance(font, ' ', size);
+                            let joined = match (last_text, self.items.last_mut()) {
+                                (Some((n, end)), Some(Item::Text { text: t, .. }))
+                                    if n == *node && !s.underline && (px - end - space).abs() < 0.5 =>
+                                {
+                                    t.push(' ');
+                                    t.push_str(text);
+                                    true
+                                }
+                                _ => false,
+                            };
+                            if !joined {
+                                self.items.push(Item::Text { x: px, y: baseline, text: text.clone(), font, size, color: s.color });
+                            }
+                            last_text = if s.underline { None } else { Some((*node, px + p.w)) };
                             if s.underline {
                                 // Extend the underline back across the space before this word.
                                 let start = match prev_underline_end {
@@ -1599,13 +1617,25 @@ impl<'a> Ctx<'a> {
                             }
                         }
                         let r = Rect { x: px, y: cy, w: p.w, h: lh };
-                        self.hits.push((r, *node));
+                        // Likewise one hit area per run of words on a line.
+                        match self.hits.last_mut() {
+                            Some((h, n)) if *n == *node && h.y == r.y && h.h == r.h && r.x >= h.x + h.w - 0.5 && r.x - (h.x + h.w) < 40.0 => {
+                                h.w = r.x + r.w - h.x;
+                            }
+                            _ => self.hits.push((r, *node)),
+                        }
                         if let Some(href) = link {
-                            self.links.push((r, href.clone()));
+                            match self.links.last_mut() {
+                                Some((h, l)) if l == href && h.y == r.y && h.h == r.h && r.x >= h.x + h.w - 0.5 && r.x - (h.x + h.w) < 40.0 => {
+                                    h.w = r.x + r.w - h.x;
+                                }
+                                _ => self.links.push((r, href.clone())),
+                            }
                         }
                     }
                     Tok::InlineBlock { link, .. } => {
                         prev_underline_end = None;
+                        last_text = None;
                         if let Some(d) = blocks.remove(&p.tok) {
                             let (dx, dy) = (px, baseline - d.baseline);
                             if let Some(href) = link {
@@ -1622,6 +1652,7 @@ impl<'a> Ctx<'a> {
                     }
                     Tok::Image { h, node, src, link, .. } => {
                         prev_underline_end = None;
+                        last_text = None;
                         let r = Rect { x: px, y: baseline - h, w: p.w, h: *h };
                         self.hits.push((r, *node));
                         if let Some(href) = link {

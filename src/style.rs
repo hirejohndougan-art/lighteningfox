@@ -394,74 +394,95 @@ struct Matched<'a> {
     decl: &'a Decl,
 }
 
-/// Compute a style for every node (text nodes share their parent's inherited style).
-pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Style> {
+/// Compute a style for every node.
+///
+/// Styles are shared to save memory: text uses its parent's style, and elements
+/// whose matched rules, attributes and parent are identical (list items, table
+/// cells, paragraphs in a row) share one computed style.
+pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let ua = css::parse(UA_CSS);
-    let mut styles: Vec<Style> = vec![Style { display: Display::None, ..Style::default() }; dom.nodes.len()];
-    styles[0].display = Display::Block;
+    let hidden = Rc::new(Style { display: Display::None, ..Style::default() });
+    let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
+    styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
+    let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
         stack.extend(dom.nodes[id].children.iter().rev().copied());
         let parent = dom.nodes[id].parent.unwrap_or(0);
         let parent_style = styles[parent].clone();
-        let mut st = Style::inherit(&parent_style);
-        if let NodeData::Element { .. } = dom.nodes[id].data {
-            let mut matched: Vec<Matched> = Vec::new();
-            let mut order = 0;
-            for (origin, sheet) in std::iter::once(&ua).chain(sheets.iter()).enumerate() {
-                let origin = if origin == 0 { 0 } else { 1 };
-                for rule in &sheet.rules {
-                    let best = rule
-                        .selectors
-                        .iter()
-                        .filter(|s| matches(dom, id, s))
-                        .map(|s| s.specificity())
-                        .max();
-                    if let Some(spec) = best {
-                        for d in &rule.decls {
-                            matched.push(Matched { important: d.important, origin, spec, order, decl: d });
-                            order += 1;
-                        }
+        let NodeData::Element { tag, attrs } = &dom.nodes[id].data else {
+            // Text inherits everything it uses from its parent.
+            styles[id] = parent_style;
+            continue;
+        };
+        let mut matched: Vec<Matched> = Vec::new();
+        let mut order = 0;
+        for (origin, sheet) in std::iter::once(&ua).chain(sheets.iter()).enumerate() {
+            let origin = if origin == 0 { 0 } else { 1 };
+            for rule in &sheet.rules {
+                let best = rule
+                    .selectors
+                    .iter()
+                    .filter(|s| matches(dom, id, s))
+                    .map(|s| s.specificity())
+                    .max();
+                if let Some(spec) = best {
+                    for d in &rule.decls {
+                        matched.push(Matched { important: d.important, origin, spec, order, decl: d });
+                        order += 1;
                     }
                 }
             }
-            let inline = dom.attr(id, "style").map(css::parse_declarations).unwrap_or_default();
-            for d in &inline {
-                matched.push(Matched { important: d.important, origin: 2, spec: (9, 9, 9), order, decl: d });
-                order += 1;
-            }
-            matched.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
-            // Custom properties first, so normal properties can use them via var().
-            for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
-                let value = substitute_vars(&m.decl.value, &st.vars, 0);
-                Rc::make_mut(&mut st.vars).insert(m.decl.name.clone(), value);
-            }
-            // HTML attributes like bgcolor and cellpadding beat the browser defaults
-            // but lose to the page's own CSS, so they go in between.
-            let mut hinted = false;
-            for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
-                if !hinted && (m.origin > 0 || m.important) {
-                    presentational_hints(dom, id, &mut st, &parent_style);
-                    hinted = true;
-                }
-                if m.decl.value.contains("var(") {
-                    let value = substitute_vars(&m.decl.value, &st.vars, 0);
-                    apply(&mut st, &parent_style, &m.decl.name, &value);
-                } else {
-                    apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
-                }
-            }
-            if !hinted {
-                presentational_hints(dom, id, &mut st, &parent_style);
-            }
-            // Borders without a color of their own use the text color.
-            if !st.border_color_set {
-                st.border_color = st.color;
-            }
-        } else {
-            st.display = Display::Inline;
         }
+        // Same parent style + same rules + same attributes that affect style = same result.
+        let attr_key: String = attrs
+            .iter()
+            .filter(|(k, _)| matches!(k.as_str(), "style" | "bgcolor" | "color" | "align" | "valign" | "width" | "border" | "cellpadding" | "cellspacing" | "hidden"))
+            .map(|(k, v)| format!("{k}={v};"))
+            .collect::<String>()
+            + tag;
+        let key = (Rc::as_ptr(&parent_style) as usize, matched.iter().map(|m| m.decl as *const Decl as usize).collect(), attr_key);
+        if let Some(s) = shared.get(&key) {
+            styles[id] = s.clone();
+            continue;
+        }
+        let mut st = Style::inherit(&parent_style);
+        let inline = dom.attr(id, "style").map(css::parse_declarations).unwrap_or_default();
+        for d in &inline {
+            matched.push(Matched { important: d.important, origin: 2, spec: (9, 9, 9), order, decl: d });
+            order += 1;
+        }
+        matched.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
+        // Custom properties first, so normal properties can use them via var().
+        for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
+            let value = substitute_vars(&m.decl.value, &st.vars, 0);
+            Rc::make_mut(&mut st.vars).insert(m.decl.name.clone(), value);
+        }
+        // HTML attributes like bgcolor and cellpadding beat the browser defaults
+        // but lose to the page's own CSS, so they go in between.
+        let mut hinted = false;
+        for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
+            if !hinted && (m.origin > 0 || m.important) {
+                presentational_hints(dom, id, &mut st, &parent_style);
+                hinted = true;
+            }
+            if m.decl.value.contains("var(") {
+                let value = substitute_vars(&m.decl.value, &st.vars, 0);
+                apply(&mut st, &parent_style, &m.decl.name, &value);
+            } else {
+                apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
+            }
+        }
+        if !hinted {
+            presentational_hints(dom, id, &mut st, &parent_style);
+        }
+        // Borders without a color of their own use the text color.
+        if !st.border_color_set {
+            st.border_color = st.color;
+        }
+        let st = Rc::new(st);
+        shared.insert(key, st.clone());
         styles[id] = st;
     }
     styles
@@ -1703,3 +1724,4 @@ mod tests {
         assert_eq!(substitute_vars("var(--missing, red)", &v, 0), "red");
     }
 }
+

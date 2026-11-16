@@ -2,14 +2,14 @@
 //! Nodes refer to each other by index (NodeId) instead of pointers,
 //! which keeps Rust's borrow checker happy and is fast.
 
-use std::collections::HashMap;
 
 pub type NodeId = usize;
 
 #[derive(Debug, Clone)]
 pub enum NodeData {
     Document,
-    Element { tag: String, attrs: HashMap<String, String> },
+    /// Attributes as a short list: most elements have 0–3, where a hash table would waste memory.
+    Element { tag: String, attrs: Vec<(String, String)> },
     Text(String),
 }
 
@@ -140,7 +140,7 @@ impl Dom {
 
     pub fn attr(&self, id: NodeId, name: &str) -> Option<&str> {
         match &self.nodes[id].data {
-            NodeData::Element { attrs, .. } => attrs.get(name).map(|s| s.as_str()),
+            NodeData::Element { attrs, .. } => attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str()),
             _ => None,
         }
     }
