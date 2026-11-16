@@ -4,6 +4,7 @@
 
 use crate::dom::{Dom, NodeData, NodeId};
 use crate::font::Fonts;
+use crate::grid;
 use crate::images::Images;
 use crate::paint::Item;
 use crate::style::{Align, AlignItems, Color, Display, Justify, Len, ListStyle, Position, Style, TableRole, VAlign};
@@ -387,6 +388,14 @@ impl<'a> Ctx<'a> {
             None if table.is_some() => {
                 let stretch = self.styles[id].width != Len::Auto || forced.0.is_some();
                 (self.table_children(table.as_ref().unwrap(), cx, cy, w, stretch), 0.0)
+            }
+            None if self.styles[id].grid.is_some() => {
+                let definite = match (forced.1, self.styles[id].height) {
+                    (Some(fh), _) => Some(fh - mt - mb - bt - pt - pb - bb),
+                    (None, Len::Px(h)) => Some(h - vsizing),
+                    _ => None,
+                };
+                (self.grid_children(id, cx, cy, w, definite), 0.0)
             }
             None if is_flex => {
                 let definite = match (forced.1, st.height) {
@@ -1115,6 +1124,226 @@ impl<'a> Ctx<'a> {
         }
         let end = if g.rows.is_empty() { cy } else { ry };
         end - y
+    }
+
+    /// CSS grid: size the tracks, place every item (explicitly, by area name or
+    /// automatically), then lay items out in their cells. Returns the content height.
+    fn grid_children(&mut self, id: NodeId, x: f32, y: f32, w: f32, definite_h: Option<f32>) -> f32 {
+        let tpl = self.styles[id].grid.clone().unwrap_or_default();
+        let fl = self.styles[id].flex;
+        let fs = self.styles[id].font_size;
+        let col_gap = fl.column_gap.resolve(w);
+        let row_gap = fl.row_gap.resolve(definite_h.unwrap_or(w));
+
+        // Items: child elements, plus runs of loose text.
+        let mut items: Vec<FlexItem> = Vec::new();
+        let mut text: Vec<NodeId> = Vec::new();
+        for c in self.dom.nodes[id].children.clone() {
+            match &self.dom.nodes[c].data {
+                NodeData::Text(t) => {
+                    if !t.trim().is_empty() || !text.is_empty() {
+                        text.push(c);
+                    }
+                }
+                NodeData::Element { .. } => {
+                    if self.styles[c].display == Display::None {
+                        continue;
+                    }
+                    if self.is_out_of_flow(c) {
+                        self.defer_absolute(c, x, y);
+                        continue;
+                    }
+                    if !text.is_empty() {
+                        items.push(FlexItem::Text(std::mem::take(&mut text)));
+                    }
+                    items.push(FlexItem::Node(c));
+                }
+                NodeData::Document => {}
+            }
+        }
+        if text.iter().any(|&t| matches!(&self.dom.nodes[t].data, NodeData::Text(s) if !s.trim().is_empty())) {
+            items.push(FlexItem::Text(text));
+        }
+        items.sort_by_key(|it| match it {
+            FlexItem::Node(n) => self.styles[*n].flex.order,
+            FlexItem::Text(_) => 0,
+        });
+
+        let mut cols = grid::parse_tracks(&tpl.columns, w, col_gap, fs);
+        let mut rows = grid::parse_tracks(&tpl.rows, definite_h.unwrap_or(0.0), row_gap, fs);
+        let auto_col = grid::parse_tracks(&tpl.auto_columns, w, col_gap, fs).first().copied().unwrap_or(grid::Track::AUTO);
+        let auto_row = grid::parse_tracks(&tpl.auto_rows, 0.0, row_gap, fs).first().copied().unwrap_or(grid::Track::AUTO);
+        let areas = grid::parse_areas(&tpl.areas);
+        if cols.is_empty() {
+            cols.push(auto_col);
+        }
+        let n_cols_explicit = cols.len();
+        let n_rows_explicit = rows.len().max(areas.rows);
+
+        // Placement: definite positions first, then auto-placement row by row.
+        struct Placed {
+            item: usize,
+            col: usize,
+            row: usize,
+            cspan: usize,
+            rspan: usize,
+        }
+        let mut placed: Vec<Placed> = Vec::new();
+        let mut taken: Vec<Vec<bool>> = Vec::new();
+        let mark = |taken: &mut Vec<Vec<bool>>, r: usize, c: usize, rs: usize, cs: usize| {
+            while taken.len() < r + rs {
+                taken.push(Vec::new());
+            }
+            for row in taken.iter_mut().skip(r).take(rs) {
+                if row.len() < c + cs {
+                    row.resize(c + cs, false);
+                }
+                for cell in row.iter_mut().skip(c).take(cs) {
+                    *cell = true;
+                }
+            }
+        };
+        let free = |taken: &Vec<Vec<bool>>, r: usize, c: usize, rs: usize, cs: usize| {
+            (r..r + rs).all(|rr| (c..c + cs).all(|cc| !taken.get(rr).and_then(|row| row.get(cc)).copied().unwrap_or(false)))
+        };
+        let mut auto_items = Vec::new();
+        for (i, it) in items.iter().enumerate() {
+            let place = match it {
+                FlexItem::Node(n) => self.styles[*n].grid_place.clone(),
+                FlexItem::Text(_) => None,
+            };
+            let (c, r) = match &place {
+                Some(p) => grid::resolve_place(p, &areas, n_cols_explicit, n_rows_explicit),
+                None => ((None, 1), (None, 1)),
+            };
+            match (c, r) {
+                ((Some(c0), cs), (Some(r0), rs)) => {
+                    mark(&mut taken, r0, c0, rs, cs);
+                    placed.push(Placed { item: i, col: c0, row: r0, cspan: cs, rspan: rs });
+                }
+                _ => auto_items.push((i, c, r)),
+            }
+        }
+        let mut cursor = (0usize, 0usize); // (row, col)
+        for (i, (c0, cs), (r0, rs)) in auto_items {
+            let ncols = cols.len().max(cs);
+            let (mut r, mut c) = match (r0, c0) {
+                (Some(r), _) => (r, c0.unwrap_or(0)),
+                (None, Some(c)) => (cursor.0, c),
+                _ => cursor,
+            };
+            for _ in 0..10_000 {
+                if c + cs > ncols {
+                    c = 0;
+                    r += 1;
+                    continue;
+                }
+                if free(&taken, r, c, rs, cs) {
+                    break;
+                }
+                if c0.is_some() {
+                    r += 1;
+                } else {
+                    c += 1;
+                }
+            }
+            mark(&mut taken, r, c, rs, cs);
+            placed.push(Placed { item: i, col: c, row: r, cspan: cs, rspan: rs });
+            if r0.is_none() && c0.is_none() {
+                cursor = (r, c + cs);
+            }
+        }
+        // Implicit tracks for anything placed beyond the template.
+        let need_cols = placed.iter().map(|p| p.col + p.cspan).max().unwrap_or(0);
+        while cols.len() < need_cols {
+            cols.push(auto_col);
+        }
+        let need_rows = placed.iter().map(|p| p.row + p.rspan).max().unwrap_or(0).max(n_rows_explicit);
+        while rows.len() < need_rows {
+            rows.push(auto_row);
+        }
+
+        // Column widths: content sizes for auto tracks, then fr shares of what's left.
+        let mut content: Vec<(f32, f32)> = vec![(0.0, 0.0); cols.len()];
+        for p in placed.iter().filter(|p| p.cspan == 1) {
+            if cols[p.col].needs_content() {
+                let (mn, mx) = match &items[p.item] {
+                    FlexItem::Node(n) => self.content_widths(*n),
+                    FlexItem::Text(nodes) => {
+                        let nodes = nodes.clone();
+                        let narrow = self.detach_text(&nodes, 0.0, Align::Left).w;
+                        let wide = self.detach_text(&nodes, 100_000.0, Align::Left).w;
+                        (narrow, wide)
+                    }
+                };
+                content[p.col].0 = content[p.col].0.max(mn);
+                content[p.col].1 = content[p.col].1.max(mx);
+            }
+        }
+        let widths = grid::size_tracks(&cols, &content, w, col_gap, true);
+        let mut col_x = Vec::with_capacity(widths.len());
+        let mut cx = x;
+        for cw in &widths {
+            col_x.push(cx);
+            cx += cw + col_gap;
+        }
+        let span_w = |p: &Placed| widths[p.col..p.col + p.cspan].iter().sum::<f32>() + col_gap * (p.cspan as f32 - 1.0);
+
+        // Row heights from the items' natural heights.
+        let mut natural = vec![0.0f32; placed.len()];
+        let mut row_content: Vec<(f32, f32)> = vec![(0.0, 0.0); rows.len()];
+        for (k, p) in placed.iter().enumerate() {
+            let h = match &items[p.item] {
+                FlexItem::Node(n) => self.layout_at(*n, span_w(p), None).h,
+                FlexItem::Text(nodes) => self.detach_text(&nodes.clone(), span_w(p), Align::Left).h,
+            };
+            natural[k] = h;
+            if p.rspan == 1 {
+                row_content[p.row].0 = row_content[p.row].0.max(h);
+                row_content[p.row].1 = row_content[p.row].1.max(h);
+            }
+        }
+        let mut heights = grid::size_tracks(&rows, &row_content, definite_h.unwrap_or(0.0), row_gap, definite_h.is_some());
+        for (k, p) in placed.iter().enumerate() {
+            if p.rspan > 1 {
+                let have: f32 = heights[p.row..p.row + p.rspan].iter().sum::<f32>() + row_gap * (p.rspan as f32 - 1.0);
+                if natural[k] > have {
+                    heights[p.row + p.rspan - 1] += natural[k] - have;
+                }
+            }
+        }
+        let mut row_y = Vec::with_capacity(heights.len());
+        let mut ry = y;
+        for rh in &heights {
+            row_y.push(ry);
+            ry += rh + row_gap;
+        }
+
+        // Lay each item out in its area.
+        for (k, p) in placed.iter().enumerate() {
+            let area_h = heights[p.row..p.row + p.rspan].iter().sum::<f32>() + row_gap * (p.rspan as f32 - 1.0);
+            let (iw, ix, iy) = (span_w(p), col_x[p.col], row_y[p.row]);
+            match &items[p.item] {
+                FlexItem::Node(n) => {
+                    let align = self.styles[*n].flex.align_self.unwrap_or(fl.align_items);
+                    let stretch = align == AlignItems::Stretch && self.styles[*n].height == Len::Auto;
+                    let d = self.layout_at(*n, iw, stretch.then_some(area_h));
+                    let dy = match align {
+                        AlignItems::Center => (area_h - d.h) / 2.0,
+                        AlignItems::End => area_h - d.h,
+                        _ => 0.0,
+                    };
+                    self.place_detached(d, ix, iy + dy.max(0.0));
+                }
+                FlexItem::Text(nodes) => {
+                    let d = self.detach_text(&nodes.clone(), iw, Align::Left);
+                    self.place_detached(d, ix, iy);
+                }
+            }
+            let _ = natural[k];
+        }
+        let total = if heights.is_empty() { 0.0 } else { ry - row_gap - y };
+        total.max(definite_h.unwrap_or(0.0))
     }
 
     /// Lay out loose text inside a flex container as an anonymous box.

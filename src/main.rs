@@ -9,6 +9,7 @@
 mod css;
 mod dom;
 mod font;
+mod grid;
 mod html;
 mod images;
 mod js;
@@ -681,6 +682,7 @@ mod screenshot_tests {
         ("tests/floats.html", 1024),
         ("tests/tables.html", 900),
         ("tests/selectors.html", 700),
+        ("tests/grid.html", 900),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

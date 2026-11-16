@@ -181,6 +181,22 @@ pub enum VAlign {
     Bottom,
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GridTemplate {
+    pub columns: String,
+    pub rows: String,
+    pub areas: String,
+    pub auto_rows: String,
+    pub auto_columns: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GridPlace {
+    pub column: String,
+    pub row: String,
+    pub area: String,
+}
+
 /// Flex container and flex item properties.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Flex {
@@ -261,6 +277,10 @@ pub struct Style {
     /// display: flow-root (starts a new block formatting context, contains floats)
     pub flow_root: bool,
     pub table_role: TableRole,
+    /// CSS grid container and its templates (kept as written; resolved at layout time).
+    pub grid: Option<Rc<GridTemplate>>,
+    /// Grid item placement: grid-column, grid-row, grid-area (as written).
+    pub grid_place: Option<Rc<GridPlace>>,
     pub border_spacing: f32,
     pub border_collapse: bool,
     pub valign: VAlign,
@@ -306,6 +326,8 @@ impl Default for Style {
             clear: (false, false),
             flow_root: false,
             table_role: TableRole::None,
+            grid: None,
+            grid_place: None,
             border_spacing: 0.0,
             border_collapse: false,
             valign: VAlign::Baseline,
@@ -1253,14 +1275,12 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 "table-caption" => TableRole::Caption,
                 _ => TableRole::None,
             };
-            st.flex.container = lower.contains("flex") || lower.contains("grid");
+            st.flex.container = lower.contains("flex");
             st.flow_root = lower == "flow-root";
             if lower.contains("grid") {
-                // Grids default to one column until grid-template-columns says otherwise.
-                st.flex.wrap = true;
-                st.flex.grid_columns.get_or_insert(1);
+                st.grid.get_or_insert_with(Default::default);
             } else {
-                st.flex.grid_columns = None;
+                st.grid = None;
             }
         }
         "flex-direction" => {
@@ -1357,15 +1377,41 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 st.flex.column_gap = l;
             }
         }
-        "grid-template-columns" => {
-            // Count the columns: repeat(N, …), or one per track listed.
-            let n = if let Some(rest) = lower.strip_prefix("repeat(") {
-                rest.split(',').next().and_then(|n| n.trim().parse::<usize>().ok()).unwrap_or(1)
-            } else {
-                css::split_top(&lower, ' ').iter().filter(|t| !t.trim().is_empty()).count()
+        "grid-template-columns" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).columns = v.to_string(),
+        "grid-template-rows" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).rows = v.to_string(),
+        "grid-template-areas" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).areas = v.to_string(),
+        "grid-auto-rows" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).auto_rows = v.to_string(),
+        "grid-auto-columns" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).auto_columns = v.to_string(),
+        "grid-template" => {
+            // "rows / columns" (area strings in this form are not supported yet)
+            let g = Rc::make_mut(st.grid.get_or_insert_with(Default::default));
+            if let Some((r, c)) = v.split_once('/') {
+                g.rows = r.trim().to_string();
+                g.columns = c.trim().to_string();
+            }
+        }
+        "grid-column" | "grid-row" | "grid-area" => {
+            let p = Rc::make_mut(st.grid_place.get_or_insert_with(Default::default));
+            match name {
+                "grid-column" => p.column = v.to_string(),
+                "grid-row" => p.row = v.to_string(),
+                _ => p.area = v.to_string(),
+            }
+        }
+        "grid-column-start" | "grid-column-end" | "grid-row-start" | "grid-row-end" => {
+            let p = Rc::make_mut(st.grid_place.get_or_insert_with(Default::default));
+            let slot = if name.starts_with("grid-column") { &mut p.column } else { &mut p.row };
+            let (mut a, mut b) = match slot.split_once('/') {
+                Some((a, b)) => (a.trim().to_string(), b.trim().to_string()),
+                None if slot.is_empty() => ("auto".to_string(), "auto".to_string()),
+                None => (slot.trim().to_string(), "auto".to_string()),
             };
-            st.flex.grid_columns = Some(n.max(1));
-            st.flex.wrap = true;
+            if name.ends_with("start") {
+                a = v.to_string();
+            } else {
+                b = v.to_string();
+            }
+            *slot = format!("{a} / {b}");
         }
         "position" => {
             st.position = match lower.as_str() {
