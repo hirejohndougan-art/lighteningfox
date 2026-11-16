@@ -81,15 +81,29 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   `width`/`height` attributes or the image itself, keeping aspect ratio; `max-width` scaling
 - **Modern CSS values**: custom properties and `var()` with fallbacks, `calc()`, `min()`, `max()`, `clamp()`
 - **Inline boxes**: backgrounds, padding and borders on `<span>`, `<code>`, `<kbd>`, `<mark>`, split across lines
+- **Backgrounds**: `border-radius` with smooth corners, `background-image` with size/position/repeat,
+  `linear-gradient()` and `radial-gradient()`
+- **inline-block**: nav menus, buttons, badges and tiles sit in lines, aligned on their text baseline
+- **Background loading**: pages, stylesheets, scripts and images download on worker threads; the window
+  stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Interaction**: address bar, scrolling, clickable links, back history, resize reflow
 
 Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
 
+## Tests
+
+```bash
+cargo test --release                       # unit tests + screenshot tests
+UPDATE_REFERENCES=1 cargo test --release   # approve new screenshots after an intended change
+```
+
+Screenshot tests render each page listed in `src/main.rs` (`screenshot_tests`) and compare it with
+`tests/reference/*.png`. Failures save the new rendering to `target/screenshot-diffs/`.
+GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
+
 ## Roadmap
 
-1. **Background images and gradients**, `border-radius`
-2. **inline-block** and vertical-align
-3. **Flexbox**, then **grid**: most modern layouts depend on these
+1. **Flexbox**, then **grid**: most modern layouts depend on these
 4. **Positioning**: `position: relative/absolute/fixed/sticky`, `z-index`, `float`
 5. **Tables**: real table layout
 6. **Background loading**: fetch on a worker thread so the UI never freezes

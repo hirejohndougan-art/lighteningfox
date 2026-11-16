@@ -2,7 +2,7 @@
 
 use crate::font::Fonts;
 use crate::images::Images;
-use crate::style::Color;
+use crate::style::{Background, BgImage, BgSize, Color, Len};
 
 #[derive(Debug, Clone)]
 pub enum Item {
@@ -10,6 +10,80 @@ pub enum Item {
     /// `y` is the text baseline.
     Text { x: f32, y: f32, text: String, font: u8, size: f32, color: Color },
     Image { x: f32, y: f32, w: f32, h: f32, src: String },
+    /// A background: color and/or image/gradient, clipped to rounded corners.
+    Box { x: f32, y: f32, w: f32, h: f32, radius: f32, bg: Box<Background> },
+    /// A uniform border following rounded corners.
+    Ring { x: f32, y: f32, w: f32, h: f32, radius: f32, width: f32, color: Color },
+}
+
+/// Coverage (0..1) of pixel center (px, py) inside a rounded rectangle. Anti-aliased edges.
+#[inline]
+fn rounded_cov(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32) -> f32 {
+    if w <= 0.0 || h <= 0.0 {
+        return 0.0;
+    }
+    let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
+    let cx = x + w / 2.0;
+    let cy = y + h / 2.0;
+    let dx = ((px - cx).abs() - (w / 2.0 - r)).max(0.0);
+    let dy = ((py - cy).abs() - (h / 2.0 - r)).max(0.0);
+    let d = if dx > 0.0 && dy > 0.0 {
+        (dx * dx + dy * dy).sqrt() - r
+    } else {
+        // Straight edges: distance outside the plain rectangle.
+        ((px - cx).abs() - w / 2.0).max((py - cy).abs() - h / 2.0)
+    };
+    (0.5 - d).clamp(0.0, 1.0)
+}
+
+/// Gradient stops with every position filled in (0..1), as CSS does.
+fn resolve_stops(stops: &[(Color, Option<f32>)]) -> Vec<(Color, f32)> {
+    let n = stops.len();
+    let mut pos: Vec<Option<f32>> = stops.iter().map(|s| s.1).collect();
+    if pos[0].is_none() {
+        pos[0] = Some(0.0);
+    }
+    if pos[n - 1].is_none() {
+        pos[n - 1] = Some(1.0);
+    }
+    let mut i = 0;
+    while i < n {
+        if pos[i].is_none() {
+            let start = i - 1;
+            let mut end = i;
+            while pos[end].is_none() {
+                end += 1;
+            }
+            let (a, b) = (pos[start].unwrap(), pos[end].unwrap());
+            for k in i..end {
+                pos[k] = Some(a + (b - a) * (k - start) as f32 / (end - start) as f32);
+            }
+            i = end;
+        }
+        i += 1;
+    }
+    // Positions never go backwards.
+    let mut last = 0.0f32;
+    stops.iter().zip(pos).map(|((c, _), p)| {
+        last = last.max(p.unwrap());
+        (*c, last)
+    }).collect()
+}
+
+fn gradient_at(stops: &[(Color, f32)], t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    if t <= stops[0].1 {
+        return stops[0].0;
+    }
+    for pair in stops.windows(2) {
+        let ((c0, p0), (c1, p1)) = (pair[0], pair[1]);
+        if t <= p1 {
+            let f = if p1 > p0 { (t - p0) / (p1 - p0) } else { 1.0 };
+            let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
+            return Color { r: mix(c0.r, c1.r), g: mix(c0.g, c1.g), b: mix(c0.b, c1.b), a: mix(c0.a, c1.a) };
+        }
+    }
+    stops[stops.len() - 1].0
 }
 
 pub struct Canvas {
@@ -102,6 +176,142 @@ impl Canvas {
         }
     }
 
+    /// Pixel range covered by a box, clipped to the canvas.
+    fn span(&self, x: f32, y: f32, w: f32, h: f32) -> (i32, i32, i32, i32) {
+        (
+            (x.floor() as i32).max(0),
+            (y.floor() as i32).max(0),
+            ((x + w).ceil() as i32).min(self.w as i32),
+            ((y + h).ceil() as i32).min(self.h as i32),
+        )
+    }
+
+    fn fill_background(&mut self, images: &Images, x: f32, y: f32, w: f32, h: f32, radius: f32, bg: &Background) {
+        let (x0, y0, x1, y1) = self.span(x, y, w, h);
+        let cov = |px: i32, py: i32| {
+            if radius > 0.0 {
+                rounded_cov(px as f32 + 0.5, py as f32 + 0.5, x, y, w, h, radius)
+            } else {
+                1.0
+            }
+        };
+        if bg.color.a > 0 {
+            for py in y0..y1 {
+                for px in x0..x1 {
+                    let c = cov(px, py);
+                    if c > 0.0 {
+                        self.blend(px, py, bg.color, c);
+                    }
+                }
+            }
+        }
+        match &bg.image {
+            None => {}
+            Some(BgImage::Linear { angle, stops }) => {
+                let stops = resolve_stops(stops);
+                let a = angle.to_radians();
+                let (sa, ca) = (a.sin(), a.cos());
+                let len = (w * sa).abs() + (h * ca).abs();
+                let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+                for py in y0..y1 {
+                    for px in x0..x1 {
+                        let c = cov(px, py);
+                        if c > 0.0 {
+                            let t = ((px as f32 + 0.5 - cx) * sa - (py as f32 + 0.5 - cy) * ca) / len.max(1.0) + 0.5;
+                            self.blend(px, py, gradient_at(&stops, t), c);
+                        }
+                    }
+                }
+            }
+            Some(BgImage::Radial { stops }) => {
+                let stops = resolve_stops(stops);
+                let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+                let far = ((w / 2.0).powi(2) + (h / 2.0).powi(2)).sqrt().max(1.0);
+                for py in y0..y1 {
+                    for px in x0..x1 {
+                        let c = cov(px, py);
+                        if c > 0.0 {
+                            let d = ((px as f32 + 0.5 - cx).powi(2) + (py as f32 + 0.5 - cy).powi(2)).sqrt();
+                            self.blend(px, py, gradient_at(&stops, d / far), c);
+                        }
+                    }
+                }
+            }
+            Some(BgImage::Url(src)) => {
+                let Some((iw, ih)) = images.size(src) else { return };
+                let ratio = iw / ih.max(1.0);
+                let (tw, th) = match bg.size {
+                    BgSize::Auto => (iw, ih),
+                    BgSize::Cover => {
+                        let s = (w / iw).max(h / ih);
+                        (iw * s, ih * s)
+                    }
+                    BgSize::Contain => {
+                        let s = (w / iw).min(h / ih);
+                        (iw * s, ih * s)
+                    }
+                    BgSize::Size(a, b) => match (a, b) {
+                        (Len::Auto, Len::Auto) => (iw, ih),
+                        (a, Len::Auto) => (a.resolve(w), a.resolve(w) / ratio),
+                        (Len::Auto, b) => (b.resolve(h) * ratio, b.resolve(h)),
+                        (a, b) => (a.resolve(w), b.resolve(h)),
+                    },
+                };
+                let (tw, th) = (tw.round().max(1.0), th.round().max(1.0));
+                let Some(tile) = images.scaled(src, tw as u32, th as u32) else { return };
+                // Percent positions align the same point of image and box.
+                let off = |l: Len, free: f32| match l {
+                    Len::Pct(p) => free * p / 100.0,
+                    Len::Mix(px, p) => px + free * p / 100.0,
+                    other => other.resolve(0.0),
+                };
+                let ox = x + off(bg.pos.0, w - tw);
+                let oy = y + off(bg.pos.1, h - th);
+                let (twi, thi) = (tile.width() as i32, tile.height() as i32);
+                for py in y0..y1 {
+                    let mut ty = py - oy.round() as i32;
+                    if bg.repeat.1 {
+                        ty = ty.rem_euclid(thi);
+                    } else if ty < 0 || ty >= thi {
+                        continue;
+                    }
+                    for px in x0..x1 {
+                        let mut tx = px - ox.round() as i32;
+                        if bg.repeat.0 {
+                            tx = tx.rem_euclid(twi);
+                        } else if tx < 0 || tx >= twi {
+                            continue;
+                        }
+                        let c = cov(px, py);
+                        if c > 0.0 {
+                            let [r, g, b, a] = tile.get_pixel(tx as u32, ty as u32).0;
+                            self.blend(px, py, Color { r, g, b, a }, c);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn stroke_ring(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, width: f32, color: Color) {
+        let (x0, y0, x1, y1) = self.span(x, y, w, h);
+        let inner_r = (radius - width).max(0.0);
+        for py in y0..y1 {
+            for px in x0..x1 {
+                let (fx, fy) = (px as f32 + 0.5, py as f32 + 0.5);
+                let outer = rounded_cov(fx, fy, x, y, w, h, radius);
+                if outer <= 0.0 {
+                    continue;
+                }
+                let inner = rounded_cov(fx, fy, x + width, y + width, w - 2.0 * width, h - 2.0 * width, inner_r);
+                let c = outer * (1.0 - inner);
+                if c > 0.0 {
+                    self.blend(px, py, color, c);
+                }
+            }
+        }
+    }
+
     /// Paint the display list, shifted by (dx, dy).
     pub fn paint(&mut self, fonts: &Fonts, images: &Images, items: &[Item], dx: f32, dy: f32) {
         let h = self.h as f32;
@@ -114,6 +324,16 @@ impl Canvas {
                 }
                 Item::Text { x, y, text, font, size, color } => {
                     self.draw_text(fonts, x + dx, y + dy, text, *font, *size, *color)
+                }
+                Item::Box { x, y, w, h: bh, radius, bg } => {
+                    if y + dy + bh >= 0.0 && y + dy <= h {
+                        self.fill_background(images, x + dx, y + dy, *w, *bh, *radius, bg);
+                    }
+                }
+                Item::Ring { x, y, w, h: rh, radius, width, color } => {
+                    if y + dy + rh >= 0.0 && y + dy <= h {
+                        self.stroke_ring(x + dx, y + dy, *w, *rh, *radius, *width, *color);
+                    }
                 }
                 Item::Image { x, y, w, h: ih, src } => {
                     if y + dy + ih >= 0.0 && y + dy <= h {

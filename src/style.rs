@@ -28,6 +28,8 @@ pub enum Display {
     None,
     Block,
     Inline,
+    /// A block box that sits inside a line of text (buttons, nav items, badges).
+    InlineBlock,
     ListItem,
 }
 
@@ -65,6 +67,50 @@ pub enum ListStyle {
     None,
 }
 
+/// A background image layer: a picture or a gradient.
+#[derive(Debug, Clone, PartialEq)]
+pub enum BgImage {
+    Url(String),
+    /// `angle` in degrees, CSS convention (0 = to top, 90 = to right, 180 = to bottom).
+    Linear { angle: f32, stops: Vec<(Color, Option<f32>)> },
+    Radial { stops: Vec<(Color, Option<f32>)> },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BgSize {
+    Auto,
+    Cover,
+    Contain,
+    Size(Len, Len),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Background {
+    pub color: Color,
+    pub image: Option<BgImage>,
+    pub size: BgSize,
+    pub pos: (Len, Len),
+    pub repeat: (bool, bool),
+}
+
+impl Default for Background {
+    fn default() -> Self {
+        Background {
+            color: Color::TRANSPARENT,
+            image: None,
+            size: BgSize::Auto,
+            pos: (Len::Pct(0.0), Len::Pct(0.0)),
+            repeat: (true, true),
+        }
+    }
+}
+
+impl Background {
+    pub fn visible(&self) -> bool {
+        self.color.a > 0 || self.image.is_some()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Style {
     pub display: Display,
@@ -84,6 +130,8 @@ pub struct Style {
     pub vars: Rc<HashMap<String, String>>,
     // not inherited
     pub background: Color,
+    pub bg: Background,
+    pub radius: Len,
     pub margin: [Len; 4], // top right bottom left
     pub padding: [Len; 4],
     pub border: [f32; 4],
@@ -110,6 +158,8 @@ impl Default for Style {
             hidden: false,
             vars: Rc::default(),
             background: Color::TRANSPARENT,
+            bg: Background::default(),
+            radius: Len::Px(0.0),
             margin: [Len::Px(0.0); 4],
             padding: [Len::Px(0.0); 4],
             border: [0.0; 4],
@@ -174,7 +224,8 @@ big { font-size: 1.2em; }
 center { text-align: center; }
 hr { border: 1px solid #888; margin-top: 0.5em; margin-bottom: 0.5em; }
 th, td { padding: 1px; }
-button, input, select, textarea { display: inline; }
+input, select, textarea { display: inline; }
+button { display: inline-block; padding: 2px 8px; border: 1px solid #8f8f9d; background-color: #e9e9ed; border-radius: 4px; text-align: center; }
 "#;
 
 struct Matched<'a> {
@@ -249,6 +300,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Style> {
 fn presentational_hints(dom: &Dom, id: NodeId, st: &mut Style, parent: &Style) {
     if let Some(c) = dom.attr(id, "bgcolor").and_then(parse_color) {
         st.background = c;
+        st.bg.color = c;
     }
     if dom.tag(id) == Some("font") {
         if let Some(c) = dom.attr(id, "color").and_then(parse_color) {
@@ -598,6 +650,41 @@ pub fn parse_color(v: &str) -> Option<Color> {
         "steelblue" => Color::rgb(70, 130, 180),
         "slategray" | "slategrey" => Color::rgb(112, 128, 144),
         "dimgray" | "dimgrey" => Color::rgb(105, 105, 105),
+        "indigo" => Color::rgb(75, 0, 130),
+        "violet" => Color::rgb(238, 130, 238),
+        "coral" => Color::rgb(255, 127, 80),
+        "crimson" => Color::rgb(220, 20, 60),
+        "tomato" => Color::rgb(255, 99, 71),
+        "salmon" => Color::rgb(250, 128, 114),
+        "khaki" => Color::rgb(240, 230, 140),
+        "plum" => Color::rgb(221, 160, 221),
+        "orchid" => Color::rgb(218, 112, 214),
+        "tan" => Color::rgb(210, 180, 140),
+        "chocolate" => Color::rgb(210, 105, 30),
+        "sienna" => Color::rgb(160, 82, 45),
+        "skyblue" => Color::rgb(135, 206, 235),
+        "lightblue" => Color::rgb(173, 216, 230),
+        "royalblue" => Color::rgb(65, 105, 225),
+        "dodgerblue" => Color::rgb(30, 144, 255),
+        "midnightblue" => Color::rgb(25, 25, 112),
+        "turquoise" => Color::rgb(64, 224, 208),
+        "seagreen" => Color::rgb(46, 139, 87),
+        "forestgreen" => Color::rgb(34, 139, 34),
+        "limegreen" => Color::rgb(50, 205, 50),
+        "lightgreen" => Color::rgb(144, 238, 144),
+        "darkorange" => Color::rgb(255, 140, 0),
+        "goldenrod" => Color::rgb(218, 165, 32),
+        "hotpink" => Color::rgb(255, 105, 180),
+        "lavender" => Color::rgb(230, 230, 250),
+        "linen" => Color::rgb(250, 240, 230),
+        "snow" => Color::rgb(255, 250, 250),
+        "honeydew" => Color::rgb(240, 255, 240),
+        "aliceblue" => Color::rgb(240, 248, 255),
+        "gainsboro" => Color::rgb(220, 220, 220),
+        "slateblue" => Color::rgb(106, 90, 205),
+        "darkslategray" | "darkslategrey" => Color::rgb(47, 79, 79),
+        "lightyellow" => Color::rgb(255, 255, 224),
+        "rebeccapurple" => Color::rgb(102, 51, 153),
         _ => return None,
     })
 }
@@ -665,6 +752,130 @@ fn border_shorthand(v: &str, fs: f32) -> (f32, Option<Color>) {
     (if has_style { width } else { 0.0 }, color)
 }
 
+fn parse_repeat(t: &str) -> Option<(bool, bool)> {
+    Some(match t.trim() {
+        "repeat" => (true, true),
+        "no-repeat" => (false, false),
+        "repeat-x" => (true, false),
+        "repeat-y" => (false, true),
+        "space" | "round" => (true, true),
+        "repeat no-repeat" => (true, false),
+        "no-repeat repeat" => (false, true),
+        _ => return None,
+    })
+}
+
+fn parse_bg_size(v: &str, fs: f32) -> BgSize {
+    match v.trim() {
+        "cover" => BgSize::Cover,
+        "contain" => BgSize::Contain,
+        "" | "auto" | "auto auto" => BgSize::Auto,
+        other => {
+            let parts: Vec<Len> = other.split_whitespace().filter_map(|t| parse_len(t, fs)).collect();
+            match parts.as_slice() {
+                [w] => BgSize::Size(*w, Len::Auto),
+                [w, h, ..] => BgSize::Size(*w, *h),
+                _ => BgSize::Auto,
+            }
+        }
+    }
+}
+
+/// `center`, `top right`, `50% 20px`, `right 10px top` (simplified) -> (x, y)
+fn parse_bg_pos(v: &str, fs: f32) -> (Len, Len) {
+    let words: Vec<&str> = v.split_whitespace().collect();
+    let mut x = None;
+    let mut y = None;
+    for w in &words {
+        match *w {
+            "left" => x = Some(Len::Pct(0.0)),
+            "right" => x = Some(Len::Pct(100.0)),
+            "top" => y = Some(Len::Pct(0.0)),
+            "bottom" => y = Some(Len::Pct(100.0)),
+            "center" => {
+                if x.is_none() {
+                    x = Some(Len::Pct(50.0));
+                } else if y.is_none() {
+                    y = Some(Len::Pct(50.0));
+                }
+            }
+            t => {
+                if let Some(l) = parse_len(t, fs) {
+                    if x.is_none() {
+                        x = Some(l);
+                    } else if y.is_none() {
+                        y = Some(l);
+                    }
+                }
+            }
+        }
+    }
+    if words.len() == 1 && words[0] == "center" {
+        return (Len::Pct(50.0), Len::Pct(50.0));
+    }
+    (x.unwrap_or(Len::Pct(50.0)), y.unwrap_or(Len::Pct(50.0)))
+}
+
+/// `url(...)`, `linear-gradient(...)`, `radial-gradient(...)`
+pub fn parse_bg_image(v: &str) -> Option<BgImage> {
+    let lower = v.to_ascii_lowercase();
+    let inner = |prefix: &str| -> Option<String> {
+        let start = lower.find(prefix)? + prefix.len();
+        let end = v.rfind(')')?;
+        (end >= start).then(|| v[start..end].to_string())
+    };
+    if lower.starts_with("url(") {
+        let u = inner("url(")?;
+        let u = u.trim().trim_matches(|c| c == '"' || c == '\'');
+        return (!u.is_empty()).then(|| BgImage::Url(u.to_string()));
+    }
+    let is_linear = lower.starts_with("linear-gradient(") || lower.starts_with("-webkit-linear-gradient(") || lower.starts_with("repeating-linear-gradient(");
+    let is_radial = lower.starts_with("radial-gradient(") || lower.starts_with("repeating-radial-gradient(");
+    if !is_linear && !is_radial {
+        return None;
+    }
+    let body = inner("gradient(")?;
+    let mut args: Vec<String> = css::split_top(&body, ',').into_iter().map(|a| a.trim().to_string()).collect();
+    let mut angle = 180.0;
+    if let Some(first) = args.first().map(|a| a.to_ascii_lowercase()) {
+        let is_stop = parse_color(first.split_whitespace().next().unwrap_or("")).is_some();
+        if !is_stop {
+            if is_linear {
+                angle = if let Some(d) = first.strip_suffix("deg") {
+                    d.trim().parse().unwrap_or(180.0)
+                } else if let Some(t) = first.strip_suffix("turn") {
+                    t.trim().parse::<f32>().unwrap_or(0.5) * 360.0
+                } else {
+                    let dir = first.trim_start_matches("to ").trim();
+                    match dir {
+                        "top" => 0.0,
+                        "right" => 90.0,
+                        "bottom" => 180.0,
+                        "left" => 270.0,
+                        "top right" | "right top" => 45.0,
+                        "bottom right" | "right bottom" => 135.0,
+                        "bottom left" | "left bottom" => 225.0,
+                        "top left" | "left top" => 315.0,
+                        _ => 180.0,
+                    }
+                };
+            }
+            args.remove(0);
+        }
+    }
+    let mut stops = Vec::new();
+    for a in args {
+        let parts = css::split_top(&a, ' ');
+        let Some(c) = parts.first().and_then(|c| parse_color(c.trim())) else { continue };
+        let pos = parts.get(1).and_then(|p| p.trim().strip_suffix('%')).and_then(|p| p.parse::<f32>().ok()).map(|p| p / 100.0);
+        stops.push((c, pos));
+    }
+    if stops.is_empty() {
+        return None;
+    }
+    Some(if is_linear { BgImage::Linear { angle, stops } } else { BgImage::Radial { stops } })
+}
+
 pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     let v = value.trim();
     let lower = v.to_ascii_lowercase();
@@ -679,7 +890,8 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         "display" => {
             st.display = match lower.as_str() {
                 "none" => Display::None,
-                "inline" | "inline-block" | "inline-flex" | "inline-grid" | "contents" | "inline-table" => Display::Inline,
+                "inline" | "contents" => Display::Inline,
+                "inline-block" | "inline-flex" | "inline-grid" | "inline-table" => Display::InlineBlock,
                 "list-item" => Display::ListItem,
                 _ => Display::Block,
             }
@@ -692,16 +904,78 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         }
         "background-color" => {
             if let Some(c) = parse_color(&lower) {
-                st.background = c
+                st.background = c;
+                st.bg.color = c;
             }
         }
         "background" => {
+            // Shorthand: resets everything, then reads color, image, position / size, repeat.
+            st.bg = Background::default();
+            st.background = Color::TRANSPARENT;
             if lower == "none" {
-                st.background = Color::TRANSPARENT;
+                return;
             }
-            for t in css::split_top(&lower, ' ') {
-                if let Some(c) = parse_color(&t) {
+            // Only the last layer carries a color; we draw the first image layer.
+            let layers = css::split_top(v, ',');
+            if let Some(first) = layers.first() {
+                st.bg.image = css::split_top(first, ' ').iter().find_map(|t| parse_bg_image(t.trim()));
+            }
+            let last = layers.last().map(|l| l.to_string()).unwrap_or_default();
+            let (pos_part, size_part) = match css::split_top(&last, '/').as_slice() {
+                [a, b, ..] => (a.clone(), Some(b.clone())),
+                [a] => (a.clone(), None),
+                _ => (String::new(), None),
+            };
+            let mut pos_words = Vec::new();
+            for t in css::split_top(&pos_part, ' ') {
+                let t = t.trim();
+                let tl = t.to_ascii_lowercase();
+                if t.is_empty() || parse_bg_image(t).is_some() {
+                    continue;
+                }
+                if let Some(c) = parse_color(&tl) {
                     st.background = c;
+                    st.bg.color = c;
+                } else if let Some(r) = parse_repeat(&tl) {
+                    st.bg.repeat = r;
+                } else if !["scroll", "fixed", "local", "border-box", "padding-box", "content-box"].contains(&tl.as_str()) {
+                    pos_words.push(tl);
+                }
+            }
+            if !pos_words.is_empty() {
+                st.bg.pos = parse_bg_pos(&pos_words.join(" "), fs);
+            }
+            if let Some(size) = size_part {
+                // The size part may be followed by repeat/color words: take the leading size tokens.
+                let mut size_words = Vec::new();
+                for t in css::split_top(&size, ' ') {
+                    let tl = t.trim().to_ascii_lowercase();
+                    if let Some(c) = parse_color(&tl) {
+                        st.background = c;
+                        st.bg.color = c;
+                    } else if let Some(r) = parse_repeat(&tl) {
+                        st.bg.repeat = r;
+                    } else if !tl.is_empty() {
+                        size_words.push(tl);
+                    }
+                }
+                st.bg.size = parse_bg_size(&size_words.join(" "), fs);
+            }
+        }
+        "background-image" => {
+            st.bg.image = css::split_top(v, ',').first().and_then(|l| parse_bg_image(l.trim()));
+        }
+        "background-size" => st.bg.size = parse_bg_size(&lower, fs),
+        "background-position" => st.bg.pos = parse_bg_pos(&lower, fs),
+        "background-repeat" => {
+            if let Some(r) = parse_repeat(&lower) {
+                st.bg.repeat = r;
+            }
+        }
+        "border-radius" => {
+            if let Some(first) = css::split_top(&lower, ' ').first() {
+                if let Some(l) = parse_len(first.split('/').next().unwrap_or(""), fs) {
+                    st.radius = l;
                 }
             }
         }

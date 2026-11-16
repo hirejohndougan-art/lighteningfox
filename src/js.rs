@@ -417,7 +417,8 @@ impl Js {
     }
 
     /// Run every <script> in document order, then fire DOMContentLoaded/load.
-    pub fn run_scripts(&mut self, base_url: &str) {
+    /// `prefetched` = external script bodies already downloaded, keyed by absolute URL.
+    pub fn run_scripts(&mut self, base_url: &str, prefetched: &HashMap<String, String>) {
         let scripts: Vec<NodeId> = with_dom(|d| d.find_all("script"));
         for id in scripts {
             let (ty, src, inline) = with_dom(|d| {
@@ -434,7 +435,11 @@ impl Js {
             let (code, label) = match src {
                 Some(src) => {
                     let url = net::resolve(base_url, &src);
-                    match net::fetch(&url) {
+                    let fetched = match prefetched.get(&url) {
+                        Some(body) => Ok((url.clone(), body.clone())),
+                        None => net::fetch(&url),
+                    };
+                    match fetched {
                         Ok((_, body)) => (body, url),
                         Err(e) => {
                             eprintln!("[js] couldn't load {url}: {e}");

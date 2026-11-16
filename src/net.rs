@@ -19,7 +19,7 @@ pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
         let agent = ureq::AgentBuilder::new()
             .user_agent(USER_AGENT)
             .timeout(std::time::Duration::from_secs(20))
-            .try_proxy_from_env(true)
+            .try_proxy_from_env(use_proxy(url))
             .build();
         let resp = agent.get(url).call().map_err(|e| e.to_string())?;
         let final_url = resp.get_url().to_string();
@@ -33,6 +33,20 @@ pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
         let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
         Ok((format!("file://{abs}"), bytes))
     }
+}
+
+/// Skip the system proxy for local addresses and anything listed in NO_PROXY.
+fn use_proxy(url: &str) -> bool {
+    let host = url.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("");
+    let host = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host).to_ascii_lowercase();
+    if host == "localhost" || host.starts_with("127.") || host == "[::1]" {
+        return false;
+    }
+    let no_proxy = std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy")).unwrap_or_default();
+    !no_proxy.split(',').map(str::trim).filter(|d| !d.is_empty()).any(|d| {
+        let d = d.trim_start_matches('.').to_ascii_lowercase();
+        d == "*" || host == d || host.ends_with(&format!(".{d}"))
+    })
 }
 
 /// `data:[<mediatype>][;base64],<data>`

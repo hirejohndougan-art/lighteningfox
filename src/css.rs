@@ -353,3 +353,35 @@ fn parse_compound(chars: &[char], mut i: usize) -> Option<(Compound, usize)> {
     }
     Some((c, i))
 }
+
+/// Make every `url(...)` in a stylesheet absolute, relative to the sheet's own URL.
+pub fn absolutize_urls(sheet: &mut Stylesheet, base: &str) {
+    for rule in &mut sheet.rules {
+        for d in &mut rule.decls {
+            if d.value.contains("url(") {
+                d.value = rewrite_urls(&d.value, base);
+            }
+        }
+    }
+}
+
+fn rewrite_urls(v: &str, base: &str) -> String {
+    let mut out = String::new();
+    let mut rest = v;
+    while let Some(i) = rest.find("url(") {
+        out.push_str(&rest[..i + 4]);
+        rest = &rest[i + 4..];
+        let Some(end) = rest.find(')') else { break };
+        let raw = rest[..end].trim().trim_matches(|c| c == '"' || c == '\'');
+        if raw.starts_with("data:") {
+            out.push_str(&rest[..end]);
+        } else {
+            out.push('"');
+            out.push_str(&crate::net::resolve(base, raw));
+            out.push('"');
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}

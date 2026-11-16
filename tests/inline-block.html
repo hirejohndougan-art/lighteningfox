@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>inline-block</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #fff; }
+  nav { background: #1e293b; padding: 10px 16px; }
+  nav a { display: inline-block; color: #e2e8f0; text-decoration: none; padding: 8px 14px; border-radius: 6px; }
+  nav a.active { background: #f97316; color: white; }
+  .wrap { padding: 24px; }
+  .badge { display: inline-block; background: #e0e7ff; color: #3730a3; border-radius: 999px; padding: 4px 12px; margin-right: 6px; font-size: 13px; }
+  .tile { display: inline-block; width: 150px; padding: 12px; margin: 0 12px 12px 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; vertical-align: top; }
+  .tile b { display: block; font-size: 20px; color: #0f172a; }
+  .tile span { color: #64748b; font-size: 13px; }
+  .center { text-align: center; }
+</style></head>
+<body>
+  <nav><a class="active" href="#">Home</a> <a href="#">Docs</a> <a href="#">Download</a> <a href="#">Blog</a></nav>
+  <div class="wrap">
+    <p>Tags: <span class="badge">rust</span><span class="badge">browser</span><span class="badge">from scratch</span></p>
+    <p>Buttons in a sentence: <button>Save</button> <button>Cancel</button> and more text after.</p>
+    <div class="tile"><b>70,018</b><span>nodes in the largest test page</span></div><div class="tile"><b>0.3 s</b><span>to lay it out</span></div><div class="tile"><b>8</b><span>images fetched in parallel</span></div><div class="tile"><b>4</b><span>image formats</span></div><div class="tile"><b>2</b><span>engines: ours + Boa</span></div>
+    <p class="center"><span class="badge">centered</span><span class="badge">inline-blocks</span></p>
+  </div>
+</body></html>

@@ -32,7 +32,7 @@ pub struct Layout {
 }
 
 pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width: f32) -> Layout {
-    let mut cx = Ctx { dom, styles, fonts, images, items: Vec::new(), links: Vec::new(), hits: Vec::new() };
+    let mut cx = Ctx { dom, styles, fonts, images, items: Vec::new(), links: Vec::new(), hits: Vec::new(), measuring: false };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // Canvas background comes from <html>, else <body>, like real browsers.
     let mut page_bg = Color::rgb(255, 255, 255);
@@ -54,6 +54,8 @@ struct Ctx<'a> {
     items: Vec<Item>,
     links: Vec<(Rect, String)>,
     hits: Vec<(Rect, NodeId)>,
+    /// True while measuring content width: lines are left-aligned.
+    measuring: bool,
 }
 
 /// One unit of inline content.
@@ -66,6 +68,32 @@ enum Tok {
     /// `w` = its left (open) or right (close) padding + border.
     Open { node: NodeId, w: f32 },
     Close { node: NodeId, w: f32 },
+    /// An inline-block, laid out in place as its own little block.
+    InlineBlock { node: NodeId, link: Option<String> },
+}
+
+/// A piece of layout produced away from its final position (inline-blocks).
+struct Detached {
+    items: Vec<Item>,
+    links: Vec<(Rect, String)>,
+    hits: Vec<(Rect, NodeId)>,
+    w: f32,
+    h: f32,
+    /// Distance from the top to the baseline of its last line of text (or its bottom).
+    baseline: f32,
+}
+
+fn shift_item(it: &mut Item, dx: f32, dy: f32) {
+    match it {
+        Item::Rect { x, y, .. }
+        | Item::Text { x, y, .. }
+        | Item::Image { x, y, .. }
+        | Item::Box { x, y, .. }
+        | Item::Ring { x, y, .. } => {
+            *x += dx;
+            *y += dy;
+        }
+    }
 }
 
 struct Placed {
@@ -164,11 +192,15 @@ impl<'a> Ctx<'a> {
         let box_w = w + extra;
         let box_h = bt + pt + content_h + pb + bb;
         let bx = x + ml;
-        if st.background.a > 0 && !st.hidden {
-            self.items[bg_slot] = Item::Rect { x: bx, y: top, w: box_w, h: box_h, color: st.background };
+        let radius = st.radius.resolve(box_w.min(box_h)).min(box_w.min(box_h) / 2.0);
+        if st.bg.visible() && !st.hidden {
+            self.items[bg_slot] = Item::Box { x: bx, y: top, w: box_w, h: box_h, radius, bg: Box::new(st.bg.clone()) };
         }
         let c = st.border_color;
-        if !st.hidden {
+        let uniform = bt == br && bt == bb && bt == bl;
+        if !st.hidden && radius > 0.0 && uniform && bt > 0.0 {
+            self.items.push(Item::Ring { x: bx, y: top, w: box_w, h: box_h, radius, width: bt, color: c });
+        } else if !st.hidden {
             for (rx, ry, rw, rh) in [
                 (bx, top, box_w, bt),
                 (bx, top + box_h - bb, box_w, bb),
@@ -218,6 +250,55 @@ impl<'a> Ctx<'a> {
             cy += h;
         }
         (cy - y, prev_mb)
+    }
+
+    /// Lay out an element as a block at (0, 0), away from the main display list.
+    /// Auto width shrinks to fit the content (measured with a first, left-aligned pass).
+    fn layout_detached(&mut self, id: NodeId, avail: f32) -> Detached {
+        let saved = (std::mem::take(&mut self.items), std::mem::take(&mut self.links), std::mem::take(&mut self.hits));
+        let st = &self.styles[id];
+        let mut width = avail;
+        if st.width == Len::Auto {
+            let was = self.measuring;
+            self.measuring = true;
+            self.block(id, 0.0, 0.0, avail, 0.0);
+            self.measuring = was;
+            let mut right = 0.0f32;
+            for (i, it) in self.items.iter().enumerate() {
+                let r = match it {
+                    Item::Text { x, text, font, size, .. } => x + self.fonts.width(*font, text, *size),
+                    Item::Image { x, w, .. } => x + w,
+                    Item::Box { x, w, .. } if i > 0 => x + w,
+                    _ => 0.0,
+                };
+                right = right.max(r);
+            }
+            let st = &self.styles[id];
+            let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail);
+            width = (right.ceil() + tail).min(avail);
+            self.items.clear();
+            self.links.clear();
+            self.hits.clear();
+        }
+        let (h, _) = self.block(id, 0.0, 0.0, width, 0.0);
+        let st = &self.styles[id];
+        let w = match st.width {
+            Len::Auto => width,
+            l => {
+                let ml = st.margin[3].resolve(avail);
+                let mr = st.margin[1].resolve(avail);
+                l.resolve(avail) + st.padding[1].resolve(avail) + st.padding[3].resolve(avail) + st.border[1] + st.border[3] + ml + mr
+            }
+        };
+        let items = std::mem::replace(&mut self.items, saved.0);
+        let links = std::mem::replace(&mut self.links, saved.1);
+        let hits = std::mem::replace(&mut self.hits, saved.2);
+        let baseline = items
+            .iter()
+            .filter_map(|it| if let Item::Text { y, .. } = it { Some(*y) } else { None })
+            .fold(None, |m: Option<f32>, y| Some(m.map_or(y, |m| m.max(y))))
+            .unwrap_or(h);
+        Detached { items, links, hits, w, h, baseline }
     }
 
     /// Size of an <img>: CSS width/height, else the width/height attributes, else the
@@ -336,6 +417,9 @@ impl<'a> Ctx<'a> {
                 }
                 let href = if tag == "a" { self.dom.attr(id, "href") } else { None };
                 let link = href.or(link);
+                if self.styles[id].display == Display::InlineBlock {
+                    return out.push(Tok::InlineBlock { node: id, link: link.map(String::from) });
+                }
                 let block = self.is_block(id);
                 if block {
                     out.push(Tok::Break { node: id });
@@ -363,7 +447,7 @@ impl<'a> Ctx<'a> {
         let st = &self.styles[id];
         let pl = st.padding[3].resolve(avail);
         let pr = st.padding[1].resolve(avail);
-        let visible = st.background.a > 0 || st.border.iter().any(|&b| b > 0.0) || pl > 0.0 || pr > 0.0;
+        let visible = st.bg.visible() || st.border.iter().any(|&b| b > 0.0) || pl > 0.0 || pr > 0.0;
         visible.then(|| (pl + st.border[3] + st.margin[3].resolve(avail), pr + st.border[1] + st.margin[1].resolve(avail)))
     }
 
@@ -385,10 +469,15 @@ impl<'a> Ctx<'a> {
         let top = baseline - ascent - pt - bt;
         let h = ascent + descent + pt + pb + bt + bb;
         let w = x1 - x0;
-        if st.background.a > 0 {
-            out.push(Item::Rect { x: x0, y: top, w, h, color: st.background });
+        let radius = st.radius.resolve(w.min(h)).min(w.min(h) / 2.0);
+        if st.bg.visible() {
+            out.push(Item::Box { x: x0, y: top, w, h, radius, bg: Box::new(st.bg.clone()) });
         }
         let c = st.border_color;
+        if radius > 0.0 && bt == br && bt == bb && bt == bl && bt > 0.0 {
+            out.push(Item::Ring { x: x0, y: top, w, h, radius, width: bt, color: c });
+            return;
+        }
         for (rx, ry, rw, rh) in [(x0, top, w, bt), (x0, top + h - bb, w, bb), (x0, top, bl, h), (x1 - br, top, br, h)] {
             if rw > 0.0 && rh > 0.0 {
                 out.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, color: c });
@@ -413,6 +502,7 @@ impl<'a> Ctx<'a> {
             }
             Tok::Image { h, .. } => (*h, *h, 0.0),
             Tok::Open { node, .. } | Tok::Close { node, .. } => self.tok_size(&Tok::Space { node: *node }),
+            Tok::InlineBlock { .. } => (0.0, 0.0, 0.0), // sized from its laid-out box instead
         }
     }
 
@@ -420,6 +510,14 @@ impl<'a> Ctx<'a> {
         let mut toks = Vec::new();
         for &id in run {
             self.flatten(id, None, w, &mut toks);
+        }
+        // Lay out inline-blocks first: their size decides where lines break.
+        let mut blocks: std::collections::HashMap<usize, Detached> = std::collections::HashMap::new();
+        for (i, t) in toks.iter().enumerate() {
+            if let Tok::InlineBlock { node, .. } = t {
+                let d = self.layout_detached(*node, w);
+                blocks.insert(i, d);
+            }
         }
         // Break into lines.
         let mut lines: Vec<Line> = vec![Line::default()];
@@ -465,6 +563,10 @@ impl<'a> Ctx<'a> {
                     let iw = iw.min(w);
                     self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, w);
                 }
+                Tok::InlineBlock { .. } => {
+                    let bw = blocks.get(&i).map_or(0.0, |d| d.w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, bw, i, w);
+                }
             }
         }
         // Emit lines.
@@ -475,7 +577,10 @@ impl<'a> Ctx<'a> {
             let (mut lh, mut above) = (0.0f32, 0.0f32);
             let mut below = 0.0f32;
             for p in &line.items {
-                let (h, a, b) = self.tok_size(&toks[p.tok]);
+                let (h, a, b) = match blocks.get(&p.tok) {
+                    Some(d) => (d.h, d.baseline, d.h - d.baseline),
+                    None => self.tok_size(&toks[p.tok]),
+                };
                 lh = lh.max(h);
                 above = above.max(a);
                 below = below.max(b);
@@ -487,6 +592,7 @@ impl<'a> Ctx<'a> {
                 continue;
             }
             let lh = lh.max(above + below);
+            let align = if self.measuring { Align::Left } else { align };
             let shift = match align {
                 Align::Left => 0.0,
                 Align::Center => ((w - line.width) / 2.0).max(0.0),
@@ -543,6 +649,22 @@ impl<'a> Ctx<'a> {
                         self.hits.push((r, *node));
                         if let Some(href) = link {
                             self.links.push((r, href.clone()));
+                        }
+                    }
+                    Tok::InlineBlock { link, .. } => {
+                        prev_underline_end = None;
+                        if let Some(d) = blocks.remove(&p.tok) {
+                            let (dx, dy) = (px, baseline - d.baseline);
+                            if let Some(href) = link {
+                                self.links.push((Rect { x: dx, y: dy, w: d.w, h: d.h }, href.clone()));
+                            }
+                            for mut it in d.items {
+                                shift_item(&mut it, dx, dy);
+                                self.items.push(it);
+                            }
+                            let mv = |r: Rect| Rect { x: r.x + dx, y: r.y + dy, ..r };
+                            self.links.extend(d.links.into_iter().map(|(r, l)| (mv(r), l)));
+                            self.hits.extend(d.hits.into_iter().map(|(r, n)| (mv(r), n)));
                         }
                     }
                     Tok::Image { h, node, src, link, .. } => {

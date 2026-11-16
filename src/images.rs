@@ -60,13 +60,13 @@ impl Images {
     }
 
     /// Load every <img src> in the DOM that isn't loaded yet. Fetches run in parallel.
-    pub fn load_missing(&mut self, dom: &Dom, base_url: &str) {
+    /// `extra` = more image URLs to load, such as CSS background images.
+    pub fn load_missing(&mut self, dom: &Dom, base_url: &str, extra: &[String]) {
         let mut wanted: Vec<String> = Vec::new();
-        for id in dom.find_all("img") {
-            if let Some(src) = dom.attr(id, "src").map(str::trim).filter(|s| !s.is_empty()) {
-                if !self.by_src.contains_key(src) && !self.failed.contains(src) && !wanted.iter().any(|w| w == src) {
-                    wanted.push(src.to_string());
-                }
+        let srcs = dom.find_all("img").into_iter().filter_map(|id| dom.attr(id, "src").map(|s| s.trim().to_string()));
+        for src in srcs.chain(extra.iter().cloned()) {
+            if !src.is_empty() && !self.by_src.contains_key(&src) && !self.failed.contains(&src) && !wanted.contains(&src) {
+                wanted.push(src);
             }
         }
         for chunk in wanted.chunks(MAX_PARALLEL) {

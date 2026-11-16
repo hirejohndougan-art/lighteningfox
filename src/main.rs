@@ -21,6 +21,9 @@ use font::Fonts;
 use minifb::{CursorStyle, Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 use paint::Canvas;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::sync::mpsc;
+use std::time::Instant;
 use std::rc::Rc;
 use style::Color;
 
@@ -59,9 +62,10 @@ struct Page {
 impl Page {
     /// Re-run the cascade after the DOM changed.
     fn restyle(&mut self) {
-        let (images, url) = (&mut self.images, &self.url);
-        js::with_dom(|d| images.load_missing(d, url));
         self.styles = js::with_dom(|d| style::compute(d, &self.sheets));
+        let bg_urls = background_urls(&self.styles);
+        let (images, url) = (&mut self.images, &self.url);
+        js::with_dom(|d| images.load_missing(d, url, &bg_urls));
         self.title = js::with_dom(|d| d.find_all("title").first().map(|&t| d.text_content(t).trim().to_string()).unwrap_or_default());
     }
 
@@ -70,7 +74,18 @@ impl Page {
     }
 }
 
-fn load(url: &str) -> Page {
+/// Everything a page needs from the network, gathered off the UI thread.
+struct Prepared {
+    url: String,
+    dom: dom::Dom,
+    sheets: Vec<css::Stylesheet>,
+    images: images::Images,
+    scripts: HashMap<String, String>,
+}
+
+/// Fetch the page, its stylesheets, scripts and images, all in parallel where possible.
+/// Runs on a worker thread; touches nothing the UI thread owns.
+fn fetch_page(url: &str) -> Prepared {
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), START_PAGE.to_string())
     } else {
@@ -80,32 +95,95 @@ fn load(url: &str) -> Page {
         }
     };
     let dom = html::parse(&body);
-    let mut sheets = Vec::new();
+
+    // Stylesheets: inline ones in place, external ones fetched in parallel, order kept.
+    enum Src {
+        Inline(String),
+        External(String),
+    }
+    let mut sources = Vec::new();
+    let mut script_urls = Vec::new();
     for id in dom.descendants(dom::Dom::ROOT) {
         match dom.tag(id) {
-            Some("style") => sheets.push(css::parse(&dom.text_content(id))),
+            Some("style") => sources.push(Src::Inline(dom.text_content(id))),
             Some("link") => {
                 let rel = dom.attr(id, "rel").unwrap_or("").to_ascii_lowercase();
                 if let (true, Some(href)) = (rel.split_whitespace().any(|r| r == "stylesheet"), dom.attr(id, "href")) {
                     let media = dom.attr(id, "media").unwrap_or("all");
-                    if media.contains("print") && !media.contains("screen") {
-                        continue;
+                    if !(media.contains("print") && !media.contains("screen")) {
+                        sources.push(Src::External(net::resolve(&final_url, href)));
                     }
-                    if let Ok((_, text)) = net::fetch(&net::resolve(&final_url, href)) {
-                        sheets.push(css::parse(&text));
-                    }
+                }
+            }
+            Some("script") => {
+                if let Some(src) = dom.attr(id, "src") {
+                    script_urls.push(net::resolve(&final_url, src));
                 }
             }
             _ => {}
         }
     }
-    js::set_dom(dom);
-    let mut js = js::Js::new(&final_url);
-    js.run_scripts(&final_url);
+    let (sheets, scripts) = std::thread::scope(|scope| {
+        let sheet_jobs: Vec<_> = sources
+            .iter()
+            .map(|src| match src {
+                Src::Inline(text) => {
+                    let base = final_url.clone();
+                    scope.spawn(move || {
+                        let mut sheet = css::parse(text);
+                        css::absolutize_urls(&mut sheet, &base);
+                        Some(sheet)
+                    })
+                }
+                Src::External(u) => scope.spawn(move || {
+                    let (_, text) = net::fetch(u).ok()?;
+                    let mut sheet = css::parse(&text);
+                    css::absolutize_urls(&mut sheet, u);
+                    Some(sheet)
+                }),
+            })
+            .collect();
+        let script_jobs: Vec<_> =
+            script_urls.iter().map(|u| scope.spawn(move || net::fetch(u).ok().map(|(_, b)| (u.clone(), b)))).collect();
+        let sheets: Vec<css::Stylesheet> = sheet_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
+        let scripts: HashMap<String, String> = script_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
+        (sheets, scripts)
+    });
+
+    // Images: <img> sources plus CSS background images, fetched in parallel.
+    let mut images = images::Images::default();
+    let styles = style::compute(&dom, &sheets);
+    let bg_urls = background_urls(&styles);
+    images.load_missing(&dom, &final_url, &bg_urls);
+    Prepared { url: final_url, dom, sheets, images, scripts }
+}
+
+fn background_urls(styles: &[style::Style]) -> Vec<String> {
+    let mut urls: Vec<String> = Vec::new();
+    for st in styles {
+        if let Some(style::BgImage::Url(u)) = &st.bg.image {
+            if !urls.contains(u) {
+                urls.push(u.clone());
+            }
+        }
+    }
+    urls
+}
+
+/// Turn fetched resources into a live page: install the DOM, run scripts, style it.
+/// Runs on the UI thread (JavaScript and the DOM live there).
+fn build_page(p: Prepared) -> Page {
+    js::set_dom(p.dom);
+    let mut js = js::Js::new(&p.url);
+    js.run_scripts(&p.url, &p.scripts);
     js::take_dirty();
-    let mut page = Page { url: final_url, title: String::new(), sheets, styles: Vec::new(), images: images::Images::default(), js };
+    let mut page = Page { url: p.url, title: String::new(), sheets: p.sheets, styles: Vec::new(), images: p.images, js };
     page.restyle();
     page
+}
+
+fn load(url: &str) -> Page {
+    build_page(fetch_page(url))
 }
 
 fn error_page(url: &str, err: &str) -> String {
@@ -151,20 +229,31 @@ fn main() {
     }
 }
 
-fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
-    let t = std::time::Instant::now();
+/// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
+fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
     let page = load(url);
     let lay = page.layout(fonts, width as f32);
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
     canvas.clear(lay.page_bg);
     canvas.paint(fonts, &page.images, &lay.items, 0.0, 0.0);
-    let file = std::fs::File::create(out).expect("create png");
-    let mut enc = png::Encoder::new(std::io::BufWriter::new(file), width as u32, height as u32);
+    (page, lay, canvas)
+}
+
+fn save_png(canvas: &Canvas, out: &str) -> std::io::Result<()> {
+    let file = std::fs::File::create(out)?;
+    let mut enc = png::Encoder::new(std::io::BufWriter::new(file), canvas.w as u32, canvas.h as u32);
     enc.set_color(png::ColorType::Rgb);
     enc.set_depth(png::BitDepth::Eight);
     let data: Vec<u8> = canvas.buf.iter().flat_map(|p| [(p >> 16) as u8, (p >> 8) as u8, *p as u8]).collect();
-    enc.write_header().unwrap().write_image_data(&data).unwrap();
+    enc.write_header()?.write_image_data(&data).map_err(std::io::Error::other)
+}
+
+fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
+    let t = std::time::Instant::now();
+    let (page, lay, canvas) = render_page(fonts, url, width);
+    let height = canvas.h;
+    save_png(&canvas, out).expect("write png");
     let st = &page.js.stats;
     eprintln!(
         "{}: {} nodes, {} display items, {}x{} px, {:?} total | JS: {} scripts, {} errors, {:?}",
@@ -203,6 +292,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut back: Vec<String> = Vec::new();
     let mut forward: Vec<String> = Vec::new();
     let mut hover: Option<usize> = None;
+    // Pages load on worker threads; results come back tagged with a generation number
+    // so a stopped or superseded load is ignored when it arrives.
+    let (tx, rx) = mpsc::channel::<(u64, Prepared)>();
+    let mut generation = 0u64;
+    let mut loading: Option<Loading> = None;
+    let mut last_spin = Instant::now();
     let mut page = load(start);
     let (mut w, mut h) = window.get_size();
     let mut lay = page.layout(fonts, w as f32);
@@ -217,6 +312,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     while window.is_open() {
         let mut navigate: Option<Go> = None;
         let mut reflow = false;
+        let mut stop_key = false;
 
         // Resize -> relayout.
         let (nw, nh) = window.get_size();
@@ -269,6 +365,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
         } else {
             let ctrl = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+            stop_key = window.is_key_pressed(Key::Escape, KeyRepeat::No);
             let alt = window.is_key_down(Key::LeftAlt) || window.is_key_down(Key::RightAlt);
             for key in window.get_keys_pressed(KeyRepeat::Yes) {
                 let before = scroll;
@@ -362,35 +459,72 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
         was_down = down;
 
-        // Resolve the navigation against the back/forward history.
-        let target = match navigate {
-            Some(Go::To(t)) => {
-                if t != page.url {
-                    back.push(page.url.clone());
-                    forward.clear();
-                }
-                Some(t)
-            }
-            Some(Go::Back) => back.pop().inspect(|_| forward.push(page.url.clone())),
-            Some(Go::Forward) => forward.pop().inspect(|_| back.push(page.url.clone())),
+        // The reload button (and Esc) stop a load in progress.
+        if matches!(navigate, Some(Go::Reload)) && loading.is_some() || (stop_key && loading.is_some()) {
+            navigate = None;
+            loading = None;
+            address = page.url.clone();
+            window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
+            dirty = true;
+        }
+        // Start a navigation: work out the target without touching history yet;
+        // history changes only once the page actually arrives.
+        let target = match &navigate {
+            Some(Go::To(t)) => Some(t.clone()),
+            Some(Go::Back) => back.last().cloned(),
+            Some(Go::Forward) => forward.last().cloned(),
             Some(Go::Reload) => Some(page.url.clone()),
             None => None,
         };
-        if let Some(target) = target {
+        if let (Some(target), Some(kind)) = (target, navigate) {
+            generation += 1;
+            let (g, t, tx) = (generation, target.clone(), tx.clone());
+            std::thread::spawn(move || {
+                let _ = tx.send((g, fetch_page(&t)));
+            });
             window.set_title(&format!("Loading {target} — LighteningFox"));
-            let ui = Toolbar { address: &format!("Loading {target}…"), editing: false, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover: None };
-            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
-            let _ = window.update_with_buffer(&canvas.buf, w, h);
-            page = load(&target);
+            address = target;
+            editing = false;
+            loading = Some(Loading { generation, kind, started: Instant::now() });
+            dirty = true;
+        }
+        // A finished load: build the page here, where JavaScript lives.
+        while let Ok((g, prepared)) = rx.try_recv() {
+            let Some(l) = loading.take_if(|l| l.generation == g) else { continue };
+            let old = page.url.clone();
+            match l.kind {
+                Go::To(_) => {
+                    if prepared.url != old {
+                        back.push(old);
+                        forward.clear();
+                    }
+                }
+                Go::Back => {
+                    back.pop();
+                    forward.push(old);
+                }
+                Go::Forward => {
+                    forward.pop();
+                    back.push(old);
+                }
+                Go::Reload => {}
+            }
+            page = build_page(prepared);
             lay = page.layout(fonts, w as f32);
             scroll = 0.0;
             address = page.url.clone();
             window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
             dirty = true;
         }
+        // Animate the loading bar about ten times a second.
+        if loading.is_some() && last_spin.elapsed().as_millis() >= 100 {
+            last_spin = Instant::now();
+            dirty = true;
+        }
 
         if dirty {
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover };
+            let spin = loading.as_ref().map(|l| l.started.elapsed().as_secs_f32());
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             dirty = false;
@@ -406,6 +540,14 @@ struct Toolbar<'a> {
     can_back: bool,
     can_forward: bool,
     hover: Option<usize>,
+    /// Seconds since the current load started, if a page is loading.
+    loading: Option<f32>,
+}
+
+struct Loading {
+    generation: u64,
+    kind: Go,
+    started: Instant,
 }
 
 fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
@@ -424,6 +566,8 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         }
         let ink = if enabled[i] { Color::rgb(40, 40, 50) } else { Color::rgb(170, 170, 178) };
         let size = 18.0;
+        // While loading, reload becomes stop.
+        let label = if i == 2 && ui.loading.is_some() { &"✕" } else { label };
         let tw = fonts.width(font::BOLD, label, size);
         canvas.draw_text(fonts, bx + (BTN_W - tw) / 2.0, 24.0, label, font::BOLD, size, ink);
     }
@@ -433,4 +577,70 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     canvas.fill_rect(FIELD_X, 5.0, w - FIELD_X - 8.0, bar - 10.0, field);
     let text = if ui.editing { format!("{}|", ui.address) } else { ui.address.to_string() };
     canvas.draw_text(fonts, FIELD_X + 8.0, 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
+    // Loading bar: a segment sliding along the bottom of the toolbar.
+    if let Some(t) = ui.loading {
+        let span = w * 0.25;
+        let pos = (t * 0.8).fract() * (w + span) - span;
+        canvas.fill_rect(pos.max(0.0), bar - 3.0, (pos + span).min(w) - pos.max(0.0), 2.0, Color::rgb(249, 115, 22));
+    }
+}
+
+/// Screenshot tests: every page in tests/ is rendered and compared with its approved
+/// image in tests/reference/. Run `UPDATE_REFERENCES=1 cargo test` to approve new output.
+#[cfg(test)]
+mod screenshot_tests {
+    use super::*;
+
+    const PAGES: &[(&str, usize)] = &[
+        ("about:home", 1024),
+        ("tests/images.html", 1024),
+        ("tests/css3.html", 900),
+        ("tests/backgrounds.html", 1024),
+        ("tests/inline-block.html", 900),
+        ("tests/js-demo.html", 800),
+        ("tests/nav-a.html", 800),
+    ];
+
+    fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
+        let img = image::open(path).ok()?.to_rgb8();
+        Some((img.width() as usize, img.height() as usize, img.into_raw()))
+    }
+
+    #[test]
+    fn pages_match_reference_images() {
+        let fonts = Fonts::load().expect("fonts");
+        let update = std::env::var("UPDATE_REFERENCES").is_ok();
+        std::fs::create_dir_all("tests/reference").unwrap();
+        std::fs::create_dir_all("target/screenshot-diffs").unwrap();
+        let mut failures = Vec::new();
+        for (url, width) in PAGES {
+            let name = url.trim_start_matches("tests/").trim_end_matches(".html").replace(':', "-");
+            let reference = format!("tests/reference/{name}.png");
+            let (_, _, canvas) = render_page(&fonts, url, *width);
+            if update || !std::path::Path::new(&reference).exists() {
+                save_png(&canvas, &reference).unwrap();
+                eprintln!("approved {reference}");
+                continue;
+            }
+            let actual = format!("target/screenshot-diffs/{name}.png");
+            save_png(&canvas, &actual).unwrap();
+            let (rw, rh, want) = read_png(&reference).unwrap();
+            let (aw, ah, got) = read_png(&actual).unwrap();
+            if (rw, rh) != (aw, ah) {
+                failures.push(format!("{url}: size {aw}x{ah}, expected {rw}x{rh} (see {actual})"));
+                continue;
+            }
+            // Allow tiny anti-aliasing differences: count pixels that differ noticeably.
+            let differing = want
+                .chunks(3)
+                .zip(got.chunks(3))
+                .filter(|(a, b)| a.iter().zip(b.iter()).any(|(x, y)| x.abs_diff(*y) > 8))
+                .count();
+            let share = differing as f64 / (rw * rh) as f64;
+            if share > 0.001 {
+                failures.push(format!("{url}: {differing} pixels differ ({:.2}%), see {actual}", share * 100.0));
+            }
+        }
+        assert!(failures.is_empty(), "screenshot mismatches:\n{}", failures.join("\n"));
+    }
 }
