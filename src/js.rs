@@ -396,7 +396,7 @@ impl Js {
         );
         ctx.eval(Source::from_bytes(globals.as_bytes())).expect("globals");
         if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
-            eprintln!("[lantern] prelude failed: {e}");
+            eprintln!("[lighteningfox] prelude failed: {e}");
         }
         Js { ctx, start: Instant::now(), stats: Stats::default() }
     }

@@ -809,17 +809,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lantern"
-version = "0.1.0"
-dependencies = [
- "boa_engine",
- "fontdue",
- "minifb",
- "png",
- "ureq",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -857,6 +846,17 @@ dependencies = [
  "libc",
  "plain",
  "redox_syscall 0.9.5",
+]
+
+[[package]]
+name = "lighteningfox"
+version = "0.1.0"
+dependencies = [
+ "boa_engine",
+ "fontdue",
+ "minifb",
+ "png",
+ "ureq",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-# Lantern
+# LighteningFox
 
 A web browser engine written from scratch in Rust.
 
@@ -19,7 +19,7 @@ and **Boa** (`boa_engine`), a JavaScript engine written in Rust.
 `__query`...). `prelude.js` builds the web API pages use on top of them: `document`, `Element`,
 `classList`, `style`, `innerHTML`, events with bubbling and `preventDefault`, `setTimeout`/`setInterval`,
 `requestAnimationFrame`, `DOMContentLoaded`/`load`, `localStorage`, `location`, `console`.
-When a script changes the DOM, Lantern restyles and reflows the page.
+When a script changes the DOM, LighteningFox restyles and reflows the page.
 
 Benchmark (`tests/bench.html`, this machine):
 
@@ -36,7 +36,7 @@ Benchmark (`tests/bench.html`, this machine):
 | DOM querySelectorAll x200 | 393 ms |
 | DOM innerHTML 500 items | 3 ms |
 
-Run it yourself: `./target/release/lantern tests/bench.html --png /tmp/b.png`
+Run it yourself: `./target/release/lighteningfox tests/bench.html --png /tmp/b.png`
 
 ## Build and run
 
@@ -48,9 +48,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo apt install fonts-dejavu-core
 
 cargo build --release
-./target/release/lantern                      # start page
-./target/release/lantern example.com          # open a site
-./target/release/lantern page.html --png out.png --width 1024   # render to an image
+./target/release/lighteningfox                      # start page
+./target/release/lighteningfox example.com          # open a site
+./target/release/lighteningfox page.html --png out.png --width 1024   # render to an image
 ```
 
 If the build complains about missing X11/Wayland headers:

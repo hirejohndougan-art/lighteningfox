@@ -1,10 +1,10 @@
-//! Lantern — a web browser engine written from scratch in Rust.
+//! LighteningFox — a web browser engine written from scratch in Rust.
 //!
 //! Pipeline: fetch -> HTML parse (DOM) -> CSS parse -> style cascade -> layout -> paint.
 //!
 //! Usage:
-//!   lantern [URL or file]                  open a window
-//!   lantern URL --png out.png [--width N]  render to an image (no window needed)
+//!   lighteningfox [URL or file]                  open a window
+//!   lighteningfox URL --png out.png [--width N]  render to an image (no window needed)
 
 mod css;
 mod dom;
@@ -167,7 +167,7 @@ impl minifb::InputCallback for Typed {
 }
 
 fn run_window(fonts: &Fonts, start: &str, width: usize) {
-    let mut window = Window::new("Lantern", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
+    let mut window = Window::new("LighteningFox", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
             eprintln!("Could not open a window: {e}");
             std::process::exit(1);
@@ -186,7 +186,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut address = page.url.clone();
     let mut dirty = true;
     let mut was_down = false;
-    window.set_title(&format!("{} — Lantern", if page.title.is_empty() { &page.url } else { &page.title }));
+    window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
 
     while window.is_open() {
         let mut navigate: Option<String> = None;
@@ -332,14 +332,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             if !back && target != page.url {
                 history.push(page.url.clone());
             }
-            window.set_title(&format!("Loading {target} — Lantern"));
+            window.set_title(&format!("Loading {target} — LighteningFox"));
             draw(&mut canvas, fonts, &lay, scroll, &format!("Loading {target}…"), false);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             page = load(&target);
             lay = page.layout(fonts, w as f32);
             scroll = 0.0;
             address = page.url.clone();
-            window.set_title(&format!("{} — Lantern", if page.title.is_empty() { &page.url } else { &page.title }));
+            window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
             dirty = true;
         }
 

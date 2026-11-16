@@ -2,7 +2,7 @@
 
 use std::io::Read;
 
-pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Lantern/0.1";
+pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) LighteningFox/0.1";
 
 /// Fetch a URL. Returns (final URL after redirects, body text).
 pub fn fetch(url: &str) -> Result<(String, String), String> {
