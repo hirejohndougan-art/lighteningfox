@@ -2,6 +2,8 @@
 
 use crate::css::{self, Combinator, Compound, Decl, Selector, Stylesheet};
 use crate::dom::{Dom, NodeData, NodeId};
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub const VIEWPORT_W: f32 = 1024.0;
 
@@ -33,6 +35,8 @@ pub enum Display {
 pub enum Len {
     Px(f32),
     Pct(f32),
+    /// px + percent, from calc() like `calc(100% - 20px)`.
+    Mix(f32, f32),
     Auto,
 }
 
@@ -41,6 +45,7 @@ impl Len {
         match self {
             Len::Px(v) => v,
             Len::Pct(p) => base * p / 100.0,
+            Len::Mix(px, p) => px + base * p / 100.0,
             Len::Auto => 0.0,
         }
     }
@@ -75,6 +80,8 @@ pub struct Style {
     pub pre: bool,
     pub list_style: ListStyle,
     pub hidden: bool,
+    /// CSS custom properties (`--name: value`), inherited. Shared until changed.
+    pub vars: Rc<HashMap<String, String>>,
     // not inherited
     pub background: Color,
     pub margin: [Len; 4], // top right bottom left
@@ -101,6 +108,7 @@ impl Default for Style {
             pre: false,
             list_style: ListStyle::Disc,
             hidden: false,
+            vars: Rc::default(),
             background: Color::TRANSPARENT,
             margin: [Len::Px(0.0); 4],
             padding: [Len::Px(0.0); 4],
@@ -127,6 +135,7 @@ impl Style {
             pre: parent.pre,
             list_style: parent.list_style,
             hidden: parent.hidden,
+            vars: parent.vars.clone(),
             ..Style::default()
         }
     }
@@ -215,8 +224,18 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Style> {
             }
             matched.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
             presentational_hints(dom, id, &mut st, &parent_style);
-            for m in matched {
-                apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
+            // Custom properties first, so normal properties can use them via var().
+            for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
+                let value = substitute_vars(&m.decl.value, &st.vars, 0);
+                Rc::make_mut(&mut st.vars).insert(m.decl.name.clone(), value);
+            }
+            for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
+                if m.decl.value.contains("var(") {
+                    let value = substitute_vars(&m.decl.value, &st.vars, 0);
+                    apply(&mut st, &parent_style, &m.decl.name, &value);
+                } else {
+                    apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
+                }
             }
         } else {
             st.display = Display::Inline;
@@ -318,10 +337,186 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
 
 // ---------------------------------------------------------------- values
 
+/// Replace every `var(--name, fallback)` with the variable's value.
+pub fn substitute_vars(value: &str, vars: &HashMap<String, String>, depth: u32) -> String {
+    if depth > 8 || !value.contains("var(") {
+        return value.to_string();
+    }
+    let mut out = String::new();
+    let mut rest = value;
+    while let Some(pos) = rest.find("var(") {
+        out.push_str(&rest[..pos]);
+        let inner_start = pos + 4;
+        let Some(len) = matching_paren(&rest[inner_start..]) else {
+            out.push_str(&rest[pos..]);
+            return out;
+        };
+        let inner = &rest[inner_start..inner_start + len];
+        let (name, fallback) = match inner.find(',') {
+            Some(c) => (inner[..c].trim(), Some(inner[c + 1..].trim())),
+            None => (inner.trim(), None),
+        };
+        let replacement = vars.get(name).map(String::as_str).or(fallback).unwrap_or("");
+        out.push_str(&substitute_vars(replacement, vars, depth + 1));
+        rest = &rest[inner_start + len + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Length of the text up to the `)` that closes an already-opened paren.
+fn matching_paren(s: &str) -> Option<usize> {
+    let mut depth = 1;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A calc() value: px + pct, or a plain number.
+#[derive(Clone, Copy, Debug)]
+struct CalcVal {
+    px: f32,
+    pct: f32,
+    num: bool,
+}
+
+struct Calc<'a> {
+    s: &'a [u8],
+    i: usize,
+    font_size: f32,
+}
+
+impl Calc<'_> {
+    fn ws(&mut self) {
+        while self.i < self.s.len() && self.s[self.i].is_ascii_whitespace() {
+            self.i += 1;
+        }
+    }
+    fn peek(&mut self) -> Option<u8> {
+        self.ws();
+        self.s.get(self.i).copied()
+    }
+    fn expr(&mut self) -> Option<CalcVal> {
+        let mut a = self.term()?;
+        while let Some(op @ (b'+' | b'-')) = self.peek() {
+            self.i += 1;
+            let b = self.term()?;
+            let sign = if op == b'+' { 1.0 } else { -1.0 };
+            a = CalcVal { px: a.px + sign * b.px, pct: a.pct + sign * b.pct, num: a.num && b.num };
+        }
+        Some(a)
+    }
+    fn term(&mut self) -> Option<CalcVal> {
+        let mut a = self.factor()?;
+        while let Some(op @ (b'*' | b'/')) = self.peek() {
+            self.i += 1;
+            let b = self.factor()?;
+            a = match (op, a.num, b.num) {
+                (b'*', true, _) => CalcVal { px: b.px * a.px, pct: b.pct * a.px, num: b.num },
+                (b'*', _, true) => CalcVal { px: a.px * b.px, pct: a.pct * b.px, num: false },
+                (b'/', _, true) if b.px != 0.0 => CalcVal { px: a.px / b.px, pct: a.pct / b.px, num: a.num },
+                _ => return None,
+            };
+        }
+        Some(a)
+    }
+    fn factor(&mut self) -> Option<CalcVal> {
+        self.ws();
+        let rest = std::str::from_utf8(&self.s[self.i..]).ok()?;
+        for f in ["calc(", "min(", "max(", "clamp("] {
+            if rest.starts_with(f) {
+                self.i += f.len();
+                let mut args = vec![self.expr()?];
+                while self.peek() == Some(b',') {
+                    self.i += 1;
+                    args.push(self.expr()?);
+                }
+                if self.peek() != Some(b')') {
+                    return None;
+                }
+                self.i += 1;
+                // min/max/clamp of mixed units can't stay symbolic; resolve % against the viewport.
+                let flat = |v: CalcVal| v.px + v.pct * VIEWPORT_W / 100.0;
+                let pick = |better: fn(f32, f32) -> bool| {
+                    args.iter().copied().reduce(|a, b| if better(flat(b), flat(a)) { b } else { a })
+                };
+                return match f {
+                    "calc(" => args.first().copied(),
+                    "min(" => pick(|b, a| b < a),
+                    "max(" => pick(|b, a| b > a),
+                    _ if args.len() == 3 => {
+                        let (lo, v, hi) = (args[0], args[1], args[2]);
+                        Some(if flat(v) < flat(lo) { lo } else if flat(v) > flat(hi) { hi } else { v })
+                    }
+                    _ => None,
+                };
+            }
+        }
+        if rest.starts_with('(') {
+            self.i += 1;
+            let v = self.expr()?;
+            if self.peek() != Some(b')') {
+                return None;
+            }
+            self.i += 1;
+            return Some(v);
+        }
+        // A number with an optional unit.
+        let start = self.i;
+        while self.i < self.s.len() && (self.s[self.i].is_ascii_digit() || matches!(self.s[self.i], b'.' | b'-' | b'+')) {
+            if (self.s[self.i] == b'-' || self.s[self.i] == b'+') && self.i > start {
+                break;
+            }
+            self.i += 1;
+        }
+        let ustart = self.i;
+        while self.i < self.s.len() && (self.s[self.i].is_ascii_alphabetic() || self.s[self.i] == b'%') {
+            self.i += 1;
+        }
+        let num: f32 = std::str::from_utf8(&self.s[start..ustart]).ok()?.parse().ok()?;
+        let unit = std::str::from_utf8(&self.s[ustart..self.i]).ok()?;
+        if unit.is_empty() {
+            return Some(CalcVal { px: num, pct: 0.0, num: true });
+        }
+        Some(match parse_len(&format!("{num}{unit}"), self.font_size)? {
+            Len::Px(px) => CalcVal { px, pct: 0.0, num: false },
+            Len::Pct(p) => CalcVal { px: 0.0, pct: p, num: false },
+            Len::Mix(px, p) => CalcVal { px, pct: p, num: false },
+            Len::Auto => return None,
+        })
+    }
+}
+
+fn parse_calc(v: &str, font_size: f32) -> Option<Len> {
+    let mut c = Calc { s: v.as_bytes(), i: 0, font_size };
+    let r = c.expr()?;
+    if c.peek().is_some() {
+        return None;
+    }
+    Some(match (r.px != 0.0 || r.num, r.pct != 0.0) {
+        (_, false) => Len::Px(r.px),
+        (false, true) => Len::Pct(r.pct),
+        (true, true) => Len::Mix(r.px, r.pct),
+    })
+}
+
 pub fn parse_len(v: &str, font_size: f32) -> Option<Len> {
     let v = v.trim().to_ascii_lowercase();
     if v == "auto" {
         return Some(Len::Auto);
+    }
+    if v.starts_with("calc(") || v.starts_with("min(") || v.starts_with("max(") || v.starts_with("clamp(") {
+        return parse_calc(&v, font_size);
     }
     let num_end = v.find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == '+')).unwrap_or(v.len());
     let num: f32 = v[..num_end].parse().ok()?;
@@ -477,7 +672,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         return; // inherited props already inherited; good enough for now
     }
     let fs = st.font_size;
-    let lens = |s: &str| -> Option<Vec<Len>> { s.split_whitespace().map(|t| parse_len(t, fs)).collect() };
+    let lens = |s: &str| -> Option<Vec<Len>> {
+        css::split_top(s, ' ').iter().filter(|t| !t.trim().is_empty()).map(|t| parse_len(t, fs)).collect()
+    };
     match name {
         "display" => {
             st.display = match lower.as_str() {
@@ -660,5 +857,25 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn calc_and_vars() {
+        assert_eq!(parse_len("calc(100% - 20px)", 16.0), Some(Len::Mix(-20.0, 100.0)));
+        assert_eq!(parse_len("calc(2 * 1em + 4px)", 10.0), Some(Len::Px(24.0)));
+        assert_eq!(parse_len("calc((100% - 40px) / 2)", 16.0), Some(Len::Mix(-20.0, 50.0)));
+        assert_eq!(parse_len("max(10px, 2rem)", 16.0), Some(Len::Px(32.0)));
+        assert_eq!(parse_len("clamp(12px, 5vw, 40px)", 16.0), Some(Len::Px(40.0)));
+        let mut v = HashMap::new();
+        v.insert("--gap".to_string(), "12px".to_string());
+        v.insert("--brand".to_string(), "var(--blue)".to_string());
+        v.insert("--blue".to_string(), "#06c".to_string());
+        assert_eq!(substitute_vars("calc(var(--gap) * 2)", &v, 0), "calc(12px * 2)");
+        assert_eq!(substitute_vars("var(--brand)", &v, 0), "#06c");
+        assert_eq!(substitute_vars("var(--missing, red)", &v, 0), "red");
     }
 }

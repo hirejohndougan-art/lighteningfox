@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html><head><title>Image test</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #fbfaf7; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px; }
+  .hero { display: block; width: 100%; max-width: 100%; }
+  .logo { float: none; }
+  figure { margin: 24px 0; }
+  figcaption { color: #666; font-size: 14px; }
+</style></head>
+<body>
+<div class="wrap">
+  <h1><img src="img/logo.png" width="48" alt="logo"> LighteningFox image test</h1>
+  <figure>
+    <img class="hero" src="img/landscape.jpg" alt="A generated landscape">
+    <figcaption>A 1600×600 JPEG scaled down to the column width with <code>width: 100%</code>.</figcaption>
+  </figure>
+  <p>Inline images sit on the text line: a GIF <img src="img/icon.gif" alt="icon"> icon,
+     a WebP badge <img src="img/badge.webp" height="40" alt="badge"> sized by height only,
+     and a tiny data: URL image <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAH0lEQVR4XmO8I2fDQApgIkUxCIxqIAaMhhIxgPahBADn0QFWIm0xDgAAAABJRU5ErkJggg==" width="16" height="16" alt="red square"> embedded in the HTML.</p>
+  <p><a href="images.html"><img src="img/logo.png" width="96" alt="clickable logo"></a> ← this image is a link.</p>
+  <p>Missing image with alt text: <img src="img/nope.png" alt="this file does not exist">.</p>
+</div>
+</body></html>

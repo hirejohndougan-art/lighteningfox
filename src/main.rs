@@ -10,6 +10,7 @@ mod css;
 mod dom;
 mod font;
 mod html;
+mod images;
 mod js;
 mod layout;
 mod net;
@@ -51,18 +52,21 @@ struct Page {
     title: String,
     sheets: Vec<css::Stylesheet>,
     styles: Vec<style::Style>,
+    images: images::Images,
     js: js::Js,
 }
 
 impl Page {
     /// Re-run the cascade after the DOM changed.
     fn restyle(&mut self) {
+        let (images, url) = (&mut self.images, &self.url);
+        js::with_dom(|d| images.load_missing(d, url));
         self.styles = js::with_dom(|d| style::compute(d, &self.sheets));
         self.title = js::with_dom(|d| d.find_all("title").first().map(|&t| d.text_content(t).trim().to_string()).unwrap_or_default());
     }
 
     fn layout(&self, fonts: &Fonts, width: f32) -> layout::Layout {
-        js::with_dom(|d| layout::layout(d, &self.styles, fonts, width))
+        js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width))
     }
 }
 
@@ -99,7 +103,7 @@ fn load(url: &str) -> Page {
     let mut js = js::Js::new(&final_url);
     js.run_scripts(&final_url);
     js::take_dirty();
-    let mut page = Page { url: final_url, title: String::new(), sheets, styles: Vec::new(), js };
+    let mut page = Page { url: final_url, title: String::new(), sheets, styles: Vec::new(), images: images::Images::default(), js };
     page.restyle();
     page
 }
@@ -154,7 +158,7 @@ fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
     canvas.clear(lay.page_bg);
-    canvas.paint(fonts, &lay.items, 0.0, 0.0);
+    canvas.paint(fonts, &page.images, &lay.items, 0.0, 0.0);
     let file = std::fs::File::create(out).expect("create png");
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), width as u32, height as u32);
     enc.set_color(png::ColorType::Rgb);
@@ -375,7 +379,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         if let Some(target) = target {
             window.set_title(&format!("Loading {target} — LighteningFox"));
             let ui = Toolbar { address: &format!("Loading {target}…"), editing: false, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover: None };
-            draw(&mut canvas, fonts, &lay, scroll, &ui);
+            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             page = load(&target);
             lay = page.layout(fonts, w as f32);
@@ -387,7 +391,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
 
         if dirty {
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover };
-            draw(&mut canvas, fonts, &lay, scroll, &ui);
+            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             dirty = false;
         } else {
@@ -404,9 +408,9 @@ struct Toolbar<'a> {
     hover: Option<usize>,
 }
 
-fn draw(canvas: &mut Canvas, fonts: &Fonts, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
+fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
     canvas.clear(lay.page_bg);
-    canvas.paint(fonts, &lay.items, 0.0, BAR_H as f32 - scroll);
+    canvas.paint(fonts, images, &lay.items, 0.0, BAR_H as f32 - scroll);
     let w = canvas.w as f32;
     let bar = BAR_H as f32;
     canvas.fill_rect(0.0, 0.0, w, bar, Color::rgb(236, 236, 240));

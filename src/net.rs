@@ -4,8 +4,17 @@ use std::io::Read;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) LighteningFox/0.1";
 
-/// Fetch a URL. Returns (final URL after redirects, body text).
+/// Fetch a URL as text. Returns (final URL after redirects, body text).
 pub fn fetch(url: &str) -> Result<(String, String), String> {
+    let (final_url, bytes) = fetch_bytes(url)?;
+    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+/// Fetch a URL as raw bytes. Handles http(s)://, file:// and data: URLs.
+pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
+    if let Some(rest) = url.strip_prefix("data:") {
+        return decode_data_url(rest).map(|b| (url.to_string(), b));
+    }
     if url.starts_with("http://") || url.starts_with("https://") {
         let agent = ureq::AgentBuilder::new()
             .user_agent(USER_AGENT)
@@ -15,14 +24,49 @@ pub fn fetch(url: &str) -> Result<(String, String), String> {
         let resp = agent.get(url).call().map_err(|e| e.to_string())?;
         let final_url = resp.get_url().to_string();
         let mut bytes = Vec::new();
-        resp.into_reader().take(20_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+        resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        Ok((final_url, bytes))
     } else {
         let path = url.strip_prefix("file://").unwrap_or(url);
-        let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-        let abs = std::fs::canonicalize(path).map(|p| p.display().to_string()).unwrap_or(path.to_string());
-        Ok((format!("file://{abs}"), String::from_utf8_lossy(&bytes).into_owned()))
+        let path = percent_decode(path);
+        let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+        let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
+        Ok((format!("file://{abs}"), bytes))
     }
+}
+
+/// `data:[<mediatype>][;base64],<data>`
+fn decode_data_url(rest: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    let (meta, data) = rest.split_once(',').ok_or("malformed data: URL")?;
+    if meta.ends_with(";base64") {
+        let clean: String = data.chars().filter(|c| !c.is_whitespace()).collect();
+        let clean = percent_decode(&clean);
+        base64::engine::general_purpose::STANDARD
+            .decode(clean.trim_end_matches('='))
+            .or_else(|_| base64::engine::general_purpose::STANDARD_NO_PAD.decode(clean.trim_end_matches('=')))
+            .map_err(|e| e.to_string())
+    } else {
+        Ok(percent_decode(data).into_bytes())
+    }
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Turn whatever the user typed in the address bar into a URL.

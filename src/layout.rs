@@ -4,6 +4,7 @@
 
 use crate::dom::{Dom, NodeData, NodeId};
 use crate::font::Fonts;
+use crate::images::Images;
 use crate::paint::Item;
 use crate::style::{Align, Color, Display, Len, ListStyle, Style};
 
@@ -30,8 +31,8 @@ pub struct Layout {
     pub page_bg: Color,
 }
 
-pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, width: f32) -> Layout {
-    let mut cx = Ctx { dom, styles, fonts, items: Vec::new(), links: Vec::new(), hits: Vec::new() };
+pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width: f32) -> Layout {
+    let mut cx = Ctx { dom, styles, fonts, images, items: Vec::new(), links: Vec::new(), hits: Vec::new() };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // Canvas background comes from <html>, else <body>, like real browsers.
     let mut page_bg = Color::rgb(255, 255, 255);
@@ -49,6 +50,7 @@ struct Ctx<'a> {
     dom: &'a Dom,
     styles: &'a [Style],
     fonts: &'a Fonts,
+    images: &'a Images,
     items: Vec<Item>,
     links: Vec<(Rect, String)>,
     hits: Vec<(Rect, NodeId)>,
@@ -59,13 +61,21 @@ enum Tok {
     Word { text: String, node: NodeId, link: Option<String> },
     Space { node: NodeId },
     Break { node: NodeId },
-    Image { w: f32, h: f32, node: NodeId },
+    Image { w: f32, h: f32, node: NodeId, src: Option<String>, link: Option<String> },
+    /// Start/end of an inline element with a visible box (background, border, padding).
+    /// `w` = its left (open) or right (close) padding + border.
+    Open { node: NodeId, w: f32 },
+    Close { node: NodeId, w: f32 },
 }
 
 struct Placed {
     x: f32,
     w: f32,
     tok: usize,
+    /// Inline boxes that start just before this item: (node, box start x).
+    opens: Vec<(NodeId, f32)>,
+    /// Inline boxes that end just after this item: (node, box end x).
+    closes: Vec<(NodeId, f32)>,
 }
 
 #[derive(Default)]
@@ -98,7 +108,13 @@ impl<'a> Ctx<'a> {
             l => pct(l),
         };
         let mut constrained = st.width != Len::Auto;
-        if st.max_width != Len::Auto {
+        // A block-level <img> takes the image's size instead of its children's.
+        let replaced = if self.dom.tag(id) == Some("img") { self.replaced_size(id, avail - ml - mr - extra) } else { None };
+        if let Some((rw, _)) = replaced {
+            w = rw;
+            constrained = true;
+        }
+        if st.max_width != Len::Auto && replaced.is_none() {
             let max = pct(st.max_width);
             if w > max {
                 w = max;
@@ -127,8 +143,18 @@ impl<'a> Ctx<'a> {
         let cx = x + ml + bl + pl;
         let cy = top + bt + pt;
         let align = st.text_align;
-        let (mut content_h, _) = self.block_children(id, cx, cy, w, align);
-        if let Len::Px(h) = st.height {
+        let (mut content_h, _) = match replaced {
+            Some((rw, rh)) => {
+                let src = self.dom.attr(id, "src").unwrap_or("").trim().to_string();
+                if !self.styles[id].hidden {
+                    self.items.push(Item::Image { x: cx, y: cy, w: rw, h: rh, src });
+                }
+                self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
+                (rh, 0.0)
+            }
+            None => self.block_children(id, cx, cy, w, align),
+        };
+        if let (Len::Px(h), None) = (st.height, replaced) {
             content_h = content_h.max(h);
         }
         let st = &self.styles[id];
@@ -194,6 +220,37 @@ impl<'a> Ctx<'a> {
         (cy - y, prev_mb)
     }
 
+    /// Size of an <img>: CSS width/height, else the width/height attributes, else the
+    /// image's own size, keeping its aspect ratio; then shrunk to fit `max-width`.
+    fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
+        let st = &self.styles[id];
+        let intrinsic = self.dom.attr(id, "src").and_then(|s| self.images.size(s.trim()));
+        let attr = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok());
+        let w = match st.width {
+            Len::Auto => attr("width"),
+            l => Some(l.resolve(avail)),
+        };
+        let h = match st.height {
+            Len::Px(v) => Some(v),
+            _ => attr("height"),
+        };
+        let (mut w, mut h) = match (w, h, intrinsic) {
+            (Some(w), Some(h), _) => (w, h),
+            (Some(w), None, Some((iw, ih))) => (w, w * ih / iw.max(1.0)),
+            (None, Some(h), Some((iw, ih))) => (h * iw / ih.max(1.0), h),
+            (None, None, Some((iw, ih))) => (iw, ih),
+            _ => return None,
+        };
+        if st.max_width != Len::Auto {
+            let max = st.max_width.resolve(avail);
+            if w > max && w > 0.0 {
+                h *= max / w;
+                w = max;
+            }
+        }
+        Some((w.max(0.0), h.max(0.0)))
+    }
+
     fn list_marker(&mut self, id: NodeId, cx: f32, cy: f32) {
         let st = &self.styles[id];
         let text = match st.list_style {
@@ -220,7 +277,7 @@ impl<'a> Ctx<'a> {
 
     // ------------------------------------------------------------ inline
 
-    fn flatten(&self, id: NodeId, link: Option<&str>, out: &mut Vec<Tok>) {
+    fn flatten(&self, id: NodeId, link: Option<&str>, avail: f32, out: &mut Vec<Tok>) {
         match &self.dom.nodes[id].data {
             NodeData::Text(t) => {
                 if self.styles[id].pre {
@@ -256,10 +313,12 @@ impl<'a> Ctx<'a> {
                 match tag.as_str() {
                     "br" => return out.push(Tok::Break { node: id }),
                     "img" => {
-                        let num = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim_end_matches("px").parse::<f32>().ok());
-                        match (num("width"), num("height")) {
-                            (Some(w), Some(h)) => out.push(Tok::Image { w, h, node: id }),
-                            _ => {
+                        match self.replaced_size(id, avail) {
+                            Some((w, h)) => {
+                                let src = self.dom.attr(id, "src").map(|s| s.trim().to_string());
+                                out.push(Tok::Image { w, h, node: id, src, link: link.map(String::from) })
+                            }
+                            None => {
                                 if let Some(alt) = self.dom.attr(id, "alt").filter(|a| !a.trim().is_empty()) {
                                     out.push(Tok::Word { text: format!("[{}]", alt.trim()), node: id, link: link.map(String::from) });
                                 }
@@ -269,7 +328,7 @@ impl<'a> Ctx<'a> {
                     }
                     "input" => {
                         if self.dom.attr(id, "type") != Some("hidden") {
-                            out.push(Tok::Image { w: 160.0, h: 22.0, node: id });
+                            out.push(Tok::Image { w: 160.0, h: 22.0, node: id, src: None, link: None });
                         }
                         return;
                     }
@@ -281,14 +340,59 @@ impl<'a> Ctx<'a> {
                 if block {
                     out.push(Tok::Break { node: id });
                 }
+                let boxed = if block { None } else { self.inline_box_edges(id, avail) };
+                if let Some((l, _)) = boxed {
+                    out.push(Tok::Open { node: id, w: l });
+                }
                 for &c in &self.dom.nodes[id].children {
-                    self.flatten(c, link, out);
+                    self.flatten(c, link, avail, out);
+                }
+                if let Some((_, r)) = boxed {
+                    out.push(Tok::Close { node: id, w: r });
                 }
                 if block {
                     out.push(Tok::Break { node: id });
                 }
             }
             NodeData::Document => {}
+        }
+    }
+
+    /// For an inline element that draws a box: (left padding+border, right padding+border).
+    fn inline_box_edges(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
+        let st = &self.styles[id];
+        let pl = st.padding[3].resolve(avail);
+        let pr = st.padding[1].resolve(avail);
+        let visible = st.background.a > 0 || st.border.iter().any(|&b| b > 0.0) || pl > 0.0 || pr > 0.0;
+        visible.then(|| (pl + st.border[3] + st.margin[3].resolve(avail), pr + st.border[1] + st.margin[1].resolve(avail)))
+    }
+
+    /// Paint the background and borders of an inline box segment on one line.
+    fn inline_box(&self, node: NodeId, x0: f32, x1: f32, baseline: f32, avail: f32, out: &mut Vec<Item>) {
+        let st = &self.styles[node];
+        if st.hidden {
+            return;
+        }
+        let (font, size) = self.font_of(node);
+        let ascent = self.fonts.ascent(font, size);
+        let descent = size * 0.24;
+        let pt = st.padding[0].resolve(avail);
+        let pb = st.padding[2].resolve(avail);
+        let [bt, br, bb, bl] = st.border;
+        let ml = st.margin[3].resolve(avail);
+        let mr = st.margin[1].resolve(avail);
+        let (x0, x1) = (x0 + ml, x1 - mr);
+        let top = baseline - ascent - pt - bt;
+        let h = ascent + descent + pt + pb + bt + bb;
+        let w = x1 - x0;
+        if st.background.a > 0 {
+            out.push(Item::Rect { x: x0, y: top, w, h, color: st.background });
+        }
+        let c = st.border_color;
+        for (rx, ry, rw, rh) in [(x0, top, w, bt), (x0, top + h - bb, w, bb), (x0, top, bl, h), (x1 - br, top, br, h)] {
+            if rw > 0.0 && rh > 0.0 {
+                out.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, color: c });
+            }
         }
     }
 
@@ -308,20 +412,33 @@ impl<'a> Ctx<'a> {
                 (lh, above, lh - above)
             }
             Tok::Image { h, .. } => (*h, *h, 0.0),
+            Tok::Open { node, .. } | Tok::Close { node, .. } => self.tok_size(&Tok::Space { node: *node }),
         }
     }
 
     fn inline(&mut self, run: &[NodeId], x: f32, y: f32, w: f32, align: Align) -> f32 {
         let mut toks = Vec::new();
         for &id in run {
-            self.flatten(id, None, &mut toks);
+            self.flatten(id, None, w, &mut toks);
         }
         // Break into lines.
         let mut lines: Vec<Line> = vec![Line::default()];
         let mut pending_space = 0.0f32;
+        let mut pending_opens: Vec<(NodeId, f32)> = Vec::new();
         for (i, t) in toks.iter().enumerate() {
             let line = lines.last_mut().unwrap();
             match t {
+                Tok::Open { node, w: ow } => pending_opens.push((*node, *ow)),
+                Tok::Close { node, w: cw } => {
+                    if let Some(pos) = pending_opens.iter().position(|(n, _)| n == node) {
+                        // Empty box (nothing placed inside): drop it.
+                        pending_opens.remove(pos);
+                    } else if let Some(last) = line.items.last_mut() {
+                        last.closes.push((*node, line.width + cw));
+                        line.width += cw;
+                        pending_space = 0.0;
+                    }
+                }
                 Tok::Space { node } => {
                     if !line.items.is_empty() {
                         let (font, size) = self.font_of(*node);
@@ -342,16 +459,18 @@ impl<'a> Ctx<'a> {
                 Tok::Word { text, node, .. } => {
                     let (font, size) = self.font_of(*node);
                     let ww = self.fonts.width(font, text, size);
-                    self.place(&mut lines, &mut pending_space, ww, i, w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, ww, i, w);
                 }
                 Tok::Image { w: iw, .. } => {
                     let iw = iw.min(w);
-                    self.place(&mut lines, &mut pending_space, iw, i, w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, w);
                 }
             }
         }
         // Emit lines.
         let mut cy = y;
+        // Inline boxes still open from earlier lines: (node, depth).
+        let mut carried: Vec<NodeId> = Vec::new();
         for line in &lines {
             let (mut lh, mut above) = (0.0f32, 0.0f32);
             let mut below = 0.0f32;
@@ -375,6 +494,30 @@ impl<'a> Ctx<'a> {
             };
             let baseline = cy + above;
             let mut prev_underline_end: Option<(f32, NodeId)> = None;
+            // Inline box backgrounds go under this line's text: collect, then insert.
+            let line_start = self.items.len();
+            let mut boxes: Vec<(usize, Item)> = Vec::new();
+            let mut open: Vec<(NodeId, f32)> = carried.drain(..).map(|n| (n, x + shift)).collect();
+            for p in &line.items {
+                for &(n, bx) in &p.opens {
+                    open.push((n, x + shift + bx));
+                }
+                for &(n, ex) in &p.closes {
+                    if let Some(pos) = open.iter().rposition(|(o, _)| *o == n) {
+                        let (_, sx) = open.remove(pos);
+                        let mut tmp = Vec::new();
+                        self.inline_box(n, sx, x + shift + ex, baseline, w, &mut tmp);
+                        boxes.extend(tmp.into_iter().map(|it| (pos, it)));
+                    }
+                }
+            }
+            for (depth, &(n, sx)) in open.iter().enumerate() {
+                let mut tmp = Vec::new();
+                self.inline_box(n, sx, x + shift + line.width, baseline, w, &mut tmp);
+                boxes.extend(tmp.into_iter().map(|it| (depth, it)));
+            }
+            carried = open.into_iter().map(|(n, _)| n).collect();
+            boxes.sort_by_key(|(d, _)| *d);
             for p in &line.items {
                 let px = x + shift + p.x;
                 match &toks[p.tok] {
@@ -402,31 +545,50 @@ impl<'a> Ctx<'a> {
                             self.links.push((r, href.clone()));
                         }
                     }
-                    Tok::Image { h, node, .. } => {
+                    Tok::Image { h, node, src, link, .. } => {
                         prev_underline_end = None;
-                        self.hits.push((Rect { x: px, y: baseline - h, w: p.w, h: *h }, *node));
-                        let c = Color { r: 200, g: 200, b: 200, a: 255 };
-                        self.items.push(Item::Rect { x: px, y: baseline - h, w: p.w, h: *h, color: c });
+                        let r = Rect { x: px, y: baseline - h, w: p.w, h: *h };
+                        self.hits.push((r, *node));
+                        if let Some(href) = link {
+                            self.links.push((r, href.clone()));
+                        }
+                        let loaded = src.as_deref().filter(|s| self.images.get(s).is_some());
+                        if self.styles[*node].hidden {
+                        } else if let Some(src) = loaded {
+                            self.items.push(Item::Image { x: r.x, y: r.y, w: r.w, h: r.h, src: src.to_string() });
+                        } else {
+                            let c = Color { r: 200, g: 200, b: 200, a: 255 };
+                            self.items.push(Item::Rect { x: r.x, y: r.y, w: r.w, h: r.h, color: c });
+                        }
                     }
                     _ => {}
                 }
+            }
+            if !boxes.is_empty() {
+                self.items.splice(line_start..line_start, boxes.into_iter().map(|(_, it)| it));
             }
             cy += lh;
         }
         cy - y
     }
 
-    fn place(&self, lines: &mut Vec<Line>, pending_space: &mut f32, ww: f32, tok: usize, max_w: f32) {
+    fn place(&self, lines: &mut Vec<Line>, pending_space: &mut f32, pending_opens: &mut Vec<(NodeId, f32)>, ww: f32, tok: usize, max_w: f32) {
         let line = lines.last_mut().unwrap();
         let mut sp = *pending_space;
-        if !line.items.is_empty() && line.width + sp + ww > max_w {
+        let lead: f32 = pending_opens.iter().map(|(_, w)| w).sum();
+        if !line.items.is_empty() && line.width + sp + lead + ww > max_w {
             lines.push(Line::default());
             sp = 0.0;
         }
         let line = lines.last_mut().unwrap();
-        let px = line.width + sp;
-        line.items.push(Placed { x: px, w: ww, tok });
-        line.width = px + ww;
+        let mut bx = line.width + sp;
+        let mut opens = Vec::new();
+        for (node, w) in pending_opens.drain(..) {
+            opens.push((node, bx));
+            bx += w;
+        }
+        line.items.push(Placed { x: bx, w: ww, tok, opens, closes: Vec::new() });
+        line.width = bx + ww;
         *pending_space = 0.0;
     }
 }

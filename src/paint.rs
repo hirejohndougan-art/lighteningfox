@@ -1,6 +1,7 @@
 //! Painting: turns the display list into pixels in a framebuffer.
 
 use crate::font::Fonts;
+use crate::images::Images;
 use crate::style::Color;
 
 #[derive(Debug, Clone)]
@@ -8,6 +9,7 @@ pub enum Item {
     Rect { x: f32, y: f32, w: f32, h: f32, color: Color },
     /// `y` is the text baseline.
     Text { x: f32, y: f32, text: String, font: u8, size: f32, color: Color },
+    Image { x: f32, y: f32, w: f32, h: f32, src: String },
 }
 
 pub struct Canvas {
@@ -90,8 +92,18 @@ impl Canvas {
         }
     }
 
+    fn draw_image(&mut self, img: &image::RgbaImage, x: f32, y: f32) {
+        let (x0, y0) = (x.round() as i32, y.round() as i32);
+        for (ix, iy, px) in img.enumerate_pixels() {
+            let [r, g, b, a] = px.0;
+            if a > 0 {
+                self.blend(x0 + ix as i32, y0 + iy as i32, Color { r, g, b, a }, 1.0);
+            }
+        }
+    }
+
     /// Paint the display list, shifted by (dx, dy).
-    pub fn paint(&mut self, fonts: &Fonts, items: &[Item], dx: f32, dy: f32) {
+    pub fn paint(&mut self, fonts: &Fonts, images: &Images, items: &[Item], dx: f32, dy: f32) {
         let h = self.h as f32;
         for item in items {
             match item {
@@ -102,6 +114,13 @@ impl Canvas {
                 }
                 Item::Text { x, y, text, font, size, color } => {
                     self.draw_text(fonts, x + dx, y + dy, text, *font, *size, *color)
+                }
+                Item::Image { x, y, w, h: ih, src } => {
+                    if y + dy + ih >= 0.0 && y + dy <= h {
+                        if let Some(img) = images.scaled(src, w.round() as u32, ih.round() as u32) {
+                            self.draw_image(&img, x + dx, y + dy);
+                        }
+                    }
                 }
             }
         }

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html><head><title>CSS variables, calc and inline boxes</title>
+<style>
+  :root { --brand: #c2410c; --ink: #1f2937; --soft: #fff7ed; --gap: 16px; --col: 680px; }
+  body { margin: 0; color: var(--ink); background: #f8fafc; font-family: sans-serif; }
+  .page { max-width: var(--col); margin: 0 auto; padding: calc(var(--gap) * 2) var(--gap); }
+  h1 { color: var(--brand); font-size: clamp(20px, 4vw, 34px); }
+  .card { background: var(--soft); border: 1px solid var(--brand); padding: var(--gap);
+          margin-bottom: var(--gap); width: calc(100% - 2 * var(--gap) - 2px); }
+  .half { width: calc((100% - 40px) / 2); background: #e0f2fe; padding: 8px; border-left: 4px solid #0369a1; }
+  .theme-dark { --soft: #1e293b; --ink: #f1f5f9; color: var(--ink); }
+  code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; }
+  kbd { background: #fff; border: 1px solid #94a3b8; padding: 0 6px; font-family: monospace; }
+  .tag { background: var(--brand); color: #fff; padding: 2px 8px; font-size: 13px; font-weight: bold; }
+  mark { background: #fde047; }
+  .missing { color: var(--not-defined, #16a34a); }
+</style></head>
+<body><div class="page">
+  <h1>CSS variables, calc() and inline boxes</h1>
+  <div class="card">
+    This card's colors come from <code>var(--brand)</code> and <code>var(--soft)</code>, its width from
+    <code>calc(100% - 2 * var(--gap) - 2px)</code>. Press <kbd>Ctrl</kbd> + <kbd>L</kbd> to edit the address.
+    Status: <span class="tag">NEW</span> <span class="tag">RUST</span>
+  </div>
+  <div class="half">Half width via <code>calc((100% - 40px) / 2)</code>.</div>
+  <p>A <mark>highlighted phrase that is long enough to wrap across the end of one line and continue on the next line</mark> shows inline boxes splitting across lines.</p>
+  <div class="card theme-dark">Variables re-scoped on a parent: this card overrides <code>--soft</code> and <code>--ink</code>.</div>
+  <p class="missing">This text uses a fallback: <code>var(--not-defined, #16a34a)</code>.</p>
+</div></body></html>

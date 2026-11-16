@@ -77,14 +77,18 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   text-decoration, white-space, margin, padding, border, width, max-width, height, list-style, visibility
 - **Layout**: block flow, sibling margin collapsing, auto-margin centering, inline flow with word wrapping,
   alignment, `<br>`, `<pre>`, list bullets and numbers
+- **Images**: PNG, JPEG, GIF, WebP, BMP, ICO and `data:` URLs, fetched in parallel; sized by CSS,
+  `width`/`height` attributes or the image itself, keeping aspect ratio; `max-width` scaling
+- **Modern CSS values**: custom properties and `var()` with fallbacks, `calc()`, `min()`, `max()`, `clamp()`
+- **Inline boxes**: backgrounds, padding and borders on `<span>`, `<code>`, `<kbd>`, `<mark>`, split across lines
 - **Interaction**: address bar, scrolling, clickable links, back history, resize reflow
 
 Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
 
 ## Roadmap
 
-1. **Images**: decode PNG/JPEG/GIF/WebP, intrinsic sizes
-2. **Inline boxes**: backgrounds, padding and borders on `<span>`, `<code>`, buttons; `inline-block`
+1. **Background images and gradients**, `border-radius`
+2. **inline-block** and vertical-align
 3. **Flexbox**, then **grid**: most modern layouts depend on these
 4. **Positioning**: `position: relative/absolute/fixed/sticky`, `z-index`, `float`
 5. **Tables**: real table layout

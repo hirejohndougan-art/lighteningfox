@@ -67,7 +67,9 @@ pub fn parse_declarations(src: &str) -> Vec<Decl> {
         .into_iter()
         .filter_map(|d| {
             let (name, value) = d.split_once(':')?;
-            let name = name.trim().to_ascii_lowercase();
+            let name = name.trim();
+            // Custom property names are case-sensitive; everything else isn't.
+            let name = if name.starts_with("--") { name.to_string() } else { name.to_ascii_lowercase() };
             let mut value = value.trim().to_string();
             let important = value.to_ascii_lowercase().ends_with("!important");
             if important {
