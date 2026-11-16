@@ -24,6 +24,26 @@ use std::rc::Rc;
 use style::Color;
 
 const BAR_H: usize = 36;
+/// Toolbar buttons: (x, label). Each is BTN_W wide.
+const BTN_W: f32 = 30.0;
+const BUTTONS: [(f32, &str); 3] = [(6.0, "←"), (38.0, "→"), (70.0, "↻")];
+const FIELD_X: f32 = 108.0;
+
+/// Where a navigation should go and how it affects history.
+enum Go {
+    To(String),
+    Back,
+    Forward,
+    Reload,
+}
+
+/// Which toolbar button (0 back, 1 forward, 2 reload) is under (x, y), if any.
+fn button_at(x: f32, y: f32) -> Option<usize> {
+    if y >= BAR_H as f32 {
+        return None;
+    }
+    BUTTONS.iter().position(|(bx, _)| x >= *bx && x < bx + BTN_W)
+}
 const START_PAGE: &str = include_str!("start.html");
 
 struct Page {
@@ -176,7 +196,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let typed = Rc::new(RefCell::new(Vec::new()));
     window.set_input_callback(Box::new(Typed(typed.clone())));
 
-    let mut history: Vec<String> = Vec::new();
+    let mut back: Vec<String> = Vec::new();
+    let mut forward: Vec<String> = Vec::new();
+    let mut hover: Option<usize> = None;
     let mut page = load(start);
     let (mut w, mut h) = window.get_size();
     let mut lay = page.layout(fonts, w as f32);
@@ -189,7 +211,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
 
     while window.is_open() {
-        let mut navigate: Option<String> = None;
+        let mut navigate: Option<Go> = None;
         let mut reflow = false;
 
         // Resize -> relayout.
@@ -210,7 +232,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             dirty = true;
         }
         if let Some(target) = js::take_navigation() {
-            navigate = Some(net::resolve(&page.url, &target));
+            navigate = Some(Go::To(net::resolve(&page.url, &target)));
         }
         let view_h = h.saturating_sub(BAR_H) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
@@ -225,7 +247,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     }
                     '\r' | '\n' => {
                         editing = false;
-                        navigate = Some(net::normalize_input(&address));
+                        navigate = Some(Go::To(net::normalize_input(&address)));
                     }
                     '\u{1b}' => {
                         editing = false;
@@ -263,9 +285,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         address.clear();
                         dirty = true;
                     }
-                    Key::F5 | Key::R if key == Key::F5 || ctrl => navigate = Some(page.url.clone()),
-                    Key::Backspace => navigate = history.pop().map(|u| format!("\u{0}{u}")),
-                    Key::Left if alt => navigate = history.pop().map(|u| format!("\u{0}{u}")),
+                    Key::F5 | Key::R if key == Key::F5 || ctrl => navigate = Some(Go::Reload),
+                    Key::Backspace => navigate = Some(Go::Back),
+                    Key::Left if alt => navigate = Some(Go::Back),
+                    Key::Right if alt => navigate = Some(Go::Forward),
                     _ => {}
                 }
                 if scroll != before {
@@ -284,7 +307,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
             let doc_y = my - BAR_H as f32 + scroll;
             let hit = if my >= BAR_H as f32 { lay.links.iter().find(|(r, _)| r.contains(mx, doc_y)) } else { None };
-            window.set_cursor_style(if hit.is_some() {
+            let btn = button_at(mx, my);
+            if btn != hover {
+                hover = btn;
+                dirty = true;
+            }
+            window.set_cursor_style(if hit.is_some() || btn.is_some() {
                 CursorStyle::ClosedHand
             } else if (my as usize) < BAR_H {
                 CursorStyle::Ibeam
@@ -292,7 +320,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 CursorStyle::Arrow
             });
             if down && !was_down {
-                if (my as usize) < BAR_H {
+                if let Some(b) = btn {
+                    editing = false;
+                    navigate = Some(match b {
+                        0 => Go::Back,
+                        1 => Go::Forward,
+                        _ => Go::Reload,
+                    });
+                } else if (my as usize) < BAR_H {
                     editing = true;
                     address.clear();
                     dirty = true;
@@ -305,13 +340,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         reflow = true;
                     }
                     if let Some(t) = js::take_navigation() {
-                        navigate = Some(net::resolve(&page.url, &t));
+                        navigate = Some(Go::To(net::resolve(&page.url, &t)));
                     }
                     if let (true, Some((_, href))) = (allowed, hit) {
                     let target = net::resolve(&page.url, href);
                     let same_page = target.split('#').next() == page.url.split('#').next() && target.contains('#');
                     if !same_page && !target.starts_with("mailto:") && !target.starts_with("javascript:") {
-                        navigate = Some(target);
+                        navigate = Some(Go::To(target));
                     }
                     }
                 }
@@ -323,17 +358,24 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
         was_down = down;
 
-        if let Some(target) = navigate {
-            // A leading NUL marks "going back" so we don't push to history.
-            let (target, back) = match target.strip_prefix('\u{0}') {
-                Some(t) => (t.to_string(), true),
-                None => (target, false),
-            };
-            if !back && target != page.url {
-                history.push(page.url.clone());
+        // Resolve the navigation against the back/forward history.
+        let target = match navigate {
+            Some(Go::To(t)) => {
+                if t != page.url {
+                    back.push(page.url.clone());
+                    forward.clear();
+                }
+                Some(t)
             }
+            Some(Go::Back) => back.pop().inspect(|_| forward.push(page.url.clone())),
+            Some(Go::Forward) => forward.pop().inspect(|_| back.push(page.url.clone())),
+            Some(Go::Reload) => Some(page.url.clone()),
+            None => None,
+        };
+        if let Some(target) = target {
             window.set_title(&format!("Loading {target} — LighteningFox"));
-            draw(&mut canvas, fonts, &lay, scroll, &format!("Loading {target}…"), false);
+            let ui = Toolbar { address: &format!("Loading {target}…"), editing: false, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover: None };
+            draw(&mut canvas, fonts, &lay, scroll, &ui);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             page = load(&target);
             lay = page.layout(fonts, w as f32);
@@ -344,7 +386,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
 
         if dirty {
-            draw(&mut canvas, fonts, &lay, scroll, &address, editing);
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover };
+            draw(&mut canvas, fonts, &lay, scroll, &ui);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             dirty = false;
         } else {
@@ -353,15 +396,37 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     }
 }
 
-fn draw(canvas: &mut Canvas, fonts: &Fonts, lay: &layout::Layout, scroll: f32, address: &str, editing: bool) {
+struct Toolbar<'a> {
+    address: &'a str,
+    editing: bool,
+    can_back: bool,
+    can_forward: bool,
+    hover: Option<usize>,
+}
+
+fn draw(canvas: &mut Canvas, fonts: &Fonts, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
     canvas.clear(lay.page_bg);
     canvas.paint(fonts, &lay.items, 0.0, BAR_H as f32 - scroll);
-    // Address bar
     let w = canvas.w as f32;
-    canvas.fill_rect(0.0, 0.0, w, BAR_H as f32, Color::rgb(236, 236, 240));
-    canvas.fill_rect(0.0, BAR_H as f32 - 1.0, w, 1.0, Color::rgb(200, 200, 205));
-    let field = if editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
-    canvas.fill_rect(8.0, 5.0, w - 16.0, BAR_H as f32 - 10.0, field);
-    let text = if editing { format!("{address}|") } else { address.to_string() };
-    canvas.draw_text(fonts, 16.0, 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
+    let bar = BAR_H as f32;
+    canvas.fill_rect(0.0, 0.0, w, bar, Color::rgb(236, 236, 240));
+    canvas.fill_rect(0.0, bar - 1.0, w, 1.0, Color::rgb(200, 200, 205));
+
+    // Back, forward, reload
+    let enabled = [ui.can_back, ui.can_forward, true];
+    for (i, (bx, label)) in BUTTONS.iter().enumerate() {
+        if ui.hover == Some(i) && enabled[i] {
+            canvas.fill_rect(*bx, 4.0, BTN_W, bar - 8.0, Color::rgb(214, 214, 222));
+        }
+        let ink = if enabled[i] { Color::rgb(40, 40, 50) } else { Color::rgb(170, 170, 178) };
+        let size = 18.0;
+        let tw = fonts.width(font::BOLD, label, size);
+        canvas.draw_text(fonts, bx + (BTN_W - tw) / 2.0, 24.0, label, font::BOLD, size, ink);
+    }
+
+    // Address field
+    let field = if ui.editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
+    canvas.fill_rect(FIELD_X, 5.0, w - FIELD_X - 8.0, bar - 10.0, field);
+    let text = if ui.editing { format!("{}|", ui.address) } else { ui.address.to_string() };
+    canvas.draw_text(fonts, FIELD_X + 8.0, 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
 }

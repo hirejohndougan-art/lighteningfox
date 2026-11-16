@@ -62,8 +62,9 @@ If the build complains about missing X11/Wayland headers:
 |---|---|
 | Address bar | click it, `Ctrl+L` or `F6`; `Enter` to go, `Esc` to cancel |
 | Scroll | mouse wheel, arrows, `Space`, `Page Up/Down`, `Home`, `End` |
-| Back | `Backspace` or `Alt+Left` |
-| Reload | `F5` or `Ctrl+R` |
+| Back | ← button, `Backspace` or `Alt+Left` |
+| Forward | → button or `Alt+Right` |
+| Reload | ↻ button, `F5` or `Ctrl+R` |
 
 Typing words that aren't a URL searches DuckDuckGo's HTML edition.
 
