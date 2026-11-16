@@ -1,0 +1,13 @@
+[package]
+name = "lantern"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fontdue = "0.9"
+minifb = "0.27"
+ureq = "2"
+png = "0.17"
+
+[profile.release]
+opt-level = 3

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Lantern</title>
+<style>
+  body { background: #f4f1ea; color: #2b2b2b; margin: 0; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 42px; color: #7a3b12; margin-bottom: 4px; }
+  .tag { color: #777; font-size: 18px; margin-top: 0; }
+  .card { background: #ffffff; border: 1px solid #ddd5c4; padding: 16px 20px; margin-top: 24px; }
+  h2 { font-size: 20px; margin-top: 0; }
+  code { background: #eee8db; }
+  a { color: #1a5fb4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Lantern</h1>
+  <p class="tag">A web browser engine built from scratch in Rust.</p>
+
+  <div class="card">
+    <h2>Getting around</h2>
+    <ul>
+      <li>Click the address bar (or press <code>Ctrl+L</code>) and type a URL or a search.</li>
+      <li>Scroll with the mouse wheel, arrow keys, <code>Space</code> and <code>Page Up/Down</code>.</li>
+      <li>Click links. <code>Backspace</code> or <code>Alt+Left</code> goes back, <code>F5</code> reloads.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>What works so far</h2>
+    <ol>
+      <li>HTML parsing into a DOM tree</li>
+      <li>CSS parsing, selectors and the cascade</li>
+      <li>Block and inline layout with word wrapping</li>
+      <li>Text, backgrounds and borders painted by our own rasterizer</li>
+    </ol>
+    <p>Not yet: images, JavaScript, flexbox and grid, forms.</p>
+  </div>
+
+  <div class="card">
+    <h2>Try a page</h2>
+    <p><a href="https://example.com/">example.com</a> &middot;
+       <a href="https://info.cern.ch/hypertext/WWW/TheProject.html">The first website</a> &middot;
+       <a href="https://text.npr.org/">NPR text edition</a> &middot;
+       <a href="https://lite.cnn.com/">CNN lite</a></p>
+  </div>
+</div>
+</body>
+</html>
