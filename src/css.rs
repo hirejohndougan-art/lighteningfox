@@ -22,6 +22,10 @@ pub struct Decl {
 pub enum Combinator {
     Descendant,
     Child,
+    /// `a + b`: b directly after a
+    Adjacent,
+    /// `a ~ b`: b anywhere after a, same parent
+    Sibling,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -29,8 +33,8 @@ pub struct Compound {
     pub tag: Option<String>,
     pub id: Option<String>,
     pub classes: Vec<String>,
-    /// [attr] or [attr=value]
-    pub attrs: Vec<(String, Option<String>)>,
+    /// [attr], [attr=value], [attr^=value] ... as (name, operator, value)
+    pub attrs: Vec<(String, char, Option<String>)>,
     pub pseudo: Vec<String>,
 }
 
@@ -255,7 +259,9 @@ fn parse_selector(s: &str) -> Option<Selector> {
             continue;
         }
         if c == '+' || c == '~' {
-            return None; // sibling combinators not supported yet
+            pending = Some(if c == '+' { Combinator::Adjacent } else { Combinator::Sibling });
+            i += 1;
+            continue;
         }
         let (compound, next) = parse_compound(&chars, i)?;
         i = next;
@@ -303,24 +309,30 @@ fn parse_compound(chars: &[char], mut i: usize) -> Option<(Compound, usize)> {
                 let end = chars[i..].iter().position(|&x| x == ']')? + i;
                 let inner: String = chars[i + 1..end].iter().collect();
                 if let Some((k, v)) = inner.split_once('=') {
-                    if k.ends_with(['~', '|', '^', '$', '*']) {
-                        return None; // fancy attribute matchers not supported yet
-                    }
+                    let (name, op) = match k.trim_end().chars().last() {
+                        Some(o @ ('~' | '|' | '^' | '$' | '*')) => (&k.trim_end()[..k.trim_end().len() - 1], o),
+                        _ => (k, '='),
+                    };
+                    // Drop a trailing case flag: [type="a" i]
+                    let v = v.trim();
+                    let v = v.strip_suffix(" i").or_else(|| v.strip_suffix(" s")).unwrap_or(v);
                     let v = v.trim().trim_matches(|c| c == '"' || c == '\'').to_string();
-                    c.attrs.push((k.trim().to_ascii_lowercase(), Some(v)));
+                    c.attrs.push((name.trim().to_ascii_lowercase(), op, Some(v)));
                 } else {
-                    c.attrs.push((inner.trim().to_ascii_lowercase(), None));
+                    c.attrs.push((inner.trim().to_ascii_lowercase(), '=', None));
                 }
                 i = end + 1;
             }
             ':' => {
                 let mut j = i + 1;
-                if j < chars.len() && chars[j] == ':' {
+                let element = j < chars.len() && chars[j] == ':';
+                if element {
                     j += 1;
                 }
                 let (s, mut n) = ident(chars, j);
                 if n < chars.len() && chars[n] == '(' {
-                    // skip functional pseudo-class arguments
+                    // Functional pseudo-class: keep its argument, e.g. "not(.a)", "nth-child(2n+1)".
+                    let arg_start = n + 1;
                     let mut depth = 0;
                     while n < chars.len() {
                         if chars[n] == '(' {
@@ -334,9 +346,13 @@ fn parse_compound(chars: &[char], mut i: usize) -> Option<(Compound, usize)> {
                         }
                         n += 1;
                     }
-                    c.pseudo.push(format!("{}()", s.to_ascii_lowercase()));
+                    let arg: String = chars[arg_start..n.saturating_sub(1).max(arg_start)].iter().collect();
+                    c.pseudo.push(format!("{}({})", s.to_ascii_lowercase(), arg.trim()));
                 } else {
-                    c.pseudo.push(s.to_ascii_lowercase());
+                    let name = s.to_ascii_lowercase();
+                    // ::before/::after (and legacy :before/:after) are pseudo-elements.
+                    let is_element = element || matches!(name.as_str(), "before" | "after" | "first-line" | "first-letter");
+                    c.pseudo.push(if is_element { format!("::{name}") } else { name });
                 }
                 i = n;
             }

@@ -6,7 +6,7 @@ use crate::dom::{Dom, NodeData, NodeId};
 use crate::font::Fonts;
 use crate::images::Images;
 use crate::paint::Item;
-use crate::style::{Align, AlignItems, Color, Display, Justify, Len, ListStyle, Position, Style};
+use crate::style::{Align, AlignItems, Color, Display, Justify, Len, ListStyle, Position, Style, TableRole, VAlign};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy)]
@@ -75,8 +75,13 @@ pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width
         forced: HashMap::new(),
         abs: vec![Vec::new()],
         fixed: Vec::new(),
+        floats: vec![Vec::new()],
+        pad_top: HashMap::new(),
+        layers: Vec::new(),
     };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
+    // The page grows to contain floats that hang below the last block.
+    let height = height.max(cx.float_bottom(true, true));
     // Absolute and fixed boxes with no positioned ancestor sit against the page.
     let root_abs = cx.abs.pop().unwrap_or_default();
     cx.place_absolutes(root_abs, Rect { x: 0.0, y: 0.0, w: width, h: viewport_h });
@@ -89,7 +94,8 @@ pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, images: &Images, width
             }
         }
     }
-    Layout { items: cx.items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg }
+    let items = merge_layers(std::mem::take(&mut cx.items), std::mem::take(&mut cx.layers));
+    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg }
 }
 
 struct Ctx<'a> {
@@ -107,6 +113,91 @@ struct Ctx<'a> {
     /// One list per open containing block of absolutely positioned boxes.
     abs: Vec<Vec<AbsPending>>,
     fixed: Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>,
+    /// Floats placed so far, one list per block formatting context.
+    floats: Vec<Vec<FloatBox>>,
+    /// Extra top padding pushed into a table cell to center or bottom-align its content.
+    pad_top: HashMap<NodeId, f32>,
+    /// Positioned boxes with a z-index, painted below (negative) or above (positive)
+    /// the normal flow: (z-index, items).
+    layers: Vec<(i32, Vec<Item>)>,
+}
+
+/// Merge z-index layers into a display list: negative ones underneath, positive on top.
+fn merge_layers(items: Vec<Item>, mut layers: Vec<(i32, Vec<Item>)>) -> Vec<Item> {
+    if layers.is_empty() {
+        return items;
+    }
+    layers.sort_by_key(|(z, _)| *z); // stable: equal z keeps document order
+    let mut out = Vec::new();
+    for (_, l) in layers.iter_mut().filter(|(z, _)| *z < 0) {
+        out.append(l);
+    }
+    out.extend(items);
+    for (_, l) in layers.iter_mut().filter(|(z, _)| *z > 0) {
+        out.append(l);
+    }
+    out
+}
+
+/// A table's cells placed on its grid, with each column's min and max content widths.
+struct TableGrid {
+    captions: Vec<NodeId>,
+    rows: Vec<NodeId>,
+    cells: Vec<TableCell>,
+    ncols: usize,
+    min: Vec<f32>,
+    max: Vec<f32>,
+    spacing: f32,
+}
+
+struct TableCell {
+    node: NodeId,
+    row: usize,
+    col: usize,
+    rowspan: usize,
+    colspan: usize,
+}
+
+impl TableGrid {
+    fn edges(&self) -> f32 {
+        self.spacing * (self.ncols as f32 + 1.0)
+    }
+    /// The width the table would like: every column at its widest content.
+    fn preferred(&self) -> f32 {
+        self.max.iter().sum::<f32>().max(self.min.iter().sum::<f32>()) + self.edges()
+    }
+    /// Column widths for a table whose content box is `w` wide.
+    fn widths(&self, w: f32, stretch: bool) -> Vec<f32> {
+        let avail = (w - self.edges()).max(0.0);
+        let (smin, smax): (f32, f32) = (self.min.iter().sum(), self.max.iter().sum());
+        if smax <= avail {
+            if stretch && smax > 0.0 {
+                self.max.iter().map(|m| m + (avail - smax) * m / smax).collect()
+            } else if stretch {
+                vec![avail / self.ncols.max(1) as f32; self.ncols]
+            } else {
+                self.max.clone()
+            }
+        } else if smin >= avail {
+            self.min.clone()
+        } else {
+            let span: f32 = self.max.iter().zip(&self.min).map(|(a, b)| a - b).sum();
+            self.min
+                .iter()
+                .zip(&self.max)
+                .map(|(mn, mx)| mn + if span > 0.0 { (avail - smin) * (mx - mn) / span } else { 0.0 })
+                .collect()
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FloatBox {
+    x0: f32,
+    x1: f32,
+    y0: f32,
+    y1: f32,
+    left: bool,
 }
 
 /// One unit of inline content.
@@ -174,6 +265,11 @@ struct Placed {
 struct Line {
     items: Vec<Placed>,
     width: f32,
+    /// Space left free by floats: the line starts `x_off` in and is `max_w` wide.
+    x_off: f32,
+    max_w: f32,
+    /// The line was pushed down below a float to this y.
+    skip_to: Option<f32>,
     /// A <br> on an otherwise empty line still takes up a line of height.
     blank: Option<usize>,
 }
@@ -194,6 +290,7 @@ impl<'a> Ctx<'a> {
         let mut ml = pct(st.margin[3]);
         let mut mr = pct(st.margin[1]);
         let [pt, pr, pb, pl] = st.padding.map(pct);
+        let pt = pt + self.pad_top.get(&id).copied().unwrap_or(0.0);
         let [bt, br, bb, bl] = st.border;
         let extra = pl + pr + bl + br;
         // With border-box sizing, width and max-width already include padding and border.
@@ -220,6 +317,18 @@ impl<'a> Ctx<'a> {
         if st.min_width != Len::Auto {
             w = w.max(pct(st.min_width) - sizing);
         }
+        // Tables size themselves from their cells' content.
+        let table = if st.table_role == TableRole::Table && replaced.is_none() {
+            let grid = self.table_grid(id);
+            if self.styles[id].width == Len::Auto && forced.0.is_none() {
+                w = w.min(grid.preferred()).max(grid.min.iter().sum::<f32>() + grid.edges());
+                constrained = true;
+            }
+            Some(grid)
+        } else {
+            None
+        };
+        let st = &self.styles[id];
         // A flex container decides this item's outer width.
         if let Some(fw) = forced.0 {
             w = fw - ml - mr - extra;
@@ -260,6 +369,11 @@ impl<'a> Ctx<'a> {
         let cy = top + bt + pt;
         let align = st.text_align;
         let is_flex = st.flex.container;
+        // overflow: hidden and display: flow-root start a new float context that contains its floats.
+        let new_bfc = st.clip || st.flow_root;
+        if new_bfc {
+            self.floats.push(Vec::new());
+        }
         let (mut content_h, _) = match replaced {
             Some((rw, rh)) => {
                 let src = self.dom.attr(id, "src").unwrap_or("").trim().to_string();
@@ -268,6 +382,10 @@ impl<'a> Ctx<'a> {
                 }
                 self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
                 (rh, 0.0)
+            }
+            None if table.is_some() => {
+                let stretch = self.styles[id].width != Len::Auto || forced.0.is_some();
+                (self.table_children(table.as_ref().unwrap(), cx, cy, w, stretch), 0.0)
             }
             None if is_flex => {
                 let definite = match (forced.1, st.height) {
@@ -279,6 +397,10 @@ impl<'a> Ctx<'a> {
             }
             None => self.block_children(id, cx, cy, w, align),
         };
+        if new_bfc {
+            content_h = content_h.max(self.float_bottom(true, true) - cy);
+            self.floats.pop();
+        }
         let st = &self.styles[id];
         if let (Len::Px(h), None) = (st.height, replaced) {
             content_h = content_h.max(h - vsizing);
@@ -356,6 +478,12 @@ impl<'a> Ctx<'a> {
                 self.shift_since(start, dx, dy);
             }
         }
+        // A positioned box with a z-index paints in its own layer.
+        let z = self.styles[id].z_index;
+        if positioned && z != 0 && !matches!(self.styles[id].position, Position::Absolute | Position::Fixed) {
+            let lifted: Vec<Item> = self.items.drain(start.0..).collect();
+            self.layers.push((z, lifted));
+        }
         (mt_eff + box_h + mb, mb)
     }
 
@@ -372,6 +500,93 @@ impl<'a> Ctx<'a> {
             r.x += dx;
             r.y += dy;
         }
+    }
+
+    fn is_float(&self, id: NodeId) -> bool {
+        matches!(self.dom.nodes[id].data, NodeData::Element { .. })
+            && self.styles[id].float.is_some()
+            && self.styles[id].display != Display::None
+            && !self.is_out_of_flow(id)
+    }
+
+    fn has_floats(&self) -> bool {
+        self.floats.last().map_or(false, |f| !f.is_empty())
+    }
+
+    /// Lowest bottom edge of the floats on the given sides in the current context.
+    fn float_bottom(&self, left: bool, right: bool) -> f32 {
+        self.floats
+            .last()
+            .map(|fs| fs.iter().filter(|f| (f.left && left) || (!f.left && right)).map(|f| f.y1).fold(0.0, f32::max))
+            .unwrap_or(0.0)
+    }
+
+    /// Free horizontal space inside [x, x+w] for a band of height h starting at y:
+    /// (offset from x, width).
+    fn band(&self, x: f32, w: f32, y: f32, h: f32) -> (f32, f32) {
+        let (mut l, mut r) = (x, x + w);
+        if let Some(fs) = self.floats.last() {
+            for f in fs {
+                if f.y1 > y && f.y0 < y + h.max(1.0) && f.x1 > x && f.x0 < x + w {
+                    if f.left {
+                        l = l.max(f.x1);
+                    } else {
+                        r = r.min(f.x0);
+                    }
+                }
+            }
+        }
+        (l - x, (r - l).max(0.0))
+    }
+
+    /// Place a floated element at the left or right edge, as high as it fits from y down.
+    fn place_float(&mut self, id: NodeId, x: f32, y: f32, w: f32) {
+        let left = self.styles[id].float == Some(true);
+        let d = self.layout_detached(id, w);
+        let (dw, dh) = (d.w, d.h);
+        let mut fy = y;
+        // Never above an earlier float (floats keep their order).
+        if let Some(fs) = self.floats.last() {
+            if let Some(last) = fs.last() {
+                fy = fy.max(last.y0);
+            }
+        }
+        let (cl, cr) = self.styles[id].clear;
+        if cl || cr {
+            fy = fy.max(self.float_bottom(cl, cr));
+        }
+        for _ in 0..64 {
+            let (off, avail) = self.band(x, w, fy, dh);
+            if avail + 0.5 >= dw || !self.has_floats() {
+                let fx = if left { x + off } else { x + off + avail - dw };
+                let fx = fx.max(x);
+                self.place_detached(d, fx, fy);
+                if let Some(fs) = self.floats.last_mut() {
+                    fs.push(FloatBox { x0: fx, x1: fx + dw, y0: fy, y1: fy + dh, left });
+                }
+                return;
+            }
+            // Not enough room: drop below the float that ends first.
+            let next = self
+                .floats
+                .last()
+                .and_then(|fs| fs.iter().filter(|f| f.y1 > fy).map(|f| f.y1).reduce(f32::min));
+            match next {
+                Some(n) => fy = n,
+                None => break,
+            }
+        }
+        let fx = if left { x } else { x + w - dw };
+        self.place_detached(d, fx, fy);
+        if let Some(fs) = self.floats.last_mut() {
+            fs.push(FloatBox { x0: fx, x1: fx + dw, y0: fy, y1: fy + dh, left });
+        }
+    }
+
+    /// A new line, narrowed by any floats beside it.
+    fn new_line(&self, x: f32, w: f32, y: f32) -> Line {
+        let (x_off, max_w) = if self.has_floats() { self.band(x, w, y, 16.0) } else { (0.0, w) };
+        Line { x_off, max_w, ..Line::default() }
     }
 
     fn is_out_of_flow(&self, id: NodeId) -> bool {
@@ -420,6 +635,7 @@ impl<'a> Ctx<'a> {
                 (t, _) => cb.y + vert(t),
             };
             let (l0, h0) = (self.links.len(), self.hits.len());
+            let i0 = self.items.len();
             if fixed {
                 self.items.push(Item::FixedPush);
             }
@@ -427,6 +643,11 @@ impl<'a> Ctx<'a> {
             if fixed {
                 self.items.push(Item::FixedPop);
                 self.fixed.push((l0..self.links.len(), h0..self.hits.len()));
+            }
+            let z = self.styles[id].z_index;
+            if z != 0 {
+                let lifted: Vec<Item> = self.items.drain(i0..).collect();
+                self.layers.push((z, lifted));
             }
         }
     }
@@ -446,10 +667,17 @@ impl<'a> Ctx<'a> {
     fn detach(&mut self, f: impl FnOnce(&mut Self) -> (f32, f32)) -> Detached {
         let saved = (std::mem::take(&mut self.items), std::mem::take(&mut self.links), std::mem::take(&mut self.hits));
         self.abs.push(Vec::new());
+        self.floats.push(Vec::new());
+        let saved_layers = std::mem::take(&mut self.layers);
         let (w, h) = f(self);
+        // A detached box contains its own floats.
+        let h = h.max(self.float_bottom(true, true));
+        self.floats.pop();
         let pending = self.abs.pop().unwrap_or_default();
         self.place_absolutes(pending, Rect { x: 0.0, y: 0.0, w, h });
-        let items = std::mem::replace(&mut self.items, saved.0);
+        // z-index layers inside a detached box stack within it.
+        let mine = std::mem::replace(&mut self.layers, saved_layers);
+        let items = merge_layers(std::mem::replace(&mut self.items, saved.0), mine);
         let links = std::mem::replace(&mut self.links, saved.1);
         let hits = std::mem::replace(&mut self.hits, saved.2);
         let baseline = items
@@ -704,6 +932,190 @@ impl<'a> Ctx<'a> {
         (cy - y).max(definite_h.unwrap_or(0.0))
     }
 
+    fn role(&self, id: NodeId, role: TableRole, tags: &[&str]) -> bool {
+        matches!(self.dom.nodes[id].data, NodeData::Element { .. })
+            && self.styles[id].display != Display::None
+            && (self.styles[id].table_role == role || tags.contains(&self.dom.tag(id).unwrap_or("")))
+    }
+
+    /// Find a table's rows and cells, place cells on the grid (colspan/rowspan),
+    /// and measure each column's narrowest and widest content.
+    fn table_grid(&mut self, table: NodeId) -> TableGrid {
+        let st = &self.styles[table];
+        let spacing = if st.border_collapse { 0.0 } else { st.border_spacing };
+        let mut captions = Vec::new();
+        let mut rows = Vec::new();
+        for c in self.dom.nodes[table].children.clone() {
+            if self.role(c, TableRole::Caption, &["caption"]) {
+                captions.push(c);
+            } else if self.role(c, TableRole::RowGroup, &["thead", "tbody", "tfoot"]) {
+                for r in self.dom.nodes[c].children.clone() {
+                    if self.role(r, TableRole::Row, &["tr"]) {
+                        rows.push(r);
+                    }
+                }
+            } else if self.role(c, TableRole::Row, &["tr"]) {
+                rows.push(c);
+            }
+        }
+        let nrows = rows.len();
+        let mut taken: Vec<Vec<bool>> = vec![Vec::new(); nrows];
+        let mut cells = Vec::new();
+        let mut ncols = 0;
+        for (r, &row) in rows.iter().enumerate() {
+            let mut col = 0;
+            for c in self.dom.nodes[row].children.clone() {
+                if !self.role(c, TableRole::Cell, &["td", "th"]) {
+                    continue;
+                }
+                let num = |a: &str| self.dom.attr(c, a).and_then(|v| v.trim().parse::<usize>().ok());
+                let colspan = num("colspan").unwrap_or(1).clamp(1, 1000);
+                let rowspan = match num("rowspan") {
+                    Some(0) => nrows - r,
+                    Some(n) => n.min(nrows - r).max(1),
+                    None => 1,
+                };
+                while taken[r].get(col).copied().unwrap_or(false) {
+                    col += 1;
+                }
+                for rr in r..r + rowspan {
+                    if taken[rr].len() < col + colspan {
+                        taken[rr].resize(col + colspan, false);
+                    }
+                    for cc in col..col + colspan {
+                        taken[rr][cc] = true;
+                    }
+                }
+                cells.push(TableCell { node: c, row: r, col, rowspan, colspan });
+                col += colspan;
+                ncols = ncols.max(col);
+            }
+        }
+        let mut min = vec![0.0f32; ncols];
+        let mut max = vec![0.0f32; ncols];
+        // Single-column cells first, then spread wider cells over their columns.
+        let mut spans = Vec::new();
+        for cell in &cells {
+            let (mn, mx) = self.cell_widths(cell.node);
+            if cell.colspan == 1 {
+                min[cell.col] = min[cell.col].max(mn);
+                max[cell.col] = max[cell.col].max(mx);
+            } else {
+                spans.push((cell.col, cell.colspan, mn, mx));
+            }
+        }
+        for (col, span, mn, mx) in spans {
+            let gaps = spacing * (span as f32 - 1.0);
+            let have_min: f32 = min[col..col + span].iter().sum::<f32>() + gaps;
+            let have_max: f32 = max[col..col + span].iter().sum::<f32>() + gaps;
+            for c in col..col + span {
+                if mn > have_min {
+                    min[c] += (mn - have_min) / span as f32;
+                }
+                if mx > have_max {
+                    max[c] += (mx - have_max) / span as f32;
+                }
+            }
+        }
+        for c in 0..ncols {
+            max[c] = max[c].max(min[c]);
+        }
+        TableGrid { captions, rows, cells, ncols, min, max, spacing }
+    }
+
+    /// A cell's narrowest (longest word) and widest (no wrapping) outer width.
+    fn cell_widths(&mut self, cell: NodeId) -> (f32, f32) {
+        let st = &self.styles[cell];
+        if let Len::Px(px) = st.width {
+            let edges = if st.border_box { 0.0 } else { st.padding[1].resolve(0.0) + st.padding[3].resolve(0.0) + st.border[1] + st.border[3] };
+            let w = px + edges;
+            let (mn, _) = self.content_widths(cell);
+            return (mn.max(w), mn.max(w));
+        }
+        self.content_widths(cell)
+    }
+
+    fn content_widths(&mut self, id: NodeId) -> (f32, f32) {
+        let st = &self.styles[id];
+        let tail = st.padding[1].resolve(0.0) + st.border[1] + st.margin[1].resolve(0.0);
+        let was = self.measuring;
+        self.measuring = true;
+        let narrow = self.detach(|cx| (0.0, cx.block(id, 0.0, 0.0, 0.0, 0.0).0));
+        let wide = self.detach(|cx| (100_000.0, cx.block(id, 0.0, 0.0, 100_000.0, 0.0).0));
+        self.measuring = was;
+        let mn = self.content_right(&narrow.items, true).ceil() + tail;
+        let mx = self.content_right(&wide.items, true).ceil() + tail;
+        (mn, mx.max(mn))
+    }
+
+    /// Lay out a table's captions, rows and cells inside a content box `w` wide.
+    fn table_children(&mut self, g: &TableGrid, x: f32, y: f32, w: f32, stretch: bool) -> f32 {
+        let mut cy = y;
+        for &cap in &g.captions {
+            let d = self.layout_at(cap, w, None);
+            let h = d.h;
+            self.place_detached(d, x, cy);
+            cy += h;
+        }
+        let widths = g.widths(w, stretch);
+        let s = g.spacing;
+        let mut col_x = Vec::with_capacity(g.ncols);
+        let mut cx = x + s;
+        for cw in &widths {
+            col_x.push(cx);
+            cx += cw + s;
+        }
+        let span_w = |c: &TableCell| widths[c.col..c.col + c.colspan].iter().sum::<f32>() + s * (c.colspan as f32 - 1.0);
+        // Natural heights decide row heights.
+        let mut row_h: Vec<f32> = g.rows.iter().map(|&r| if let Len::Px(h) = self.styles[r].height { h } else { 0.0 }).collect();
+        let mut natural = Vec::with_capacity(g.cells.len());
+        for c in &g.cells {
+            let h = self.layout_at(c.node, span_w(c), None).h;
+            natural.push(h);
+            if c.rowspan == 1 {
+                row_h[c.row] = row_h[c.row].max(h);
+            }
+        }
+        for (i, c) in g.cells.iter().enumerate() {
+            if c.rowspan > 1 {
+                let have: f32 = row_h[c.row..c.row + c.rowspan].iter().sum::<f32>() + s * (c.rowspan as f32 - 1.0);
+                if natural[i] > have {
+                    row_h[c.row + c.rowspan - 1] += natural[i] - have;
+                }
+            }
+        }
+        let mut row_y = Vec::with_capacity(g.rows.len());
+        let mut ry = cy + s;
+        for h in &row_h {
+            row_y.push(ry);
+            ry += h + s;
+        }
+        // Row backgrounds sit under their cells.
+        for (r, &row) in g.rows.iter().enumerate() {
+            let st = &self.styles[row];
+            if st.bg.visible() && !st.hidden {
+                self.items.push(Item::Box { x: x + s, y: row_y[r], w: (w - 2.0 * s).max(0.0), h: row_h[r], radius: 0.0, bg: Box::new(st.bg.clone()) });
+            }
+        }
+        for (i, c) in g.cells.iter().enumerate() {
+            let target = row_h[c.row..c.row + c.rowspan].iter().sum::<f32>() + s * (c.rowspan as f32 - 1.0);
+            let free = (target - natural[i]).max(0.0);
+            let shift = match self.styles[c.node].valign {
+                VAlign::Middle => free / 2.0,
+                VAlign::Bottom => free,
+                _ => 0.0,
+            };
+            if shift > 0.0 {
+                self.pad_top.insert(c.node, shift);
+            }
+            let d = self.layout_at(c.node, span_w(c), Some(target));
+            self.pad_top.remove(&c.node);
+            self.place_detached(d, col_x[c.col], row_y[c.row]);
+        }
+        let end = if g.rows.is_empty() { cy } else { ry };
+        end - y
+    }
+
     /// Lay out loose text inside a flex container as an anonymous box.
     fn detach_text(&mut self, nodes: &[NodeId], w: f32, align: Align) -> Detached {
         let nodes = nodes.to_vec();
@@ -735,6 +1147,18 @@ impl<'a> Ctx<'a> {
                 self.defer_absolute(c, x, cy);
                 continue;
             }
+            if self.is_float(c) {
+                if !run.is_empty() {
+                    let h = self.inline(&run, x, cy, w, align);
+                    if h > 0.0 {
+                        prev_mb = 0.0;
+                    }
+                    cy += h;
+                    run.clear();
+                }
+                self.place_float(c, x, cy, w);
+                continue;
+            }
             if self.is_block(c) {
                 if !run.is_empty() {
                     let h = self.inline(&run, x, cy, w, align);
@@ -744,7 +1168,24 @@ impl<'a> Ctx<'a> {
                     cy += h;
                     run.clear();
                 }
-                let (h, mb) = self.block(c, x, cy, w, prev_mb);
+                // clear: move below the floats on that side.
+                let (cl, cr) = self.styles[c].clear;
+                if cl || cr {
+                    let below = self.float_bottom(cl, cr);
+                    if below > cy {
+                        cy = below;
+                        prev_mb = 0.0;
+                    }
+                }
+                // A box that starts its own float context sits beside floats instead of under them.
+                let st = &self.styles[c];
+                let (bx, bw) = if (st.clip || st.flow_root || st.flex.container) && self.has_floats() {
+                    let (off, avail) = self.band(x, w, cy, 1.0);
+                    (x + off, avail)
+                } else {
+                    (x, w)
+                };
+                let (h, mb) = self.block(c, bx, cy, bw, prev_mb);
                 cy += h;
                 prev_mb = mb;
             } else {
@@ -881,7 +1322,7 @@ impl<'a> Ctx<'a> {
                 }
             }
             NodeData::Element { tag, .. } => {
-                if self.styles[id].display == Display::None || self.is_out_of_flow(id) {
+                if self.styles[id].display == Display::None || self.is_out_of_flow(id) || self.is_float(id) {
                     return;
                 }
                 match tag.as_str() {
@@ -1004,25 +1445,29 @@ impl<'a> Ctx<'a> {
         for &id in run {
             self.flatten(id, None, w, &mut toks);
         }
-        // Absolutely positioned elements inside this text are taken out of the flow.
-        let mut stack: Vec<NodeId> = run.to_vec();
+        // Absolutely positioned and floated elements inside this text leave the flow.
+        let mut stack: Vec<NodeId> = run.iter().rev().copied().collect();
         while let Some(n) = stack.pop() {
             if self.is_out_of_flow(n) {
                 self.defer_absolute(n, x, y);
+            } else if self.is_float(n) {
+                self.place_float(n, x, y, w);
             } else if self.styles[n].display == Display::Inline {
-                stack.extend(self.dom.nodes[n].children.iter().copied());
+                stack.extend(self.dom.nodes[n].children.iter().rev().copied());
             }
         }
         // Lay out inline-blocks first: their size decides where lines break.
-        let mut blocks: std::collections::HashMap<usize, Detached> = std::collections::HashMap::new();
+        let mut blocks: HashMap<usize, Detached> = HashMap::new();
         for (i, t) in toks.iter().enumerate() {
             if let Tok::InlineBlock { node, .. } = t {
                 let d = self.layout_detached(*node, w);
                 blocks.insert(i, d);
             }
         }
-        // Break into lines.
-        let mut lines: Vec<Line> = vec![Line::default()];
+        // Break into lines. Each line's width depends on floats beside it, so track
+        // an estimate of where each line will sit vertically.
+        let mut est_y = y;
+        let mut lines: Vec<Line> = vec![self.new_line(x, w, y)];
         let mut pending_space = 0.0f32;
         let mut pending_opens: Vec<(NodeId, f32)> = Vec::new();
         for (i, t) in toks.iter().enumerate() {
@@ -1049,25 +1494,27 @@ impl<'a> Ctx<'a> {
                     if line.items.is_empty() {
                         if self.dom.tag(*node) == Some("br") {
                             line.blank = Some(i);
-                            lines.push(Line::default());
+                            est_y += self.line_est_height(lines.last().unwrap(), &toks, &blocks);
+                            lines.push(self.new_line(x, w, est_y));
                         }
                     } else {
-                        lines.push(Line::default());
+                        est_y += self.line_est_height(lines.last().unwrap(), &toks, &blocks);
+                        lines.push(self.new_line(x, w, est_y));
                     }
                     pending_space = 0.0;
                 }
                 Tok::Word { text, node, .. } => {
                     let (font, size) = self.font_of(*node);
                     let ww = self.fonts.width(font, text, size);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, ww, i, w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, ww, i, (x, w), &mut est_y, &toks, &blocks);
                 }
                 Tok::Image { w: iw, .. } => {
                     let iw = iw.min(w);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, (x, w), &mut est_y, &toks, &blocks);
                 }
                 Tok::InlineBlock { .. } => {
                     let bw = blocks.get(&i).map_or(0.0, |d| d.w);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, bw, i, w);
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, bw, i, (x, w), &mut est_y, &toks, &blocks);
                 }
             }
         }
@@ -1076,6 +1523,9 @@ impl<'a> Ctx<'a> {
         // Inline boxes still open from earlier lines: (node, depth).
         let mut carried: Vec<NodeId> = Vec::new();
         for line in &lines {
+            if let Some(to) = line.skip_to {
+                cy = cy.max(to);
+            }
             let (mut lh, mut above) = (0.0f32, 0.0f32);
             let mut below = 0.0f32;
             for p in &line.items {
@@ -1095,11 +1545,12 @@ impl<'a> Ctx<'a> {
             }
             let lh = lh.max(above + below);
             let align = if self.measuring { Align::Left } else { align };
-            let shift = match align {
-                Align::Left => 0.0,
-                Align::Center => ((w - line.width) / 2.0).max(0.0),
-                Align::Right => (w - line.width).max(0.0),
-            };
+            let shift = line.x_off
+                + match align {
+                    Align::Left => 0.0,
+                    Align::Center => ((line.max_w - line.width) / 2.0).max(0.0),
+                    Align::Right => (line.max_w - line.width).max(0.0),
+                };
             let baseline = cy + above;
             let mut prev_underline_end: Option<(f32, NodeId)> = None;
             // Inline box backgrounds go under this line's text: collect, then insert.
@@ -1196,13 +1647,48 @@ impl<'a> Ctx<'a> {
         cy - y
     }
 
-    fn place(&self, lines: &mut Vec<Line>, pending_space: &mut f32, pending_opens: &mut Vec<(NodeId, f32)>, ww: f32, tok: usize, max_w: f32) {
+    #[allow(clippy::too_many_arguments)]
+    fn place(
+        &self,
+        lines: &mut Vec<Line>,
+        pending_space: &mut f32,
+        pending_opens: &mut Vec<(NodeId, f32)>,
+        ww: f32,
+        tok: usize,
+        (x0, w): (f32, f32),
+        est_y: &mut f32,
+        toks: &[Tok],
+        blocks: &HashMap<usize, Detached>,
+    ) {
         let line = lines.last_mut().unwrap();
         let mut sp = *pending_space;
         let lead: f32 = pending_opens.iter().map(|(_, w)| w).sum();
-        if !line.items.is_empty() && line.width + sp + lead + ww > max_w {
-            lines.push(Line::default());
+        if !line.items.is_empty() && line.width + sp + lead + ww > line.max_w {
+            *est_y += self.line_est_height(lines.last().unwrap(), toks, blocks);
+            lines.push(self.new_line(x0, w, *est_y));
             sp = 0.0;
+        }
+        // Too narrow beside a float even for this one item: move the line down past the float.
+        for _ in 0..32 {
+            let line = lines.last().unwrap();
+            if !line.items.is_empty() || lead + ww <= line.max_w || line.max_w >= w {
+                break;
+            }
+            let next = self
+                .floats
+                .last()
+                .and_then(|fs| fs.iter().filter(|f| f.y1 > *est_y).map(|f| f.y1).reduce(f32::min));
+            match next {
+                Some(n) => {
+                    *est_y = n;
+                    let fresh = self.new_line(x0, w, n);
+                    let line = lines.last_mut().unwrap();
+                    line.x_off = fresh.x_off;
+                    line.max_w = fresh.max_w;
+                    line.skip_to = Some(n);
+                }
+                None => break,
+            }
         }
         let line = lines.last_mut().unwrap();
         let mut bx = line.width + sp;
@@ -1214,6 +1700,21 @@ impl<'a> Ctx<'a> {
         line.items.push(Placed { x: bx, w: ww, tok, opens, closes: Vec::new() });
         line.width = bx + ww;
         *pending_space = 0.0;
+    }
+
+    /// Rough height of a line, used to predict where the next line goes.
+    fn line_est_height(&self, line: &Line, toks: &[Tok], blocks: &HashMap<usize, Detached>) -> f32 {
+        if line.items.is_empty() {
+            return line.blank.map_or(0.0, |t| self.tok_size(&toks[t]).0);
+        }
+        let mut h = 0.0f32;
+        for p in &line.items {
+            h = h.max(match blocks.get(&p.tok) {
+                Some(d) => d.h,
+                None => self.tok_size(&toks[p.tok]).0,
+            });
+        }
+        h
     }
 }
 

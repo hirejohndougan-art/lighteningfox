@@ -93,6 +93,12 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   while scrolling, clickable), `top/right/bottom/left`, `inset`
 - **Box effects**: `box-shadow` (offset, blur, spread), `overflow: hidden` with rounded clipping,
   `box-sizing: border-box`, `min-width`
+- **Floats**: `float`, `clear`, text wrapping around floats, `display: flow-root`, `<img align>`
+- **Tables**: auto column widths from content, `colspan`/`rowspan`, captions, `border-spacing`,
+  `border-collapse`, cell `vertical-align`, old HTML attributes (`border`, `cellpadding`, `cellspacing`, `valign`)
+- **Selectors**: `+` and `~`, attribute operators (`^=` `$=` `*=` `~=` `|=`), `:not()`, `:is()`, `:where()`,
+  `:nth-child()`, `:nth-of-type()`, `:first/last/only-child`, `:empty`, `:checked`, `:hover` (live in the window)
+- **Stacking**: `z-index` on positioned boxes; borders default to the text color (`currentColor`)
 - **Interaction**: address bar, scrolling, clickable links, back history, resize reflow
 
 Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
@@ -110,10 +116,9 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **Floats** and real **tables**
-2. **Grid**: named areas, spans, mixed track sizes
-3. **z-index** stacking and inline `position: relative`
-4. **Forms**: text input, buttons, submission, then **grid**: most modern layouts depend on these
+1. **Grid**: named areas, spans, mixed track sizes
+2. **Forms**: text input, buttons, submission
+3. **Cookies** and `fetch()`, then **grid**: most modern layouts depend on these
 4. **Positioning**: `position: relative/absolute/fixed/sticky`, `z-index`, `float`
 5. **Tables**: real table layout
 6. **Background loading**: fetch on a worker thread so the UI never freezes

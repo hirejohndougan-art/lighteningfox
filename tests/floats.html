@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><title>Floats test</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #fffdf8; color: #222; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+  .left { float: left; width: 160px; margin: 0 16px 8px 0; }
+  .right { float: right; width: 200px; margin: 0 0 8px 16px; background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 8px; }
+  .clear { clear: both; }
+  .media { overflow: hidden; background: #eef2ff; padding: 12px; border-radius: 10px; margin-top: 16px; }
+  .media img { float: left; width: 64px; margin-right: 12px; }
+  .cols div { float: left; width: 33.33%; box-sizing: border-box; padding: 8px; }
+  .cols { overflow: hidden; margin-top: 16px; }
+  .cols div:first-child { background: #fee2e2; } 
+  .note { background: #ecfeff; border-left: 4px solid #06b6d4; padding: 8px 12px; }
+</style></head>
+<body><div class="wrap">
+  <h1>Floats</h1>
+  <img class="left" src="img/landscape.jpg" alt="landscape">
+  <div class="right"><b>Pull quote.</b> This box floats right; text from both sides flows between the two floats.</div>
+  <p>Text wraps around floated content the way newspapers and older websites lay it out. This paragraph starts beside a picture floated left and a box floated right, so each line is narrowed by both floats until it passes their bottoms. After that, lines use the full width of the column again, which you can see once the text runs long enough to get past the taller of the two floated boxes. More words make the effect easier to see: the quick brown fox jumps over the lazy dog, again and again, until the floats end.</p>
+  <p class="clear note">This paragraph has <code>clear: both</code>, so it starts below both floats.</p>
+  <div class="media"><img src="img/logo.png" alt=""><b>Media object.</b> <code>overflow: hidden</code> makes this box contain its floated image, and the text sits beside it instead of under it.</div>
+  <div class="cols"><div>Column one, floated left at one third width.</div><div>Column two, also floated left.</div><div>Column three completes the row.</div></div>
+  <p>After the columns, normal flow resumes.</p>
+  <p><img src="img/icon.gif" align="right" alt="">An old-style <code>&lt;img align=right&gt;</code> also floats, as on many legacy pages.</p>
+</div></body></html>

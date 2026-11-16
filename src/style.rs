@@ -2,8 +2,23 @@
 
 use crate::css::{self, Combinator, Compound, Decl, Selector, Stylesheet};
 use crate::dom::{Dom, NodeData, NodeId};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+thread_local! {
+    /// The element under the mouse, for :hover.
+    static HOVER: Cell<Option<NodeId>> = const { Cell::new(None) };
+}
+
+pub fn set_hover(node: Option<NodeId>) {
+    HOVER.with(|h| h.set(node));
+}
+
+/// Does any rule in these sheets use :hover? (Only then is it worth restyling on mouse moves.)
+pub fn uses_hover(sheets: &[Stylesheet]) -> bool {
+    sheets.iter().any(|sh| sh.rules.iter().any(|r| r.selectors.iter().any(|s| s.parts.iter().any(|p| p.pseudo.iter().any(|x| x == "hover")))))
+}
 
 pub const VIEWPORT_W: f32 = 1024.0;
 
@@ -148,6 +163,24 @@ pub struct Shadow {
     pub color: Color,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TableRole {
+    None,
+    Table,
+    RowGroup,
+    Row,
+    Cell,
+    Caption,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VAlign {
+    Baseline,
+    Top,
+    Middle,
+    Bottom,
+}
+
 /// Flex container and flex item properties.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Flex {
@@ -221,10 +254,22 @@ pub struct Style {
     pub min_width: Len,
     /// box-sizing: border-box — width/height include padding and border.
     pub border_box: bool,
+    /// float: Some(true) = left, Some(false) = right.
+    pub float: Option<bool>,
+    /// clear: (left, right)
+    pub clear: (bool, bool),
+    /// display: flow-root (starts a new block formatting context, contains floats)
+    pub flow_root: bool,
+    pub table_role: TableRole,
+    pub border_spacing: f32,
+    pub border_collapse: bool,
+    pub valign: VAlign,
     pub margin: [Len; 4], // top right bottom left
     pub padding: [Len; 4],
     pub border: [f32; 4],
     pub border_color: Color,
+    /// False until a border color is given; then the border follows `color` (currentColor).
+    pub border_color_set: bool,
     pub width: Len,
     pub max_width: Len,
     pub height: Len,
@@ -257,10 +302,18 @@ impl Default for Style {
             shadow: None,
             min_width: Len::Auto,
             border_box: false,
+            float: None,
+            clear: (false, false),
+            flow_root: false,
+            table_role: TableRole::None,
+            border_spacing: 0.0,
+            border_collapse: false,
+            valign: VAlign::Baseline,
             margin: [Len::Px(0.0); 4],
             padding: [Len::Px(0.0); 4],
             border: [0.0; 4],
             border_color: Color::BLACK,
+            border_color_set: false,
             width: Len::Auto,
             max_width: Len::Auto,
             height: Len::Auto,
@@ -283,6 +336,8 @@ impl Style {
             list_style: parent.list_style,
             hidden: parent.hidden,
             vars: parent.vars.clone(),
+            border_spacing: parent.border_spacing,
+            border_collapse: parent.border_collapse,
             ..Style::default()
         }
     }
@@ -293,7 +348,13 @@ pub const UA_CSS: &str = r#"
 html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, dl, dt, dd, pre, blockquote, form, fieldset,
 header, footer, main, nav, section, article, aside, figure, figcaption, address, hr, table, tr,
 thead, tbody, tfoot, caption, center, details, summary, menu, legend, hgroup, search, dialog { display: block; }
-td, th { display: block; }
+table { display: table; border-spacing: 2px; }
+thead, tbody, tfoot { display: table-row-group; }
+tr { display: table-row; }
+td, th { display: table-cell; vertical-align: middle; }
+caption { display: table-caption; text-align: center; }
+colgroup, col { display: none; }
+th { text-align: center; }
 li { display: list-item; }
 head, script, style, title, meta, link, noscript, template, base, datalist, dialog, svg { display: none; }
 [hidden] { display: none; }
@@ -371,19 +432,32 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Style> {
                 order += 1;
             }
             matched.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
-            presentational_hints(dom, id, &mut st, &parent_style);
             // Custom properties first, so normal properties can use them via var().
             for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
                 let value = substitute_vars(&m.decl.value, &st.vars, 0);
                 Rc::make_mut(&mut st.vars).insert(m.decl.name.clone(), value);
             }
+            // HTML attributes like bgcolor and cellpadding beat the browser defaults
+            // but lose to the page's own CSS, so they go in between.
+            let mut hinted = false;
             for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
+                if !hinted && (m.origin > 0 || m.important) {
+                    presentational_hints(dom, id, &mut st, &parent_style);
+                    hinted = true;
+                }
                 if m.decl.value.contains("var(") {
                     let value = substitute_vars(&m.decl.value, &st.vars, 0);
                     apply(&mut st, &parent_style, &m.decl.name, &value);
                 } else {
                     apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
                 }
+            }
+            if !hinted {
+                presentational_hints(dom, id, &mut st, &parent_style);
+            }
+            // Borders without a color of their own use the text color.
+            if !st.border_color_set {
+                st.border_color = st.color;
             }
         } else {
             st.display = Display::Inline;
@@ -405,7 +479,55 @@ fn presentational_hints(dom: &Dom, id: NodeId, st: &mut Style, parent: &Style) {
         }
     }
     if let Some(a) = dom.attr(id, "align") {
-        apply(st, parent, "text-align", a);
+        if dom.tag(id) == Some("img") || dom.tag(id) == Some("table") {
+            match a.to_ascii_lowercase().as_str() {
+                "left" => st.float = Some(true),
+                "right" => st.float = Some(false),
+                "center" | "middle" => {
+                    st.margin[1] = Len::Auto;
+                    st.margin[3] = Len::Auto;
+                }
+                _ => {}
+            }
+        } else {
+            apply(st, parent, "text-align", a);
+        }
+    }
+    // Old table attributes: border, cellpadding, cellspacing, valign.
+    let tag = dom.tag(id).unwrap_or("");
+    if tag == "table" {
+        if let Some(b) = dom.attr(id, "border").map(|b| b.trim().parse::<f32>().unwrap_or(1.0)) {
+            if b > 0.0 {
+                st.border = [b; 4];
+                st.border_color = Color::rgb(128, 128, 128);
+                st.border_color_set = true;
+            }
+        }
+        if let Some(sp) = dom.attr(id, "cellspacing").and_then(|v| v.trim().parse::<f32>().ok()) {
+            st.border_spacing = sp;
+        }
+    }
+    if tag == "td" || tag == "th" {
+        let mut table = dom.nodes[id].parent;
+        while let Some(t) = table {
+            if dom.tag(t) == Some("table") {
+                break;
+            }
+            table = dom.nodes[t].parent;
+        }
+        if let Some(t) = table {
+            if dom.attr(t, "border").map_or(false, |b| b.trim().parse::<f32>().unwrap_or(1.0) > 0.0) {
+                st.border = [1.0; 4];
+                st.border_color = Color::rgb(160, 160, 160);
+                st.border_color_set = true;
+            }
+            if let Some(p) = dom.attr(t, "cellpadding").and_then(|v| v.trim().parse::<f32>().ok()) {
+                st.padding = [Len::Px(p); 4];
+            }
+        }
+    }
+    if let Some(v) = dom.attr(id, "valign") {
+        apply(st, parent, "vertical-align", v);
     }
     if let Some(w) = dom.attr(id, "width") {
         if dom.tag(id) != Some("img") {
@@ -428,6 +550,17 @@ fn match_from(dom: &Dom, id: NodeId, sel: &Selector, idx: usize) -> bool {
     }
     let mut cur = dom.nodes[id].parent;
     match sel.combinators[idx - 1] {
+        Combinator::Adjacent => prev_element(dom, id).map_or(false, |p| match_from(dom, p, sel, idx - 1)),
+        Combinator::Sibling => {
+            let mut p = prev_element(dom, id);
+            while let Some(e) = p {
+                if match_from(dom, e, sel, idx - 1) {
+                    return true;
+                }
+                p = prev_element(dom, e);
+            }
+            false
+        }
         Combinator::Child => cur.map_or(false, |p| match_from(dom, p, sel, idx - 1)),
         Combinator::Descendant => {
             while let Some(p) = cur {
@@ -439,6 +572,46 @@ fn match_from(dom: &Dom, id: NodeId, sel: &Selector, idx: usize) -> bool {
             false
         }
     }
+}
+
+fn prev_element(dom: &Dom, id: NodeId) -> Option<NodeId> {
+    let parent = dom.nodes[id].parent?;
+    let kids = &dom.nodes[parent].children;
+    let pos = kids.iter().position(|&k| k == id)?;
+    kids[..pos].iter().rev().copied().find(|&k| dom.tag(k).is_some())
+}
+
+/// Element siblings of `id` (including itself), in order.
+fn element_siblings(dom: &Dom, id: NodeId) -> Vec<NodeId> {
+    let parent = dom.nodes[id].parent.unwrap_or(0);
+    dom.nodes[parent].children.iter().copied().filter(|&c| dom.tag(c).is_some()).collect()
+}
+
+/// Does a 1-based position match `an+b` (also "odd", "even", plain numbers)?
+fn nth_matches(expr: &str, pos: usize) -> bool {
+    let e: String = expr.split(" of ").next().unwrap_or("").chars().filter(|c| !c.is_whitespace()).collect::<String>().to_ascii_lowercase();
+    let (a, b) = match e.as_str() {
+        "odd" => (2, 1),
+        "even" => (2, 0),
+        _ => match e.find('n') {
+            Some(i) => {
+                let a = match &e[..i] {
+                    "" | "+" => 1,
+                    "-" => -1,
+                    s => s.parse().unwrap_or(0),
+                };
+                let b = if e[i + 1..].is_empty() { 0 } else { e[i + 1..].parse().unwrap_or(0) };
+                (a, b)
+            }
+            None => (0, e.parse().unwrap_or(0)),
+        },
+    };
+    let pos = pos as i64;
+    if a == 0 {
+        return pos == b;
+    }
+    let k = pos - b;
+    k % a == 0 && k / a >= 0
 }
 
 fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
@@ -458,11 +631,19 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
             return false;
         }
     }
-    for (k, v) in &c.attrs {
-        match (dom.attr(id, k), v) {
-            (None, _) => return false,
-            (Some(actual), Some(want)) if actual != want => return false,
-            _ => {}
+    for (k, op, v) in &c.attrs {
+        let Some(actual) = dom.attr(id, k) else { return false };
+        let Some(want) = v else { continue };
+        let ok = match op {
+            '~' => actual.split_whitespace().any(|w| w == want),
+            '|' => actual == want || actual.starts_with(&format!("{want}-")),
+            '^' => !want.is_empty() && actual.starts_with(want.as_str()),
+            '$' => !want.is_empty() && actual.ends_with(want.as_str()),
+            '*' => !want.is_empty() && actual.contains(want.as_str()),
+            _ => actual == want,
+        };
+        if !ok {
+            return false;
         }
     }
     for p in &c.pseudo {
@@ -470,12 +651,62 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
             "link" | "any-link" => tag == "a" && dom.attr(id, "href").is_some(),
             "visited" => false,
             "root" => tag == "html",
-            "first-child" | "last-child" => {
-                let parent = dom.nodes[id].parent.unwrap_or(0);
-                let elems: Vec<NodeId> = dom.nodes[parent].children.iter().copied().filter(|&c| dom.tag(c).is_some()).collect();
-                if p == "first-child" { elems.first() == Some(&id) } else { elems.last() == Some(&id) }
+            "first-child" | "last-child" | "only-child" => {
+                let elems = element_siblings(dom, id);
+                match p.as_str() {
+                    "first-child" => elems.first() == Some(&id),
+                    "last-child" => elems.last() == Some(&id),
+                    _ => elems.len() == 1,
+                }
             }
-            _ => false, // :hover, :focus, ::before... not supported yet
+            "first-of-type" | "last-of-type" | "only-of-type" => {
+                let same: Vec<NodeId> = element_siblings(dom, id).into_iter().filter(|&s| dom.tag(s) == Some(tag)).collect();
+                match p.as_str() {
+                    "first-of-type" => same.first() == Some(&id),
+                    "last-of-type" => same.last() == Some(&id),
+                    _ => same.len() == 1,
+                }
+            }
+            "empty" => dom.nodes[id].children.iter().all(|&k| matches!(&dom.nodes[k].data, NodeData::Text(t) if t.is_empty())),
+            "checked" => dom.attr(id, "checked").is_some() || dom.attr(id, "selected").is_some(),
+            "disabled" => dom.attr(id, "disabled").is_some(),
+            "enabled" => matches!(tag, "input" | "button" | "select" | "textarea") && dom.attr(id, "disabled").is_none(),
+            "required" => dom.attr(id, "required").is_some(),
+            "hover" => {
+                // The hovered element and all its ancestors are :hover.
+                let mut n = HOVER.with(|h| h.get());
+                let mut hit = false;
+                while let Some(e) = n {
+                    if e == id {
+                        hit = true;
+                        break;
+                    }
+                    n = dom.nodes[e].parent;
+                }
+                hit
+            }
+            other => {
+                if let Some(arg) = other.strip_prefix("nth-child(").and_then(|a| a.strip_suffix(')')) {
+                    let elems = element_siblings(dom, id);
+                    elems.iter().position(|&e| e == id).map_or(false, |i| nth_matches(arg, i + 1))
+                } else if let Some(arg) = other.strip_prefix("nth-last-child(").and_then(|a| a.strip_suffix(')')) {
+                    let elems = element_siblings(dom, id);
+                    elems.iter().rev().position(|&e| e == id).map_or(false, |i| nth_matches(arg, i + 1))
+                } else if let Some(arg) = other.strip_prefix("nth-of-type(").and_then(|a| a.strip_suffix(')')) {
+                    let same: Vec<NodeId> = element_siblings(dom, id).into_iter().filter(|&s| dom.tag(s) == Some(tag)).collect();
+                    same.iter().position(|&e| e == id).map_or(false, |i| nth_matches(arg, i + 1))
+                } else if let Some(arg) = other.strip_prefix("not(").and_then(|a| a.strip_suffix(')')) {
+                    !css::parse_selector_list(arg).iter().any(|s| matches(dom, id, s))
+                } else if let Some(arg) = ["is(", "where(", "matches(", "-webkit-any("]
+                    .iter()
+                    .find_map(|pre| other.strip_prefix(pre))
+                    .and_then(|a| a.strip_suffix(')'))
+                {
+                    css::parse_selector_list(arg).iter().any(|s| matches(dom, id, s))
+                } else {
+                    false // :focus, :active, :visited, ::before... not supported yet
+                }
+            }
         };
         if !ok {
             return false;
@@ -990,9 +1221,19 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 "inline" | "contents" => Display::Inline,
                 "inline-block" | "inline-flex" | "inline-grid" | "inline-table" => Display::InlineBlock,
                 "list-item" => Display::ListItem,
+                "table-column" | "table-column-group" => Display::None,
                 _ => Display::Block,
             };
+            st.table_role = match lower.as_str() {
+                "table" | "inline-table" => TableRole::Table,
+                "table-row-group" | "table-header-group" | "table-footer-group" => TableRole::RowGroup,
+                "table-row" => TableRole::Row,
+                "table-cell" => TableRole::Cell,
+                "table-caption" => TableRole::Caption,
+                _ => TableRole::None,
+            };
             st.flex.container = lower.contains("flex") || lower.contains("grid");
+            st.flow_root = lower == "flow-root";
             if lower.contains("grid") {
                 // Grids default to one column until grid-template-columns says otherwise.
                 st.flex.wrap = true;
@@ -1126,6 +1367,35 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "box-sizing" => st.border_box = lower == "border-box",
+        "border-spacing" => {
+            if let Some(l) = lower.split_whitespace().next().and_then(|t| parse_len(t, fs)) {
+                st.border_spacing = l.resolve(0.0);
+            }
+        }
+        "border-collapse" => st.border_collapse = lower == "collapse",
+        "vertical-align" => {
+            st.valign = match lower.as_str() {
+                "top" | "text-top" => VAlign::Top,
+                "middle" => VAlign::Middle,
+                "bottom" | "text-bottom" => VAlign::Bottom,
+                _ => VAlign::Baseline,
+            }
+        }
+        "float" => {
+            st.float = match lower.as_str() {
+                "left" | "inline-start" => Some(true),
+                "right" | "inline-end" => Some(false),
+                _ => None,
+            }
+        }
+        "clear" => {
+            st.clear = match lower.as_str() {
+                "left" | "inline-start" => (true, false),
+                "right" | "inline-end" => (false, true),
+                "both" => (true, true),
+                _ => (false, false),
+            }
+        }
         "z-index" => st.z_index = lower.parse().unwrap_or(0),
         "overflow" | "overflow-x" | "overflow-y" => {
             st.clip = matches!(lower.split_whitespace().next(), Some("hidden" | "clip" | "auto" | "scroll"))
@@ -1354,6 +1624,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             st.border = [w; 4];
             if let Some(c) = c {
                 st.border_color = c;
+                st.border_color_set = true;
+            } else {
+                st.border_color_set = false;
             }
         }
         "border-width" => {
@@ -1365,6 +1638,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         "border-color" => {
             if let Some(c) = lower.split_whitespace().next().and_then(parse_color) {
                 st.border_color = c;
+                st.border_color_set = true;
+            } else if lower.contains("currentcolor") {
+                st.border_color_set = false;
             }
         }
         "border-style" if lower == "none" || lower == "hidden" => st.border = [0.0; 4],
@@ -1386,6 +1662,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                             st.border[i] = w;
                             if let Some(c) = c {
                                 st.border_color = c;
+                                st.border_color_set = true;
                             }
                         }
                         "width" => {
@@ -1396,6 +1673,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                         "color" => {
                             if let Some(c) = parse_color(&lower) {
                                 st.border_color = c;
+                                st.border_color_set = true;
                             }
                         }
                         _ => {}

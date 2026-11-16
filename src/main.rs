@@ -57,6 +57,8 @@ struct Page {
     styles: Vec<style::Style>,
     images: images::Images,
     js: js::Js,
+    /// The page has :hover rules, so mouse moves can change its styles.
+    hover_rules: bool,
 }
 
 impl Page {
@@ -177,7 +179,9 @@ fn build_page(p: Prepared) -> Page {
     let mut js = js::Js::new(&p.url);
     js.run_scripts(&p.url, &p.scripts);
     js::take_dirty();
-    let mut page = Page { url: p.url, title: String::new(), sheets: p.sheets, styles: Vec::new(), images: p.images, js };
+    style::set_hover(None);
+    let hover_rules = style::uses_hover(&p.sheets);
+    let mut page = Page { url: p.url, title: String::new(), sheets: p.sheets, styles: Vec::new(), images: p.images, js, hover_rules };
     page.restyle();
     page
 }
@@ -292,6 +296,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut back: Vec<String> = Vec::new();
     let mut forward: Vec<String> = Vec::new();
     let mut hover: Option<usize> = None;
+    let mut hovered: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
     // so a stopped or superseded load is ignored when it arrives.
     let (tx, rx) = mpsc::channel::<(u64, Prepared)>();
@@ -407,6 +412,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             let view_y = my - BAR_H as f32;
             let hit = if my >= BAR_H as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             let btn = button_at(mx, my);
+            // :hover — restyle when the element under the mouse changes.
+            if page.hover_rules {
+                let over = if my >= BAR_H as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                if over != hovered {
+                    hovered = over;
+                    style::set_hover(over);
+                    page.restyle();
+                    reflow = true;
+                }
+            }
             if btn != hover {
                 hover = btn;
                 dirty = true;
@@ -599,6 +614,9 @@ mod screenshot_tests {
         ("tests/nav-a.html", 800),
         ("tests/modern.html", 1024),
         ("tests/fixed.html", 1024),
+        ("tests/floats.html", 1024),
+        ("tests/tables.html", 900),
+        ("tests/selectors.html", 700),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
