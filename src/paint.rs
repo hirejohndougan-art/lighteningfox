@@ -14,6 +14,26 @@ pub enum Item {
     Box { x: f32, y: f32, w: f32, h: f32, radius: f32, bg: Box<Background> },
     /// A uniform border following rounded corners.
     Ring { x: f32, y: f32, w: f32, h: f32, radius: f32, width: f32, color: Color },
+    /// A soft drop shadow (box-shadow).
+    Shadow { x: f32, y: f32, w: f32, h: f32, radius: f32, blur: f32, color: Color },
+    /// Start clipping to a (rounded) rectangle until the matching ClipPop (overflow: hidden).
+    ClipPush { x: f32, y: f32, w: f32, h: f32, radius: f32 },
+    ClipPop,
+    /// Items between these markers stay put when the page scrolls (position: fixed).
+    FixedPush,
+    FixedPop,
+}
+
+/// Signed distance from (px, py) to a rounded rectangle's edge (negative inside).
+#[inline]
+fn rounded_dist(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32) -> f32 {
+    let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
+    let cx = x + w / 2.0;
+    let cy = y + h / 2.0;
+    let qx = (px - cx).abs() - (w / 2.0 - r);
+    let qy = (py - cy).abs() - (h / 2.0 - r);
+    let outside = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt();
+    outside + qx.max(qy).min(0.0) - r
 }
 
 /// Coverage (0..1) of pixel center (px, py) inside a rounded rectangle. Anti-aliased edges.
@@ -86,15 +106,25 @@ fn gradient_at(stops: &[(Color, f32)], t: f32) -> Color {
     stops[stops.len() - 1].0
 }
 
+#[derive(Clone, Copy)]
+struct Clip {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    radius: f32,
+}
+
 pub struct Canvas {
     pub w: usize,
     pub h: usize,
     pub buf: Vec<u32>, // 0RGB
+    clips: Vec<Clip>,
 }
 
 impl Canvas {
     pub fn new(w: usize, h: usize) -> Canvas {
-        Canvas { w, h, buf: vec![0xFFFFFF; w * h] }
+        Canvas { w, h, buf: vec![0xFFFFFF; w * h], clips: Vec::new() }
     }
 
     pub fn clear(&mut self, c: Color) {
@@ -107,9 +137,21 @@ impl Canvas {
         if x < 0 || y < 0 || x as usize >= self.w || y as usize >= self.h {
             return;
         }
-        let a = coverage * c.a as f32 / 255.0;
+        let mut a = coverage * c.a as f32 / 255.0;
         if a <= 0.0 {
             return;
+        }
+        for clip in &self.clips {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            if fx < clip.x || fy < clip.y || fx > clip.x + clip.w || fy > clip.y + clip.h {
+                return;
+            }
+            if clip.radius > 0.0 {
+                a *= rounded_cov(fx, fy, clip.x, clip.y, clip.w, clip.h, clip.radius);
+                if a <= 0.0 {
+                    return;
+                }
+            }
         }
         let i = y as usize * self.w + x as usize;
         if a >= 1.0 {
@@ -293,6 +335,26 @@ impl Canvas {
         }
     }
 
+    fn fill_shadow(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, blur: f32, color: Color) {
+        let pad = blur;
+        let (x0, y0, x1, y1) = self.span(x - pad, y - pad, w + 2.0 * pad, h + 2.0 * pad);
+        for py in y0..y1 {
+            for px in x0..x1 {
+                let d = rounded_dist(px as f32 + 0.5, py as f32 + 0.5, x, y, w, h, radius);
+                let c = if blur > 0.0 {
+                    // Smooth falloff across the blur distance, centered on the edge.
+                    let t = (0.5 - d / blur).clamp(0.0, 1.0);
+                    t * t * (3.0 - 2.0 * t)
+                } else {
+                    (0.5 - d).clamp(0.0, 1.0)
+                };
+                if c > 0.0 {
+                    self.blend(px, py, color, c);
+                }
+            }
+        }
+    }
+
     fn stroke_ring(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, width: f32, color: Color) {
         let (x0, y0, x1, y1) = self.span(x, y, w, h);
         let inner_r = (radius - width).max(0.0);
@@ -312,11 +374,37 @@ impl Canvas {
         }
     }
 
-    /// Paint the display list, shifted by (dx, dy).
-    pub fn paint(&mut self, fonts: &Fonts, images: &Images, items: &[Item], dx: f32, dy: f32) {
+    /// Paint the display list with the page's top at `origin_y`, scrolled by `scroll`.
+    /// Fixed-position items ignore the scroll.
+    pub fn paint(&mut self, fonts: &Fonts, images: &Images, items: &[Item], origin_y: f32, scroll: f32) {
         let h = self.h as f32;
+        let dx = 0.0;
+        self.clips.clear();
+        let mut fixed_depth = 0;
+        let mut dy = origin_y - scroll;
         for item in items {
             match item {
+                Item::FixedPush => {
+                    fixed_depth += 1;
+                    dy = origin_y;
+                }
+                Item::FixedPop => {
+                    fixed_depth -= 1;
+                    if fixed_depth == 0 {
+                        dy = origin_y - scroll;
+                    }
+                }
+                Item::ClipPush { x, y, w, h: ch, radius } => {
+                    self.clips.push(Clip { x: x + dx, y: y + dy, w: *w, h: *ch, radius: *radius });
+                }
+                Item::ClipPop => {
+                    self.clips.pop();
+                }
+                Item::Shadow { x, y, w, h: sh, radius, blur, color } => {
+                    if y + dy + sh + blur >= 0.0 && y + dy - blur <= h {
+                        self.fill_shadow(x + dx, y + dy, *w, *sh, *radius, *blur, *color);
+                    }
+                }
                 Item::Rect { x, y, w, h: rh, color } => {
                     if y + dy + rh >= 0.0 && y + dy <= h {
                         self.fill_rect(x + dx, y + dy, *w, *rh, *color)
@@ -344,6 +432,7 @@ impl Canvas {
                 }
             }
         }
+        self.clips.clear();
     }
 }
 

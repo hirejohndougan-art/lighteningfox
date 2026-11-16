@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><title>Modern layout test</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: sans-serif; color: #1f2937; background: #f9fafb; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 14px 32px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 20px; color: #c2410c; }
+  .logo img { width: 32px; height: 32px; }
+  nav { display: flex; gap: 24px; }
+  nav a { color: #374151; text-decoration: none; }
+  .cta { background: #f97316; color: white; padding: 8px 16px; border-radius: 8px; text-decoration: none; }
+  .hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 56px 24px 40px; }
+  .hero h1 { font-size: 40px; margin: 0 0 12px 0; }
+  .hero p { color: #6b7280; max-width: 520px; margin: 0 0 24px 0; }
+  .buttons { display: flex; gap: 12px; }
+  .btn { padding: 10px 20px; border-radius: 8px; border: 1px solid #d1d5db; background: white; }
+  .btn.primary { background: #1f2937; color: white; border-color: #1f2937; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .card { position: relative; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 20px rgba(15,23,42,0.12); }
+  .card .photo { height: 120px; background: url(img/landscape.jpg) center / cover; }
+  .card .body { padding: 16px; }
+  .card h3 { margin: 0 0 6px 0; }
+  .card p { margin: 0; color: #6b7280; font-size: 14px; }
+  .badge { position: absolute; top: 10px; right: 10px; background: #16a34a; color: white; font-size: 12px; font-weight: bold; padding: 3px 9px; border-radius: 999px; }
+  .split { display: flex; gap: 24px; max-width: 960px; margin: 40px auto; padding: 0 24px; }
+  .sidebar { flex: 0 0 220px; background: #eef2ff; border-radius: 12px; padding: 16px; }
+  .main { flex: 1; background: white; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; }
+  .row { display: flex; justify-content: space-between; border-bottom: 1px solid #f3f4f6; padding: 8px 0; }
+  .price { font-weight: bold; color: #16a34a; }
+  footer { display: flex; flex-wrap: wrap; justify-content: space-around; gap: 16px; background: #111827; color: #9ca3af; padding: 24px; }
+  footer div { flex: 1 1 180px; }
+  footer b { display: block; color: white; margin-bottom: 6px; }
+  .relative-note { position: relative; top: -6px; left: 12px; color: #c2410c; }
+</style></head>
+<body>
+  <header>
+    <div class="logo"><img src="img/logo.png" alt=""> LighteningFox</div>
+    <nav><a href="#">Features</a><a href="#">Docs</a><a href="#">Download</a><a href="#">Blog</a></nav>
+    <a class="cta" href="#">Get started</a>
+  </header>
+  <section class="hero">
+    <h1>A browser built from scratch</h1>
+    <p>Flexbox centers this column, a grid lays out the cards below, and absolute positioning pins the badges to their corners.</p>
+    <div class="buttons"><span class="btn primary">Download</span><span class="btn">Read the docs</span></div>
+  </section>
+  <div class="grid">
+    <div class="card"><div class="photo"></div><span class="badge">NEW</span><div class="body"><h3>Flexbox</h3><p>Rows, columns, wrapping, grow and shrink, justify and align.</p></div></div>
+    <div class="card"><div class="photo"></div><div class="body"><h3>Grid</h3><p>Equal columns with gaps from grid-template-columns.</p></div></div>
+    <div class="card"><div class="photo"></div><span class="badge">BETA</span><div class="body"><h3>Positioning</h3><p>Relative offsets and absolute boxes pinned to a corner.</p></div></div>
+  </div>
+  <div class="split">
+    <div class="sidebar"><b>Sidebar</b><p>A fixed 220px column: <code>flex: 0 0 220px</code>.</p></div>
+    <div class="main">
+      <b>Main column</b> <span class="relative-note">(nudged with position: relative)</span>
+      <div class="row"><span>Flex rows with space-between</span><span class="price">$0</span></div>
+      <div class="row"><span>Shadows and rounded clipping</span><span class="price">$0</span></div>
+      <div class="row"><span>Written in Rust</span><span class="price">100%</span></div>
+    </div>
+  </div>
+  <footer>
+    <div><b>Product</b>Features, Download, Changelog</div>
+    <div><b>Project</b>GitHub, Roadmap, Checklist</div>
+    <div><b>Community</b>Forum, Chat, Contributing</div>
+    <div><b>Legal</b>License, Privacy</div>
+  </footer>
+</body></html>

@@ -69,8 +69,8 @@ impl Page {
         self.title = js::with_dom(|d| d.find_all("title").first().map(|&t| d.text_content(t).trim().to_string()).unwrap_or_default());
     }
 
-    fn layout(&self, fonts: &Fonts, width: f32) -> layout::Layout {
-        js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width))
+    fn layout(&self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
+        js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h))
     }
 }
 
@@ -232,7 +232,7 @@ fn main() {
 /// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
     let page = load(url);
-    let lay = page.layout(fonts, width as f32);
+    let lay = page.layout(fonts, width as f32, 768.0);
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
     canvas.clear(lay.page_bg);
@@ -300,7 +300,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut last_spin = Instant::now();
     let mut page = load(start);
     let (mut w, mut h) = window.get_size();
-    let mut lay = page.layout(fonts, w as f32);
+    let mut lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
     let mut editing = false;
@@ -317,9 +317,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         // Resize -> relayout.
         let (nw, nh) = window.get_size();
         if (nw, nh) != (w, h) && nw > 0 && nh > 0 {
-            if nw != w {
-                lay = page.layout(fonts, nw as f32);
-            }
+            lay = page.layout(fonts, nw as f32, nh.saturating_sub(BAR_H) as f32);
             (w, h) = (nw, nh);
             canvas = Canvas::new(w, h);
             dirty = true;
@@ -328,7 +326,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         page.js.tick();
         if js::take_dirty() {
             page.restyle();
-            lay = page.layout(fonts, w as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             dirty = true;
         }
         if let Some(target) = js::take_navigation() {
@@ -406,8 +404,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         // Mouse: hover cursor and clicks.
         let down = window.get_mouse_down(MouseButton::Left);
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
-            let doc_y = my - BAR_H as f32 + scroll;
-            let hit = if my >= BAR_H as f32 { lay.links.iter().find(|(r, _)| r.contains(mx, doc_y)) } else { None };
+            let view_y = my - BAR_H as f32;
+            let hit = if my >= BAR_H as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             let btn = button_at(mx, my);
             if btn != hover {
                 hover = btn;
@@ -434,7 +432,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     dirty = true;
                 } else {
                     // Let the page's JavaScript see the click first.
-                    let node = lay.hits.iter().find(|(r, _)| r.contains(mx, doc_y)).map(|(_, n)| *n);
+                    let node = lay.hit_at(mx, view_y, scroll);
                     let allowed = node.map_or(true, |n| page.js.click(n));
                     if js::take_dirty() {
                         page.restyle();
@@ -443,7 +441,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     if let Some(t) = js::take_navigation() {
                         navigate = Some(Go::To(net::resolve(&page.url, &t)));
                     }
-                    if let (true, Some((_, href))) = (allowed, hit) {
+                    if let (true, Some(href)) = (allowed, &hit) {
                     let target = net::resolve(&page.url, href);
                     let same_page = target.split('#').next() == page.url.split('#').next() && target.contains('#');
                     if !same_page && !target.starts_with("mailto:") && !target.starts_with("javascript:") {
@@ -454,7 +452,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
         }
         if reflow && navigate.is_none() {
-            lay = page.layout(fonts, w as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             dirty = true;
         }
         was_down = down;
@@ -510,7 +508,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 Go::Reload => {}
             }
             page = build_page(prepared);
-            lay = page.layout(fonts, w as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             scroll = 0.0;
             address = page.url.clone();
             window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
@@ -552,7 +550,7 @@ struct Loading {
 
 fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
     canvas.clear(lay.page_bg);
-    canvas.paint(fonts, images, &lay.items, 0.0, BAR_H as f32 - scroll);
+    canvas.paint(fonts, images, &lay.items, BAR_H as f32, scroll);
     let w = canvas.w as f32;
     let bar = BAR_H as f32;
     canvas.fill_rect(0.0, 0.0, w, bar, Color::rgb(236, 236, 240));
@@ -599,6 +597,8 @@ mod screenshot_tests {
         ("tests/inline-block.html", 900),
         ("tests/js-demo.html", 800),
         ("tests/nav-a.html", 800),
+        ("tests/modern.html", 1024),
+        ("tests/fixed.html", 1024),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

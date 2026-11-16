@@ -86,6 +86,13 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
 - **inline-block**: nav menus, buttons, badges and tiles sit in lines, aligned on their text baseline
 - **Background loading**: pages, stylesheets, scripts and images download on worker threads; the window
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
+- **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
+  `gap`, `order`, loose text as anonymous items
+- **Grid (simple)**: equal columns from `grid-template-columns: repeat(N, …)` with gaps
+- **Positioning**: `relative`, `absolute` (against the nearest positioned ancestor), `fixed` (stays put
+  while scrolling, clickable), `top/right/bottom/left`, `inset`
+- **Box effects**: `box-shadow` (offset, blur, spread), `overflow: hidden` with rounded clipping,
+  `box-sizing: border-box`, `min-width`
 - **Interaction**: address bar, scrolling, clickable links, back history, resize reflow
 
 Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
@@ -103,7 +110,10 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **Flexbox**, then **grid**: most modern layouts depend on these
+1. **Floats** and real **tables**
+2. **Grid**: named areas, spans, mixed track sizes
+3. **z-index** stacking and inline `position: relative`
+4. **Forms**: text input, buttons, submission, then **grid**: most modern layouts depend on these
 4. **Positioning**: `position: relative/absolute/fixed/sticky`, `z-index`, `float`
 5. **Tables**: real table layout
 6. **Background loading**: fetch on a worker thread so the UI never freezes

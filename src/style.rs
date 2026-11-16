@@ -111,6 +111,85 @@ impl Background {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Justify {
+    Start,
+    End,
+    Center,
+    SpaceBetween,
+    SpaceAround,
+    SpaceEvenly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AlignItems {
+    Stretch,
+    Start,
+    End,
+    Center,
+    Baseline,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Position {
+    Static,
+    Relative,
+    Absolute,
+    Fixed,
+    Sticky,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Shadow {
+    pub x: f32,
+    pub y: f32,
+    pub blur: f32,
+    pub spread: f32,
+    pub color: Color,
+}
+
+/// Flex container and flex item properties.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Flex {
+    pub container: bool,
+    pub column: bool,
+    pub reverse: bool,
+    pub wrap: bool,
+    pub justify: Justify,
+    pub align_items: AlignItems,
+    /// For items: overrides the container's align-items.
+    pub align_self: Option<AlignItems>,
+    pub grow: f32,
+    pub shrink: f32,
+    pub basis: Len,
+    pub order: i32,
+    pub row_gap: Len,
+    pub column_gap: Len,
+    /// grid-template-columns: number of equal columns (simplified grid).
+    pub grid_columns: Option<usize>,
+}
+
+impl Default for Flex {
+    fn default() -> Self {
+        Flex {
+            container: false,
+            column: false,
+            reverse: false,
+            wrap: false,
+            justify: Justify::Start,
+            align_items: AlignItems::Stretch,
+            align_self: None,
+            grow: 0.0,
+            shrink: 1.0,
+            basis: Len::Auto,
+            order: 0,
+            row_gap: Len::Px(0.0),
+            column_gap: Len::Px(0.0),
+            grid_columns: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Style {
     pub display: Display,
@@ -132,6 +211,16 @@ pub struct Style {
     pub background: Color,
     pub bg: Background,
     pub radius: Len,
+    pub flex: Flex,
+    pub position: Position,
+    /// top, right, bottom, left
+    pub inset: [Len; 4],
+    pub z_index: i32,
+    pub clip: bool,
+    pub shadow: Option<Shadow>,
+    pub min_width: Len,
+    /// box-sizing: border-box — width/height include padding and border.
+    pub border_box: bool,
     pub margin: [Len; 4], // top right bottom left
     pub padding: [Len; 4],
     pub border: [f32; 4],
@@ -160,6 +249,14 @@ impl Default for Style {
             background: Color::TRANSPARENT,
             bg: Background::default(),
             radius: Len::Px(0.0),
+            flex: Flex::default(),
+            position: Position::Static,
+            inset: [Len::Auto; 4],
+            z_index: 0,
+            clip: false,
+            shadow: None,
+            min_width: Len::Auto,
+            border_box: false,
             margin: [Len::Px(0.0); 4],
             padding: [Len::Px(0.0); 4],
             border: [0.0; 4],
@@ -894,6 +991,181 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 "inline-block" | "inline-flex" | "inline-grid" | "inline-table" => Display::InlineBlock,
                 "list-item" => Display::ListItem,
                 _ => Display::Block,
+            };
+            st.flex.container = lower.contains("flex") || lower.contains("grid");
+            if lower.contains("grid") {
+                // Grids default to one column until grid-template-columns says otherwise.
+                st.flex.wrap = true;
+                st.flex.grid_columns.get_or_insert(1);
+            } else {
+                st.flex.grid_columns = None;
+            }
+        }
+        "flex-direction" => {
+            st.flex.column = lower.starts_with("column");
+            st.flex.reverse = lower.ends_with("reverse");
+        }
+        "flex-wrap" => st.flex.wrap = lower.starts_with("wrap"),
+        "flex-flow" => {
+            for t in lower.split_whitespace() {
+                match t {
+                    "row" | "row-reverse" | "column" | "column-reverse" => apply(st, parent, "flex-direction", t),
+                    "wrap" | "wrap-reverse" | "nowrap" => apply(st, parent, "flex-wrap", t),
+                    _ => {}
+                }
+            }
+        }
+        "justify-content" => {
+            st.flex.justify = match lower.trim_start_matches("safe ").trim() {
+                "center" => Justify::Center,
+                "flex-end" | "end" | "right" => Justify::End,
+                "space-between" => Justify::SpaceBetween,
+                "space-around" => Justify::SpaceAround,
+                "space-evenly" => Justify::SpaceEvenly,
+                _ => Justify::Start,
+            }
+        }
+        "align-items" | "align-self" | "place-items" => {
+            let a = match lower.split_whitespace().next().unwrap_or("") {
+                "center" => Some(AlignItems::Center),
+                "flex-start" | "start" | "self-start" | "top" => Some(AlignItems::Start),
+                "flex-end" | "end" | "self-end" | "bottom" => Some(AlignItems::End),
+                "baseline" | "first" | "last" => Some(AlignItems::Baseline),
+                "stretch" | "normal" => Some(AlignItems::Stretch),
+                _ => None,
+            };
+            if name == "align-self" {
+                st.flex.align_self = a;
+            } else if let Some(a) = a {
+                st.flex.align_items = a;
+            }
+        }
+        "flex-grow" => st.flex.grow = lower.parse().unwrap_or(0.0),
+        "flex-shrink" => st.flex.shrink = lower.parse().unwrap_or(1.0),
+        "flex-basis" => {
+            if let Some(l) = parse_len(&lower, fs) {
+                st.flex.basis = l;
+            } else if lower == "content" {
+                st.flex.basis = Len::Auto;
+            }
+        }
+        "flex" => {
+            let parts: Vec<&str> = lower.split_whitespace().collect();
+            match parts.as_slice() {
+                ["none"] => (st.flex.grow, st.flex.shrink, st.flex.basis) = (0.0, 0.0, Len::Auto),
+                ["auto"] => (st.flex.grow, st.flex.shrink, st.flex.basis) = (1.0, 1.0, Len::Auto),
+                ["initial"] => (st.flex.grow, st.flex.shrink, st.flex.basis) = (0.0, 1.0, Len::Auto),
+                [one] => match one.parse::<f32>() {
+                    Ok(g) => (st.flex.grow, st.flex.shrink, st.flex.basis) = (g, 1.0, Len::Px(0.0)),
+                    Err(_) => {
+                        if let Some(l) = parse_len(one, fs) {
+                            (st.flex.grow, st.flex.shrink, st.flex.basis) = (1.0, 1.0, l);
+                        }
+                    }
+                },
+                [g, rest @ ..] => {
+                    st.flex.grow = g.parse().unwrap_or(0.0);
+                    st.flex.basis = Len::Px(0.0);
+                    for r in rest {
+                        if let Ok(n) = r.parse::<f32>() {
+                            st.flex.shrink = n;
+                        } else if let Some(l) = parse_len(r, fs) {
+                            st.flex.basis = l;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        "order" => st.flex.order = lower.parse().unwrap_or(0),
+        "gap" | "grid-gap" => {
+            let parts: Vec<Len> = lower.split_whitespace().filter_map(|t| parse_len(t, fs)).collect();
+            if let Some(&r) = parts.first() {
+                st.flex.row_gap = r;
+                st.flex.column_gap = *parts.get(1).unwrap_or(&r);
+            }
+        }
+        "row-gap" | "grid-row-gap" => {
+            if let Some(l) = parse_len(&lower, fs) {
+                st.flex.row_gap = l;
+            }
+        }
+        "column-gap" | "grid-column-gap" => {
+            if let Some(l) = parse_len(&lower, fs) {
+                st.flex.column_gap = l;
+            }
+        }
+        "grid-template-columns" => {
+            // Count the columns: repeat(N, …), or one per track listed.
+            let n = if let Some(rest) = lower.strip_prefix("repeat(") {
+                rest.split(',').next().and_then(|n| n.trim().parse::<usize>().ok()).unwrap_or(1)
+            } else {
+                css::split_top(&lower, ' ').iter().filter(|t| !t.trim().is_empty()).count()
+            };
+            st.flex.grid_columns = Some(n.max(1));
+            st.flex.wrap = true;
+        }
+        "position" => {
+            st.position = match lower.as_str() {
+                "relative" => Position::Relative,
+                "absolute" => Position::Absolute,
+                "fixed" => Position::Fixed,
+                "sticky" | "-webkit-sticky" => Position::Sticky,
+                _ => Position::Static,
+            }
+        }
+        "top" | "right" | "bottom" | "left" => {
+            let i = ["top", "right", "bottom", "left"].iter().position(|x| *x == name).unwrap();
+            if let Some(l) = parse_len(&lower, fs) {
+                st.inset[i] = l;
+            }
+        }
+        "inset" => {
+            if let Some(v) = lens(&lower).and_then(|l| four(&l)) {
+                st.inset = v;
+            }
+        }
+        "box-sizing" => st.border_box = lower == "border-box",
+        "z-index" => st.z_index = lower.parse().unwrap_or(0),
+        "overflow" | "overflow-x" | "overflow-y" => {
+            st.clip = matches!(lower.split_whitespace().next(), Some("hidden" | "clip" | "auto" | "scroll"))
+        }
+        "min-width" => {
+            if let Some(l) = parse_len(&lower, fs) {
+                st.min_width = l;
+            }
+        }
+        "box-shadow" => {
+            st.shadow = None;
+            if lower == "none" {
+                return;
+            }
+            // First shadow only: [inset] x y [blur [spread]] color
+            let first = css::split_top(&lower, ',').into_iter().next().unwrap_or_default();
+            if first.contains("inset") {
+                return;
+            }
+            let mut nums = Vec::new();
+            let mut color = Color { r: 0, g: 0, b: 0, a: 64 };
+            for t in css::split_top(&first, ' ') {
+                let t = t.trim();
+                if t.is_empty() {
+                    continue;
+                }
+                if let Some(c) = parse_color(t) {
+                    color = c;
+                } else if let Some(l) = parse_len(t, fs) {
+                    nums.push(l.resolve(0.0));
+                }
+            }
+            if nums.len() >= 2 {
+                st.shadow = Some(Shadow {
+                    x: nums[0],
+                    y: nums[1],
+                    blur: *nums.get(2).unwrap_or(&0.0),
+                    spread: *nums.get(3).unwrap_or(&0.0),
+                    color,
+                });
             }
         }
         "visibility" => st.hidden = lower == "hidden" || lower == "collapse",
