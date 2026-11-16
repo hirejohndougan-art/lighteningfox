@@ -223,6 +223,11 @@ fn strip_comments(s: &str) -> String {
     out
 }
 
+/// Parse a comma-separated selector list (used by querySelector).
+pub fn parse_selector_list(s: &str) -> Vec<Selector> {
+    split_top(s, ',').iter().filter_map(|s| parse_selector(s)).collect()
+}
+
 fn parse_selector(s: &str) -> Option<Selector> {
     let s = s.trim();
     if s.is_empty() {

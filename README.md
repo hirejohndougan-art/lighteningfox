@@ -10,7 +10,33 @@ net.rs     html.rs       dom.rs    css.rs          style.rs        layout.rs  pa
 ```
 
 Crates are used only for the plumbing: `minifb` (a window and a pixel buffer),
-`fontdue` (turning a font file's glyph outlines into pixels), `ureq` (HTTP/TLS) and `png` (screenshots).
+`fontdue` (turning a font file's glyph outlines into pixels), `ureq` (HTTP/TLS), `png` (screenshots)
+and **Boa** (`boa_engine`), a JavaScript engine written in Rust.
+
+## JavaScript
+
+`js.rs` exposes ~20 small Rust primitives that work on DOM node ids (`__children`, `__insert`,
+`__query`...). `prelude.js` builds the web API pages use on top of them: `document`, `Element`,
+`classList`, `style`, `innerHTML`, events with bubbling and `preventDefault`, `setTimeout`/`setInterval`,
+`requestAnimationFrame`, `DOMContentLoaded`/`load`, `localStorage`, `location`, `console`.
+When a script changes the DOM, Lantern restyles and reflows the page.
+
+Benchmark (`tests/bench.html`, this machine):
+
+| Workload | Time |
+|---|---|
+| fib(25) recursion | 87 ms |
+| 1M-iteration loop | 138 ms |
+| string building 50k | 30 ms |
+| array map/filter 200k | 176 ms |
+| object property churn 200k | 77 ms |
+| JSON round trip (5k objects) | 70 ms |
+| regex 20k matches | 70 ms |
+| DOM create+append 2000 nodes | 20 ms |
+| DOM querySelectorAll x200 | 393 ms |
+| DOM innerHTML 500 items | 3 ms |
+
+Run it yourself: `./target/release/lantern tests/bench.html --png /tmp/b.png`
 
 ## Build and run
 
@@ -41,7 +67,7 @@ If the build complains about missing X11/Wayland headers:
 
 Typing words that aren't a URL searches DuckDuckGo's HTML edition.
 
-## What works (milestone 1)
+## What works
 
 - **HTML**: forgiving parser, entities, void elements, raw-text elements, implied closes (`<p>`, `<li>`, `<td>`…)
 - **CSS**: rules, `@media` (desktop width), selectors (type, class, id, attribute, descendant `a b`, child `a > b`,
@@ -62,7 +88,8 @@ Performance: a 70,000-node page parses, styles and lays out in about 0.25 s.
 4. **Positioning**: `position: relative/absolute/fixed/sticky`, `z-index`, `float`
 5. **Tables**: real table layout
 6. **Background loading**: fetch on a worker thread so the UI never freezes
-7. **JavaScript**: embed Boa (pure Rust) and build the DOM bindings
+7. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
+   then profile Boa itself and work on its interpreter
 8. **Forms**: text inputs, buttons, submission
 9. **Tabs, bookmarks, cookies**
 10. **GPU painting** and incremental layout for speed

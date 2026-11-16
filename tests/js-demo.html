@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>JS demo</title>
+<style>
+  body { font-family: sans-serif; margin: 40px; background: #fafafa; }
+  .box { border: 2px solid #446; padding: 12px; margin: 12px 0; background: #fff; }
+  .done { background: #e3f6e3; border-color: #3a3; }
+  #counter { font-size: 28px; font-weight: bold; color: #a33; }
+</style>
+</head>
+<body>
+<h1 id="heading">Waiting for JavaScript…</h1>
+
+<div class="box" id="list-box">
+  <p>Items built with createElement:</p>
+  <ul id="list"></ul>
+</div>
+
+<div class="box" id="query-box">
+  <p class="q">querySelectorAll found: <span id="qcount">?</span></p>
+  <p class="q">innerHTML: <span id="html-target"></span></p>
+</div>
+
+<p>Click count: <span id="counter">0</span> — <a href="#" id="btn">click me</a></p>
+
+<script>
+  document.getElementById("heading").textContent = "Hello from Boa, running inside Lantern";
+  document.title = "JS works";
+
+  const list = document.getElementById("list");
+  const langs = ["Rust", "JavaScript", "HTML", "CSS"];
+  for (const l of langs) {
+    const li = document.createElement("li");
+    li.textContent = l + " (" + l.length + " letters)";
+    list.appendChild(li);
+  }
+  document.getElementById("list-box").classList.add("done");
+
+  document.getElementById("qcount").textContent = document.querySelectorAll(".q").length + " paragraphs";
+  document.getElementById("html-target").innerHTML = "<b>bold</b> and <i>italic</i> from a string";
+
+  let n = 0;
+  document.getElementById("btn").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("counter").textContent = ++n;
+  });
+
+  // Fibonacci timing, to watch Boa's speed
+  function fib(k) { return k < 2 ? k : fib(k - 1) + fib(k - 2); }
+  const t0 = performance.now();
+  console.log("fib(20) =", fib(20));
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const p = document.createElement("p");
+    p.innerHTML = "<em>DOMContentLoaded fired.</em>";
+    document.body.appendChild(p);
+  });
+  setTimeout(() => {
+    const p = document.createElement("p");
+    p.textContent = "setTimeout(…, 0) fired.";
+    p.style.color = "#06c";
+    document.body.appendChild(p);
+  }, 0);
+</script>
+</body>
+</html>

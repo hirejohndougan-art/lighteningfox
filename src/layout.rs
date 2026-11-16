@@ -24,12 +24,14 @@ impl Rect {
 pub struct Layout {
     pub items: Vec<Item>,
     pub links: Vec<(Rect, String)>,
+    /// Clickable areas mapped to the DOM node drawn there (for JS click events).
+    pub hits: Vec<(Rect, NodeId)>,
     pub height: f32,
     pub page_bg: Color,
 }
 
 pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, width: f32) -> Layout {
-    let mut cx = Ctx { dom, styles, fonts, items: Vec::new(), links: Vec::new() };
+    let mut cx = Ctx { dom, styles, fonts, items: Vec::new(), links: Vec::new(), hits: Vec::new() };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // Canvas background comes from <html>, else <body>, like real browsers.
     let mut page_bg = Color::rgb(255, 255, 255);
@@ -40,7 +42,7 @@ pub fn layout(dom: &Dom, styles: &[Style], fonts: &Fonts, width: f32) -> Layout 
             }
         }
     }
-    Layout { items: cx.items, links: cx.links, height, page_bg }
+    Layout { items: cx.items, links: cx.links, hits: cx.hits, height, page_bg }
 }
 
 struct Ctx<'a> {
@@ -49,6 +51,7 @@ struct Ctx<'a> {
     fonts: &'a Fonts,
     items: Vec<Item>,
     links: Vec<(Rect, String)>,
+    hits: Vec<(Rect, NodeId)>,
 }
 
 /// One unit of inline content.
@@ -56,7 +59,7 @@ enum Tok {
     Word { text: String, node: NodeId, link: Option<String> },
     Space { node: NodeId },
     Break { node: NodeId },
-    Image { w: f32, h: f32 },
+    Image { w: f32, h: f32, node: NodeId },
 }
 
 struct Placed {
@@ -255,7 +258,7 @@ impl<'a> Ctx<'a> {
                     "img" => {
                         let num = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim_end_matches("px").parse::<f32>().ok());
                         match (num("width"), num("height")) {
-                            (Some(w), Some(h)) => out.push(Tok::Image { w, h }),
+                            (Some(w), Some(h)) => out.push(Tok::Image { w, h, node: id }),
                             _ => {
                                 if let Some(alt) = self.dom.attr(id, "alt").filter(|a| !a.trim().is_empty()) {
                                     out.push(Tok::Word { text: format!("[{}]", alt.trim()), node: id, link: link.map(String::from) });
@@ -266,7 +269,7 @@ impl<'a> Ctx<'a> {
                     }
                     "input" => {
                         if self.dom.attr(id, "type") != Some("hidden") {
-                            out.push(Tok::Image { w: 160.0, h: 22.0 });
+                            out.push(Tok::Image { w: 160.0, h: 22.0, node: id });
                         }
                         return;
                     }
@@ -393,12 +396,15 @@ impl<'a> Ctx<'a> {
                                 prev_underline_end = None;
                             }
                         }
+                        let r = Rect { x: px, y: cy, w: p.w, h: lh };
+                        self.hits.push((r, *node));
                         if let Some(href) = link {
-                            self.links.push((Rect { x: px, y: cy, w: p.w, h: lh }, href.clone()));
+                            self.links.push((r, href.clone()));
                         }
                     }
-                    Tok::Image { h, .. } => {
+                    Tok::Image { h, node, .. } => {
                         prev_underline_end = None;
+                        self.hits.push((Rect { x: px, y: baseline - h, w: p.w, h: *h }, *node));
                         let c = Color { r: 200, g: 200, b: 200, a: 255 };
                         self.items.push(Item::Rect { x: px, y: baseline - h, w: p.w, h: *h, color: c });
                     }

@@ -10,6 +10,7 @@ mod css;
 mod dom;
 mod font;
 mod html;
+mod js;
 mod layout;
 mod net;
 mod paint;
@@ -28,8 +29,21 @@ const START_PAGE: &str = include_str!("start.html");
 struct Page {
     url: String,
     title: String,
-    dom: dom::Dom,
+    sheets: Vec<css::Stylesheet>,
     styles: Vec<style::Style>,
+    js: js::Js,
+}
+
+impl Page {
+    /// Re-run the cascade after the DOM changed.
+    fn restyle(&mut self) {
+        self.styles = js::with_dom(|d| style::compute(d, &self.sheets));
+        self.title = js::with_dom(|d| d.find_all("title").first().map(|&t| d.text_content(t).trim().to_string()).unwrap_or_default());
+    }
+
+    fn layout(&self, fonts: &Fonts, width: f32) -> layout::Layout {
+        js::with_dom(|d| layout::layout(d, &self.styles, fonts, width))
+    }
 }
 
 fn load(url: &str) -> Page {
@@ -43,7 +57,7 @@ fn load(url: &str) -> Page {
     };
     let dom = html::parse(&body);
     let mut sheets = Vec::new();
-    for id in 0..dom.nodes.len() {
+    for id in dom.descendants(dom::Dom::ROOT) {
         match dom.tag(id) {
             Some("style") => sheets.push(css::parse(&dom.text_content(id))),
             Some("link") => {
@@ -61,9 +75,13 @@ fn load(url: &str) -> Page {
             _ => {}
         }
     }
-    let styles = style::compute(&dom, &sheets);
-    let title = dom.find_all("title").first().map(|&t| dom.text_content(t).trim().to_string()).unwrap_or_default();
-    Page { url: final_url, title, dom, styles }
+    js::set_dom(dom);
+    let mut js = js::Js::new(&final_url);
+    js.run_scripts(&final_url);
+    js::take_dirty();
+    let mut page = Page { url: final_url, title: String::new(), sheets, styles: Vec::new(), js };
+    page.restyle();
+    page
 }
 
 fn error_page(url: &str, err: &str) -> String {
@@ -112,7 +130,7 @@ fn main() {
 fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     let t = std::time::Instant::now();
     let page = load(url);
-    let lay = layout::layout(&page.dom, &page.styles, fonts, width as f32);
+    let lay = page.layout(fonts, width as f32);
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
     canvas.clear(lay.page_bg);
@@ -123,14 +141,18 @@ fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     enc.set_depth(png::BitDepth::Eight);
     let data: Vec<u8> = canvas.buf.iter().flat_map(|p| [(p >> 16) as u8, (p >> 8) as u8, *p as u8]).collect();
     enc.write_header().unwrap().write_image_data(&data).unwrap();
+    let st = &page.js.stats;
     eprintln!(
-        "{}: {} nodes, {} display items, {}x{} px, {:?}",
+        "{}: {} nodes, {} display items, {}x{} px, {:?} total | JS: {} scripts, {} errors, {:?}",
         page.url,
-        page.dom.nodes.len(),
+        js::with_dom(|d| d.nodes.len()),
         lay.items.len(),
         width,
         height,
-        t.elapsed()
+        t.elapsed(),
+        st.scripts,
+        st.errors,
+        st.script_time
     );
 }
 
@@ -157,7 +179,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut history: Vec<String> = Vec::new();
     let mut page = load(start);
     let (mut w, mut h) = window.get_size();
-    let mut lay = layout::layout(&page.dom, &page.styles, fonts, w as f32);
+    let mut lay = page.layout(fonts, w as f32);
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
     let mut editing = false;
@@ -168,16 +190,27 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
 
     while window.is_open() {
         let mut navigate: Option<String> = None;
+        let mut reflow = false;
 
         // Resize -> relayout.
         let (nw, nh) = window.get_size();
         if (nw, nh) != (w, h) && nw > 0 && nh > 0 {
             if nw != w {
-                lay = layout::layout(&page.dom, &page.styles, fonts, nw as f32);
+                lay = page.layout(fonts, nw as f32);
             }
             (w, h) = (nw, nh);
             canvas = Canvas::new(w, h);
             dirty = true;
+        }
+        // JavaScript: run due timers; restyle and reflow if the DOM changed.
+        page.js.tick();
+        if js::take_dirty() {
+            page.restyle();
+            lay = page.layout(fonts, w as f32);
+            dirty = true;
+        }
+        if let Some(target) = js::take_navigation() {
+            navigate = Some(net::resolve(&page.url, &target));
         }
         let view_h = h.saturating_sub(BAR_H) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
@@ -263,14 +296,30 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     editing = true;
                     address.clear();
                     dirty = true;
-                } else if let Some((_, href)) = hit {
+                } else {
+                    // Let the page's JavaScript see the click first.
+                    let node = lay.hits.iter().find(|(r, _)| r.contains(mx, doc_y)).map(|(_, n)| *n);
+                    let allowed = node.map_or(true, |n| page.js.click(n));
+                    if js::take_dirty() {
+                        page.restyle();
+                        reflow = true;
+                    }
+                    if let Some(t) = js::take_navigation() {
+                        navigate = Some(net::resolve(&page.url, &t));
+                    }
+                    if let (true, Some((_, href))) = (allowed, hit) {
                     let target = net::resolve(&page.url, href);
                     let same_page = target.split('#').next() == page.url.split('#').next() && target.contains('#');
                     if !same_page && !target.starts_with("mailto:") && !target.starts_with("javascript:") {
                         navigate = Some(target);
                     }
+                    }
                 }
             }
+        }
+        if reflow && navigate.is_none() {
+            lay = page.layout(fonts, w as f32);
+            dirty = true;
         }
         was_down = down;
 
@@ -287,7 +336,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             draw(&mut canvas, fonts, &lay, scroll, &format!("Loading {target}…"), false);
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             page = load(&target);
-            lay = layout::layout(&page.dom, &page.styles, fonts, w as f32);
+            lay = page.layout(fonts, w as f32);
             scroll = 0.0;
             address = page.url.clone();
             window.set_title(&format!("{} — Lantern", if page.title.is_empty() { &page.url } else { &page.title }));

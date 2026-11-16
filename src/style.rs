@@ -179,10 +179,12 @@ struct Matched<'a> {
 /// Compute a style for every node (text nodes share their parent's inherited style).
 pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Style> {
     let ua = css::parse(UA_CSS);
-    let mut styles: Vec<Style> = vec![Style::default(); dom.nodes.len()];
+    let mut styles: Vec<Style> = vec![Style { display: Display::None, ..Style::default() }; dom.nodes.len()];
     styles[0].display = Display::Block;
-    // Nodes are created parent-first, so a forward pass sees parents first.
-    for id in 1..dom.nodes.len() {
+    // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
+    let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
+    while let Some(id) = stack.pop() {
+        stack.extend(dom.nodes[id].children.iter().rev().copied());
         let parent = dom.nodes[id].parent.unwrap_or(0);
         let parent_style = styles[parent].clone();
         let mut st = Style::inherit(&parent_style);
