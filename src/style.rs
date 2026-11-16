@@ -404,8 +404,15 @@ big { font-size: 1.2em; }
 center { text-align: center; }
 hr { border: 1px solid #888; margin-top: 0.5em; margin-bottom: 0.5em; }
 th, td { padding: 1px; }
-input, select, textarea { display: inline; }
-button { display: inline-block; padding: 2px 8px; border: 1px solid #8f8f9d; background-color: #e9e9ed; border-radius: 4px; text-align: center; }
+input, select, textarea { display: inline-block; border: 1px solid #8f8f9d; background-color: #ffffff; color: #111111; padding: 2px 4px; border-radius: 3px; font-size: 13.33px; font-weight: normal; font-style: normal; text-indent: 0; }
+input[type=hidden] { display: none; }
+input[type=checkbox], input[type=radio] { padding: 0; margin: 3px 3px 3px 4px; border-color: #767676; border-radius: 2px; }
+input[type=radio] { border-radius: 50%; }
+input[type=submit], input[type=reset], input[type=button], input[type=image], select { padding: 2px 8px; background-color: #e9e9ed; border-radius: 4px; }
+input[type=range], input[type=color] { border: none; background-color: transparent; padding: 0; }
+option, optgroup, datalist { display: none; }
+input:disabled, select:disabled, textarea:disabled, button:disabled { color: #8f8f9d; }
+button { display: inline-block; font-size: 13.33px; padding: 2px 8px; border: 1px solid #8f8f9d; background-color: #e9e9ed; border-radius: 4px; text-align: center; }
 "#;
 
 struct Matched<'a> {
@@ -712,6 +719,19 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
             }
             "empty" => dom.nodes[id].children.iter().all(|&k| matches!(&dom.nodes[k].data, NodeData::Text(t) if t.is_empty())),
             "checked" => dom.attr(id, "checked").is_some() || dom.attr(id, "selected").is_some(),
+            "focus" | "focus-visible" => crate::layout::focus() == Some(id),
+            "focus-within" => crate::layout::focus().is_some_and(|f| {
+                let mut cur = Some(f);
+                while let Some(n) = cur {
+                    if n == id {
+                        return true;
+                    }
+                    cur = dom.nodes[n].parent;
+                }
+                false
+            }),
+            "placeholder-shown" => dom.attr(id, "placeholder").is_some() && dom.attr(id, "value").map_or(true, str::is_empty),
+            "optional" => matches!(dom.tag(id), Some("input" | "select" | "textarea")) && dom.attr(id, "required").is_none(),
             "disabled" => dom.attr(id, "disabled").is_some(),
             "enabled" => matches!(tag, "input" | "button" | "select" | "textarea") && dom.attr(id, "disabled").is_none(),
             "required" => dom.attr(id, "required").is_some(),

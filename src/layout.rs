@@ -5,6 +5,23 @@
 use crate::dom::{Dom, NodeData, NodeId};
 use crate::font::Fonts;
 use crate::grid;
+use crate::style::Background;
+use crate::forms::{self, Control};
+use std::cell::Cell;
+
+thread_local! {
+    /// The focused form control and whether its caret is currently shown.
+    static FOCUS: Cell<Option<(NodeId, bool)>> = const { Cell::new(None) };
+}
+
+pub fn set_focus(f: Option<(NodeId, bool)>) {
+    FOCUS.with(|c| c.set(f));
+}
+
+pub fn focus() -> Option<NodeId> {
+    FOCUS.with(|c| c.get()).map(|f| f.0)
+}
+
 use crate::images::Images;
 use crate::paint::Item;
 use crate::style::{Align, AlignItems, Color, Display, Justify, Len, ListStyle, Position, Style, TableRole, VAlign};
@@ -319,6 +336,13 @@ impl<'a> Ctx<'a> {
         if st.min_width != Len::Auto {
             w = w.max(pct(st.min_width) - sizing);
         }
+        // Form controls have their own natural width.
+        let ctrl = self.control_kind(id);
+        if let (Some(_), Len::Auto, None) = (ctrl, self.styles[id].width, forced.0) {
+            w = self.control_width(id);
+            constrained = true;
+        }
+        let st = &self.styles[id];
         // Tables size themselves from their cells' content.
         let table = if st.table_role == TableRole::Table && replaced.is_none() {
             let grid = self.table_grid(id);
@@ -385,6 +409,7 @@ impl<'a> Ctx<'a> {
                 self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
                 (rh, 0.0)
             }
+            None if ctrl.is_some() => (self.control_content(id, cx, cy, w), 0.0),
             None if table.is_some() => {
                 let stretch = self.styles[id].width != Len::Auto || forced.0.is_some();
                 (self.table_children(table.as_ref().unwrap(), cx, cy, w, stretch), 0.0)
@@ -1046,6 +1071,10 @@ impl<'a> Ctx<'a> {
     }
 
     fn content_widths(&mut self, id: NodeId) -> (f32, f32) {
+        if self.control_kind(id).is_some() && self.styles[id].width == Len::Auto {
+            let w = self.control_outer(id, 0.0);
+            return (w, w);
+        }
         let st = &self.styles[id];
         let tail = st.padding[1].resolve(0.0) + st.border[1] + st.margin[1].resolve(0.0);
         let was = self.measuring;
@@ -1124,6 +1153,229 @@ impl<'a> Ctx<'a> {
         }
         let end = if g.rows.is_empty() { cy } else { ry };
         end - y
+    }
+
+    /// The kind of form control `id` is. <button> lays out its children like any box, so it's not one here.
+    fn control_kind(&self, id: NodeId) -> Option<Control> {
+        if self.dom.tag(id) == Some("button") {
+            return None;
+        }
+        forms::control(self.dom, id)
+    }
+
+    fn input_label(&self, id: NodeId, c: Control) -> String {
+        match c {
+            Control::Button { submit, reset } => self.dom.attr(id, "value").map(String::from).unwrap_or_else(|| {
+                if self.dom.attr(id, "type").is_some_and(|t| t.eq_ignore_ascii_case("image")) {
+                    self.dom.attr(id, "alt").unwrap_or("Submit").to_string()
+                } else if submit {
+                    "Submit".into()
+                } else if reset {
+                    "Reset".into()
+                } else {
+                    String::new()
+                }
+            }),
+            _ => String::new(),
+        }
+    }
+
+    /// Natural content width of a form control.
+    fn control_width(&self, id: NodeId) -> f32 {
+        let (font, size) = self.font_of(id);
+        let ch = self.fonts.width(font, "0", size).max(size * 0.5);
+        let attr_n = |name: &str, d: f32| self.dom.attr(id, name).and_then(|v| v.trim().parse::<f32>().ok()).filter(|&n| n > 0.0).unwrap_or(d);
+        match self.control_kind(id) {
+            Some(Control::Text { .. }) => (attr_n("size", 20.0) * ch).round(),
+            Some(Control::TextArea) => (attr_n("cols", 20.0) * self.fonts.width(Fonts::pick(false, false, true), "0", size)).round(),
+            Some(Control::Checkbox | Control::Radio) => 13.0,
+            Some(c @ Control::Button { .. }) => self.fonts.width(font, &self.input_label(id, c), size).ceil(),
+            Some(Control::Select) => {
+                let widest = forms::options(self.dom, id).into_iter().map(|o| self.fonts.width(font, &forms::option_label(self.dom, o), size)).fold(0.0, f32::max);
+                (widest + size * 1.4).ceil()
+            }
+            Some(Control::Other) => match self.dom.attr(id, "type").unwrap_or("").to_ascii_lowercase().as_str() {
+                "color" => 40.0,
+                "range" => 130.0,
+                _ => self.fonts.width(font, "Browse… No file selected.", size).ceil(),
+            },
+            None => 0.0,
+        }
+    }
+
+    /// Width of a control's whole box: content plus padding, border and margin.
+    fn control_outer(&self, id: NodeId, avail: f32) -> f32 {
+        let st = &self.styles[id];
+        let p = |i: usize| st.padding[i].resolve(avail);
+        let m = |i: usize| st.margin[i].resolve(avail);
+        let edges = p(1) + p(3) + st.border[1] + st.border[3];
+        self.control_width(id) + edges + m(1) + m(3)
+    }
+
+    /// Draw what's inside a form control (value, placeholder, check mark, caret) in the
+    /// content box at (x, y), `w` wide. Returns the content height.
+    fn control_content(&mut self, id: NodeId, x: f32, y: f32, w: f32) -> f32 {
+        let Some(c) = self.control_kind(id) else { return 0.0 };
+        let st = self.styles[id].clone();
+        let (font, size) = self.font_of(id);
+        let lh = (size * st.line_height.max(1.15)).round();
+        let ascent = self.fonts.ascent(font, size);
+        let baseline = |top: f32| (top + (lh - size) / 2.0 + ascent).round();
+        let focus = FOCUS.with(|f| f.get()).filter(|f| f.0 == id);
+        let faint = Color { a: (st.color.a as f32 * 0.5) as u8, ..st.color };
+        let accent = Color { r: 0x0b, g: 0x6b, b: 0xd3, a: 255 };
+        let white = Color { r: 255, g: 255, b: 255, a: 255 };
+        let hidden = st.hidden;
+        let mut items: Vec<Item> = Vec::new();
+        let height = match c {
+            Control::Text { password } => {
+                let value = forms::value(self.dom, id);
+                let (text, color) = if value.is_empty() {
+                    (self.dom.attr(id, "placeholder").unwrap_or("").replace(['\n', '\r'], ""), faint)
+                } else if password {
+                    ("•".repeat(value.chars().count()), st.color)
+                } else {
+                    (value.clone(), st.color)
+                };
+                let tw = if value.is_empty() { 0.0 } else { self.fonts.width(font, &text, size) };
+                // Keep the end of long text (where the caret is) in view while editing.
+                let shift = if focus.is_some() { (tw + 2.0 - w).max(0.0) } else { 0.0 };
+                items.push(Item::ClipPush { x, y, w, h: lh, radius: 0.0 });
+                if !text.is_empty() {
+                    items.push(Item::Text { x: x - shift, y: baseline(y), text, font, size, color });
+                }
+                if let Some((_, true)) = focus {
+                    items.push(Item::Rect { x: (x - shift + tw).round(), y: baseline(y) - ascent, w: 1.0, h: size * 1.15, color: st.color });
+                }
+                items.push(Item::ClipPop);
+                lh
+            }
+            Control::TextArea => {
+                let mono = Fonts::pick(st.bold, st.italic, true);
+                let rows = self.dom.attr(id, "rows").and_then(|r| r.trim().parse::<f32>().ok()).filter(|&r| r > 0.0).unwrap_or(2.0);
+                let value = forms::value(self.dom, id);
+                let (src, color) = if value.is_empty() {
+                    (self.dom.attr(id, "placeholder").unwrap_or("").to_string(), faint)
+                } else {
+                    (value.clone(), st.color)
+                };
+                // Wrap each paragraph at word boundaries (long words break anywhere).
+                let mut lines: Vec<String> = Vec::new();
+                for para in src.split('\n') {
+                    let mut line = String::new();
+                    for word in para.split_inclusive(' ') {
+                        let trial = format!("{line}{word}");
+                        if self.fonts.width(mono, trial.trim_end(), size) <= w || line.is_empty() {
+                            line = trial;
+                            while self.fonts.width(mono, line.trim_end(), size) > w && line.chars().count() > 1 {
+                                let cut = line.char_indices().rev().find(|&(i, _)| self.fonts.width(mono, &line[..i], size) <= w).map(|(i, _)| i).unwrap_or(1).max(1);
+                                lines.push(line[..cut].to_string());
+                                line = line[cut..].to_string();
+                            }
+                        } else {
+                            lines.push(std::mem::take(&mut line));
+                            line = word.to_string();
+                        }
+                    }
+                    lines.push(line);
+                }
+                let h = (rows * lh).max(lh);
+                let visible = (h / lh).floor().max(1.0) as usize;
+                let first = if focus.is_some() { lines.len().saturating_sub(visible) } else { 0 };
+                items.push(Item::ClipPush { x, y, w, h, radius: 0.0 });
+                let mut ly = y;
+                for l in lines.iter().skip(first) {
+                    if !l.is_empty() {
+                        items.push(Item::Text { x, y: baseline(ly), text: l.trim_end_matches(' ').to_string(), font: mono, size, color });
+                    }
+                    ly += lh;
+                }
+                if let Some((_, true)) = focus {
+                    let last = if value.is_empty() { "" } else { lines.last().map(String::as_str).unwrap_or("") };
+                    let cy = y + (lines.len().saturating_sub(first).max(1) - 1) as f32 * lh;
+                    let cx = x + self.fonts.width(mono, last, size);
+                    items.push(Item::Rect { x: cx.round(), y: baseline(cy) - ascent, w: 1.0, h: size * 1.15, color: st.color });
+                }
+                items.push(Item::ClipPop);
+                h
+            }
+            Control::Checkbox | Control::Radio => {
+                let checked = self.dom.attr(id, "checked").is_some();
+                let disabled = forms::is_disabled(self.dom, id);
+                let fill = if disabled { Color { r: 150, g: 150, b: 160, a: 255 } } else { accent };
+                let side = 13.0f32.min(w);
+                if checked && c == Control::Checkbox {
+                    let bg = Background { color: fill, ..Default::default() };
+                    items.push(Item::Box { x, y, w: side, h: side, radius: 2.0, bg: Box::new(bg) });
+                    // A check mark drawn as two strokes of small squares.
+                    let pts = [(2.5, 6.5), (3.5, 7.5), (4.5, 8.5), (5.5, 9.5), (6.5, 8.5), (7.5, 7.5), (8.5, 6.5), (9.5, 5.5), (10.5, 4.5), (11.0, 3.5)];
+                    for (px, py) in pts {
+                        items.push(Item::Rect { x: x + px - 1.0, y: y + py - 1.0, w: 2.0, h: 2.0, color: white });
+                    }
+                } else if checked {
+                    let bg = Background { color: fill, ..Default::default() };
+                    items.push(Item::Box { x: x + 3.0, y: y + 3.0, w: side - 6.0, h: side - 6.0, radius: side, bg: Box::new(bg) });
+                }
+                side
+            }
+            Control::Button { .. } => {
+                let label = self.input_label(id, c);
+                let tw = self.fonts.width(font, &label, size);
+                items.push(Item::Text { x: (x + (w - tw) / 2.0).round(), y: baseline(y), text: label, font, size, color: st.color });
+                lh
+            }
+            Control::Select => {
+                let label = forms::selected_option(self.dom, id).map(|o| forms::option_label(self.dom, o)).unwrap_or_default();
+                let arrow = size * 1.2;
+                items.push(Item::ClipPush { x, y, w: (w - arrow).max(0.0), h: lh, radius: 0.0 });
+                items.push(Item::Text { x, y: baseline(y), text: label, font, size, color: st.color });
+                items.push(Item::ClipPop);
+                // A small downward triangle at the right.
+                let (ax, ay) = (x + w - arrow * 0.75, (y + lh / 2.0 - 2.0).round());
+                for row in 0..4 {
+                    let r = row as f32;
+                    items.push(Item::Rect { x: (ax + r).round(), y: ay + r, w: 8.0 - 2.0 * r, h: 1.0, color: st.color });
+                }
+                lh
+            }
+            Control::Other => {
+                match self.dom.attr(id, "type").unwrap_or("").to_ascii_lowercase().as_str() {
+                    "color" => {
+                        let v = self.dom.attr(id, "value").unwrap_or("#000000");
+                        let color = crate::style::parse_color(v).unwrap_or(Color { r: 0, g: 0, b: 0, a: 255 });
+                        items.push(Item::Rect { x: x + 2.0, y: y + 2.0, w: w - 4.0, h: lh - 4.0, color });
+                    }
+                    "range" => {
+                        let v: f32 = self.dom.attr(id, "value").and_then(|v| v.parse().ok()).unwrap_or(50.0);
+                        let min: f32 = self.dom.attr(id, "min").and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                        let max: f32 = self.dom.attr(id, "max").and_then(|v| v.parse().ok()).unwrap_or(100.0);
+                        let t = if max > min { ((v - min) / (max - min)).clamp(0.0, 1.0) } else { 0.5 };
+                        let mid = (y + lh / 2.0).round();
+                        items.push(Item::Rect { x, y: mid - 2.0, w, h: 4.0, color: Color { r: 200, g: 200, b: 210, a: 255 } });
+                        items.push(Item::Rect { x, y: mid - 2.0, w: w * t, h: 4.0, color: accent });
+                        let bg = Background { color: accent, ..Default::default() };
+                        items.push(Item::Box { x: x + (w - 14.0) * t, y: mid - 7.0, w: 14.0, h: 14.0, radius: 7.0, bg: Box::new(bg) });
+                    }
+                    _ => {
+                        items.push(Item::Text { x, y: baseline(y), text: "Browse… No file selected.".into(), font, size, color: st.color });
+                    }
+                }
+                lh
+            }
+        };
+        // The whole box is clickable, and a focused control gets a ring.
+        let [pt, pr, pb, pl] = st.padding.map(|p| p.resolve(w));
+        let [bt, br, bb, bl] = st.border;
+        let outer = Rect { x: x - pl - bl, y: y - pt - bt, w: w + pl + pr + bl + br, h: height + pt + pb + bt + bb };
+        self.hits.push((outer, id));
+        if focus.is_some() {
+            let radius = st.radius.resolve(outer.w.min(outer.h)) + 2.0;
+            items.push(Item::Ring { x: outer.x - 2.0, y: outer.y - 2.0, w: outer.w + 4.0, h: outer.h + 4.0, radius, width: 2.0, color: accent });
+        }
+        if !hidden {
+            self.items.extend(items);
+        }
+        height
     }
 
     /// CSS grid: size the tracks, place every item (explicitly, by area name or
@@ -1440,7 +1692,9 @@ impl<'a> Ctx<'a> {
         }
         let st = &self.styles[id];
         let mut width = avail;
-        if st.width == Len::Auto {
+        if st.width == Len::Auto && self.control_kind(id).is_some() {
+            width = self.control_outer(id, avail);
+        } else if st.width == Len::Auto {
             // Measure: lay out at the full width, left-aligned, and see how far content reaches.
             let was = self.measuring;
             self.measuring = true;
@@ -1571,12 +1825,6 @@ impl<'a> Ctx<'a> {
                         }
                         return;
                     }
-                    "input" => {
-                        if self.dom.attr(id, "type") != Some("hidden") {
-                            out.push(Tok::Image { w: 160.0, h: 22.0, node: id, src: None, link: None });
-                        }
-                        return;
-                    }
                     _ => {}
                 }
                 let href = if tag == "a" { self.dom.attr(id, "href") } else { None };
@@ -1611,7 +1859,9 @@ impl<'a> Ctx<'a> {
         let st = &self.styles[id];
         let pl = st.padding[3].resolve(avail);
         let pr = st.padding[1].resolve(avail);
-        let visible = st.bg.visible() || st.border.iter().any(|&b| b > 0.0) || pl > 0.0 || pr > 0.0;
+        let ml = st.margin[3].resolve(avail);
+        let mr = st.margin[1].resolve(avail);
+        let visible = st.bg.visible() || st.border.iter().any(|&b| b > 0.0) || pl > 0.0 || pr > 0.0 || ml != 0.0 || mr != 0.0;
         visible.then(|| (pl + st.border[3] + st.margin[3].resolve(avail), pr + st.border[1] + st.margin[1].resolve(avail)))
     }
 

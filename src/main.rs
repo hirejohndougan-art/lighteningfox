@@ -9,6 +9,7 @@
 mod css;
 mod dom;
 mod font;
+mod forms;
 mod grid;
 mod html;
 mod images;
@@ -37,6 +38,8 @@ const FIELD_X: f32 = 108.0;
 /// Where a navigation should go and how it affects history.
 enum Go {
     To(String),
+    /// Submit a form with POST: (url, urlencoded body)
+    Post(String, String),
     Back,
     Forward,
     Reload,
@@ -61,6 +64,8 @@ struct Page {
     js: Option<js::Js>,
     /// The page has :hover rules, so mouse moves can change its styles.
     hover_rules: bool,
+    /// Each form control's value as the page loaded, for form.reset().
+    form_defaults: Vec<(dom::NodeId, Option<String>, bool)>,
 }
 
 impl Page {
@@ -89,11 +94,15 @@ struct Prepared {
 
 /// Fetch the page, its stylesheets, scripts and images, all in parallel where possible.
 /// Runs on a worker thread; touches nothing the UI thread owns.
-fn fetch_page(url: &str) -> Prepared {
+fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), START_PAGE.to_string())
     } else {
-        match net::fetch(url) {
+        let got = match post {
+            Some(body) => net::post_form(url, body),
+            None => net::fetch(url),
+        };
+        match got {
             Ok(r) => r,
             Err(e) => (url.to_string(), error_page(url, &e)),
         }
@@ -193,7 +202,8 @@ fn build_page(p: Prepared) -> Page {
     js::take_dirty();
     style::set_hover(None);
     let hover_rules = style::uses_hover(&sheets);
-    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules };
+    let form_defaults = js::with_dom(forms::defaults);
+    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, form_defaults };
     page.restyle();
     release_free_memory();
     page
@@ -212,7 +222,7 @@ fn release_free_memory() {
 }
 
 fn load(url: &str) -> Page {
-    build_page(fetch_page(url))
+    build_page(fetch_page(url, None))
 }
 
 fn error_page(url: &str, err: &str) -> String {
@@ -325,6 +335,75 @@ impl minifb::InputCallback for Typed {
     }
 }
 
+/// An open <select> list, drawn over the page.
+struct Dropdown {
+    select: dom::NodeId,
+    /// Top-left in page coordinates, and width.
+    x: f32,
+    y: f32,
+    w: f32,
+    options: Vec<(dom::NodeId, String)>,
+    hover: Option<usize>,
+}
+const OPTION_H: f32 = 22.0;
+
+impl Dropdown {
+    fn row_at(&self, mx: f32, page_y: f32) -> Option<usize> {
+        if mx < self.x || mx > self.x + self.w || page_y < self.y {
+            return None;
+        }
+        let i = ((page_y - self.y) / OPTION_H) as usize;
+        (i < self.options.len()).then_some(i)
+    }
+}
+
+/// The form control a click on `node` acts on: the control itself, the control
+/// it's inside (text in a <button>), or the control a <label> points at.
+fn control_for(d: &dom::Dom, node: dom::NodeId) -> Option<dom::NodeId> {
+    let mut cur = Some(node);
+    while let Some(n) = cur {
+        if forms::control(d, n).is_some() {
+            return Some(n);
+        }
+        if d.tag(n) == Some("label") {
+            return forms::label_target(d, n);
+        }
+        if d.tag(n) == Some("a") {
+            return None;
+        }
+        cur = d.nodes[n].parent;
+    }
+    None
+}
+
+/// Every control Tab can move to, in document order.
+fn focusable(d: &dom::Dom) -> Vec<dom::NodeId> {
+    d.descendants(dom::Dom::ROOT).into_iter().filter(|&n| forms::control(d, n).is_some() && !forms::is_disabled(d, n)).collect()
+}
+
+/// Fire an event at a node if the page runs scripts. Returns false if a script cancelled it.
+fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
+    match page.js.as_mut() {
+        Some(js) => js.dispatch(node, kind),
+        None => true,
+    }
+}
+
+/// Submit a form. With `fire_event`, the page's submit handlers run first and may cancel it.
+fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId>, fire_event: bool) -> Option<Go> {
+    if fire_event && !fire(page, form, "submit") {
+        return None;
+    }
+    let sub = js::with_dom(|d| forms::submission(d, form, submitter, &page.url));
+    if sub.url.starts_with("javascript:") {
+        return None;
+    }
+    Some(match sub.post {
+        Some(body) => Go::Post(sub.url, body),
+        None => Go::To(sub.url),
+    })
+}
+
 fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut window = Window::new("LighteningFox", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
@@ -356,6 +435,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut address = page.url.clone();
     let mut dirty = true;
     let mut was_down = false;
+    // The focused form control (typing goes into it) and an open <select> list.
+    let mut focused: Option<dom::NodeId> = None;
+    let mut dropdown: Option<Dropdown> = None;
     window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
 
     while window.is_open() {
@@ -383,11 +465,79 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         if let Some(target) = js::take_navigation() {
             navigate = Some(Go::To(net::resolve(&page.url, &target)));
         }
+        let mut form_changed = false;
+        // Requests from scripts: focus(), blur(), form.submit(), form.reset().
+        for req in js::take_requests() {
+            match req {
+                js::Request::Focus(n) if js::with_dom(|d| forms::control(d, n).is_some()) => {
+                    focused = Some(n);
+                    form_changed = true;
+                }
+                js::Request::Blur(n) if focused == Some(n) => {
+                    focused = None;
+                    form_changed = true;
+                }
+                js::Request::Submit(f, by, fire_event) => {
+                    if let Some(go) = submit_form(&mut page, f, by, fire_event) {
+                        navigate = Some(go);
+                    }
+                }
+                js::Request::Reset(f) => {
+                    let defaults = page.form_defaults.clone();
+                    js::with_dom_mut(|d| forms::reset(d, f, &defaults));
+                    form_changed = true;
+                }
+                _ => {}
+            }
+        }
         let view_h = h.saturating_sub(BAR_H) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
 
         // Typing in the address bar.
         let chars: Vec<char> = typed.borrow_mut().drain(..).collect();
+        let typing = !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
+        if typing {
+            let f = focused.unwrap();
+            let multiline = js::with_dom(|d| d.tag(f) == Some("textarea"));
+            let mut value = js::with_dom(|d| forms::value(d, f));
+            let before = value.clone();
+            let mut enter = false;
+            for &c in &chars {
+                match c {
+                    '\u{8}' => {
+                        value.pop();
+                    }
+                    '\r' | '\n' if multiline => value.push('\n'),
+                    '\r' | '\n' => enter = true,
+                    c if !c.is_control() && c != '\u{7f}' => value.push(c),
+                    _ => {}
+                }
+            }
+            // A maxlength limit, counted in characters.
+            if let Some(max) = js::with_dom(|d| d.attr(f, "maxlength").and_then(|m| m.trim().parse::<usize>().ok())) {
+                if value.chars().count() > max && value.len() > before.len() {
+                    value = value.chars().take(max.max(before.chars().count())).collect();
+                }
+            }
+            if value != before {
+                js::with_dom_mut(|d| forms::set_value(d, f, &value));
+                fire(&mut page, f, "input");
+                form_changed = true;
+            }
+            if enter {
+                // Pressing Enter in a field submits its form (through its default button).
+                fire(&mut page, f, "change");
+                if let Some(form) = js::with_dom(|d| forms::form_of(d, f)) {
+                    let by = js::with_dom(|d| forms::default_button(d, form));
+                    let go_on = by.map_or(true, |b| fire(&mut page, b, "click"));
+                    if go_on {
+                        if let Some(go) = submit_form(&mut page, form, by, true) {
+                            navigate = Some(go);
+                        }
+                    }
+                }
+            }
+        }
         if editing {
             for c in chars {
                 match c {
@@ -418,6 +568,57 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             let alt = window.is_key_down(Key::LeftAlt) || window.is_key_down(Key::RightAlt);
             for key in window.get_keys_pressed(KeyRepeat::Yes) {
                 let before = scroll;
+                // Keys for the focused control come first.
+                if let Some(f) = focused {
+                    let kind = js::with_dom(|d| forms::control(d, f));
+                    let handled = match key {
+                        Key::Tab => {
+                            let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+                            let all = js::with_dom(focusable);
+                            let i = all.iter().position(|&n| n == f).unwrap_or(0);
+                            let next = if shift { (i + all.len() - 1) % all.len().max(1) } else { (i + 1) % all.len().max(1) };
+                            if let Some(&n) = all.get(next) {
+                                fire(&mut page, f, "blur");
+                                focused = Some(n);
+                                fire(&mut page, n, "focus");
+                            }
+                            dropdown = None;
+                            form_changed = true;
+                            true
+                        }
+                        Key::Escape => {
+                            fire(&mut page, f, "blur");
+                            focused = None;
+                            dropdown = None;
+                            form_changed = true;
+                            true
+                        }
+                        Key::Up | Key::Down if kind == Some(forms::Control::Select) => {
+                            let (opts, cur) = js::with_dom(|d| (forms::options(d, f), forms::selected_option(d, f)));
+                            let i = cur.and_then(|c| opts.iter().position(|&o| o == c)).unwrap_or(0);
+                            let j = if key == Key::Up { i.saturating_sub(1) } else { (i + 1).min(opts.len().saturating_sub(1)) };
+                            if let Some(&o) = opts.get(j).filter(|_| j != i) {
+                                js::with_dom_mut(|d| forms::select_option(d, f, o));
+                                fire(&mut page, f, "input");
+                                fire(&mut page, f, "change");
+                                form_changed = true;
+                            }
+                            true
+                        }
+                        Key::Space if matches!(kind, Some(forms::Control::Checkbox | forms::Control::Radio)) => {
+                            js::with_dom_mut(|d| forms::toggle(d, f));
+                            fire(&mut page, f, "input");
+                            fire(&mut page, f, "change");
+                            form_changed = true;
+                            true
+                        }
+                        // Typing keys belong to the text field, not page scrolling.
+                        _ => typing && !matches!(key, Key::F5 | Key::F6) && !ctrl && !alt,
+                    };
+                    if handled {
+                        continue;
+                    }
+                }
                 match key {
                     Key::Down => scroll += 48.0,
                     Key::Up => scroll -= 48.0,
@@ -479,7 +680,25 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             } else {
                 CursorStyle::Arrow
             });
-            if down && !was_down {
+            // Highlight the option under the mouse in an open list.
+            if let Some(dd) = dropdown.as_mut() {
+                let row = dd.row_at(mx, my - BAR_H as f32 + scroll);
+                if row != dd.hover {
+                    dd.hover = row;
+                    dirty = true;
+                }
+            }
+            if down && !was_down && dropdown.is_some() {
+                // A click while a list is open picks an option or closes the list.
+                let dd = dropdown.take().unwrap();
+                if let Some(i) = dd.row_at(mx, my - BAR_H as f32 + scroll) {
+                    let opt = dd.options[i].0;
+                    js::with_dom_mut(|d| forms::select_option(d, dd.select, opt));
+                    fire(&mut page, dd.select, "input");
+                    fire(&mut page, dd.select, "change");
+                }
+                form_changed = true;
+            } else if down && !was_down {
                 if let Some(b) = btn {
                     editing = false;
                     navigate = Some(match b {
@@ -505,7 +724,59 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     if let Some(t) = js::take_navigation() {
                         navigate = Some(Go::To(net::resolve(&page.url, &t)));
                     }
-                    if let (true, Some(href)) = (allowed, &hit) {
+                    // Form controls: focus, check, open a list, submit or reset.
+                    let ctrl = node.and_then(|n| js::with_dom(|d| control_for(d, n)));
+                    let ctrl = ctrl.filter(|&c| !js::with_dom(|d| forms::is_disabled(d, c)));
+                    if ctrl != focused {
+                        if let Some(old) = focused {
+                            fire(&mut page, old, "change");
+                            fire(&mut page, old, "blur");
+                        }
+                        focused = ctrl;
+                        if let Some(n) = ctrl {
+                            fire(&mut page, n, "focus");
+                        }
+                        form_changed = true;
+                    }
+                    if let (true, Some(c)) = (allowed, ctrl) {
+                        // A click on a <label> is a click on its control.
+                        if node.is_some_and(|n| n != c && js::with_dom(|d| !d.descendants(c).contains(&n))) {
+                            fire(&mut page, c, "click");
+                        }
+                        match js::with_dom(|d| forms::control(d, c)) {
+                            Some(forms::Control::Checkbox | forms::Control::Radio) => {
+                                js::with_dom_mut(|d| forms::toggle(d, c));
+                                fire(&mut page, c, "input");
+                                fire(&mut page, c, "change");
+                                form_changed = true;
+                            }
+                            Some(forms::Control::Select) => {
+                                if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r) {
+                                    let options = js::with_dom(|d| forms::options(d, c).into_iter().map(|o| (o, forms::option_label(d, o))).collect());
+                                    dropdown = Some(Dropdown { select: c, x: r.x, y: r.y + r.h, w: r.w.max(120.0), options, hover: None });
+                                    dirty = true;
+                                }
+                            }
+                            Some(forms::Control::Button { submit: true, .. }) => {
+                                if let Some(form) = js::with_dom(|d| forms::form_of(d, c)) {
+                                    if let Some(go) = submit_form(&mut page, form, Some(c), true) {
+                                        navigate = Some(go);
+                                    }
+                                }
+                            }
+                            Some(forms::Control::Button { reset: true, .. }) => {
+                                if let Some(form) = js::with_dom(|d| forms::form_of(d, c)) {
+                                    if fire(&mut page, form, "reset") {
+                                        let defaults = page.form_defaults.clone();
+                                        js::with_dom_mut(|d| forms::reset(d, form, &defaults));
+                                        form_changed = true;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (true, None, Some(href)) = (allowed, ctrl, &hit) {
                     let target = net::resolve(&page.url, href);
                     let same_page = target.split('#').next() == page.url.split('#').next() && target.contains('#');
                     if !same_page && !target.starts_with("mailto:") && !target.starts_with("javascript:") {
@@ -514,6 +785,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     }
                 }
             }
+        }
+        if form_changed {
+            let editable = focused.is_some_and(|f| js::with_dom(|d| forms::control(d, f).is_some()));
+            if !editable {
+                focused = None;
+            }
+            let focus_moved = layout::focus() != focused;
+            layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
+            // Scripts may have changed more than the value, and :focus rules may apply; restyle if so.
+            if focus_moved || js::take_dirty() || js::with_dom(|d| d.nodes.len()) != page.styles.len() {
+                page.restyle();
+            }
+            reflow = true;
         }
         if reflow && navigate.is_none() {
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
@@ -532,17 +816,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         // Start a navigation: work out the target without touching history yet;
         // history changes only once the page actually arrives.
         let target = match &navigate {
-            Some(Go::To(t)) => Some(t.clone()),
+            Some(Go::To(t)) | Some(Go::Post(t, _)) => Some(t.clone()),
             Some(Go::Back) => back.last().cloned(),
             Some(Go::Forward) => forward.last().cloned(),
             Some(Go::Reload) => Some(page.url.clone()),
             None => None,
         };
         if let (Some(target), Some(kind)) = (target, navigate) {
+            let post = if let Go::Post(_, body) = &kind { Some(body.clone()) } else { None };
             generation += 1;
             let (g, t, tx) = (generation, target.clone(), tx.clone());
             std::thread::spawn(move || {
-                let _ = tx.send((g, fetch_page(&t)));
+                let _ = tx.send((g, fetch_page(&t, post.as_deref())));
             });
             window.set_title(&format!("Loading {target} — LighteningFox"));
             address = target;
@@ -555,7 +840,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             let Some(l) = loading.take_if(|l| l.generation == g) else { continue };
             let old = page.url.clone();
             match l.kind {
-                Go::To(_) => {
+                Go::To(_) | Go::Post(..) => {
                     if prepared.url != old {
                         back.push(old);
                         forward.clear();
@@ -572,6 +857,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 Go::Reload => {}
             }
             page = build_page(prepared);
+            focused = None;
+            dropdown = None;
+            layout::set_focus(None);
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             scroll = 0.0;
@@ -604,6 +892,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             let spin = loading.as_ref().map(|l| l.started.elapsed().as_secs_f32());
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
+            if let Some(dd) = &dropdown {
+                draw_dropdown(&mut canvas, fonts, dd, scroll);
+            }
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             dirty = false;
         } else {
@@ -663,6 +954,25 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     }
 }
 
+/// An open <select> list: a white panel of options below the control.
+fn draw_dropdown(canvas: &mut Canvas, fonts: &Fonts, dd: &Dropdown, scroll: f32) {
+    let top = dd.y - scroll + BAR_H as f32;
+    let h = dd.options.len() as f32 * OPTION_H + 2.0;
+    canvas.fill_rect(dd.x + 2.0, top + 2.0, dd.w, h, Color { r: 0, g: 0, b: 0, a: 40 });
+    canvas.fill_rect(dd.x, top, dd.w, h, Color::rgb(140, 140, 150));
+    canvas.fill_rect(dd.x + 1.0, top + 1.0, dd.w - 2.0, h - 2.0, Color::rgb(255, 255, 255));
+    for (i, (_, label)) in dd.options.iter().enumerate() {
+        let y = top + 1.0 + i as f32 * OPTION_H;
+        let ink = if dd.hover == Some(i) {
+            canvas.fill_rect(dd.x + 1.0, y, dd.w - 2.0, OPTION_H, Color::rgb(11, 107, 211));
+            Color::rgb(255, 255, 255)
+        } else {
+            Color::rgb(20, 20, 30)
+        };
+        canvas.draw_text(fonts, dd.x + 8.0, y + 15.5, label, font::REGULAR, 13.33, ink);
+    }
+}
+
 /// Screenshot tests: every page in tests/ is rendered and compared with its approved
 /// image in tests/reference/. Run `UPDATE_REFERENCES=1 cargo test` to approve new output.
 #[cfg(test)]
@@ -683,6 +993,7 @@ mod screenshot_tests {
         ("tests/tables.html", 900),
         ("tests/selectors.html", 700),
         ("tests/grid.html", 900),
+        ("tests/forms.html", 800),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

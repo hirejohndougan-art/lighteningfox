@@ -145,6 +145,21 @@ impl Dom {
         }
     }
 
+    pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {
+        if let NodeData::Element { attrs, .. } = &mut self.nodes[id].data {
+            match attrs.iter_mut().find(|(k, _)| k == name) {
+                Some((_, v)) => *v = value.to_string(),
+                None => attrs.push((name.to_string(), value.to_string())),
+            }
+        }
+    }
+
+    pub fn remove_attr(&mut self, id: NodeId, name: &str) {
+        if let NodeData::Element { attrs, .. } = &mut self.nodes[id].data {
+            attrs.retain(|(k, _)| k != name);
+        }
+    }
+
     pub fn classes(&self, id: NodeId) -> impl Iterator<Item = &str> {
         self.attr(id, "class").unwrap_or("").split_whitespace()
     }

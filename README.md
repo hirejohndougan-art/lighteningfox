@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Forms**: text, password, email and other inputs, textareas, checkboxes, radio buttons, dropdowns, buttons; typing with a caret, Tab between fields, Enter to submit, GET and POST submission, reset, labels, `:focus`, and the JavaScript form APIs (`value`, `checked`, `selectedIndex`, `form.submit()`, submit/input/change events)
 - **CSS grid**: px/%/`fr`/auto/`minmax()`/`fit-content()` tracks, `repeat(N | auto-fill | auto-fit)`, named areas, line numbers (negative too), spans, auto-placement, implicit rows/columns, gaps, align-items/align-self
 - **Positioning**: `relative`, `absolute` (against the nearest positioned ancestor), `fixed` (stays put
   while scrolling, clickable), `top/right/bottom/left`, `inset`
@@ -132,10 +133,9 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **Forms**: text input, buttons, submission
-2. **Cookies** and `fetch()`: most modern sites depend on these
-3. **Sticky positioning** and nested stacking contexts
-4. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
+1. **Cookies** and `fetch()`: most modern sites depend on these
+2. **Sticky positioning** and nested stacking contexts
+3. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
    then profile Boa itself and work on its interpreter
-5. **Tabs and bookmarks**
-6. **GPU painting** and incremental layout for speed
+4. **Tabs and bookmarks**
+5. **GPU painting** and incremental layout for speed

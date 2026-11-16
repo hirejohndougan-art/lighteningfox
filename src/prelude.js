@@ -252,8 +252,8 @@
     get clientWidth() { return 0; }
     get clientHeight() { return 0; }
     scrollIntoView() {}
-    focus() {}
-    blur() {}
+    focus() { __request("focus", this.__id); }
+    blur() { __request("blur", this.__id); }
     click() { this.dispatchEvent(new Event("click", { bubbles: true, cancelable: true })); }
     attachShadow() { return this; }
     // Reflected attributes commonly used by scripts
@@ -261,8 +261,59 @@
     set href(v) { this.setAttribute("href", v); }
     get src() { return this.getAttribute("src") || ""; }
     set src(v) { this.setAttribute("src", v); }
-    get value() { return this.getAttribute("value") || ""; }
-    set value(v) { this.setAttribute("value", v); }
+    get value() {
+      const t = this.tagName;
+      if (t === "TEXTAREA") return this.textContent.replace(/^\n/, "");
+      if (t === "SELECT") { const o = this.options[this.selectedIndex]; return o ? o.value : ""; }
+      if (t === "OPTION") return this.hasAttribute("value") ? this.getAttribute("value") : this.textContent.trim();
+      return this.getAttribute("value") || "";
+    }
+    set value(v) {
+      const t = this.tagName;
+      if (t === "TEXTAREA") { this.textContent = String(v); return; }
+      if (t === "SELECT") { this.options.forEach((o) => { o.selected = o.value === String(v); }); return; }
+      this.setAttribute("value", v);
+    }
+    get defaultValue() { return this.tagName === "TEXTAREA" ? this.textContent : this.getAttribute("value") || ""; }
+    get name() { return this.getAttribute("name") || ""; }
+    set name(v) { this.setAttribute("name", v); }
+    get type() {
+      const t = this.tagName;
+      if (t === "SELECT") return this.hasAttribute("multiple") ? "select-multiple" : "select-one";
+      if (t === "TEXTAREA") return "textarea";
+      if (t === "BUTTON") return (this.getAttribute("type") || "submit").toLowerCase();
+      return (this.getAttribute("type") || "text").toLowerCase();
+    }
+    set type(v) { this.setAttribute("type", v); }
+    get placeholder() { return this.getAttribute("placeholder") || ""; }
+    set placeholder(v) { this.setAttribute("placeholder", v); }
+    get selected() { return this.hasAttribute("selected"); }
+    set selected(v) { this.toggleAttribute("selected", !!v); }
+    get options() { return Array.from(this.querySelectorAll("option")); }
+    get selectedIndex() {
+      const o = this.options;
+      for (let i = o.length - 1; i >= 0; i--) if (o[i].selected) return i;
+      return o.length ? 0 : -1;
+    }
+    set selectedIndex(i) { this.options.forEach((o, j) => { o.selected = j === i; }); }
+    get form() {
+      const f = this.getAttribute("form");
+      if (f) return document.getElementById(f);
+      return this.closest ? this.closest("form") : null;
+    }
+    get elements() { return this.tagName === "FORM" ? Array.from(document.querySelectorAll("input,select,textarea,button")).filter((e) => e.form === this) : []; }
+    get action() { return this.getAttribute("action") || location.href; }
+    set action(v) { this.setAttribute("action", v); }
+    get method() { return (this.getAttribute("method") || "get").toLowerCase(); }
+    set method(v) { this.setAttribute("method", v); }
+    submit() { __request("submit", this.__id, -1); }
+    requestSubmit(by) { __request("requestSubmit", this.__id, by ? by.__id : -1); }
+    reset() { __request("reset", this.__id); }
+    select() {}
+    setSelectionRange() {}
+    checkValidity() { return true; }
+    reportValidity() { return true; }
+    setCustomValidity() {}
     get title() { return this.getAttribute("title") || ""; }
     set title(v) { this.setAttribute("title", v); }
     get hidden() { return this.hasAttribute("hidden"); }

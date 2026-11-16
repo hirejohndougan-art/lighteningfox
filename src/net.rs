@@ -10,6 +10,33 @@ pub fn fetch(url: &str) -> Result<(String, String), String> {
     Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
 }
 
+/// POST a form (application/x-www-form-urlencoded) and return (final URL, body text).
+/// Redirects after a POST turn into GETs, as browsers do.
+pub fn post_form(url: &str, body: &str) -> Result<(String, String), String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        // Local files can't take a POST; show them as a GET with the data in the query.
+        return fetch(&format!("{}?{body}", url.split('?').next().unwrap_or(url)));
+    }
+    let agent = ureq::AgentBuilder::new()
+        .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(20))
+        .try_proxy_from_env(use_proxy(url))
+        .build();
+    let resp = agent
+        .post(url)
+        .set("Content-Type", "application/x-www-form-urlencoded")
+        .send_string(body)
+        .or_else(|e| match e {
+            // Error pages (404, 500…) are still pages to show.
+            ureq::Error::Status(_, r) => Ok(r),
+            e => Err(e.to_string()),
+        })?;
+    let final_url = resp.get_url().to_string();
+    let mut bytes = Vec::new();
+    resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+}
+
 /// Fetch a URL as raw bytes. Handles http(s)://, file:// and data: URLs.
 pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
     if let Some(rest) = url.strip_prefix("data:") {
@@ -28,10 +55,13 @@ pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
         Ok((final_url, bytes))
     } else {
         let path = url.strip_prefix("file://").unwrap_or(url);
+        // The query and fragment aren't part of the file's name; keep them on the URL.
+        let cut = path.find(['?', '#']).unwrap_or(path.len());
+        let (path, rest) = path.split_at(cut);
         let path = percent_decode(path);
         let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
         let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
-        Ok((format!("file://{abs}"), bytes))
+        Ok((format!("file://{abs}{rest}"), bytes))
     }
 }
 

@@ -1,0 +1,4 @@
+<!DOCTYPE html><html><head><title>Submitted</title></head>
+<body style="font-family:sans-serif;margin:20px"><h1>Form submitted</h1><p>The query string is:</p><pre id="q"></pre>
+<script>document.getElementById("q").textContent = decodeURIComponent(location.search.slice(1)).split("&").join("\n");</script>
+</body></html>

@@ -20,6 +20,22 @@ thread_local! {
     static DIRTY: Cell<bool> = const { Cell::new(false) };
     static NAVIGATE: RefCell<Option<String>> = const { RefCell::new(None) };
     static CURRENT_SCRIPT: Cell<i64> = const { Cell::new(-1) };
+    /// Requests from script for the browser: submit a form, move focus.
+    static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Things scripts ask the browser to do that the window loop carries out.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Request {
+    /// form.submit() (no submit event) or requestSubmit() (fires one): (form, submitter, fire_event)
+    Submit(NodeId, Option<NodeId>, bool),
+    Reset(NodeId),
+    Focus(NodeId),
+    Blur(NodeId),
+}
+
+pub fn take_requests() -> Vec<Request> {
+    REQUESTS.with(|r| std::mem::take(&mut *r.borrow_mut()))
 }
 
 pub fn set_dom(dom: Dom) {
@@ -30,7 +46,7 @@ pub fn with_dom<R>(f: impl FnOnce(&Dom) -> R) -> R {
     DOM.with(|d| f(&d.borrow()))
 }
 
-fn with_dom_mut<R>(f: impl FnOnce(&mut Dom) -> R) -> R {
+pub fn with_dom_mut<R>(f: impl FnOnce(&mut Dom) -> R) -> R {
     DIRTY.with(|d| d.set(true));
     DOM.with(|d| f(&mut d.borrow_mut()))
 }
@@ -353,6 +369,26 @@ fn n_navigate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::undefined())
 }
 
+fn n_request(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let kind = arg_str(a, 0, ctx)?;
+    let id = a.get(1).map(|v| v.to_number(ctx)).transpose()?.unwrap_or(-1.0);
+    let other = a.get(2).map(|v| v.to_number(ctx)).transpose()?.unwrap_or(-1.0);
+    let valid = with_dom(|d| id >= 0.0 && (id as usize) < d.nodes.len());
+    if valid {
+        let id = id as NodeId;
+        let other = (other >= 0.0).then_some(other as NodeId);
+        let req = match kind.as_str() {
+            "submit" => Request::Submit(id, other, false),
+            "requestSubmit" => Request::Submit(id, other, true),
+            "reset" => Request::Reset(id),
+            "focus" => Request::Focus(id),
+            _ => Request::Blur(id),
+        };
+        REQUESTS.with(|r| r.borrow_mut().push(req));
+    }
+    Ok(JsValue::undefined())
+}
+
 const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
@@ -385,6 +421,7 @@ impl Js {
             ("__write", 1, n_write),
             ("__log", 2, n_log),
             ("__navigate", 1, n_navigate),
+            ("__request", 3, n_request),
         ];
         for (name, len, f) in natives {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
@@ -470,6 +507,11 @@ impl Js {
         let now = self.start.elapsed().as_secs_f64() * 1000.0;
         self.eval(&format!("__tick({now})"), "timers")
             .map_or(false, |v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0)
+    }
+
+    /// Fire an event (input, change, submit, focus…) at a node. Returns false if cancelled.
+    pub fn dispatch(&mut self, node: NodeId, kind: &str) -> bool {
+        self.eval(&format!("__dispatch({node}, '{kind}')"), kind).map_or(true, |v| v.to_boolean())
     }
 
     /// Dispatch a click on a node. Returns false if the page called preventDefault().
