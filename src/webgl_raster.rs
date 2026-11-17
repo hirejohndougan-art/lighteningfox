@@ -114,6 +114,51 @@ pub struct Target {
     pub stencil: Option<Vec<u8>>,
 }
 
+/// A horizontal band of the target (rows y0..y1) that one thread draws into.
+pub struct Band<'t> {
+    pub w: u32,
+    pub y0: i32,
+    pub y1: i32,
+    pub color: Vec<Option<(&'t mut [[f32; 4]], crate::webgl_tex::Fmt)>>,
+    pub depth: Option<&'t mut [f32]>,
+    pub stencil: Option<&'t mut [u8]>,
+}
+
+/// Split a target into `n` bands of whole quad rows.
+fn bands(t: &mut Target, n: usize) -> Vec<Band<'_>> {
+    let (w, h) = (t.w as usize, t.h as usize);
+    let rows = (h.div_ceil(n.max(1)) + 1) & !1;
+    let rows = rows.max(2);
+    let chunk = rows * w;
+    let nb = h.div_ceil(rows).max(1);
+    let mut out: Vec<Band> = (0..nb)
+        .map(|i| Band { w: t.w, y0: (i * rows) as i32, y1: ((i + 1) * rows).min(h) as i32, color: Vec::new(), depth: None, stencil: None })
+        .collect();
+    for img in t.color.iter_mut() {
+        match img {
+            Some(img) if chunk > 0 => {
+                let fmt = img.fmt;
+                let mut it = img.px.chunks_mut(chunk);
+                for b in out.iter_mut() {
+                    b.color.push(it.next().map(|s| (s, fmt)));
+                }
+            }
+            _ => out.iter_mut().for_each(|b| b.color.push(None)),
+        }
+    }
+    if let Some(d) = t.depth.as_mut().filter(|_| chunk > 0) {
+        for (b, s) in out.iter_mut().zip(d.chunks_mut(chunk)) {
+            b.depth = Some(s);
+        }
+    }
+    if let Some(st) = t.stencil.as_mut().filter(|_| chunk > 0) {
+        for (b, s) in out.iter_mut().zip(st.chunks_mut(chunk)) {
+            b.stencil = Some(s);
+        }
+    }
+    out
+}
+
 pub struct Pipeline<'a> {
     pub vs_code: &'a [Op],
     pub vs_mem: Vec<Lanes>,
@@ -133,7 +178,7 @@ pub struct Pipeline<'a> {
     /// For each draw buffer, the fragment shader slot (vec4) that feeds it.
     pub outs: Vec<Option<Slot>>,
     pub discards: bool,
-    pub tex: &'a dyn TexEnv,
+    pub tex: &'a (dyn TexEnv + Sync),
     pub st: &'a RState,
 }
 
@@ -325,47 +370,113 @@ impl Pipeline<'_> {
             });
             at.push(k);
         }
+        // Threads for big draws: each shades its own band of rows.
+        let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
+        let big = threads > 1 && (t.w as u64 * t.h as u64) >= 160 * 160;
         for inst in 0..instances.max(1) {
             let sh = self.shade_vertices(&uniq, inst);
-            let v = |i: usize| &sh.data[at[i] * sh.stride..(at[i] + 1) * sh.stride];
-            let n = at.len();
-            match mode {
-                g::TRIANGLES => {
-                    for i in (0..n.saturating_sub(2)).step_by(3) {
+            if big && self.covers_much(&sh, &at, mode, t) {
+                let mut parts = bands(t, threads);
+                let mut forks: Vec<Pipeline> = (0..parts.len()).map(|_| self.fork()).collect();
+                std::thread::scope(|scope| {
+                    for (band, p) in parts.iter_mut().zip(forks.iter_mut()) {
+                        let (sh, at) = (&sh, &at);
+                        scope.spawn(move || p.primitives(band, mode, sh, at));
+                    }
+                });
+            } else {
+                let mut parts = bands(t, 1);
+                self.primitives(&mut parts[0], mode, &sh, &at);
+            }
+        }
+    }
+
+    /// A copy for another thread: the same program and state, its own fragment memory.
+    fn fork(&self) -> Pipeline<'_> {
+        Pipeline {
+            vs_code: self.vs_code,
+            vs_mem: Vec::new(),
+            fs_code: self.fs_code,
+            fs_mem: self.fs_mem.clone(),
+            attrs: Vec::new(),
+            vary: self.vary.clone(),
+            pos: self.pos,
+            psize: self.psize,
+            vertex_id: self.vertex_id,
+            instance_id: self.instance_id,
+            frag_coord: self.frag_coord,
+            front_facing: self.front_facing,
+            point_coord: self.point_coord,
+            frag_depth: self.frag_depth,
+            outs: self.outs.clone(),
+            discards: self.discards,
+            tex: self.tex,
+            st: self.st,
+        }
+    }
+
+    /// Roughly how many pixels the draw covers decides whether threads pay off.
+    fn covers_much(&self, sh: &Shaded, at: &[usize], mode: u32, t: &Target) -> bool {
+        if mode < g::TRIANGLES {
+            return false;
+        }
+        let (mut x0, mut y0, mut x1, mut y1) = (f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for &k in at {
+            let c = &sh.data[k * sh.stride..k * sh.stride + 4];
+            if c[3] <= 0.0 {
+                return true;
+            }
+            let (x, y) = (c[0] / c[3], c[1] / c[3]);
+            x0 = x0.min(x);
+            x1 = x1.max(x);
+            y0 = y0.min(y);
+            y1 = y1.max(y);
+        }
+        let [_, _, vw, vh] = self.st.viewport;
+        let area = ((x1.min(1.0) - x0.max(-1.0)).max(0.0) * 0.5 * vw as f32) * ((y1.min(1.0) - y0.max(-1.0)).max(0.0) * 0.5 * vh as f32);
+        let _ = t;
+        area >= 20_000.0
+    }
+
+    fn primitives(&mut self, t: &mut Band, mode: u32, sh: &Shaded, at: &[usize]) {
+        let v = |i: usize| &sh.data[at[i] * sh.stride..(at[i] + 1) * sh.stride];
+        let n = at.len();
+        match mode {
+            g::TRIANGLES => {
+                for i in (0..n.saturating_sub(2)).step_by(3) {
+                    self.triangle(t, [v(i), v(i + 1), v(i + 2)]);
+                }
+            }
+            g::TRIANGLE_STRIP => {
+                for i in 0..n.saturating_sub(2) {
+                    if i % 2 == 0 {
                         self.triangle(t, [v(i), v(i + 1), v(i + 2)]);
+                    } else {
+                        self.triangle(t, [v(i + 1), v(i), v(i + 2)]);
                     }
                 }
-                g::TRIANGLE_STRIP => {
-                    for i in 0..n.saturating_sub(2) {
-                        if i % 2 == 0 {
-                            self.triangle(t, [v(i), v(i + 1), v(i + 2)]);
-                        } else {
-                            self.triangle(t, [v(i + 1), v(i), v(i + 2)]);
-                        }
-                    }
+            }
+            g::TRIANGLE_FAN => {
+                for i in 1..n.saturating_sub(1) {
+                    self.triangle(t, [v(0), v(i), v(i + 1)]);
                 }
-                g::TRIANGLE_FAN => {
-                    for i in 1..n.saturating_sub(1) {
-                        self.triangle(t, [v(0), v(i), v(i + 1)]);
-                    }
+            }
+            g::LINES => {
+                for i in (0..n.saturating_sub(1)).step_by(2) {
+                    self.line(t, v(i), v(i + 1));
                 }
-                g::LINES => {
-                    for i in (0..n.saturating_sub(1)).step_by(2) {
-                        self.line(t, v(i), v(i + 1));
-                    }
+            }
+            g::LINE_STRIP | g::LINE_LOOP => {
+                for i in 0..n.saturating_sub(1) {
+                    self.line(t, v(i), v(i + 1));
                 }
-                g::LINE_STRIP | g::LINE_LOOP => {
-                    for i in 0..n.saturating_sub(1) {
-                        self.line(t, v(i), v(i + 1));
-                    }
-                    if mode == g::LINE_LOOP && n > 1 {
-                        self.line(t, v(n - 1), v(0));
-                    }
+                if mode == g::LINE_LOOP && n > 1 {
+                    self.line(t, v(n - 1), v(0));
                 }
-                _ => {
-                    for i in 0..n {
-                        self.point(t, v(i));
-                    }
+            }
+            _ => {
+                for i in 0..n {
+                    self.point(t, v(i));
                 }
             }
         }
@@ -380,15 +491,15 @@ impl Pipeline<'_> {
     }
 
     /// The pixels fragments may land on: the framebuffer, cut by the scissor box.
-    fn bounds(&self, t: &Target) -> [i32; 4] {
-        let mut b = [0, 0, t.w as i32, t.h as i32];
+    fn bounds(&self, t: &Band) -> [i32; 4] {
+        let mut b = [0, t.y0, t.w as i32, t.y1];
         if let Some([x, y, w, h]) = self.st.scissor {
             b = [b[0].max(x), b[1].max(y), b[2].min(x + w), b[3].min(y + h)];
         }
         b
     }
 
-    fn triangle(&mut self, t: &mut Target, v: [&[f32]; 3]) {
+    fn triangle(&mut self, t: &mut Band, v: [&[f32]; 3]) {
         let stride = v[0].len();
         // Flat varyings take the last (provoking) vertex's values.
         let mut verts: Vec<Vec<f32>> = v.iter().map(|x| x.to_vec()).collect();
@@ -414,7 +525,7 @@ impl Pipeline<'_> {
         }
     }
 
-    fn raster_tri(&mut self, t: &mut Target, w: [&Win; 3], c: [&Vec<f32>; 3]) {
+    fn raster_tri(&mut self, t: &mut Band, w: [&Win; 3], c: [&Vec<f32>; 3]) {
         let area = (w[1].x - w[0].x) as f64 * (w[2].y - w[0].y) as f64 - (w[2].x - w[0].x) as f64 * (w[1].y - w[0].y) as f64;
         if area == 0.0 || !area.is_finite() {
             return;
@@ -503,7 +614,7 @@ impl Pipeline<'_> {
         }
     }
 
-    fn line(&mut self, t: &mut Target, a: &[f32], b: &[f32]) {
+    fn line(&mut self, t: &mut Band, a: &[f32], b: &[f32]) {
         let stride = a.len();
         let (mut a, mut b) = (a.to_vec(), b.to_vec());
         // Flat varyings come from the second vertex.
@@ -566,7 +677,7 @@ impl Pipeline<'_> {
         }
     }
 
-    fn point(&mut self, t: &mut Target, v: &[f32]) {
+    fn point(&mut self, t: &mut Band, v: &[f32]) {
         let (x, y, z, w) = (v[0], v[1], v[2], v[3]);
         if w <= 0.0 || z < -w || z > w || x < -w || x > w || y < -w || y > w {
             return;
@@ -599,7 +710,7 @@ impl Pipeline<'_> {
     /// Shade one 2×2 quad (lanes: (x,y) (x+1,y) (x,y+1) (x+1,y+1)) and write the covered,
     /// surviving fragments.
     #[allow(clippy::too_many_arguments)]
-    fn shade_quad(&mut self, t: &mut Target, qx: i32, qy: i32, mut cover: u8, front: bool, interp: &dyn Fn(f32, f32, &mut [f32]) -> (f32, f32), point: Option<(f32, f32, f32)>) {
+    fn shade_quad(&mut self, t: &mut Band, qx: i32, qy: i32, mut cover: u8, front: bool, interp: &dyn Fn(f32, f32, &mut [f32]) -> (f32, f32), point: Option<(f32, f32, f32)>) {
         let nv = self.nvary();
         let mut vals = [[0.0f32; 64]; 4];
         let mut big: Vec<Vec<f32>> = Vec::new();
@@ -625,7 +736,7 @@ impl Pipeline<'_> {
                     continue;
                 }
                 let (px, py) = (qx + (l & 1) as i32, qy + (l >> 1) as i32);
-                let d = db[(py * w + px) as usize];
+                let d = db[((py - t.y0) * w + px) as usize];
                 if !depth_pass(self.st.depth_func, zs[l], d) {
                     cover &= !(1 << l);
                 }
@@ -675,7 +786,7 @@ impl Pipeline<'_> {
                 continue;
             }
             let (px, py) = (qx + (l & 1) as i32, qy + (l >> 1) as i32);
-            let i = (py * w + px) as usize;
+            let i = ((py - t.y0) * w + px) as usize;
             let z = match self.frag_depth {
                 Some(s) => self.fs_mem[s as usize][l].clamp(0.0, 1.0),
                 None => zs[l],
@@ -712,21 +823,26 @@ impl Pipeline<'_> {
                 }
             }
             for (bi, img) in t.color.iter_mut().enumerate() {
-                let (Some(img), Some(Some(slot))) = (img.as_mut(), self.outs.get(bi)) else { continue };
+                let (Some((px, fmt)), Some(Some(slot))) = (img.as_mut(), self.outs.get(bi)) else { continue };
                 let s = *slot as usize;
                 let src = [self.fs_mem[s][l], self.fs_mem[s + 1][l], self.fs_mem[s + 2][l], self.fs_mem[s + 3][l]];
-                write_color(img, i, src, self.st);
+                write_px(&mut px[i], fmt, src, self.st);
             }
         }
     }
 }
 
 pub fn write_color(img: &mut Image, i: usize, src: [f32; 4], st: &RState) {
-    let dst = img.px[i];
-    let int = img.fmt.is_integer();
-    let mut v = if st.blend && !int { blend(src, dst, st, matches!(img.fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
+    let fmt = img.fmt;
+    write_px(&mut img.px[i], &fmt, src, st);
+}
+
+pub fn write_px(px: &mut [f32; 4], fmt: &crate::webgl_tex::Fmt, src: [f32; 4], st: &RState) {
+    let dst = *px;
+    let int = fmt.is_integer();
+    let mut v = if st.blend && !int { blend(src, dst, st, matches!(fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
     if !int {
-        v = store(&img.fmt, v);
+        v = store(fmt, v);
     }
     for c in 0..4 {
         if !st.color_mask[c] {
@@ -734,7 +850,7 @@ pub fn write_color(img: &mut Image, i: usize, src: [f32; 4], st: &RState) {
         }
     }
     // Channels the format lacks keep their defaults.
-    img.px[i] = if int { crate::webgl_tex::expand(&img.fmt, v) } else { v };
+    *px = if int { crate::webgl_tex::expand(fmt, v) } else { v };
 }
 
 fn blend(s: [f32; 4], d: [f32; 4], st: &RState, clamp: bool) -> [f32; 4] {
