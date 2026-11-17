@@ -370,6 +370,46 @@ the site process (passing their pipes back, e.g. over a Unix socket with SCM_RIG
 the media bytes through a pipe instead of a temp file, and lock the decoders down too (they
 parse untrusted files: no network, no writing, read-only system files). Sound is played by the
 browser. Check with `tools/site_process_check.py media.html` and `cargo test --release media`.
+
+### X24. Permission prompts from site processes
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/js.rs` (`n_perm_request`), `src/process.rs`, `src/frames.rs`, the prompt part of `src/main.rs`, `src/permissions.rs`
+Left from X9. A page in a site process that asks for a permission (location, notifications,
+camera, microphone, clipboard-read) never sees a prompt: `__permRequest` queues the request in
+the site process, and only the window's own pages are read by `js::take_permission_requests`
+(main.rs), so the page's promise waits forever. Send the request to the browser (an update or a
+request over the process's pipe, checked against the pages the process holds), show the prompt
+for that tab, and send the answer back to `__permDone`. A site process also reads
+`permissions.tsv` once when it starts: after you answer (or reset a site on about:settings),
+tell its processes. Test with a real sandboxed renderer, as `geo_relay::tests` does.
+
+### X25. Lay out independent blocks on several cores
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/style.rs` (Rc → Arc), `src/font.rs`, `src/layout.rs`, `src/relayout.rs`, new files for the parallel parts
+Left from X11 (which shapes lines across cores). `Style` holds `Rc` fields (family, custom
+properties, transforms, filters, grid, animations), so styles can't be read on other threads:
+make them `Arc`. Make `Fonts`' caches thread-safe or per thread. Then lay out blocks that don't
+depend on each other at once (new block formatting contexts with no floats reaching in, flex and
+grid items measured on their own), each into its own item list at its own origin, and merge them
+in order, with the relayout cache kept right. Measure with `RELAYOUT_PAGES=<page> cargo test
+--release relayout_timing -- --ignored --nocapture` (1500 paragraphs on 2 cores: ~180 ms first
+layout, ~70 ms warm, of which ~60 ms is line breaking); keep every reference screenshot identical.
+
+### X26. Media Source Extensions: the details X17 left
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/mse.rs`, `src/mse_frames.rs`, `src/mse.js`, `src/media.js` (MSE hooks only)
+Left from X17: an audio frame that straddles `appendWindowStart` is dropped, not trimmed (the spec
+keeps the part inside the window); laced WebM blocks (several frames in one block) count as one
+frame; `remove()` doesn't drop the element's `readyState` to HAVE_METADATA when it removes the
+current position; `QuotaExceededError` isn't an interface of its own (WPT
+`mediasource-appendbuffer-quota-exceeded` checks `ex.constructor`). Run WPT `media-source` before
+and after.
 ### X9. Geolocation in Flatpak and with site isolation
 **Status:** done
 **Result:** `geo.rs` falls back to `org.freedesktop.portal.Location` (session bus) inside Flatpak
