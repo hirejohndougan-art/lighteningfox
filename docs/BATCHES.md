@@ -142,13 +142,21 @@ Left undone in G:
 - Developer console: it runs in the about:devtools snapshot page. There's no live-updating log, no autocomplete and no docked panel.
 
 ## H. JavaScript APIs, part 2
-**Status:** claimed by netapi-chat 2026-11-17 02:22
+**Status:** done
 **Start after:** —
 **Main files:** new `src/*.js` files, `src/js.rs` natives, `src/net.rs`
 
 - §9 `WebSocket`
 - §9 Web Workers on separate threads
 - §9 Clipboard, notifications and geolocation, with permission prompts (prompts already exist from §13)
+
+Left undone:
+- Geolocation has its permission prompt, but an allowed request still reports "position
+  unavailable": there is no location service yet (needs GeoClue over D-Bus, a new dependency).
+- SharedWorker, module workers (`type: "module"`) and importScripts of blob: URLs.
+- Worker error events have no line/column numbers (Boa doesn't hand them over).
+- IndexedDB isn't available inside workers (the page and worker copies would overwrite each other).
+- wss: was tested only against a local server; no live TLS WebSocket test from this sandbox.
 
 ## I. Accessibility and languages (all of §15)
 **Status:** claimed by a11y-chat 2026-11-17 02:30
