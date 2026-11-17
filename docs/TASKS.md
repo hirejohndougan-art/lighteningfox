@@ -317,7 +317,7 @@ screenshot tests and `tools/site_check.py --tracker` with it on and fix what got
 memory cost in the docs. John runs the live-site check on his computer afterwards.
 
 ### X9. Geolocation in Flatpak and with site isolation
-**Status:** free
+**Status:** claimed by chat-mseX17 2026-11-17 15:45
 **After:** —
 **Checklist:** none
 **Files:** `src/geo.rs`, the location parts of `src/process.rs`, `packaging/flatpak/`
