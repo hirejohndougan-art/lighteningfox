@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head><title>vertical-align</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; }
+  .row { border: 1px solid #94a3b8; margin: 0 0 12px 0; padding: 4px 8px; font-size: 20px; line-height: 1.4; }
+  .box { display: inline-block; width: 28px; height: 28px; background: #f97316; }
+  .tall { display: inline-block; width: 24px; height: 60px; background: #0ea5e9; }
+  .ib { display: inline-block; padding: 6px 10px; background: #e2e8f0; border-radius: 6px; font-size: 14px; }
+  .icon { width: 24px; height: 24px; display: inline-block; background: #22c55e; border-radius: 50%; }
+  h3 { margin: 8px 0 4px 0; font-size: 15px; color: #334155; }
+</style></head>
+<body>
+  <h3>sub and sup</h3>
+  <div class="row">E = mc<sup>2</sup>, H<sub>2</sub>O, x<sup>n<sup>2</sup></sup> and 1<sup>st</sup> place.</div>
+
+  <h3>Boxes at baseline, middle, text-top, text-bottom</h3>
+  <div class="row">xbase <span class="box"></span> xmid <span class="box" style="vertical-align: middle"></span>
+    top <span class="box" style="vertical-align: text-top"></span> bottom <span class="box" style="vertical-align: text-bottom"></span> end</div>
+
+  <h3>Lengths and percentages</h3>
+  <div class="row">raised <span style="vertical-align: 8px; color: #b91c1c">8px</span> lowered <span style="vertical-align: -6px; color: #1d4ed8">-6px</span>
+    half <span style="vertical-align: 50%; color: #15803d">50%</span> back</div>
+
+  <h3>top and bottom of the line box</h3>
+  <div class="row"><span class="tall"></span> at top <span class="box" style="vertical-align: top"></span>
+    at bottom <span class="box" style="vertical-align: bottom"></span> baseline</div>
+
+  <h3>Icons and buttons with vertical-align: middle</h3>
+  <div class="row"><span class="icon" style="vertical-align: middle"></span> Settings
+    <span class="ib" style="vertical-align: middle">Button</span> <span class="ib">Baseline button</span></div>
+
+  <h3>Background on a raised span</h3>
+  <div class="row">Note<span style="vertical-align: super; background: #fde68a; font-size: 13px; padding: 0 3px">new</span> and
+    <span style="vertical-align: sub; background: #bfdbfe; font-size: 13px; padding: 0 3px">sub</span> text.</div>
+</body></html>

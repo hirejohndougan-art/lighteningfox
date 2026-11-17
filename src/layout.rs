@@ -408,6 +408,16 @@ enum Tok {
     InlineBlock { node: NodeId, link: Option<String> },
 }
 
+/// Where vertical-align puts an item on its line.
+#[derive(Clone, Copy, PartialEq)]
+enum VPos {
+    /// Raise the item's baseline this far above the line's baseline (negative lowers it).
+    Raise(f32),
+    /// Align the item's top (or bottom) with the line box's.
+    Top,
+    Bottom,
+}
+
 /// A piece of layout produced away from its final position (inline-blocks).
 struct Detached {
     items: Vec<Item>,
@@ -2337,6 +2347,51 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// How vertical-align on `node` and its inline ancestors moves an item off the line's
+    /// baseline. `own` is the item's (height above, depth below) its baseline.
+    fn vpos(&self, node: NodeId, own: (f32, f32)) -> VPos {
+        // A text node shares its parent's style; vertical-align belongs to the element.
+        let mut n = match (&self.dom.nodes[node].data, self.dom.nodes[node].parent) {
+            (NodeData::Text(_), Some(p)) => p,
+            _ => node,
+        };
+        if n == Dom::ROOT || self.styles[n].display != Display::Inline && n != node {
+            return VPos::Raise(0.0);
+        }
+        let mut metrics = own;
+        let mut total = 0.0f32;
+        loop {
+            let st = &self.styles[n];
+            let parent = self.dom.nodes[n].parent;
+            let (pfont, psize) = parent.map_or((0, st.font_size), |p| self.font_of(p));
+            let p_ascent = self.fonts.ascent(pfont, psize);
+            let p_descent = psize * 0.24;
+            let (a, b) = metrics;
+            total += match st.valign {
+                VAlign::Baseline => 0.0,
+                VAlign::Sub => -psize * 0.2,
+                VAlign::Super => psize * 0.34,
+                VAlign::TextTop => p_ascent - a,
+                VAlign::TextBottom => b - p_descent,
+                // Middle of the box at the parent's baseline plus half its x-height.
+                VAlign::Middle => psize * 0.25 - (a - b) / 2.0,
+                VAlign::Shift(l) => l.resolve(st.font_size * st.line_height),
+                VAlign::Top => return VPos::Top,
+                VAlign::Bottom => return VPos::Bottom,
+            };
+            // Keep going up through inline ancestors (a <span> around an <img>, nested <sup>).
+            match parent {
+                Some(p) if self.styles[p].display == Display::Inline && p != Dom::ROOT => {
+                    n = p;
+                    let (_, a, b) = self.tok_size(&Tok::Space { node: p });
+                    metrics = (a, b);
+                }
+                _ => break,
+            }
+        }
+        VPos::Raise(total)
+    }
+
     fn font_of(&self, node: NodeId) -> (u8, f32) {
         let s = &self.styles[node];
         (crate::font::resolve(s.family.as_deref(), s.bold, s.italic, s.mono), s.font_size)
@@ -2464,14 +2519,27 @@ impl<'a> Ctx<'a> {
             }
             let (mut lh, mut above) = (0.0f32, 0.0f32);
             let mut below = 0.0f32;
+            // vertical-align: each item's position and (above, below) its own baseline.
+            let mut vps: Vec<(VPos, f32, f32)> = Vec::with_capacity(line.items.len());
+            let (mut tall, mut any_top) = (0.0f32, false);
             for p in &line.items {
                 let (h, a, b) = match blocks.get(&p.tok) {
                     Some(d) => (d.h, d.baseline, d.h - d.baseline),
                     None => self.tok_size(&toks[p.tok]),
                 };
-                lh = lh.max(h);
-                above = above.max(a);
-                below = below.max(b);
+                let vp = self.vpos(tok_node(&toks[p.tok]), (a, b));
+                match vp {
+                    VPos::Raise(r) => {
+                        lh = lh.max(h);
+                        above = above.max(a + r);
+                        below = below.max(b - r);
+                    }
+                    VPos::Top | VPos::Bottom => {
+                        tall = tall.max(h);
+                        any_top |= vp == VPos::Top;
+                    }
+                }
+                vps.push((vp, a, b));
             }
             if line.items.is_empty() {
                 if let Some(ti) = line.blank {
@@ -2479,7 +2547,16 @@ impl<'a> Ctx<'a> {
                 }
                 continue;
             }
-            let lh = lh.max(above + below);
+            // Top- and bottom-aligned items taller than the rest stretch the line: down for
+            // top-aligned ones, and the baseline moves down for bottom-aligned ones.
+            if tall > above + below {
+                if any_top {
+                    below = tall - above;
+                } else {
+                    above = tall - below;
+                }
+            }
+            let lh = lh.max(above + below).max(tall);
             let align = if self.measuring { Align::Left } else { align };
             let shift = line.x_off
                 + match align {
@@ -2488,6 +2565,15 @@ impl<'a> Ctx<'a> {
                     Align::Right => (line.max_w - line.width).max(0.0),
                 };
             let baseline = cy + above;
+            let base_at = |vp: VPos, a: f32, b: f32| match vp {
+                VPos::Raise(r) => baseline - r,
+                VPos::Top => cy + a,
+                VPos::Bottom => cy + lh - b,
+            };
+            let box_base = |n: NodeId| {
+                let (_, a, b) = self.tok_size(&Tok::Space { node: n });
+                base_at(self.vpos(n, (a, b)), a, b)
+            };
             let mut prev_underline_end: Option<(f32, NodeId)> = None;
             let mut last_text: Option<(NodeId, f32)> = None;
             // Inline box backgrounds go under this line's text: collect, then insert.
@@ -2502,20 +2588,22 @@ impl<'a> Ctx<'a> {
                     if let Some(pos) = open.iter().rposition(|(o, _)| *o == n) {
                         let (_, sx) = open.remove(pos);
                         let mut tmp = Vec::new();
-                        self.inline_box(n, sx, x + shift + ex, baseline, w, &mut tmp);
+                        self.inline_box(n, sx, x + shift + ex, box_base(n), w, &mut tmp);
                         boxes.extend(tmp.into_iter().map(|it| (pos, it)));
                     }
                 }
             }
             for (depth, &(n, sx)) in open.iter().enumerate() {
                 let mut tmp = Vec::new();
-                self.inline_box(n, sx, x + shift + line.width, baseline, w, &mut tmp);
+                self.inline_box(n, sx, x + shift + line.width, box_base(n), w, &mut tmp);
                 boxes.extend(tmp.into_iter().map(|it| (depth, it)));
             }
             carried = open.into_iter().map(|(n, _)| n).collect();
             boxes.sort_by_key(|(d, _)| *d);
-            for p in &line.items {
+            for (pi, p) in line.items.iter().enumerate() {
                 let px = x + shift + p.x;
+                let (vp, va, vb) = vps[pi];
+                let baseline = base_at(vp, va, vb);
                 match &toks[p.tok] {
                     Tok::Word { text, node, link } => {
                         let s = &self.styles[*node];
@@ -2700,6 +2788,13 @@ impl<'a> Ctx<'a> {
             });
         }
         h
+    }
+}
+
+/// The DOM node an inline token belongs to.
+fn tok_node(t: &Tok) -> NodeId {
+    match t {
+        Tok::Word { node, .. } | Tok::Space { node } | Tok::Break { node } | Tok::Image { node, .. } | Tok::Open { node, .. } | Tok::Close { node, .. } | Tok::InlineBlock { node, .. } => *node,
     }
 }
 

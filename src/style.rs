@@ -179,6 +179,12 @@ pub enum VAlign {
     Top,
     Middle,
     Bottom,
+    Sub,
+    Super,
+    TextTop,
+    TextBottom,
+    /// A length or percentage (of the element's line height) to raise the baseline by.
+    Shift(Len),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -461,6 +467,8 @@ pre { white-space: pre; margin-top: 1em; margin-bottom: 1em; }
 a:link { color: #0000ee; text-decoration: underline; }
 u, ins { text-decoration: underline; }
 small { font-size: 0.83em; }
+sub { vertical-align: sub; font-size: 0.83em; }
+sup { vertical-align: super; font-size: 0.83em; }
 big { font-size: 1.2em; }
 center { text-align: center; }
 hr { border: 1px solid #888; margin-top: 0.5em; margin-bottom: 0.5em; }
@@ -1950,10 +1958,17 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         "border-collapse" => st.border_collapse = lower == "collapse",
         "vertical-align" => {
             st.valign = match lower.as_str() {
-                "top" | "text-top" => VAlign::Top,
+                "top" => VAlign::Top,
+                "text-top" => VAlign::TextTop,
                 "middle" => VAlign::Middle,
-                "bottom" | "text-bottom" => VAlign::Bottom,
-                _ => VAlign::Baseline,
+                "bottom" => VAlign::Bottom,
+                "text-bottom" => VAlign::TextBottom,
+                "sub" => VAlign::Sub,
+                "super" => VAlign::Super,
+                other => match parse_len(other, fs) {
+                    Some(l) if l != Len::Auto => VAlign::Shift(l),
+                    _ => VAlign::Baseline,
+                },
             }
         }
         "float" => {

@@ -3344,6 +3344,7 @@ mod screenshot_tests {
         ("tests/history.html", 800),
         ("tests/webfonts.html", 900),
         ("tests/text-shaping.html", 900),
+        ("tests/vertical-align.html", 800),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),
