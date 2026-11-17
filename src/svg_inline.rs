@@ -209,6 +209,12 @@ fn element(dom: &Dom, styles: &[Rc<Style>], id: NodeId, root: bool, out: &mut St
             style.push_str(&format!("color:{};font-size:{}px;", css_color(st.color), st.font_size));
         }
     }
+    // Every element gets an id, so shapes in the drawing can be traced back to their element
+    // (svg_hit.rs).
+    if dom.attr(id, "id").is_none_or(str::is_empty) {
+        out.push_str(&format!(" id=\"{}\"", auto_id(id)));
+        seen.insert("id");
+    }
     for (k, v) in attrs {
         if k == "style" || !xml_name(k) || !seen.insert(k.as_str()) {
             continue;
@@ -264,6 +270,25 @@ fn element(dom: &Dom, styles: &[Rc<Style>], id: NodeId, root: bool, out: &mut St
     out.push_str("</");
     out.push_str(tag);
     out.push('>');
+}
+
+/// The id an element without one has in the published drawing.
+fn auto_id(id: NodeId) -> String {
+    format!("__is{id}")
+}
+
+/// The elements of the `<svg>` at `root` by their id in the published drawing.
+pub fn id_map(dom: &Dom, root: NodeId) -> HashMap<String, NodeId> {
+    let mut m = HashMap::new();
+    m.insert(dom.attr(root, "id").filter(|s| !s.is_empty()).map_or_else(|| auto_id(root), str::to_string), root);
+    dom.walk(root, |n| {
+        if matches!(dom.nodes[n].data, NodeData::Element { .. }) {
+            let i = dom.attr(n, "id").filter(|s| !s.is_empty()).map_or_else(|| auto_id(n), str::to_string);
+            m.entry(i).or_insert(n);
+        }
+        true
+    });
+    m
 }
 
 /// The `<svg>` at `root` as a standalone SVG document.
@@ -328,7 +353,7 @@ mod tests {
         assert_eq!(natural_size(&dom, id, 500.0), (20.0, 20.0));
         let doc = document(&dom, &styles, id, &mut None);
         assert!(doc.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""), "{doc}");
-        assert!(doc.contains("<path d=\"M0 0H10V10Z\" style=\"fill:red;\"/>"), "{doc}");
+        assert!(doc.contains(" d=\"M0 0H10V10Z\" style=\"fill:red;\"/>"), "{doc}");
         assert!(doc.contains("color:rgba(0,0,255,1.000)"), "{doc}");
         assert!(!doc.contains("@click"), "{doc}");
         assert!(resvg::usvg::Tree::from_str(&doc, &Default::default()).is_ok(), "{doc}");

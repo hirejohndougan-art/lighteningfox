@@ -919,10 +919,10 @@ impl<'a> Ctx<'a> {
         let (mut content_h, last_mb) = match replaced {
             Some((rw, rh)) => {
                 let src = self.replaced_src(id);
+                self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
                 if !self.styles[id].hidden {
                     self.push_image(id, cx, cy, rw, rh, src);
                 }
-                self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
                 (rh, 0.0)
             }
             None if ctrl.is_some() => (self.control_content(id, cx, cy, w), 0.0),
@@ -2948,6 +2948,7 @@ impl<'a> Ctx<'a> {
         };
         let Some((iw, ih)) = natural.filter(|_| fit != crate::style::ObjectFit::Fill).filter(|(a, b)| *a > 0.0 && *b > 0.0) else {
             self.items.push(Item::Image { x, y, w, h, src, view: None });
+            self.svg_shape_hits(id, Rect { x, y, w, h }, None);
             return;
         };
         use crate::style::ObjectFit as F;
@@ -2969,6 +2970,21 @@ impl<'a> Ctx<'a> {
         // The item keeps the element's box (for sizing and hit tests); the picture inside it
         // is placed by `view` and cut off at the box.
         self.items.push(Item::Image { x, y, w, h, src, view: Some(Box::new([ox, oy, dw, dh])) });
+        self.svg_shape_hits(id, Rect { x, y, w, h }, Some([ox, oy, dw, dh]));
+    }
+
+    /// An inline `<svg>`'s shapes as hit areas over its box (svg_hit.rs); `view` is where the
+    /// drawing sits in the box.
+    fn svg_shape_hits(&mut self, id: NodeId, b: Rect, view: Option<[f32; 4]>) {
+        if !crate::svg_inline::is_root(self.dom, id) {
+            return;
+        }
+        let Some(tree) = self.images.svg_tree(&crate::svg_inline::key(id)) else { return };
+        let (tw, th) = (tree.size().width(), tree.size().height());
+        let [ox, oy, dw, dh] = view.unwrap_or([0.0, 0.0, b.w, b.h]);
+        let place = crate::svg_hit::Place { sx: dw / tw, sy: dh / th, tx: b.x + ox, ty: b.y + oy };
+        let ids = crate::svg_inline::id_map(self.dom, id);
+        self.hits.extend(crate::svg_hit::shape_hits(&tree, &ids, id, place, b));
     }
 
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {

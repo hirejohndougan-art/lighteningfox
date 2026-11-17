@@ -123,6 +123,7 @@ mod style;
 mod boxtree;
 mod relayout;
 mod svg_inline;
+mod svg_hit;
 mod pseudo;
 mod textedit;
 mod transform;

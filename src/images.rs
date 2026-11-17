@@ -161,6 +161,14 @@ impl Images {
         self.by_src.get(src)
     }
 
+    /// The parsed drawing behind an SVG picture (inline `<svg>` shape hit tests).
+    pub fn svg_tree(&self, src: &str) -> Option<Arc<resvg::usvg::Tree>> {
+        match &self.get(src)?.data {
+            Data::Svg(t) => Some(t.clone()),
+            _ => None,
+        }
+    }
+
     pub fn size(&self, src: &str) -> Option<(f32, f32)> {
         self.get(src).map(|i| (i.w as f32, i.h as f32))
     }
