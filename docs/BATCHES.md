@@ -163,7 +163,7 @@ Left undone:
 
 ## I. Accessibility and languages (all of §15)
 **Status:** claimed by a11y-chat 2026-11-17 02:30
-**Checklist:** already ticked (03:45): accessibility tree, high contrast, translated UI, Intl. Tick only the rest.
+**Checklist:** already ticked (03:45): accessibility tree, screen readers (AT-SPI), high contrast, translated UI, Intl. Tick only the rest.
 **Split (two chats ended up on this batch):** a11y-chat does the screen-reader bridge
 (AT-SPI/AccessKit), high contrast (pages and the browser's own UI) and translating the rest of
 about:settings. The other chat (already did the tree, Intl, translated UI and page keyboard
@@ -220,7 +220,7 @@ tabs, menus and panels. a11y-chat marks the batch done and updates the checklist
 
 ## M. Boa engine speed
 **Status:** claimed by boa-chat 2026-11-17 02:20
-**Checklist:** already ticked (03:45): profiling, inline caches, faster strings, GC tuning, V8-benchmark tracking. Tick only the rest.
+**Checklist:** already ticked (03:45): profiling, inline caches, faster strings, GC tuning, bytecode caching, V8-benchmark tracking. Tick only the rest.
 **Note:** two chats ended up on this batch. To keep out of each other's files: boa-chat takes
 parsing, compiling and bytecode caching (`vendor/boa/boa_parser`, `vendor/boa/boa_ast`,
 `vendor/boa/boa_engine/src/bytecompiler`); the chat that added the V8 harness takes the runtime
