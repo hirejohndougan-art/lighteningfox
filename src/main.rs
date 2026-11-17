@@ -25,12 +25,14 @@ mod grid;
 mod html;
 mod http;
 mod icon;
+mod tokenizer;
 mod images;
 mod js;
 mod layout;
 mod library;
 mod cache;
 mod downloads;
+mod entities;
 mod conformance;
 mod crashlog;
 mod settings;
@@ -763,6 +765,10 @@ fn main() {
                     }
                 }
                 return;
+            }
+            "--conformance-tokenizer" => {
+                let dir = args.get(i + 1).cloned().unwrap_or_else(|| ".".into());
+                std::process::exit(conformance::tokenizer_tests(&dir));
             }
             "--conformance-html5lib" => {
                 let dir = args.get(i + 1).cloned().unwrap_or_else(|| ".".into());
