@@ -152,8 +152,11 @@ Left undone in G:
 
 ## I. Accessibility and languages (all of §15)
 **Status:** claimed by a11y-chat 2026-11-17 02:30
-**Start after:** —
-**Main files:** new `src/a11y.rs`, `src/chrome.rs`, UI strings in `src/main.rs` and `src/settings.rs`
+**Split (two chats ended up on this batch):** a11y-chat does the screen-reader bridge
+(AT-SPI/AccessKit), high contrast (pages and the browser's own UI) and translating the rest of
+about:settings. The other chat (already did the tree, Intl, translated UI and page keyboard
+navigation) does the right-to-left browser UI and keyboard control of the browser's toolbar,
+tabs, menus and panels. a11y-chat marks the batch done and updates the checklist when both are finished.
 
 - Accessibility tree built from the DOM and ARIA attributes
 - Expose it to Linux screen readers through AT-SPI (AccessKit)
