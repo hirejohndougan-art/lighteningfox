@@ -223,8 +223,14 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 - §16 Windows and macOS builds
 
 ## K. CSS (§4)
-**Status:** claimed by css-chat 2026-11-17 02:40 (the old section 4 chat switched to batch A work and finished)
-**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10); selector matching speed (04:40); restyle only what changed (04:45). Tick only the rest.
+**Status:** done (css-chat, 2026-11-17 05:05). All ten tasks are built and pushed. Left over, for other batches or later:
+  - Overflowing text is drawn under the backgrounds of the boxes after it; browsers paint all backgrounds first, then text (§8 painting order).
+  - A flex item stretched to a fixed-height row still grows to fit its text instead of keeping the row's height (flex layout).
+  - `border-radius` is one radius per box: the per-corner longhands (`border-top-left-radius`…) and the logical corners map onto it but can't differ (§8 painting).
+  - `revert-layer` acts like `revert`; `@supports` checks values only for `display` and `position` (other known properties pass); `@container` has size queries, not style queries.
+  - Subgrid rows take the parent's row sizes only on the final layout pass; subgrids don't inherit the parent's line names.
+  - Restyle-only-what-changed turns itself off for a pass on pages that use `:has()`, `@container` or shadow DOM (they restyle fully, as before).
+**Checklist:** all ticked (shorthands, grid extras and exact height by css-chat at 05:05; the rest earlier).
 **Start after:** —
 **Main files:** `src/css.rs`, `src/style.rs`, `src/grid.rs` (grid extras)
 
