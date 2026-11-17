@@ -19,6 +19,7 @@ mod js;
 mod layout;
 mod library;
 mod settings;
+mod tiles;
 mod net;
 mod paint;
 mod style;
@@ -1012,6 +1013,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut page = load(start);
     library::visit(&page.url, &page.title);
     let mut lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+    // Bumped whenever the layout is replaced: the stored page tiles are then out of date.
+    let mut page_version: u64 = 1;
+    let mut page_tiles = tiles::PageTiles::default();
+    let use_tiles = std::env::var("LF_TILES").map_or(true, |v| v != "0");
+    // LF_FRAME_STATS=1: print how long drawing takes, every 60 frames.
+    let frame_stats = std::env::var("LF_FRAME_STATS").is_ok_and(|v| v == "1");
+    let mut draw_times: Vec<f64> = Vec::new();
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
     let mut editing = false;
@@ -1117,6 +1125,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             style::set_hover(None);
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             window.set_title(&format!("{} — LighteningFox", page.label()));
             dirty = true;
@@ -1212,6 +1221,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             BOOKMARKS_BAR.store(want_bar, std::sync::atomic::Ordering::Relaxed);
             geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             dirty = true;
         }
@@ -1219,6 +1229,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let (nw, nh) = window.get_size();
         if (nw, nh) != (w, h) && nw > 0 && nh > 0 {
             lay = page.layout(fonts, nw as f32, nh.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             (w, h) = (nw, nh);
             canvas = Canvas::new(w, h);
             dirty = true;
@@ -1236,6 +1247,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         if js::take_dirty() {
             page.restyle();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             dirty = true;
         }
         if let Some(target) = js::take_navigation() {
@@ -1880,6 +1892,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         if reflow && navigate.is_none() {
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             dirty = true;
         }
         if down && !was_down {
@@ -1967,6 +1980,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if js::take_dirty() {
                 page.restyle();
                 lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                page_version += 1;
             }
             dirty = true;
         }
@@ -2034,6 +2048,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             layout::set_focus(None);
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            page_version += 1;
             // A URL with a #fragment opens scrolled to it.
             scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             address = page.url.clone();
@@ -2109,7 +2124,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 })
                 .collect();
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover };
-            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
+            let t0 = Instant::now();
+            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui, use_tiles.then_some((&mut page_tiles, page_version)));
+            if frame_stats {
+                draw_times.push(t0.elapsed().as_secs_f64() * 1000.0);
+                if draw_times.len() == 60 {
+                    let mut v = std::mem::take(&mut draw_times);
+                    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    eprintln!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused);
+                }
+            }
             if let Some(menu) = &folder_menu {
                 draw_folder_menu(&mut canvas, fonts, menu, &bm_list);
             }
@@ -2152,9 +2176,25 @@ struct Loading {
     started: Instant,
 }
 
-fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
-    canvas.clear(lay.page_bg);
-    canvas.paint(fonts, images, &lay.items, bar_h() as f32, scroll);
+fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar, tiles: Option<(&mut tiles::PageTiles, u64)>) {
+    // Whole pixels: text stays sharp, and tiles line up exactly.
+    let scroll = scroll.round();
+    // The page: from stored tiles when it looks the same at every scroll position,
+    // otherwise painted whole.
+    let tiled = match tiles {
+        Some((t, version)) => {
+            let ok = t.sync(version, canvas.w, lay);
+            if ok {
+                t.compose(canvas, fonts, images, lay, bar_h(), scroll);
+            }
+            ok
+        }
+        None => false,
+    };
+    if !tiled {
+        canvas.clear(lay.page_bg);
+        canvas.paint(fonts, images, &lay.items, bar_h() as f32, scroll);
+    }
     let w = canvas.w as f32;
     let bar = TOOL_BOTTOM as f32;
     let top = TAB_H;
