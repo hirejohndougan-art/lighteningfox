@@ -2541,13 +2541,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     reflow = true;
                 }
-<<<<<<< HEAD
                 None if wanted => {
-                    scroll += delta;
-=======
-                None => {
                     scroll = smooth.by(scroll, delta);
->>>>>>> c8794a4 (Smooth scrolling and HiDPI screens)
                     dirty = true;
                 }
                 None => {}
