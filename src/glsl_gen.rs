@@ -198,7 +198,9 @@ pub fn compile(src: &str, stage: Stage, webgl2: bool) -> Result<Compiled, String
             flatten_uniform(name, ty, *slot, &mut uniforms);
         }
     }
-    let inputs = g.inputs.iter().filter(|(_, u)| u.get() || stage == Stage::Fragment).map(|(v, _)| v.clone()).collect();
+    // Only inputs the shader reads count (an unread varying needn't be written by the
+    // vertex shader).
+    let inputs = g.inputs.iter().filter(|(_, u)| u.get()).map(|(v, _)| v.clone()).collect();
     Ok(Compiled {
         stage,
         version: g.version,
@@ -2514,6 +2516,13 @@ mod tests {
         let r = frag(src);
         assert_eq!(r[0][0], 5.0);
         assert_eq!(r[1][0], 7.0);
+    }
+
+    #[test]
+    fn unread_inputs_arent_listed() {
+        let c = compile("#version 300 es\nprecision highp float; in vec3 vNormal; in vec2 vUv; out vec4 o; void main() { o = vec4(vUv, 0.0, 1.0); }", Stage::Fragment, true).unwrap();
+        let names: Vec<&str> = c.inputs.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, ["vUv"]);
     }
 
     #[test]

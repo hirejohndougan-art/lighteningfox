@@ -134,6 +134,8 @@
     MAX_CLIENT_WAIT_TIMEOUT_WEBGL: 0x9247,
   };
 
+  for (let i = 0; i < 32; i++) K1["TEXTURE" + i] = 0x84c0 + i;
+
   // ---- object types
   const kinds = { buffer: 0, texture: 1, framebuffer: 2, renderbuffer: 3, shader: 4, program: 5, vao: 6, sampler: 7, query: 8, sync: 9 };
   class WebGLObject {}

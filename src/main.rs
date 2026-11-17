@@ -72,6 +72,7 @@ mod gradient;
 mod smooth;
 mod window;
 mod images;
+mod img_load;
 mod srcset;
 mod page_images;
 mod js;

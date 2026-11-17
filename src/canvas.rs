@@ -36,6 +36,8 @@ pub struct Store {
     canvases: HashMap<NodeId, Cv>,
     /// Decoded page images as premultiplied pixmaps, for drawImage and patterns.
     sources: HashMap<String, Pixmap>,
+    /// Images scripts loaded (`new Image()`, img_load.rs), kept while the page lives.
+    loaded: HashMap<String, Pixmap>,
 }
 
 thread_local! {
@@ -80,6 +82,8 @@ pub fn install(ctx: &mut Context) {
     }
     // WebGL contexts come from the same getContext().
     crate::webgl::install(ctx);
+    // Images scripts create (new Image()) load on their own, for canvas and WebGL.
+    crate::img_load::install(ctx);
 }
 
 /// Copy canvases drawn on since the last call into the page's images.
@@ -317,7 +321,7 @@ fn source_pixmap(store: &mut Store, kind: u8, key: &str) -> Option<Pixmap> {
         let id: NodeId = key.parse().ok()?;
         return store.canvases.get(&id).map(|c| c.pix.clone());
     }
-    if let Some(p) = store.sources.get(key) {
+    if let Some(p) = store.sources.get(key).or_else(|| store.loaded.get(key)) {
         return Some(p.clone());
     }
     let pix = PAGE_IMAGES.with(|imgs| {
@@ -873,7 +877,7 @@ fn n_source_size(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     let size = if kind == 1 {
         key.parse::<NodeId>().ok().and_then(|id| store(ctx).canvases.get(&id).map(|c| (c.pix.width(), c.pix.height())))
     } else {
-        PAGE_IMAGES.with(|i| i.borrow().as_ref().and_then(|i| i.get(&key)).map(|i| (i.w, i.h)))
+        PAGE_IMAGES.with(|i| i.borrow().as_ref().and_then(|i| i.get(&key)).map(|i| (i.w, i.h))).or_else(|| store(ctx).loaded.get(&key).map(|p| (p.width(), p.height())))
     };
     Ok(match size {
         Some((w, h)) => JsArray::from_iter([JsValue::from(w), JsValue::from(h)], ctx).into(),
@@ -1101,6 +1105,21 @@ fn n_decode_into(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     st.canvases.insert(id, Cv { pix, clip: None, saved: Vec::new(), version, published: 0 });
     drop(st);
     Ok(JsArray::from_iter([JsValue::from(w), JsValue::from(h)], ctx).into())
+}
+
+/// Keep an image a script loaded (straight RGBA) under its source key, for drawImage and WebGL.
+pub(crate) fn add_loaded(ctx: &Context, key: &str, img: &image::RgbaImage) {
+    let Some(store) = ctx.get_data::<RefCell<Store>>() else { return };
+    let Some(mut pix) = Pixmap::new(img.width().max(1), img.height().max(1)) else { return };
+    for (dst, s) in pix.pixels_mut().iter_mut().zip(img.pixels()) {
+        let [r, g, b, a] = s.0;
+        *dst = tiny_skia::ColorU8::from_rgba(r, g, b, a).premultiply();
+    }
+    let mut s = store.borrow_mut();
+    if s.loaded.len() > 256 {
+        s.loaded.clear();
+    }
+    s.loaded.insert(key.to_string(), pix);
 }
 
 /// Replace a canvas's pixels with a WebGL frame (premultiplied RGBA, top row first).

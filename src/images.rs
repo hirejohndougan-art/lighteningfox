@@ -569,6 +569,16 @@ fn decode_animation(bytes: &[u8]) -> Option<(Vec<Arc<image::RgbaImage>>, Vec<u32
     Some((out, ends))
 }
 
+/// Fetch one image and decode it at its own size, for scripts (`new Image()`): what canvas
+/// and WebGL draw from. None if it can't be loaded or decoded.
+pub fn fetch_pixels(url: &str, page: &str) -> Option<image::RgbaImage> {
+    let img = fetch_and_decode(url, page)?;
+    let (w, h) = (img.w.max(1), img.h.max(1));
+    let mut tmp = Images::default();
+    tmp.by_src.insert(url.to_string(), Arc::new(img));
+    tmp.scaled(url, w, h).map(|a| (*a).clone())
+}
+
 fn fetch_and_decode(url: &str, page: &str) -> Option<Img> {
     let bytes = net::fetch_sub_bytes(url, page, crate::security::Dest::Image).map_err(|e| log!("[img] {url}: {e}")).ok()?.1;
     from_bytes(bytes, url)
