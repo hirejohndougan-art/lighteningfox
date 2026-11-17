@@ -163,7 +163,16 @@ little heavier than Chrome's (same Medium face; antialiasing). Recording branch 
 be deleted.
 
 ### X1d. Make Bing render like Chrome
-**Status:** claimed by chat-opus-t12 2026-11-17 14:00
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** Bing's replay has no script errors and its search bar renders like Chrome's: window
+`on*` handler properties exist (assigning `onload` threw), navigation timing fills in load
+timestamps, `width: fit-content / max-content / min-content` work (an absolute box between
+`left` and `right` shrinks to fit and auto margins center it), `font: inherit` and other font
+`inherit`s undo UA defaults, and `<textarea>` draws in its own font (monospace only by default).
+Test: `tests/sites/bing-searchbox.html` (`fit_content_search_box_is_centered`).
+**Left undone:** a faint 1px horizontal line across the photo near y=550; Chrome's reference
+(live site, 1280×2000 window, before the photo loads) differs in classes and timing, so the
+comparison is by CSS, not pixels.
 **After:** —
 **Checklist:** §21 "Bing renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
