@@ -65,7 +65,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §14 Drop off-screen images and decode them again when they scroll back into view
 
 ## D. Canvas and drawing
-**Status:** free
+**Status:** claimed by layout-chat 2026-11-17 02:15
 **Start after:** —
 **Main files:** new `src/canvas.rs`, a new prelude file for the canvas API, `src/paint.rs` (shapes)
 
