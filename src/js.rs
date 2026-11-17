@@ -224,6 +224,13 @@ fn n_id_list(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsArray::from_iter(ids.iter().map(|i| s(i)), ctx).into())
 }
 
+/// __shadowRootList(): every shadow root (for slotchange checks).
+fn n_shadow_root_list(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let mut roots: Vec<NodeId> = with_dom(|d| d.shadow_hosts.keys().copied().collect());
+    roots.sort_unstable();
+    Ok(JsArray::from_iter(roots.into_iter().map(|r| JsValue::from(r as f64)), ctx).into())
+}
+
 /// __templateContent(template): its contents fragment (made on first use for templates
 /// created by scripts).
 fn n_template_content(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -868,6 +875,7 @@ impl Js {
             ("__attachShadow", 2, n_attach_shadow),
             ("__templateContent", 1, n_template_content),
             ("__idList", 0, n_id_list),
+            ("__shadowRootList", 0, n_shadow_root_list),
             ("__shadowRoot", 2, n_shadow_root),
             ("__shadowHost", 1, n_shadow_host),
             ("__parent", 1, n_parent),

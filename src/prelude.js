@@ -14,7 +14,7 @@
     let n = cache[id];
     if (n) return n;
     const t = __type(id);
-    n = t === 9 ? document : t === 3 ? new Text(id) : t === 8 ? new Comment(id) : t === 11 && __shadowHost(id) ? new ShadowRoot(id) : t === 11 ? new DocumentFragment(id) : new Element(id);
+    n = t === 9 ? document : t === 3 ? new Text(id) : t === 8 ? new Comment(id) : t === 11 && __shadowHost(id) ? new ShadowRoot(id, SHADOW_KEY) : t === 11 ? new DocumentFragment(id) : new Element(id);
     cache[id] = n;
     return n;
   }
@@ -32,7 +32,8 @@
       this.defaultPrevented = false;
       this.target = null;
       this.currentTarget = null;
-      this.relatedTarget = init.relatedTarget ?? null;
+      // Only events that have one (mouse, focus…) carry relatedTarget.
+      if (init && "relatedTarget" in init) this.relatedTarget = init.relatedTarget ?? null;
       this.eventPhase = 0;
       this.isTrusted = false;
       this.timeStamp = __nowMs;
@@ -82,6 +83,57 @@
   }
   class CustomEvent extends Event {
     constructor(type, init = {}) { super(type, init); this.detail = init.detail ?? null; }
+  }
+  class UIEvent extends Event {
+    constructor(type, init = {}) { super(type, init); this.view = init.view ?? null; this.detail = init.detail ?? 0; }
+  }
+  class MouseEvent extends UIEvent {
+    constructor(type, init = {}) {
+      super(type, init);
+      for (const k of ["screenX", "screenY", "clientX", "clientY", "button", "buttons", "movementX", "movementY"]) this[k] = init[k] ?? 0;
+      for (const k of ["ctrlKey", "shiftKey", "altKey", "metaKey"]) this[k] = !!init[k];
+      this.relatedTarget = init.relatedTarget ?? null;
+    }
+    get pageX() { return this.clientX; }
+    get pageY() { return this.clientY; }
+    get x() { return this.clientX; }
+    get y() { return this.clientY; }
+    get offsetX() { const r = this.target && this.target.getBoundingClientRect ? this.target.getBoundingClientRect() : { left: 0 }; return this.clientX - r.left; }
+    get offsetY() { const r = this.target && this.target.getBoundingClientRect ? this.target.getBoundingClientRect() : { top: 0 }; return this.clientY - r.top; }
+    getModifierState(k) { return { Control: this.ctrlKey, Shift: this.shiftKey, Alt: this.altKey, Meta: this.metaKey }[k] || false; }
+  }
+  class PointerEvent extends MouseEvent {
+    constructor(type, init = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 0;
+      this.pointerType = init.pointerType ?? "";
+      this.isPrimary = !!init.isPrimary;
+      this.width = init.width ?? 1;
+      this.height = init.height ?? 1;
+      this.pressure = init.pressure ?? 0;
+    }
+    getCoalescedEvents() { return []; }
+    getPredictedEvents() { return []; }
+  }
+  class WheelEvent extends MouseEvent {
+    constructor(type, init = {}) { super(type, init); this.deltaX = init.deltaX ?? 0; this.deltaY = init.deltaY ?? 0; this.deltaZ = init.deltaZ ?? 0; this.deltaMode = init.deltaMode ?? 0; }
+  }
+  class FocusEvent extends UIEvent {
+    constructor(type, init = {}) { super(type, init); this.relatedTarget = init.relatedTarget ?? null; }
+  }
+  class KeyboardEvent extends UIEvent {
+    constructor(type, init = {}) {
+      super(type, init);
+      this.key = init.key ?? "";
+      this.code = init.code ?? "";
+      this.location = init.location ?? 0;
+      this.repeat = !!init.repeat;
+      for (const k of ["ctrlKey", "shiftKey", "altKey", "metaKey"]) this[k] = !!init[k];
+    }
+    getModifierState(k) { return { Control: this.ctrlKey, Shift: this.shiftKey, Alt: this.altKey, Meta: this.metaKey }[k] || false; }
+  }
+  for (const [name, C] of Object.entries({ UIEvent, MouseEvent, PointerEvent, WheelEvent, FocusEvent, KeyboardEvent })) {
+    if (!g[name]) g[name] = C;
   }
   const isShadowRoot = (n) => n instanceof ShadowRoot;
   // The root of a node's tree (a document, a shadow root, or a detached subtree's top).
@@ -339,7 +391,12 @@
       if (mode !== "open" && mode !== "closed") throw new TypeError("attachShadow: mode must be 'open' or 'closed'");
       if (__shadowHost(__shadowRoot(this.__id)) || this.__hasShadow) throw new DOMException("This element already has a shadow root", "NotSupportedError");
       this.__hasShadow = true;
-      return wrap(__attachShadow(this.__id, mode === "open"));
+      const root = wrap(__attachShadow(this.__id, mode === "open"));
+      root.__manual = init.slotAssignment === "manual";
+      root.__delegatesFocus = !!init.delegatesFocus;
+      root.__clonable = !!init.clonable;
+      root.__serializable = !!init.serializable;
+      return root;
     }
     get shadowRoot() { return wrap(__shadowRoot(this.__id)); }
     get content() { return this.localName === "template" ? wrap(__templateContent(this.__id)) : undefined; }
@@ -516,7 +573,16 @@
     append(...a) { for (const n of nodesFrom(a)) this.appendChild(n); }
   }
 
+  const SHADOW_KEY = Symbol("shadow");
   class ShadowRoot extends DocumentFragment {
+    constructor(id, key) {
+      if (key !== SHADOW_KEY) throw new TypeError("Illegal constructor");
+      super(id);
+    }
+    get slotAssignment() { return (this.__manual ? "manual" : "named"); }
+    get delegatesFocus() { return !!this.__delegatesFocus; }
+    get clonable() { return !!this.__clonable; }
+    get serializable() { return !!this.__serializable; }
     get nodeName() { return "#document-fragment"; }
     get host() { return wrap(__shadowHost(this.__id)[0]); }
     get mode() { return __shadowHost(this.__id)[1] ? "open" : "closed"; }
@@ -536,6 +602,11 @@
     if (!host || host.nodeType !== 1) return null;
     const root = wrap(__shadowRoot(host.__id, true));
     if (!root) return null;
+    if (root.__manual) {
+      // Manually assigned: the slot must still be in this host's shadow tree.
+      const s = node.__manualSlot;
+      return s && rootOf(s) === root ? s : null;
+    }
     const name = slotNameOf(node);
     if (name === null) return null;
     for (const s of Element.prototype.querySelectorAll.call(root, "slot")) if ((s.getAttribute("name") || "") === name) return s;
@@ -547,6 +618,17 @@
     if (!isShadowRoot(r)) return [];
     return r.host.childNodes.filter((n) => __assignedSlotAny(n) === slot);
   }
+  // Manual slot assignment (attachShadow({slotAssignment: "manual"}) + slot.assign(...)).
+  Element.prototype.assign = function (...nodes) {
+    const list = [];
+    for (const n of nodes) if (!list.includes(n)) list.push(n);
+    // A node can be manually assigned to only one slot.
+    for (const n of list) if (n.__manualSlot && n.__manualSlot !== this) n.__manualSlot.__manual = (n.__manualSlot.__manual || []).filter((x) => x !== n);
+    for (const old of this.__manual || []) if (!list.includes(old)) delete old.__manualSlot;
+    for (const n of list) n.__manualSlot = this;
+    this.__manual = list;
+    g.__slotsMaybeChanged();
+  };
   function flattenedOf(slot) {
     if (!isShadowRoot(rootOf(slot))) return [];
     let list = assignedTo(slot);
@@ -1189,6 +1271,49 @@
   // Every node (text, comment, document…) has getRootNode, not just elements.
   if (!Object.prototype.hasOwnProperty.call(Node.prototype, "getRootNode")) Node.prototype.getRootNode = Element.prototype.getRootNode;
   if (!DocumentFragment.prototype.getElementById) DocumentFragment.prototype.getElementById = function (id) { return this.querySelector("#" + CSS.escape(String(id))); };
+
+  // slotchange: after DOM changes, once the current task's microtasks run, every slot whose
+  // assigned nodes changed gets a slotchange event (bubbles, not composed).
+  const slotSeen = new WeakMap();
+  let slotCheckQueued = false;
+  const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  function checkSlots() {
+    slotCheckQueued = false;
+    const changed = new Set();
+    for (const r of __shadowRootList()) {
+      const root = wrap(r);
+      if (!root) continue;
+      for (const slot of Element.prototype.querySelectorAll.call(root, "slot")) {
+        const now = assignedTo(slot);
+        const before = slotSeen.get(slot) || [];
+        slotSeen.set(slot, now);
+        if (!sameList(now, before)) changed.add(slot);
+      }
+    }
+    // A slot that is itself slotted into another slot passes the change on to that one.
+    for (const slot of [...changed]) {
+      let s = __assignedSlotAny(slot);
+      while (s && !changed.has(s)) {
+        changed.add(s);
+        s = __assignedSlotAny(s);
+      }
+    }
+    for (const slot of changed) slot.dispatchEvent(new Event("slotchange", { bubbles: true }));
+  }
+  g.__slotsMaybeChanged = function () {
+    if (slotCheckQueued || !__shadowRootList().length) return;
+    slotCheckQueued = true;
+    Promise.resolve().then(checkSlots);
+  };
+  for (const name of ["__setText", "__insert", "__detach", "__setAttr", "__removeAttr", "__setHTML", "__attachShadow"]) {
+    const orig = g[name];
+    if (typeof orig !== "function") continue;
+    g[name] = function (...args) {
+      const r = orig.apply(this, args);
+      g.__slotsMaybeChanged();
+      return r;
+    };
+  }
 
   // Node type constants (Node.ELEMENT_NODE …), on the class and its instances.
   const NODE_TYPES = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4, ENTITY_REFERENCE_NODE: 5, ENTITY_NODE: 6, PROCESSING_INSTRUCTION_NODE: 7, COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_TYPE_NODE: 10, DOCUMENT_FRAGMENT_NODE: 11, NOTATION_NODE: 12, DOCUMENT_POSITION_DISCONNECTED: 1, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4, DOCUMENT_POSITION_CONTAINS: 8, DOCUMENT_POSITION_CONTAINED_BY: 16, DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: 32 };
