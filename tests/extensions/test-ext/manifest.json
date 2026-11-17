@@ -1,0 +1,12 @@
+{
+  "manifest_version": 2,
+  "name": "Ironswift test extension",
+  "version": "0.1",
+  "permissions": ["storage", "tabs", "webRequest", "webRequestBlocking", "*://blocked.test/*", "*://moved.test/*"],
+  "background": { "scripts": ["bg1.js", "bg2.js"] },
+  "content_scripts": [
+    { "matches": ["file:///*/extension-test.html"], "js": ["start.js"], "run_at": "document_start" },
+    { "matches": ["file:///*/extension-test.html"], "js": ["end.js"], "css": ["style.css"], "run_at": "document_end" },
+    { "matches": ["file:///*/extension-test.html"], "exclude_matches": ["file:///*/extension-test.html"], "js": ["never.js"] }
+  ]
+}

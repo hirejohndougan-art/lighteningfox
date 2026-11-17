@@ -427,6 +427,16 @@ fn serve_request(sites: &[String], parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
                 Err(e) => vec![b"err".to_vec(), e.into_bytes()],
             }
         }
+        Some(b"ext") => {
+            // Only for pages of the process's own sites.
+            let req: serde_json::Value = serde_json::from_str(&arg(1)).unwrap_or_default();
+            let url = req.get("url").and_then(|u| u.as_str()).unwrap_or("");
+            if !site_of(url).is_some_and(|s| sites.contains(&s)) {
+                return vec![br#"{"error":"not this process's page"}"#.to_vec()];
+            }
+            crate::extensions::start();
+            vec![crate::extensions::serve(&req).to_string().into_bytes()]
+        }
         Some(b"cookie_header") if mine(sites, &arg(2)) => match cookies::header_for(&arg(1), &arg(2)) {
             Some(h) => vec![vec![1], h.into_bytes()],
             None => vec![vec![0]],
@@ -566,6 +576,12 @@ pub fn remote_store_load(key: &str, dir: &str) -> Option<String> {
 /// Save a page's store (js.rs). None outside a site process.
 pub fn remote_store_save(key: &str, dir: &str, json: &str) -> Option<bool> {
     in_renderer().then(|| call(&[b"store_save", dir.as_bytes(), key.as_bytes(), json.as_bytes()], QUICK).is_some_and(|r| r.first().is_some_and(|b| b == &[1])))
+}
+
+/// An extension request from a content script (extensions/mod.rs `serve`), as JSON. None
+/// outside a site process.
+pub fn remote_ext(json: &str) -> Option<String> {
+    in_renderer().then(|| call(&[b"ext", json.as_bytes()], QUICK).and_then(|r| r.first().map(|b| text(b))).unwrap_or_default())
 }
 
 /// downloads.rs: a navigation is a file; the browser saves it. False outside a site process.

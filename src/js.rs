@@ -1259,6 +1259,16 @@ impl Js {
         js
     }
 
+    /// The script engine itself (extensions add their APIs to pages with it).
+    pub(crate) fn ctx_mut(&mut self) -> &mut Context {
+        &mut self.ctx
+    }
+
+    /// Add a global native function.
+    pub(crate) fn add_native(&mut self, name: &str, len: usize, f: fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>) {
+        let _ = self.ctx.register_global_callable(JsString::from(name), len, NativeFunction::from_fn_ptr(f));
+    }
+
     /// Run a script; an uncaught exception comes back as its message.
     pub(crate) fn run_code(&mut self, code: &str, label: &str) -> Result<(), String> {
         let r = self.ctx.eval_cached(code.as_bytes());
@@ -1538,6 +1548,7 @@ impl Js {
     /// Run the document's scripts one after another (for documents not parsed here, such
     /// as XHTML), then the load events.
     pub fn run_in_order(&mut self, base_url: &str, prefetched: &HashMap<String, String>) {
+        crate::extensions::content::start(self);
         for id in with_dom(|d| d.find_all("script")) {
             self.run_script(id, base_url, prefetched);
         }
@@ -1547,8 +1558,10 @@ impl Js {
     fn finish_loading(&mut self) {
         CURRENT_SCRIPT.with(|c| c.set(-1));
         self.eval("__namedIds()", "named ids");
+        crate::extensions::content::run(self, "document_end");
         self.eval("__loaded()", "load events");
         self.tick(); // run zero-delay timers right away
+        crate::extensions::content::run(self, "document_idle");
     }
 
     /// Run one `<script>` element (inline or external). Non-JavaScript types are skipped.
@@ -1655,6 +1668,8 @@ impl Js {
         tb.pause_at_scripts = true;
         PARSER.with(|p| *p.borrow_mut() = Some(tb));
         let mut later: Vec<NodeId> = Vec::new();
+        // Extensions' content scripts start once there's a document (at the first script).
+        let mut ext_started = false;
         loop {
             let next = PARSER.with(|p| p.borrow_mut().as_mut().and_then(|tb| tb.pump()));
             let Some(script) = next else { break };
@@ -1664,6 +1679,10 @@ impl Js {
             // Module scripts, inline or not, wait for the parser like deferred scripts.
             let module = dom.attr(script, "type").is_some_and(|t| t.trim().eq_ignore_ascii_case("module"));
             set_dom(dom);
+            if !ext_started {
+                ext_started = true;
+                crate::extensions::content::start(self);
+            }
             if (has_src && delayed) || module {
                 later.push(script);
             } else {
@@ -1676,6 +1695,9 @@ impl Js {
         }
         let tb = PARSER.with(|p| p.borrow_mut().take()).expect("parser");
         set_dom(tb.finish());
+        if !ext_started {
+            crate::extensions::content::start(self);
+        }
         // Deferred scripts in document order (async ones are run here too).
         for id in later {
             self.run_script(id, base_url, prefetched);
@@ -1734,6 +1756,7 @@ impl Js {
             self.eval(&code, "worker/socket event");
             delivered = true;
         }
+        crate::extensions::content::poll_page(self);
         delivered | self.tick_timers()
     }
 

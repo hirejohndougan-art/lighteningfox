@@ -287,6 +287,14 @@ pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<
     if let Some(r) = crate::process::remote_http(method, url, headers, body, timeout) {
         return r.map(|raw| Stream { status: raw.status, status_text: raw.status_text, headers: raw.headers, body: Box::new(std::io::Cursor::new(raw.body)) });
     }
+    // Extensions listening with webRequest may cancel or redirect it.
+    match crate::extensions::webrequest::check(method, url, headers) {
+        crate::extensions::webrequest::Decision::Proceed => {}
+        crate::extensions::webrequest::Decision::Cancel => return Err(format!("{url}: blocked by an extension")),
+        crate::extensions::webrequest::Decision::Redirect(to) => {
+            return Ok(Stream { status: 307, status_text: "Temporary Redirect".into(), headers: vec![("location".into(), to)], body: Box::new(std::io::Cursor::new(Vec::new())) });
+        }
+    }
     let r = open_inner(method, url, headers, body, timeout);
     log_request(method, url, started, &r);
     r

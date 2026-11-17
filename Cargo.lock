@@ -2616,6 +2616,7 @@ dependencies = [
  "resvg",
  "rgb",
  "rustybuzz",
+ "serde_json",
  "sha2",
  "softbuffer",
  "swash",

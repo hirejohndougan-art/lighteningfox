@@ -204,3 +204,25 @@ fn import_maps() {
     // A second map adds "late" but can't override the first map's "dep".
     assert_eq!(text_of("e"), "dynamic dep via import map");
 }
+
+#[test]
+fn extension_content_scripts() {
+    let _serial = serial();
+    crate::extensions::install_for_tests(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/extensions/test-ext"));
+    let mut page = open("tests/extension-test.html");
+    // Let the page hear the background's tabs.sendMessage (pages check every 100 ms).
+    for _ in 0..30 {
+        if text_of("out").contains("poked") {
+            break;
+        }
+        if let Some(j) = page.js.as_mut() {
+            j.tick();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(
+        text_of("out"),
+        "start saw before;page ran yes;chrome function page sees undefined;echo hi extension-test.html;\
+         storage {\"a\":1};bg poking;poked;"
+    );
+}

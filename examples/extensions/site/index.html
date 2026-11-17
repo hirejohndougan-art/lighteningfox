@@ -1,0 +1,11 @@
+<!doctype html>
+<title>extensions test</title>
+<h1>Extensions</h1>
+<p id="ext-out"></p>
+<p id="fetches"></p>
+<img src="old.png" width="40" height="40"> <img src="ads/banner.png" width="40" height="40">
+<script>
+const f = document.getElementById("fetches");
+fetch("ads/track.json").then(() => f.textContent += "ads loaded;", () => f.textContent += "ads blocked;");
+fetch("data.json").then(r => r.json()).then(j => f.textContent += "data " + j.v + ";");
+</script>

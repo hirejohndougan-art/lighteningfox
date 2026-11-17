@@ -65,6 +65,7 @@ mod js;
 mod jsnest;
 mod jsmodules;
 mod importmap;
+mod extensions;
 mod domindex;
 mod dom_classes;
 mod vertical;
@@ -821,6 +822,12 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
     let hiding = if full { blocklist::hiding_css(&final_url, &dom) } else { String::new() };
     if !hiding.is_empty() {
         sources.push(Src::Inline(hiding));
+    }
+    // Extensions' content-script styles.
+    if full {
+        for css in extensions::content::page_css(&final_url, security::frame_info(&final_url).is_none()) {
+            sources.push(Src::Inline(css));
+        }
     }
     let page_url: &str = &final_url;
     let (sheets, scripts) = std::thread::scope(|scope| {
@@ -1809,6 +1816,7 @@ fn is_private() -> bool {
 }
 
 fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
+    extensions::start();
     // Iframes in the window stay live (frames.rs); snapshots draw them once.
     frames::enable();
     process::enable_from_settings();
@@ -2050,6 +2058,33 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // A site icon arrived: redraw the tab strip.
         if favicon::arrived() {
             dirty = true;
+        }
+        // Extensions: show them the tabs, and do what they asked (one thing a frame).
+        if !extensions::all().is_empty() {
+            let list = tabs
+                .iter()
+                .map(|s| match s {
+                    None => extensions::tabs::Tab { url: current.url.clone(), title: page.label() },
+                    Some(s) => extensions::tabs::Tab { url: s.saved.as_ref().map_or(s.url.clone(), |sv| sv.current.url.clone()), title: s.title.clone() },
+                })
+                .collect();
+            extensions::tabs::publish(list, active);
+            if tab_cmd.is_none() && pending_nav.is_none() {
+                use extensions::tabs::Command as C;
+                match extensions::tabs::next_command() {
+                    Some(C::Open(url, front)) => tab_cmd = Some(TabCmd::Open(url, !front)),
+                    Some(C::Switch(i)) => tab_cmd = Some(TabCmd::Switch(i)),
+                    Some(C::Close(i)) => tab_cmd = Some(TabCmd::Close(i)),
+                    Some(C::Navigate(i, url)) if i == active => pending_nav = Some(Go::To(url)),
+                    Some(C::Reload(i)) if i == active => pending_nav = Some(Go::Reload),
+                    // Another tab: show it first, then load.
+                    Some(c @ (C::Navigate(i, _) | C::Reload(i))) if i < tabs.len() => {
+                        tab_cmd = Some(TabCmd::Switch(i));
+                        extensions::tabs::push_front(c);
+                    }
+                    _ => {}
+                }
+            }
         }
         // Tab strip and shortcut actions from the last frame.
         if let Some(cmd) = tab_cmd.take() {

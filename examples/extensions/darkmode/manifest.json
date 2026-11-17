@@ -1,0 +1,15 @@
+{
+  // A small dark-mode extension: a stylesheet and a script in every page, a setting in
+  // storage, and a background that answers the content script.
+  "manifest_version": 2,
+  "name": "Test Dark Mode",
+  "version": "1.0",
+  "permissions": ["storage", "tabs"],
+  "background": { "scripts": ["background.js"] },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "css": ["dark.css"],
+    "js": ["content.js"],
+    "run_at": "document_end"
+  }]
+}
