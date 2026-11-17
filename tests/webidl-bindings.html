@@ -1,0 +1,26 @@
+<!doctype html><html><head><title>WebIDL bindings</title></head><body>
+<div id=a class="x y" data-k=v><p id=p1>one</p><!--c--><p id=p2>two <b>three</b></p></div><div id=b></div><div id=log></div>
+<script>
+const out = []; const log = (s) => out.push(s);
+const a = document.getElementById('a'), p1 = document.getElementById('p1'), p2 = document.getElementById('p2'), b = document.getElementById('b');
+const t = (f) => { try { return String(f()); } catch (e) { return e.constructor.name; } };
+// The old natives still answer the same.
+log([a.tagName, a.nodeName, a.localName, a.id, a.className, a.children.length, a.childNodes.length, a.firstElementChild.id, a.lastElementChild.id, p1.nextElementSibling.id, p2.previousElementSibling.id, a.querySelector('b').tagName, a.querySelectorAll('p').length, p1.matches('#a > p'), p1.closest('div').id, a.getElementsByClassName('nope').length, document.getElementsByTagName('p').length].join(','));
+log([a.getAttribute('DATA-K'), a.hasAttribute('class'), a.getAttribute('zz'), p1.parentNode.id, p1.parentElement.id, a.contains(p2.firstChild), p1.contains(null), document.body.tagName, document.head.tagName, document.documentElement.tagName, document.querySelectorAll('p').length].join(','));
+// New: compareDocumentPosition, isSameNode, isEqualNode, hasAttributes, getAttributeNames.
+log([p1.compareDocumentPosition(p2), p2.compareDocumentPosition(p1), a.compareDocumentPosition(p1), p1.compareDocumentPosition(a), p1.compareDocumentPosition(p1), b.compareDocumentPosition(p2), (document.createElement('i').compareDocumentPosition(a) & 0x21)].join(','));
+log([p1.isSameNode(p1), p1.isSameNode(p2), p1.isEqualNode(p1.cloneNode(true)), p1.isEqualNode(p2), a.cloneNode(true).isEqualNode(a), p1.isEqualNode(null), a.hasAttributes(), b.hasAttributes(), a.getAttributeNames().join('|')].join(','));
+// WebIDL: missing arguments throw, wrong types throw, lengths and getter names follow the IDL.
+log([t(() => a.getAttribute()), t(() => a.contains()), t(() => p1.compareDocumentPosition({})), t(() => document.getElementById()), Element.prototype.getAttribute.length, Node.prototype.compareDocumentPosition.length, Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode').get.name, t(() => Element.prototype.getAttribute.call({}, 'x'))].join(','));
+// CharacterData and textContent.
+const c = a.childNodes[1];
+log([p1.firstChild.data, p1.firstChild.length, c.data, document.textContent, document.doctype ? document.doctype.textContent : 'nodoctype', p2.textContent].join(','));
+// More members the IDL lists: namespaces, CharacterData siblings and substringData (with its
+// IndexSizeError), wholeText, and the Document's own children and metadata.
+const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+const txt = p2.firstChild, split = document.createElement('span');
+split.append('ab', 'cd', document.createElement('i'), 'ef');
+log([a.namespaceURI, svg.namespaceURI, a.prefix, a.webkitMatchesSelector('div'), txt.nextElementSibling.tagName, txt.previousElementSibling, txt.substringData(1, 2), txt.substringData(2, 99), (() => { try { txt.substringData(99, 1); } catch (e) { return e.name + ' ' + (e instanceof DOMException); } })(), split.firstChild.wholeText, split.lastChild.wholeText].join(','));
+log([document.children.length, document.childElementCount, document.firstElementChild.tagName, document.lastElementChild.tagName, document.characterSet, document.charset, document.contentType, document.compatMode, document.anchors.length, document.applets.length, document.embeds.length].join(','));
+document.getElementById('log').textContent = out.join('\n');
+</script></body></html>

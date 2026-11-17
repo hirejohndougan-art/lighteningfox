@@ -1,0 +1,100 @@
+{
+  "idl": [
+    "dom.idl",
+    "html.idl"
+  ],
+  "interfaces": {
+    "Node": {
+      "this": "node",
+      "members": {
+        "nodeType": "node_type",
+        "parentNode": "parent_node",
+        "parentElement": "parent_element",
+        "childNodes": "child_nodes",
+        "firstChild": "first_child",
+        "lastChild": "last_child",
+        "nextSibling": "next_sibling",
+        "previousSibling": "previous_sibling",
+        "isConnected": "is_connected",
+        "textContent": "text_content",
+        "hasChildNodes": "has_child_nodes",
+        "contains": "contains",
+        "compareDocumentPosition": "compare_document_position",
+        "isSameNode": "is_same_node",
+        "isEqualNode": "is_equal_node"
+      }
+    },
+    "Element": {
+      "this": "node",
+      "members": {
+        "tagName": "tag_name",
+        "nodeName": "tag_name",
+        "localName": "local_name",
+        "id": "id",
+        "className": "class_name",
+        "hasAttributes": "has_attributes",
+        "getAttributeNames": "attribute_names",
+        "getAttribute": "get_attribute",
+        "hasAttribute": "has_attribute",
+        "children": "element_children",
+        "childElementCount": "child_element_count",
+        "firstElementChild": "first_element_child",
+        "lastElementChild": "last_element_child",
+        "nextElementSibling": "next_element_sibling",
+        "previousElementSibling": "previous_element_sibling",
+        "querySelector": "query_selector",
+        "querySelectorAll": "query_selector_all",
+        "matches": "matches",
+        "closest": "closest",
+        "getElementsByTagName": "elements_by_tag_name",
+        "getElementsByClassName": "elements_by_class_name",
+        "namespaceURI": "namespace_uri",
+        "prefix": "prefix",
+        "webkitMatchesSelector": "matches"
+      }
+    },
+    "CharacterData": {
+      "this": "node",
+      "members": {
+        "data": "character_data",
+        "length": "character_length",
+        "nextElementSibling": "next_element_sibling",
+        "previousElementSibling": "previous_element_sibling",
+        "substringData": {
+          "fn": "substring_data",
+          "throws": true
+        }
+      }
+    },
+    "Text": {
+      "this": "node",
+      "members": {
+        "wholeText": "whole_text"
+      }
+    },
+    "Document": {
+      "this": "node",
+      "members": {
+        "documentElement": "document_element",
+        "head": "document_head",
+        "body": "document_body",
+        "getElementById": "document_element_by_id",
+        "querySelector": "document_query_selector",
+        "querySelectorAll": "document_query_selector_all",
+        "children": "document_children",
+        "childElementCount": "document_child_element_count",
+        "firstElementChild": "document_first_element_child",
+        "lastElementChild": "document_last_element_child",
+        "characterSet": "character_set",
+        "charset": "character_set",
+        "inputEncoding": "character_set",
+        "contentType": "content_type",
+        "compatMode": "compat_mode",
+        "anchors": "document_anchors",
+        "applets": "document_applets",
+        "embeds": "document_embeds",
+        "plugins": "document_embeds"
+      }
+    }
+  }
+}

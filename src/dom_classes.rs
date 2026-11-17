@@ -24,7 +24,7 @@ use boa_engine::{
 use boa_engine::object::builtins::JsArray;
 
 use crate::dom::{Dom, NodeData, NodeId};
-use crate::js::{with_dom, element_by_id, query, parsed_selectors};
+use crate::js::with_dom;
 
 /// The hidden part of a node object: which node it stands for.
 #[derive(Debug, JsData)]
@@ -116,7 +116,7 @@ pub(crate) fn installed(ctx: &Context) -> bool {
 
 /// The node a value stands for: its handle, else its `__id` property. Ids past the end of the
 /// tree come back as None (they answer like an empty node, as the old wrappers did).
-fn node_of(v: &JsValue, ctx: &mut Context) -> JsResult<Option<Option<NodeId>>> {
+pub(crate) fn node_of(v: &JsValue, ctx: &mut Context) -> JsResult<Option<Option<NodeId>>> {
     let Some(o) = v.as_object() else { return Ok(None) };
     if let Some(h) = o.downcast_ref::<NodeHandle>() {
         let id = h.id;
@@ -129,21 +129,6 @@ fn node_of(v: &JsValue, ctx: &mut Context) -> JsResult<Option<Option<NodeId>>> {
     }
     let id = n as usize;
     Ok(Some(with_dom(|d| (id < d.nodes.len()).then_some(id))))
-}
-
-fn this_node(this: &JsValue, ctx: &mut Context) -> JsResult<Option<NodeId>> {
-    match node_of(this, ctx)? {
-        Some(id) => Ok(id),
-        None => Err(JsNativeError::typ().with_message("Illegal invocation: not a DOM node").into()),
-    }
-}
-
-fn arg_string(a: &[JsValue], i: usize, ctx: &mut Context) -> JsResult<String> {
-    Ok(a.get(i).cloned().unwrap_or_default().to_string(ctx)?.to_std_string_escaped())
-}
-
-fn s(v: &str) -> JsValue {
-    JsValue::from(JsString::from(v))
 }
 
 // ------------------------------------------------------------ tree facts
@@ -162,337 +147,9 @@ pub(crate) fn node_type(d: &Dom, id: NodeId) -> u32 {
     }
 }
 
-fn is_element(d: &Dom, id: NodeId) -> bool {
-    node_type(d, id) == 1
-}
-
-fn parent(id: Option<NodeId>) -> Option<NodeId> {
-    id.and_then(|id| with_dom(|d| d.nodes[id].parent))
-}
-
-/// The sibling `step` places away (±1), optionally skipping non-elements.
-fn sibling(id: Option<NodeId>, step: isize, elements: bool) -> Option<NodeId> {
-    let id = id?;
-    with_dom(|d| {
-        let p = d.nodes[id].parent?;
-        let kids = &d.nodes[p].children;
-        let mut i = kids.iter().position(|&k| k == id)? as isize;
-        loop {
-            i += step;
-            if i < 0 || i as usize >= kids.len() {
-                return None;
-            }
-            let k = kids[i as usize];
-            if !elements || is_element(d, k) {
-                return Some(k);
-            }
-        }
-    })
-}
-
-fn children(id: Option<NodeId>, elements: bool) -> Vec<NodeId> {
-    let Some(id) = id else { return vec![] };
-    with_dom(|d| d.nodes[id].children.iter().copied().filter(|&k| !elements || is_element(d, k)).collect())
-}
-
-fn attr(id: Option<NodeId>, name: &str) -> Option<String> {
-    id.and_then(|id| with_dom(|d| d.attr(id, name).map(String::from)))
-}
-
-fn tag(id: Option<NodeId>) -> String {
-    id.and_then(|id| with_dom(|d| d.tag(id).map(String::from))).unwrap_or_default()
-}
-
-fn matches(id: NodeId, sel: &str) -> bool {
-    let sels = parsed_selectors(sel);
-    with_dom(|d| sels.iter().any(|s| crate::style::matches(d, id, s)))
-}
-
-/// getElementsByClassName's selector for a class list ("a b" → ".a.b").
-fn class_selector(c: &str) -> String {
-    c.trim().split_whitespace().map(|x| format!(".{x}")).collect::<Vec<_>>().join("")
-}
-
-// ------------------------------------------------------------ Node
-
-fn node_type_get(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(JsValue::from(id.map_or(0, |id| with_dom(|d| node_type(d, id)))))
-}
-
-fn parent_node(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(parent(id), ctx)
-}
-
-fn parent_element(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let p = parent(id).filter(|&p| with_dom(|d| is_element(d, p)));
-    wrap(p, ctx)
-}
-
-fn child_nodes(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap_all(children(id, false), ctx)
-}
-
-fn first_child(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(id.and_then(|id| with_dom(|d| d.nodes[id].children.first().copied())), ctx)
-}
-
-fn last_child(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(id.and_then(|id| with_dom(|d| d.nodes[id].children.last().copied())), ctx)
-}
-
-fn next_sibling(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(sibling(id, 1, false), ctx)
-}
-
-fn previous_sibling(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(sibling(id, -1, false), ctx)
-}
-
-fn has_child_nodes(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(JsValue::from(id.is_some_and(|id| with_dom(|d| !d.nodes[id].children.is_empty()))))
-}
-
-fn is_connected(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(JsValue::from(id.is_some_and(|id| {
-        with_dom(|d| {
-            let mut n = id;
-            while n != Dom::ROOT {
-                match d.nodes[n].parent {
-                    Some(p) => n = p,
-                    None => return false,
-                }
-            }
-            true
-        })
-    })))
-}
-
-fn text_content(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(s(&id.map(|id| with_dom(|d| d.text_content(id))).unwrap_or_default()))
-}
-
-fn contains(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let other = node_of(&a.get(0).cloned().unwrap_or_default(), ctx)?.flatten();
-    let (Some(id), Some(mut n)) = (id, other) else { return Ok(JsValue::from(false)) };
-    Ok(JsValue::from(with_dom(|d| loop {
-        if n == id {
-            return true;
-        }
-        match d.nodes[n].parent {
-            Some(p) => n = p,
-            None => return false,
-        }
-    })))
-}
-
-// ------------------------------------------------------------ Element
-
-fn tag_name(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(s(&tag(id).to_uppercase()))
-}
-
-fn local_name(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(s(&tag(id)))
-}
-
-fn get_attribute(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let name = arg_string(a, 0, ctx)?.to_lowercase();
-    Ok(attr(id, &name).map_or(JsValue::null(), |v| s(&v)))
-}
-
-fn has_attribute(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let name = arg_string(a, 0, ctx)?.to_lowercase();
-    Ok(JsValue::from(id.is_some_and(|id| with_dom(|d| d.attr(id, &name).is_some()))))
-}
-
-fn id_get(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(s(&attr(id, "id").unwrap_or_default()))
-}
-
-fn class_name(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(s(&attr(id, "class").unwrap_or_default()))
-}
-
-fn element_children(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap_all(children(id, true), ctx)
-}
-
-fn child_element_count(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    Ok(JsValue::from(children(id, true).len() as f64))
-}
-
-fn first_element_child(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(children(id, true).first().copied(), ctx)
-}
-
-fn last_element_child(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(children(id, true).last().copied(), ctx)
-}
-
-fn next_element_sibling(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(sibling(id, 1, true), ctx)
-}
-
-fn previous_element_sibling(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    wrap(sibling(id, -1, true), ctx)
-}
-
-fn query_selector(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    wrap(id.and_then(|id| query(id, &sel, false).first().copied()), ctx)
-}
-
-fn query_selector_all(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    wrap_all(id.map(|id| query(id, &sel, true)).unwrap_or_default(), ctx)
-}
-
-fn matches_fn(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    Ok(JsValue::from(id.is_some_and(|id| matches(id, &sel))))
-}
-
-fn closest(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    let mut n = id;
-    while let Some(k) = n {
-        if !with_dom(|d| is_element(d, k)) {
-            break;
-        }
-        if matches(k, &sel) {
-            return wrap(Some(k), ctx);
-        }
-        n = parent(Some(k));
-    }
-    Ok(JsValue::null())
-}
-
-fn by_tag_name(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let t = arg_string(a, 0, ctx)?;
-    wrap_all(id.map(|id| query(id, &t, true)).unwrap_or_default(), ctx)
-}
-
-fn by_class_name(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let id = this_node(this, ctx)?;
-    let c = class_selector(&arg_string(a, 0, ctx)?);
-    wrap_all(id.map(|id| query(id, &c, true)).unwrap_or_default(), ctx)
-}
-
-// ------------------------------------------------------------ Document
-// The page's document searches the whole page tree (root 0), whatever its `this` id.
-
-fn doc_by_id(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    this_node(this, ctx)?;
-    let want = arg_string(a, 0, ctx)?;
-    wrap(element_by_id(&want), ctx)
-}
-
-fn doc_query(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    wrap(query(Dom::ROOT, &sel, false).first().copied(), ctx)
-}
-
-fn doc_query_all(this: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    this_node(this, ctx)?;
-    let sel = arg_string(a, 0, ctx)?;
-    wrap_all(query(Dom::ROOT, &sel, true), ctx)
-}
-
-fn doc_find(this: &JsValue, ctx: &mut Context, sel: &str) -> JsResult<JsValue> {
-    this_node(this, ctx)?;
-    wrap(query(Dom::ROOT, sel, false).first().copied(), ctx)
-}
-
-fn doc_element(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    doc_find(this, ctx, "html")
-}
-
-fn doc_head(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    doc_find(this, ctx, "head")
-}
-
-fn doc_body(this: &JsValue, _: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    doc_find(this, ctx, "body")
-}
-
 // ------------------------------------------------------------ install
 
-type Native = fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>;
-
-const NODE_GET: &[(&str, Native)] = &[
-    ("nodeType", node_type_get),
-    ("parentNode", parent_node),
-    ("parentElement", parent_element),
-    ("childNodes", child_nodes),
-    ("firstChild", first_child),
-    ("lastChild", last_child),
-    ("nextSibling", next_sibling),
-    ("previousSibling", previous_sibling),
-    ("isConnected", is_connected),
-    ("textContent", text_content),
-];
-const NODE_FN: &[(&str, Native, usize)] = &[("hasChildNodes", has_child_nodes, 0), ("contains", contains, 1)];
-
-const ELEMENT_GET: &[(&str, Native)] = &[
-    ("tagName", tag_name),
-    ("nodeName", tag_name),
-    ("localName", local_name),
-    ("id", id_get),
-    ("className", class_name),
-    ("children", element_children),
-    ("childElementCount", child_element_count),
-    ("firstElementChild", first_element_child),
-    ("lastElementChild", last_element_child),
-    ("nextElementSibling", next_element_sibling),
-    ("previousElementSibling", previous_element_sibling),
-];
-const ELEMENT_FN: &[(&str, Native, usize)] = &[
-    ("getAttribute", get_attribute, 1),
-    ("hasAttribute", has_attribute, 1),
-    ("querySelector", query_selector, 1),
-    ("querySelectorAll", query_selector_all, 1),
-    ("matches", matches_fn, 1),
-    ("closest", closest, 1),
-    ("getElementsByTagName", by_tag_name, 1),
-    ("getElementsByClassName", by_class_name, 1),
-];
-
-const DOCUMENT_GET: &[(&str, Native)] = &[("documentElement", doc_element), ("head", doc_head), ("body", doc_body)];
-const DOCUMENT_FN: &[(&str, Native, usize)] = &[
-    ("getElementById", doc_by_id, 1),
-    ("querySelector", doc_query, 1),
-    ("querySelectorAll", doc_query_all, 1),
-];
+use crate::bindings::Native;
 
 fn function(name: &str, f: Native, len: usize, ctx: &mut Context) -> JsValue {
     FunctionObjectBuilder::new(ctx.realm(), NativeFunction::from_fn_ptr(f))
@@ -502,14 +159,15 @@ fn function(name: &str, f: Native, len: usize, ctx: &mut Context) -> JsValue {
         .into()
 }
 
-/// `{get: {name: fn}, fn: {name: fn}}` for one prototype.
-fn members(get: &[(&str, Native)], fns: &[(&str, Native, usize)], ctx: &mut Context) -> JsObject {
+/// `{get: {name: fn}, fn: {name: fn}}` for one interface. Getter functions are named
+/// "get <name>", as WebIDL says.
+fn members(iface: &crate::bindings::Interface, ctx: &mut Context) -> JsObject {
     let mut g = Vec::new();
-    for (name, f) in get {
-        g.push((*name, function(name, *f, 0, ctx)));
+    for (name, f) in iface.getters {
+        g.push((*name, function(&format!("get {name}"), *f, 0, ctx)));
     }
     let mut m = Vec::new();
-    for (name, f, len) in fns {
+    for (name, f, len) in iface.methods {
         m.push((*name, function(name, *f, *len, ctx)));
     }
     let mut gi = ObjectInitializer::new(ctx);
@@ -540,8 +198,8 @@ fn proto_of(o: &JsObject, key: &str, ctx: &mut Context) -> JsResult<JsObject> {
 }
 
 /// `__domInstall({Element, Text, Comment, DocumentFragment, cache, slow})`: remembers the
-/// prototypes for native node objects and returns the native members, plus `wrap`, for the
-/// prelude to put on its classes.
+/// prototypes for native node objects and returns the native members by interface
+/// (`{interfaces: {Node: {get, fn}, …}, wrap}`) for the prelude to put on its classes.
 fn n_install(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let Some(cfg) = a.first().and_then(|v| v.as_object()) else {
         return Err(JsNativeError::typ().with_message("__domInstall: no classes").into());
@@ -555,14 +213,19 @@ fn n_install(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
         slow: get_obj(&cfg, "slow", ctx)?,
     };
     ctx.insert_data(classes);
-    let node = members(NODE_GET, NODE_FN, ctx);
-    let element = members(ELEMENT_GET, ELEMENT_FN, ctx);
-    let document = members(DOCUMENT_GET, DOCUMENT_FN, ctx);
+    // The generated WebIDL bindings (src/bindings/), by interface name.
+    let mut ifaces = Vec::new();
+    for iface in crate::bindings::INTERFACES {
+        ifaces.push((iface.name, members(iface, ctx)));
+    }
+    let mut ii = ObjectInitializer::new(ctx);
+    for (name, m) in ifaces {
+        ii.property(JsString::from(name), m, Attribute::all());
+    }
+    let interfaces = ii.build();
     let wrap_fn = function("wrap", n_wrap, 1, ctx);
     Ok(ObjectInitializer::new(ctx)
-        .property(js_string!("node"), node, Attribute::all())
-        .property(js_string!("element"), element, Attribute::all())
-        .property(js_string!("document"), document, Attribute::all())
+        .property(js_string!("interfaces"), interfaces, Attribute::all())
         .property(js_string!("wrap"), wrap_fn, Attribute::all())
         .build()
         .into())

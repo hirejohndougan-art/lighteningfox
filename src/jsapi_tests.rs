@@ -130,6 +130,25 @@ fn fetch_keeps_binary_bodies() {
 }
 
 #[test]
+fn webidl_generated_bindings() {
+    let _serial = serial();
+    let _page = open("tests/webidl-bindings.html");
+    let log = text_of("log");
+    let lines: Vec<&str> = log.lines().collect();
+    assert_eq!(lines[0], "DIV,DIV,div,a,x y,2,3,p1,p2,p2,p1,B,2,true,a,0,2");
+    assert_eq!(lines[1], "v,true,,a,a,true,false,BODY,HEAD,HTML,2");
+    assert_eq!(lines[2], "4,2,20,10,0,2,33", "compareDocumentPosition");
+    assert_eq!(lines[3], "true,false,true,false,true,false,true,true,id|class|data-k");
+    assert_eq!(lines[4], "TypeError,TypeError,TypeError,TypeError,1,1,get parentNode,TypeError", "WebIDL checks");
+    assert_eq!(lines[5], "one,3,c,,nodoctype,two three");
+    assert_eq!(
+        lines[6],
+        "http://www.w3.org/1999/xhtml,http://www.w3.org/2000/svg,,true,B,,wo,o ,IndexSizeError true,abcd,ef"
+    );
+    assert_eq!(lines[7], "1,1,HTML,HTML,UTF-8,UTF-8,text/html,CSS1Compat,0,0,0");
+}
+
+#[test]
 fn developer_console_runs_code() {
     let _serial = serial();
     let mut page = open("tests/custom-elements.html");

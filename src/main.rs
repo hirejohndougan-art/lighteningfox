@@ -18,6 +18,7 @@ macro_rules! log {
 mod clicks;
 mod cookies;
 mod netbody;
+mod bindings;
 mod css;
 mod csssyntax;
 mod restyle;

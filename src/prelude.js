@@ -1332,9 +1332,8 @@
       }
       for (const [k, value] of Object.entries(m.fn)) Object.defineProperty(P, k, { value, writable: true, enumerable: false, configurable: true });
     };
-    put(Node.prototype, nat.node);
-    put(Element.prototype, nat.element);
-    put(Document.prototype, nat.document);
+    const classes = { Node, Element, CharacterData, Text, Document };
+    for (const [name, m] of Object.entries(nat.interfaces)) if (classes[name]) put(classes[name].prototype, m);
     nativeWrap = nat.wrap;
   } catch (e) { console.error("native DOM setup failed: " + e); }
   // Fragments and shadow roots hold children like elements do: give them the same tree methods.
