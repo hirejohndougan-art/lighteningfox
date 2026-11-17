@@ -393,7 +393,9 @@ before and after (215/339 at the start; `mediasource-remove`, `-appendwindow`,
 `-sequencemode-*`, `-avtracks`, `-timestamp-offset` are the files this should move).
 
 ### X18. Inline SVG: shape hit testing, SVG property animation, foreignObject
-**Status:** claimed by chat-nsX16 2026-11-17 14:20
+**Status:** done
+**Done:** (1) each shape's painted area (fill, stroke outline; text and images by their boxes) becomes hit strips after the `<svg>`'s own hit (`src/svg_hit.rs`), so `event.target`, hover, `:hover` and `cursor` reach the shape under the pointer; strips line up with the box so relayout reuse matches fresh layouts, and touching equal strips merge. (2) CSS animations and transitions of `fill`, `stroke`, `stroke-width`, opacities and `transform` on SVG elements reach the drawing (presentation attributes are the starting values); CSS `transform` values on SVG shapes are written in SVG syntax (`rotate(45deg)` and `translate(10px, 0)` were ignored before, even without animation). (3) `<foreignObject>` HTML is laid out in user units at its x/y/width/height, clipped, and drawn over the drawing through the viewBox and `transform`s (`src/svg_foreign.rs`); it gets clicks. Tests: `svg_hit::tests`, `svg_foreign::tests`, `svg_inline::tests::css_transforms_in_svg_syntax`; screenshot tests unchanged.
+**Left undone:** shape hits come from the layout pass, so during an animation they follow the drawing only when the box is laid out again; `pointer-events` on shapes isn't read (always visiblePainted); nested `<svg>` viewports and percentage x/y/width/height on foreignObject are ignored; scaled foreignObject text is drawn through the off-screen transform path, so it's softer than unscaled text (as with CSS `scale()`).
 **After:** —
 **Checklist:** none
 **Files:** `src/svg_inline.rs`, new code in new files; small hooks in `src/layout.rs`
