@@ -51,7 +51,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - Vertical text for East Asian layouts (last; may be left for later if it needs the box tree)
 
 ## C. Images
-**Status:** free
+**Status:** claimed by images-chat 2026-11-17 02:17
 **Start after:** —
 **Main files:** `src/images.rs`, image parts of `src/paint.rs` and `src/layout.rs`
 
