@@ -155,6 +155,20 @@ pub struct Layout {
     pub scrollers: Vec<(NodeId, Rect, f32)>,
 }
 
+/// The key an iframe's rendered document is stored under in `Images`.
+pub fn frame_key(dom: &Dom, id: NodeId) -> String {
+    match dom.attr(id, "srcdoc") {
+        Some(doc) => {
+            let mut h: u64 = 0xcbf29ce484222325;
+            for b in doc.bytes() {
+                h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+            }
+            format!("iframe:srcdoc:{h:x}")
+        }
+        None => format!("iframe:{}", dom.attr(id, "src").unwrap_or("").trim()),
+    }
+}
+
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     let mut cx = Ctx {
         dom,
@@ -441,7 +455,7 @@ impl<'a> Ctx<'a> {
         };
         let mut constrained = st.width != Len::Auto;
         // A block-level <img> takes the image's size instead of its children's.
-        let replaced = if self.dom.tag(id) == Some("img") { self.replaced_size(id, avail - ml - mr - extra) } else { None };
+        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
         if let Some((rw, _)) = replaced {
             w = rw;
             constrained = true;
@@ -526,7 +540,7 @@ impl<'a> Ctx<'a> {
         }
         let (mut content_h, _) = match replaced {
             Some((rw, rh)) => {
-                let src = self.dom.attr(id, "src").unwrap_or("").trim().to_string();
+                let src = self.replaced_src(id);
                 if !self.styles[id].hidden {
                     self.items.push(Item::Image { x: cx, y: cy, w: rw, h: rh, src });
                 }
@@ -2072,9 +2086,20 @@ impl<'a> Ctx<'a> {
 
     /// Size of an <img>: CSS width/height, else the width/height attributes, else the
     /// image's own size, keeping its aspect ratio; then shrunk to fit `max-width`.
+    /// The image key a replaced element paints: an `<img>`'s src, or the rendering of an
+    /// `<iframe>`'s document.
+    fn replaced_src(&self, id: NodeId) -> String {
+        if self.dom.tag(id) == Some("iframe") {
+            frame_key(self.dom, id)
+        } else {
+            self.dom.attr(id, "src").unwrap_or("").trim().to_string()
+        }
+    }
+
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
         let st = &self.styles[id];
-        let intrinsic = self.dom.attr(id, "src").and_then(|s| self.images.size(s.trim()));
+        // An iframe is 300×150 unless sized; its content doesn't change that.
+        let intrinsic = if self.dom.tag(id) == Some("iframe") { Some((300.0, 150.0)) } else { self.dom.attr(id, "src").and_then(|s| self.images.size(s.trim())) };
         let attr = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok());
         let w = match st.width {
             Len::Auto => attr("width"),
@@ -2162,10 +2187,10 @@ impl<'a> Ctx<'a> {
                 }
                 match tag.as_str() {
                     "br" => return out.push(Tok::Break { node: id }),
-                    "img" => {
+                    "img" | "iframe" if !(tag == "iframe" && self.styles[id].display == Display::InlineBlock) => {
                         match self.replaced_size(id, avail) {
                             Some((w, h)) => {
-                                let src = self.dom.attr(id, "src").map(|s| s.trim().to_string());
+                                let src = Some(self.replaced_src(id));
                                 out.push(Tok::Image { w, h, node: id, src, link: link.map(String::from) })
                             }
                             None => {

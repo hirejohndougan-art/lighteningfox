@@ -35,6 +35,12 @@ impl Images {
         self.get(src).map(|i| (i.w as f32, i.h as f32))
     }
 
+    /// Add an already-decoded picture (an iframe's rendering) under `key`.
+    pub fn insert(&mut self, key: &str, rgba: image::RgbaImage) {
+        let (w, h) = rgba.dimensions();
+        self.by_src.insert(key.to_string(), Arc::new(Img { w, h, rgba }));
+    }
+
     /// A copy sharing the decoded images (cheap), for laying the page out on demand.
     pub fn share(&self) -> Images {
         Images { by_src: self.by_src.clone(), failed: self.failed.clone(), ..Default::default() }

@@ -1,0 +1,5 @@
+<!DOCTYPE html><html><head><style>body{margin:8px;background:#fff8e0;font:14px sans-serif} h2{color:#a50;margin:0 0 6px}</style></head>
+<body><h2>Child document</h2><p id="p">Static text.</p>
+<script>document.getElementById('p').textContent = 'Its own script ran: ' + (window.parent ? 'yes' : 'yes');</script>
+<iframe srcdoc="<body style='margin:4px;background:#e0f0ff;font:12px sans-serif'>A frame inside the frame</body>" width="220" height="40"></iframe>
+</body></html>

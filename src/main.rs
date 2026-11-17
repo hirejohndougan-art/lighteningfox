@@ -639,8 +639,132 @@ fn prepare(final_url: String, body: String, full: bool) -> Prepared {
         let bg_urls = background_urls(&styles);
         images.load_missing(&dom, &final_url, &bg_urls);
         fonts = fetch_fonts(&sheets, &styles, &final_url);
+        render_frames(&dom, &styles, &final_url, &mut images);
     }
     Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, download: false }
+}
+
+// ---------------------------------------------------------------- iframes
+
+/// What an iframe shows: a URL, or `srcdoc` markup (resolved against the parent page).
+enum FrameSrc {
+    Url(String),
+    Doc { html: String, base: String },
+}
+
+struct FrameJob {
+    src: FrameSrc,
+    w: u32,
+    h: u32,
+    reply: std::sync::mpsc::Sender<Option<image::RgbaImage>>,
+}
+
+thread_local! {
+    /// How deep in nested iframes this thread is rendering (0 = not the frame worker).
+    static FRAME_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+static FRAME_WORKER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<FrameJob>>> = std::sync::OnceLock::new();
+
+/// The thread that renders iframes. Each iframe is its own document with its own scripts;
+/// they run here, one at a time, apart from the page around them.
+fn frame_worker() -> Option<std::sync::mpsc::Sender<FrameJob>> {
+    let w = FRAME_WORKER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<FrameJob>();
+        let _ = std::thread::Builder::new().name("frames".into()).stack_size(32 << 20).spawn(move || {
+            FRAME_DEPTH.with(|d| d.set(1));
+            for job in rx {
+                let img = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job.src, job.w, job.h))).ok().flatten();
+                let _ = job.reply.send(img);
+            }
+        });
+        std::sync::Mutex::new(tx)
+    });
+    w.lock().ok().map(|t| t.clone())
+}
+
+/// Load an iframe's document, run its scripts, and draw it at w×h.
+fn render_frame(src: &FrameSrc, w: u32, h: u32) -> Option<image::RgbaImage> {
+    let fonts = load_fonts()?;
+    let prepared = match src {
+        FrameSrc::Url(u) => fetch_page(u, None),
+        FrameSrc::Doc { html, base } => prepare(base.clone(), html.clone(), true),
+    };
+    // (Set after preparing: nested frames rendered meanwhile use their own size.)
+    geometry::set_viewport(w as f32, h as f32);
+    let mut page = build_page(prepared);
+    if let Some(js) = page.js.as_mut() {
+        js.settle(std::time::Duration::from_millis(1500));
+        if js::take_dirty() {
+            page.restyle();
+        }
+    }
+    let lay = page.layout(fonts, w as f32, h as f32);
+    let mut canvas = Canvas::new(w as usize, h as usize);
+    canvas.clear(lay.page_bg);
+    canvas.paint(fonts, &page.images, &lay.items, 0.0, 0.0);
+    let buf = &canvas.buf;
+    Some(image::RgbaImage::from_fn(w, h, |x, y| {
+        let p = buf[y as usize * w as usize + x as usize];
+        image::Rgba([(p >> 16) as u8, (p >> 8) as u8, p as u8, 255])
+    }))
+}
+
+/// Render the page's iframes (up to 8, three levels deep, 8 seconds in all) into `images`.
+fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images: &mut images::Images) {
+    let depth = FRAME_DEPTH.with(|d| d.get());
+    if depth >= 3 {
+        return;
+    }
+    let deadline = Instant::now() + std::time::Duration::from_secs(8);
+    for id in dom.find_all("iframe").into_iter().take(8) {
+        let key = layout::frame_key(dom, id);
+        if images.get(&key).is_some() || styles.get(id).is_some_and(|s| s.display == style::Display::None) {
+            continue;
+        }
+        let px = |a: &str| dom.attr(id, a).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok());
+        let st = styles.get(id);
+        let w = match st.map(|s| s.width) {
+            Some(style::Len::Px(v)) => Some(v),
+            _ => px("width"),
+        }
+        .unwrap_or(300.0)
+        .clamp(1.0, 2000.0) as u32;
+        let h = match st.map(|s| s.height) {
+            Some(style::Len::Px(v)) => Some(v),
+            _ => px("height"),
+        }
+        .unwrap_or(150.0)
+        .clamp(1.0, 2000.0) as u32;
+        let src = match (dom.attr(id, "srcdoc"), dom.attr(id, "src").map(str::trim)) {
+            (Some(doc), _) => FrameSrc::Doc { html: doc.to_string(), base: base.to_string() },
+            (None, Some(s)) if !s.is_empty() && s != "about:blank" && !s.starts_with("javascript:") => FrameSrc::Url(net::resolve(base, s)),
+            // An empty frame is a blank white page.
+            _ => {
+                images.insert(&key, image::RgbaImage::from_pixel(w, h, image::Rgba([255, 255, 255, 255])));
+                continue;
+            }
+        };
+        let img = if depth == 0 {
+            let Some(worker) = frame_worker() else { return };
+            let (tx, rx) = std::sync::mpsc::channel();
+            if worker.send(FrameJob { src, w, h, reply: tx }).is_err() {
+                return;
+            }
+            rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).ok().flatten()
+        } else {
+            // Already on the frame worker: a frame inside a frame is drawn right here.
+            FRAME_DEPTH.with(|d| d.set(depth + 1));
+            let img = render_frame(&src, w, h);
+            FRAME_DEPTH.with(|d| d.set(depth));
+            img
+        };
+        if let Some(img) = img {
+            images.insert(&key, img);
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+    }
 }
 
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {

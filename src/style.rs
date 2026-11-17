@@ -395,6 +395,7 @@ html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, dl, dt, dd, pre, blockquote,
 header, footer, main, nav, section, article, aside, figure, figcaption, address, hr, table, tr,
 thead, tbody, tfoot, caption, center, details, summary, menu, legend, hgroup, search, dialog { display: block; }
 table { display: table; border-spacing: 2px; }
+iframe { display: inline-block; border: 2px inset #767676; }
 thead, tbody, tfoot { display: table-row-group; }
 tr { display: table-row; }
 td, th { display: table-cell; vertical-align: middle; }
