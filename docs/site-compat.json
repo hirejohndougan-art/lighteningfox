@@ -8,8 +8,8 @@
    "likeness": 99.3,
    "name": "Google sign-in (Gmail)",
    "script_errors": 1,
-   "seconds": 1.1,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.9,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://apnews.com/": {
    "category": "News",
@@ -19,157 +19,159 @@
    "name": "AP News",
    "script_errors": 0,
    "seconds": 90.1,
-   "version": "0.1.0 (90feced)"
+   "version": "0.1.0 (5d7648d)"
   },
   "https://developer.mozilla.org/en-US/": {
    "category": "Reference",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": 35.6,
+   "likeness": 33.8,
    "name": "MDN Web Docs",
-   "script_errors": 0,
-   "seconds": 1.0,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 1,
+   "seconds": 0.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://docs.rs/": {
    "category": "Developer",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 95.2,
+   "likeness": 98.2,
    "name": "docs.rs",
    "script_errors": 0,
-   "seconds": 0.6,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.7,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://duckduckgo.com/": {
    "category": "Search",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 92.2,
+   "likeness": 96.2,
    "name": "DuckDuckGo",
    "script_errors": 0,
-   "seconds": 1.0,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://en.wikipedia.org/wiki/Web_browser": {
    "category": "Reference",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 88.8,
+   "likeness": 88.1,
    "name": "Wikipedia article",
    "script_errors": 0,
-   "seconds": 2.5,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://example.com/": {
    "category": "Basics",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 83.2,
+   "likeness": 83.4,
    "name": "Example Domain",
    "script_errors": 0,
-   "seconds": 0.5,
-   "version": "0.1.0 (90feced)"
+   "seconds": 2.1,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://github.com/": {
    "category": "Developer",
    "checked": "2026-11-17",
-   "grade": "Works",
-   "likeness": 93.6,
+   "grade": "Broken",
+   "likeness": 47.6,
    "name": "GitHub",
-   "script_errors": 0,
-   "seconds": 73.9,
-   "version": "0.1.0 (90feced)"
+   "previous_grade": "Works",
+   "script_errors": 6,
+   "seconds": 10.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://github.com/hirejohndougan-art/lighteningfox": {
    "category": "Developer",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 84.9,
+   "likeness": 84.7,
    "name": "GitHub repository page",
-   "script_errors": 0,
-   "seconds": 27.3,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 10,
+   "seconds": 12.8,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://html.duckduckgo.com/html/?q=ironswift": {
    "category": "Search",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 67.7,
+   "likeness": 70.4,
    "name": "DuckDuckGo results (HTML)",
    "script_errors": 0,
-   "seconds": 2.5,
-   "version": "0.1.0 (90feced)"
+   "seconds": 3.0,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://lite.cnn.com/": {
    "category": "News",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 90.8,
+   "likeness": 87.6,
    "name": "CNN (lite)",
    "script_errors": 0,
-   "seconds": 0.3,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.2,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://mastodon.social/explore": {
    "category": "Social and forums",
    "checked": "2026-11-17",
-   "grade": "Works",
-   "likeness": 95.0,
+   "grade": "Usable",
+   "likeness": 95.1,
    "name": "Mastodon",
-   "script_errors": 0,
-   "seconds": 1.5,
-   "version": "0.1.0 (90feced)"
+   "previous_grade": "Works",
+   "script_errors": 2,
+   "seconds": 3.8,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://medium.com/": {
    "category": "Sites and blogs",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 96.2,
+   "likeness": 96.0,
    "name": "Medium",
-   "script_errors": 3,
-   "seconds": 0.8,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 7,
+   "seconds": 4.0,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://news.ycombinator.com/": {
    "category": "Social and forums",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 96.1,
+   "likeness": 91.7,
    "name": "Hacker News",
    "script_errors": 0,
-   "seconds": 0.6,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.7,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://old.reddit.com/": {
    "category": "Social and forums",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 98.1,
+   "likeness": 98.2,
    "name": "Reddit (old)",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.1,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://outlook.live.com/": {
    "category": "Email and accounts",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 99.0,
+   "likeness": 99.1,
    "name": "Outlook",
    "script_errors": 0,
-   "seconds": 0.8,
-   "version": "0.1.0 (90feced)"
+   "seconds": 1.7,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://proton.me/": {
    "category": "Email and accounts",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 80.5,
+   "likeness": 75.7,
    "name": "Proton",
-   "script_errors": 1,
-   "seconds": 9.0,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 0,
+   "seconds": 19.1,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://stackoverflow.com/questions": {
    "category": "Social and forums",
@@ -179,87 +181,91 @@
    "name": "Stack Overflow",
    "script_errors": 0,
    "seconds": 0.1,
-   "version": "0.1.0 (90feced)"
+   "version": "0.1.0 (5d7648d)"
   },
   "https://text.npr.org/": {
    "category": "News",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 94.7,
+   "likeness": 94.2,
    "name": "NPR (text)",
    "script_errors": 0,
-   "seconds": 1.1,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.1,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://wordpress.org/": {
    "category": "Sites and blogs",
    "checked": "2026-11-17",
-   "grade": "Broken",
-   "likeness": 56.6,
+   "grade": "Usable",
+   "likeness": 65.2,
    "name": "WordPress.org",
-   "script_errors": 1,
-   "seconds": 3.5,
-   "version": "0.1.0 (90feced)"
+   "previous_grade": "Broken",
+   "script_errors": 5,
+   "seconds": 8.7,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.amazon.com/": {
    "category": "Shopping",
    "checked": "2026-11-17",
-   "grade": "Usable",
-   "likeness": 100.0,
+   "grade": "Works",
+   "likeness": 99.9,
    "name": "Amazon",
-   "script_errors": 2,
-   "seconds": 0.6,
-   "version": "0.1.0 (90feced)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 0.4,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.archive.org/": {
    "category": "Reference",
    "checked": "2026-11-17",
-   "grade": "Usable",
-   "likeness": 71.7,
+   "grade": "Broken",
+   "likeness": 22.3,
    "name": "Internet Archive",
-   "script_errors": 0,
-   "seconds": 0.7,
-   "version": "0.1.0 (90feced)"
+   "previous_grade": "Usable",
+   "script_errors": 2,
+   "seconds": 1.5,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.bbc.com/news": {
    "category": "News",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": 10.9,
+   "likeness": -38.8,
    "name": "BBC News",
-   "script_errors": 3,
-   "seconds": 3.2,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 2,
+   "seconds": 1.9,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.bing.com/": {
    "category": "Search",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": -7.8,
+   "likeness": -7.7,
    "name": "Bing",
    "script_errors": 3,
-   "seconds": 1.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 1.0,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.craigslist.org/": {
    "category": "Shopping",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 90.1,
+   "likeness": 89.1,
    "name": "Craigslist",
    "script_errors": 0,
-   "seconds": 1.1,
-   "version": "0.1.0 (90feced)"
+   "seconds": 1.2,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.dickinsonhistoricalsociety.org/": {
    "category": "Sites and blogs",
    "checked": "2026-11-17",
-   "grade": "Usable",
-   "likeness": 80.5,
+   "grade": "Rendered",
+   "likeness": null,
    "name": "Dickinson Historical Society (WordPress)",
+   "previous_grade": "Usable",
    "script_errors": 0,
-   "seconds": 11.7,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.2,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.ebay.com/": {
    "category": "Shopping",
@@ -268,8 +274,8 @@
    "likeness": 99.7,
    "name": "eBay",
    "script_errors": 1,
-   "seconds": 1.9,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.etsy.com/": {
    "category": "Shopping",
@@ -278,18 +284,18 @@
    "likeness": 99.7,
    "name": "Etsy",
    "script_errors": 0,
-   "seconds": 0.3,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.2,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.google.com/": {
    "category": "Search",
    "checked": "2026-11-17",
    "grade": "Works",
-   "likeness": 98.2,
+   "likeness": 98.1,
    "name": "Google",
    "script_errors": 0,
    "seconds": 0.6,
-   "version": "0.1.0 (90feced)"
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.imdb.com/": {
    "category": "Video and media",
@@ -298,28 +304,28 @@
    "likeness": 99.8,
    "name": "IMDb",
    "script_errors": 2,
-   "seconds": 0.8,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.3,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.irs.gov/": {
    "category": "Government",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 67.8,
+   "likeness": 90.5,
    "name": "IRS",
    "script_errors": 2,
-   "seconds": 4.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 2.6,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.nytimes.com/": {
    "category": "News",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": 57.8,
+   "likeness": 35.1,
    "name": "New York Times",
-   "script_errors": 0,
-   "seconds": 26.6,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 14,
+   "seconds": 17.2,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.reddit.com/": {
    "category": "Social and forums",
@@ -328,78 +334,79 @@
    "likeness": 98.6,
    "name": "Reddit",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.1,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.rust-lang.org/": {
    "category": "Developer",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": 28.6,
+   "likeness": 29.1,
    "name": "Rust",
    "script_errors": 0,
-   "seconds": 1.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.5,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.texas.gov/": {
    "category": "Government",
    "checked": "2026-11-17",
-   "grade": "Works",
-   "likeness": 98.6,
+   "grade": "Usable",
+   "likeness": 64.2,
    "name": "Texas.gov",
+   "previous_grade": "Works",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (90feced)"
+   "seconds": 1.8,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.theguardian.com/": {
    "category": "News",
    "checked": "2026-11-17",
    "grade": "Broken",
-   "likeness": 36.2,
+   "likeness": 47.7,
    "name": "The Guardian",
-   "script_errors": 0,
-   "seconds": 13.5,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 8,
+   "seconds": 7.5,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.usa.gov/": {
    "category": "Government",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 66.3,
+   "likeness": 77.8,
    "name": "USA.gov",
    "script_errors": 0,
-   "seconds": 14.4,
-   "version": "0.1.0 (90feced)"
+   "seconds": 1.4,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.weather.gov/": {
    "category": "Reference",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 89.3,
+   "likeness": 91.5,
    "name": "National Weather Service",
    "script_errors": 12,
-   "seconds": 0.8,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.5,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.wikipedia.org/": {
    "category": "Reference",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 75.2,
+   "likeness": 74.7,
    "name": "Wikipedia portal",
    "script_errors": 0,
-   "seconds": 0.8,
-   "version": "0.1.0 (90feced)"
+   "seconds": 0.4,
+   "version": "0.1.0 (5d7648d)"
   },
   "https://www.youtube.com/": {
    "category": "Video and media",
    "checked": "2026-11-17",
    "grade": "Usable",
-   "likeness": 95.3,
+   "likeness": 80.1,
    "name": "YouTube (page only; no video yet)",
-   "script_errors": 5,
-   "seconds": 26.3,
-   "version": "0.1.0 (90feced)"
+   "script_errors": 4,
+   "seconds": 5.2,
+   "version": "0.1.0 (5d7648d)"
   }
  }
 }
