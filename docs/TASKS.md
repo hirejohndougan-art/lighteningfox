@@ -109,12 +109,17 @@ and `contextmenu`; fire `transitionend`, `transitionstart`, `animationstart`, `a
 `animationiteration`. Check that no reference screenshot or test changes.
 
 ### X5. Inline `<svg>` in pages
-**Status:** claimed by chat-opus-x5 2026-11-17 04:52
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** new `src/svg_inline.rs`; reuse the SVG image renderer from batch C
 SVG written directly in HTML is hidden today (SVG *images* work). Draw it, with CSS styling of
 its elements where practical.
+Left undone: clicks and hover hit the whole `<svg>` box, not the shape under the pointer (events
+target the `<svg>` element); `<foreignObject>` content isn't drawn; an `<svg>` with no viewBox
+sized differently by CSS is scaled rather than clipped; CSS animations/transitions on SVG
+properties (fill, stroke) aren't animated; selectors that only match through SVG mixed-case
+tag names (`linearGradient`) may not match.
 
 ### X6. Geolocation
 **Status:** done
