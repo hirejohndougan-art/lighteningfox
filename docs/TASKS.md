@@ -245,7 +245,7 @@ measured on their own) at the same time. Painting also shapes whole lines again
 tests/real-world pages before and after; keep every reference screenshot identical.
 
 ### X16. `createElementNS` for any namespace, with prefixes and name checks
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 12:50
 **After:** —
 **Checklist:** none
 **Files:** `src/dom.rs` (the `Ns` namespace map), `src/js.rs` (`n_create`), `src/prelude.js`
