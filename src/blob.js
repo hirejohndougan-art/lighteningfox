@@ -269,6 +269,20 @@
     throw new DOMException(`The mark '${m}' does not exist.`, "SyntaxError");
   };
   perf.timeOrigin = perf.timeOrigin || Date.now() - perf.now();
+  // The legacy Navigation Timing objects (The Guardian, 2026-11: performance.navigation.type).
+  // A plain navigation with no redirects; the page's own timestamps all start at timeOrigin.
+  if (!perf.navigation) {
+    perf.navigation = { type: 0, redirectCount: 0, TYPE_NAVIGATE: 0, TYPE_RELOAD: 1, TYPE_BACK_FORWARD: 2, TYPE_RESERVED: 255, toJSON() { return { type: 0, redirectCount: 0 }; } };
+  }
+  const timing = perf.timing || (perf.timing = {});
+  const t0 = Math.round(perf.timeOrigin);
+  for (const k of ["navigationStart", "fetchStart", "domainLookupStart", "domainLookupEnd", "connectStart", "connectEnd", "requestStart", "responseStart", "responseEnd", "domLoading"]) {
+    if (typeof timing[k] !== "number") timing[k] = t0;
+  }
+  for (const k of ["unloadEventStart", "unloadEventEnd", "redirectStart", "redirectEnd", "secureConnectionStart", "domInteractive", "domContentLoadedEventStart", "domContentLoadedEventEnd", "domComplete", "loadEventStart", "loadEventEnd"]) {
+    if (typeof timing[k] !== "number") timing[k] = 0;
+  }
+  if (!timing.toJSON) timing.toJSON = function () { return Object.assign({}, this); };
   perf.mark = function mark(name, opts) {
     return record(new PerformanceMark(String(name), "mark", opts && opts.startTime !== undefined ? +opts.startTime : perf.now(), 0, opts ? opts.detail : undefined));
   };

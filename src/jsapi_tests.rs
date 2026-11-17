@@ -506,3 +506,19 @@ fn shrink_to_fit_items_and_flex_keywords() {
     let _page = open("tests/sites/wp-header.html");
     assert_eq!(text_of("out"), "true;true;true");
 }
+
+/// performance.navigation and performance.timing (The Guardian's tracker module stopped
+/// halfway on performance.navigation.type, and its exports were then "not defined").
+#[test]
+fn legacy_navigation_timing() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        "[performance.navigation.type, performance.navigation.redirectCount, performance.navigation.TYPE_RELOAD, \
+          performance.timing.navigationStart > 0, performance.timing.responseStart - performance.timing.connectEnd, \
+          typeof performance.timing.loadEventStart].join(',')",
+    );
+    assert_eq!(r.trim_matches('"'), "0,0,1,true,0,number");
+}
+
