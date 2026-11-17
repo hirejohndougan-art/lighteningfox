@@ -1021,19 +1021,36 @@ pub mod isolated {
     struct Proc {
         child: std::process::Child,
         stdin: std::process::ChildStdin,
+        /// The frame sites it runs: one, or more once the pool is full.
+        sites: Vec<String>,
     }
 
-    static PROC: Mutex<Option<Proc>> = Mutex::new(None);
-    /// Where each frame's updates go.
-    static ROUTES: Mutex<Option<HashMap<u32, Sender<Update>>>> = Mutex::new(None);
-    static NEXT_ID: AtomicU32 = AtomicU32::new(1);
-    /// The renderer's process id (0 = none), so a stuck frame can be stopped from outside.
-    static PID: AtomicU32 = AtomicU32::new(0);
-    /// Each open frame's top-level site: all the process may ask the browser about.
-    static TOPS: Mutex<Option<HashMap<u32, String>>> = Mutex::new(None);
+    struct Route {
+        /// Its process.
+        key: u32,
+        /// Its top-level site (what the process may ask the browser about for it).
+        top: Option<String>,
+        tx: Sender<Update>,
+    }
 
-    fn auth() -> crate::process::Auth {
-        let mut tops: Vec<String> = TOPS.lock().ok().and_then(|t| t.as_ref().map(|t| t.values().cloned().collect())).unwrap_or_default();
+    /// Frame processes, one per frame site, by a number of their own.
+    static PROCS: Mutex<Option<HashMap<u32, Proc>>> = Mutex::new(None);
+    static NEXT_PROC: AtomicU32 = AtomicU32::new(1);
+    /// Each open frame.
+    static ROUTES: Mutex<Option<HashMap<u32, Route>>> = Mutex::new(None);
+    static NEXT_ID: AtomicU32 = AtomicU32::new(1);
+    /// The process drawing a snapshot frame right now (0 = none), so a stuck one can be stopped.
+    static RENDERING: AtomicU32 = AtomicU32::new(0);
+
+    /// The most frame processes at once; past it, an idle one is ended or the least busy one
+    /// takes the new site too. IRONSWIFT_FRAME_PROCESS_MAX overrides it.
+    fn limit() -> usize {
+        std::env::var("IRONSWIFT_FRAME_PROCESS_MAX").ok().and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(6).max(1)
+    }
+
+    /// What process `key` may ask the browser for: only the top-level sites of its own frames.
+    fn auth(key: u32) -> crate::process::Auth {
+        let mut tops: Vec<String> = ROUTES.lock().ok().and_then(|r| r.as_ref().map(|r| r.values().filter(|x| x.key == key).filter_map(|x| x.top.clone()).collect())).unwrap_or_default();
         tops.sort();
         tops.dedup();
         crate::process::Auth { sites: Vec::new(), tops, storage: false, extensions: false }
@@ -1080,27 +1097,60 @@ pub mod isolated {
         m
     }
 
-    /// Start the process (if it isn't running) and its reader thread.
-    fn ensure(g: &mut Option<Proc>) -> Option<()> {
-        if g.is_some() {
-            return Some(());
+    /// How many frames each process has open.
+    fn counts() -> HashMap<u32, usize> {
+        ROUTES.lock().ok().and_then(|r| r.as_ref().map(|r| r.values().fold(HashMap::new(), |mut m, x| {
+            *m.entry(x.key).or_insert(0) += 1;
+            m
+        }))).unwrap_or_default()
+    }
+
+    /// The process for frames of `site`, started (with its reader thread) if need be.
+    fn ensure(site: &str) -> Option<u32> {
+        let counts = counts();
+        let mut g = PROCS.lock().ok()?;
+        let procs = g.get_or_insert_with(HashMap::new);
+        procs.retain(|_, p| p.child.try_wait().ok().flatten().is_none());
+        if let Some((k, _)) = procs.iter().find(|(_, p)| p.sites.iter().any(|s| s == site)) {
+            return Some(*k);
+        }
+        if procs.len() >= limit() {
+            // An idle process makes room; otherwise the least busy one takes this site too.
+            let idle = procs.keys().find(|k| counts.get(k).copied().unwrap_or(0) == 0).copied();
+            if let Some(k) = idle {
+                if let Some(mut p) = procs.remove(&k) {
+                    let _ = p.child.kill();
+                    let _ = p.child.wait();
+                }
+            } else {
+                let k = procs.keys().min_by_key(|k| (counts.get(k).copied().unwrap_or(0), **k)).copied()?;
+                let p = procs.get_mut(&k)?;
+                let mut m = Vec::new();
+                put(&mut m, b"allow");
+                put(&mut m, &0u32.to_le_bytes());
+                put(&mut m, site.as_bytes());
+                p.stdin.write_all(&m).and_then(|_| p.stdin.flush()).ok()?;
+                p.sites.push(site.to_string());
+                log!("[frames] frame processes full: {site} shares process {k} with {}", p.sites[..p.sites.len() - 1].join(", "));
+                return Some(k);
+            }
         }
         let exe = std::env::current_exe().ok()?;
         let mut child = std::process::Command::new(exe)
             .arg("--frame-renderer")
+            .arg(site)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .spawn()
-            .map_err(|e| log!("[frames] couldn't start the frame process: {e}"))
+            .map_err(|e| log!("[frames] couldn't start the frame process for {site}: {e}"))
             .ok()?;
-        PID.store(child.id(), Ordering::SeqCst);
         let stdin = child.stdin.take()?;
         let mut stdout = child.stdout.take()?;
-        let pid = child.id();
+        let key = NEXT_PROC.fetch_add(1, Ordering::SeqCst);
         let in_flight = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         std::thread::Builder::new()
-            .name("frame-process".into())
+            .name(format!("frames-{site}"))
             .spawn(move || {
                 // Route each update to its frame until the process ends; answer its requests
                 // (network, document.cookie) as process.rs does for site processes.
@@ -1115,8 +1165,8 @@ pub mod isolated {
                             b"req" => {
                                 let rid = crate::process::get_u32(&mut stdout)?;
                                 let parts = crate::process::get_list(&mut stdout)?;
-                                crate::process::serve_async(auth(), parts, in_flight.clone(), move |answer| {
-                                    write(&crate::process::response(rid, &answer));
+                                crate::process::serve_async(auth(key), parts, in_flight.clone(), move |answer| {
+                                    write(key, &crate::process::response(rid, &answer));
                                 });
                                 Ok(None)
                             }
@@ -1127,59 +1177,61 @@ pub mod isolated {
                         Ok(None) => {}
                         Ok(Some((id, u))) => {
                             if let Ok(routes) = ROUTES.lock() {
-                                if let Some(tx) = routes.as_ref().and_then(|r| r.get(&id)) {
-                                    let _ = tx.send(u);
+                                // Only its own frames: a process can't speak for another's.
+                                if let Some(x) = routes.as_ref().and_then(|r| r.get(&id)).filter(|x| x.key == key) {
+                                    let _ = x.tx.send(u);
                                 }
                             }
                         }
                         Err(e) => {
-                            log!("[frames] frame process: {e}");
-                            // Its frames stop (they keep their last picture); the next frame
-                            // starts a fresh process.
-                            if let Ok(mut r) = ROUTES.lock() {
-                                *r = None;
+                            if e.kind() != std::io::ErrorKind::UnexpectedEof {
+                                log!("[frames] frame process {key}: {e}");
                             }
-                            if let Ok(mut p) = PROC.lock() {
-                                if p.as_ref().is_some_and(|p| p.child.id() == pid) {
-                                    if let Some(mut p) = p.take() {
-                                        let _ = p.child.kill();
-                                        let _ = p.child.wait();
-                                    }
+                            // Its frames stop (they keep their last picture); the next frame
+                            // of its sites starts a fresh process.
+                            if let Ok(mut r) = ROUTES.lock() {
+                                if let Some(r) = r.as_mut() {
+                                    r.retain(|_, x| x.key != key);
                                 }
                             }
-                            let _ = PID.compare_exchange(pid, 0, Ordering::SeqCst, Ordering::SeqCst);
+                            let gone = PROCS.lock().ok().and_then(|mut g| g.as_mut()?.remove(&key));
+                            if let Some(mut p) = gone {
+                                let _ = p.child.kill();
+                                let _ = p.child.wait();
+                            }
+                            let _ = RENDERING.compare_exchange(key, 0, Ordering::SeqCst, Ordering::SeqCst);
                             return;
                         }
                     }
                 }
             })
             .ok()?;
-        *g = Some(Proc { child, stdin });
-        Some(())
+        log!("[frames] started frame process {key} for {site} (pid {})", child.id());
+        procs.insert(key, Proc { child, stdin, sites: vec![site.to_string()] });
+        Some(key)
     }
 
-    fn write(msg: &[u8]) -> bool {
-        let Ok(mut g) = PROC.lock() else { return false };
-        let Some(p) = g.as_mut() else { return false };
+    fn write(key: u32, msg: &[u8]) -> bool {
+        let Ok(mut g) = PROCS.lock() else { return false };
+        let Some(p) = g.as_mut().and_then(|g| g.get_mut(&key)) else { return false };
         p.stdin.write_all(msg).and_then(|_| p.stdin.flush()).is_ok()
     }
 
-    /// Open a frame in the process; its updates go to `updates`. None = no process.
+    fn key_of(id: u32) -> Option<u32> {
+        ROUTES.lock().ok()?.as_ref()?.get(&id).map(|x| x.key)
+    }
+
+    /// Open a frame in its site's process; its updates go to `updates`. None = no process.
     pub fn open(job: &FrameJob, updates: Sender<Update>) -> Option<u32> {
-        {
-            let mut g = PROC.lock().ok()?;
-            ensure(&mut g)?;
-        }
+        let FrameSrc::Url(url) = &job.src else { return None };
+        let key = ensure(&site(url)?)?;
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        ROUTES.lock().ok()?.get_or_insert_with(HashMap::new).insert(id, updates);
-        if let Some(top) = crate::process::site_of(&job.top) {
-            TOPS.lock().ok()?.get_or_insert_with(HashMap::new).insert(id, top);
-        }
+        ROUTES.lock().ok()?.get_or_insert_with(HashMap::new).insert(id, Route { key, top: crate::process::site_of(&job.top), tx: updates });
         let mut m = Vec::new();
         put(&mut m, b"open");
         put(&mut m, &id.to_le_bytes());
         m.extend(encode_job(job));
-        if !write(&m) {
+        if !write(key, &m) {
             close(id);
             return None;
         }
@@ -1187,35 +1239,31 @@ pub mod isolated {
     }
 
     pub fn event(id: u32, ev: &Event) {
+        let Some(key) = key_of(id) else { return };
         let mut m = Vec::new();
         put(&mut m, b"event");
         put(&mut m, &id.to_le_bytes());
         m.extend(ev.encode());
-        write(&m);
+        write(key, &m);
     }
 
     pub fn close(id: u32) {
-        if let Ok(mut r) = ROUTES.lock() {
-            if let Some(r) = r.as_mut() {
-                r.remove(&id);
-            }
-        }
-        if let Ok(mut t) = TOPS.lock() {
-            if let Some(t) = t.as_mut() {
-                t.remove(&id);
-            }
-        }
+        let key = ROUTES.lock().ok().and_then(|mut r| r.as_mut()?.remove(&id)).map(|x| x.key);
+        let Some(key) = key else { return };
         let mut m = Vec::new();
         put(&mut m, b"close");
         put(&mut m, &id.to_le_bytes());
-        write(&m);
+        write(key, &m);
     }
 
-    /// Draw a frame once in the frame process (snapshots, frames that can't be live).
-    /// None = the process isn't available (the caller draws it here instead).
+    /// Draw a frame once in its site's process (snapshots, frames that can't be live).
+    /// None = no process is available (the caller draws it here instead).
     pub fn render(job: &FrameJob) -> Option<Option<image::RgbaImage>> {
         let (tx, rx) = channel();
         let id = open(job, tx)?;
+        if let Some(k) = key_of(id) {
+            RENDERING.store(k, Ordering::SeqCst);
+        }
         let r = loop {
             match rx.recv_timeout(Duration::from_secs(10)) {
                 Ok(Update::Picture { img, .. }) => break Some(img),
@@ -1223,14 +1271,20 @@ pub mod isolated {
                 Err(_) => break None,
             }
         };
+        RENDERING.store(0, Ordering::SeqCst);
         close(id);
         Some(r)
     }
 
-    /// Stop a frame that's taking too long (its process is restarted for the next frame).
+    /// Stop the frame process drawing a snapshot that takes too long (that site's next frame
+    /// starts a fresh one; other sites' processes go on).
     pub fn stop_stuck() {
-        let pid = PID.swap(0, Ordering::SeqCst);
-        if pid != 0 {
+        let key = RENDERING.swap(0, Ordering::SeqCst);
+        if key == 0 {
+            return;
+        }
+        let pid = PROCS.lock().ok().and_then(|g| g.as_ref()?.get(&key).map(|p| p.child.id()));
+        if let Some(pid) = pid {
             // SAFETY: sending a signal to our own child process.
             unsafe {
                 libc::kill(pid as i32, libc::SIGKILL);
@@ -1238,9 +1292,45 @@ pub mod isolated {
         }
     }
 
+    #[cfg(test)]
+    #[test]
+    fn each_frame_process_speaks_only_for_its_own_frames() {
+        let (tx, _rx) = channel();
+        {
+            let mut r = ROUTES.lock().unwrap();
+            let r = r.get_or_insert_with(HashMap::new);
+            r.insert(9_000_001, Route { key: 901, top: Some("news.org".into()), tx: tx.clone() });
+            r.insert(9_000_002, Route { key: 902, top: Some("bank.com".into()), tx: tx.clone() });
+            r.insert(9_000_003, Route { key: 901, top: Some("shop.net".into()), tx });
+        }
+        let a = auth(901);
+        assert_eq!(a.tops, ["news.org", "shop.net"]);
+        assert!(!a.storage && !a.extensions);
+        assert_eq!(auth(902).tops, ["bank.com"]);
+        // Another process's frame can't be closed or reached through this one's key.
+        assert_eq!(key_of(9_000_002), Some(902));
+        for id in [9_000_001, 9_000_002, 9_000_003] {
+            ROUTES.lock().unwrap().as_mut().unwrap().remove(&id);
+        }
+        assert!(auth(901).tops.is_empty());
+    }
+
+    /// Frame processes running right now (tests).
+    #[allow(dead_code)]
+    pub fn running() -> usize {
+        PROCS.lock().map(|g| g.as_ref().map_or(0, |p| p.len())).unwrap_or(0)
+    }
+
     /// `ironswift --frame-renderer`: run the frames the browser opens, one thread each, until
     /// stdin closes.
-    pub fn serve() {
+    pub fn serve(own: &str) {
+        if own.is_empty() {
+            log!("[frames] refusing to run without a site");
+            return;
+        }
+        // The frame sites this process may run: its own, and any the browser adds when the
+        // pool is full.
+        let mut sites = vec![own.to_string()];
         if !sandbox::protect_frame_renderer() {
             log!("[frames] refusing to run without a sandbox");
             return;
@@ -1258,6 +1348,12 @@ pub mod isolated {
                 let kind = get(&mut input)?;
                 let id = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4]));
                 match kind.as_slice() {
+                    b"allow" => {
+                        let s = String::from_utf8_lossy(&get(&mut input)?).to_string();
+                        if !s.is_empty() && !sites.contains(&s) {
+                            sites.push(s);
+                        }
+                    }
                     b"open" => {
                         let url = String::from_utf8_lossy(&get(&mut input)?).to_string();
                         let parent = String::from_utf8_lossy(&get(&mut input)?).to_string();
@@ -1266,6 +1362,10 @@ pub mod isolated {
                         let w = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
                         let h = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
                         let (reply, _) = channel();
+                        if !site(&url).is_some_and(|s| sites.contains(&s)) {
+                            log!("[frames] {}: refused to open {url}", sites.join(", "));
+                            return Ok(());
+                        }
                         let job = FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply, top_level: false };
                         let (etx, erx) = channel();
                         frames.insert(id, etx);

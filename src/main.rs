@@ -1338,7 +1338,7 @@ fn browser_main() {
                 return;
             }
             "--frame-renderer" => {
-                isolated::serve();
+                isolated::serve(args.get(i + 1).map_or("", String::as_str));
                 return;
             }
             "--site-renderer" => {
