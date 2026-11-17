@@ -179,6 +179,13 @@ fn scan() -> String {
 /// The installed fonts (looked up once per run).
 pub fn index() -> &'static Index {
     static IDX: OnceLock<Index> = OnceLock::new();
+    // Without fontconfig and with nothing kept from before (a first launch on Windows or
+    // macOS), the folders are read on a background thread: that can take many seconds, and
+    // pages shouldn't wait for it. Until it's done, pages get the built-in fonts.
+    static LATE: OnceLock<Index> = OnceLock::new();
+    if let Some(i) = LATE.get() {
+        return i;
+    }
     IDX.get_or_init(|| {
         if std::env::var("IRONSWIFT_SYSTEM_FONTS").is_ok_and(|v| v == "0") {
             return Index::default();
@@ -186,38 +193,47 @@ pub fn index() -> &'static Index {
         let text = match from_fontconfig() {
             Some(t) => {
                 // Kept for the frame process, which can't start fc-list itself.
-                if let Some(p) = index_file() {
-                    let tmp = p.with_extension("tmp");
-                    if std::fs::write(&tmp, &t).is_ok() {
-                        let _ = std::fs::rename(&tmp, &p);
-                    }
-                }
+                keep(&t);
                 t
             }
             None => {
-                // Kept from an earlier run (the frame process, or a system without fontconfig);
-                // without fontconfig the folders are read again once the copy is a week old.
-                let kept = index_file().filter(|p| {
-                    cfg!(target_os = "linux") || std::fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age.as_secs() < 7 * 86_400)
-                });
-                match kept.and_then(|p| std::fs::read_to_string(p).ok()) {
-                    Some(t) => t,
-                    None if cfg!(target_os = "linux") => String::new(),
-                    None => {
-                        let t = scan();
-                        if let Some(p) = index_file() {
-                            let tmp = p.with_extension("tmp");
-                            if std::fs::write(&tmp, &t).is_ok() {
-                                let _ = std::fs::rename(&tmp, &p);
-                            }
+                // Kept from an earlier run (the frame process, or a system without fontconfig).
+                let kept = index_file().and_then(|p| Some((std::fs::read_to_string(&p).ok()?, std::fs::metadata(&p).and_then(|m| m.modified()).ok())));
+                let stale = |age: Option<std::time::SystemTime>| age.and_then(|t| t.elapsed().ok()).is_none_or(|a| a.as_secs() > 7 * 86_400);
+                match kept {
+                    Some((t, _)) if cfg!(target_os = "linux") => t,
+                    // Without fontconfig the folders are read again, in the background, once the
+                    // copy is a week old; this run uses the old copy.
+                    Some((t, age)) => {
+                        if stale(age) {
+                            let _ = std::thread::Builder::new().name("font-scan".into()).spawn(|| keep(&scan()));
                         }
                         t
+                    }
+                    None if cfg!(target_os = "linux") => String::new(),
+                    None => {
+                        let _ = std::thread::Builder::new().name("font-scan".into()).spawn(|| {
+                            let t = scan();
+                            keep(&t);
+                            let _ = LATE.set(parse(&t));
+                        });
+                        String::new()
                     }
                 }
             }
         };
         parse(&text)
     })
+}
+
+/// Save the index text for later runs and for the frame process.
+fn keep(text: &str) {
+    if let Some(p) = index_file() {
+        let tmp = p.with_extension("tmp");
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, &p);
+        }
+    }
 }
 
 /// The installed family to use for a CSS family name (lower-case), if any. `strict`: only the

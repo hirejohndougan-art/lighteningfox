@@ -1079,6 +1079,7 @@ impl Engine {
             .fold(0, |a, r| a | r.page)
     }
 
+    #[cfg(test)]
     /// The rule that blocks this request, if any.
     pub fn check(&self, url: &str, page: &str, dest: Dest) -> Option<&str> {
         self.decide(url, page, type_bit(dest)).map(|(rule, _)| rule)
@@ -1295,6 +1296,7 @@ impl Engine {
         out
     }
 
+    #[cfg(test)]
     /// CSS that hides ad leftovers in this page: site-specific rules, plus generic rules whose
     /// class, id or attribute actually appears in the page.
     pub fn hiding_css(&self, page: &str, classes: &HashSet<String>, ids: &HashSet<String>) -> String {
