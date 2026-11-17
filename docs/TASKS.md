@@ -267,7 +267,7 @@ result under `tools/wpt.py`, whose snapshot mode freezes media. Several WPT help
 
 ### T13. Extensions (WebExtensions API)
 **Status:** done
-**Left undone:** content scripts share the page's JavaScript globals (no separate isolated world; `chrome` itself stays hidden from the page); tab ids are tab positions + 1, so they shift when an earlier tab closes; webRequest only has `onBeforeRequest` (cancel/redirect) and guesses the resource `type` from the request; no `declarativeNetRequest`, `runtime.connect` ports, `alarms`, `contextMenus` or toolbar buttons; no about:extensions page or installer (extensions load unpacked from `<profile>/extensions/` or `IRONSWIFT_EXTENSIONS`); a site process's content-script requests are only checked against the extension's match patterns and the process's sites.
+**Left undone:** tab ids are tab positions + 1, so they shift when an earlier tab closes; webRequest only has `onBeforeRequest` (cancel/redirect) and guesses the resource `type` from the request; no `declarativeNetRequest`, `runtime.connect` ports, `alarms`, `contextMenus` or toolbar buttons; no about:extensions page or installer (extensions load unpacked from `<profile>/extensions/` or `IRONSWIFT_EXTENSIONS`); a site process's content-script requests are only checked against the extension's match patterns and the process's sites.
 **After:** T01, T05, T07
 **Checklist:** §11 "Extensions (WebExtensions API)"
 **Files:** new `src/extensions/`

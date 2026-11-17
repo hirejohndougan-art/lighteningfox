@@ -5,4 +5,7 @@
 <script>
 document.body.dataset.ran = "yes";
 document.body.dataset.chrome = typeof chrome;
+// The extension's API and its content scripts' globals live in their own world.
+document.body.dataset.leaks = [typeof __extCall, typeof __extContent, typeof __extMakeApi, typeof startSaw].join(",");
+JSON.stringify = function () { document.body.dataset.hooked = "yes"; return "{}"; };
 </script>

@@ -210,7 +210,9 @@ fn extension_content_scripts() {
     let _serial = serial();
     crate::extensions::install_for_tests(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/extensions/test-ext"));
     let mut page = open("tests/extension-test.html");
-    // Let the page hear the background's tabs.sendMessage (pages check every 100 ms).
+    // The content scripts run in their own world: the page sees neither `chrome`, the
+    // `__extCall` native nor the scripts' globals, and replacing JSON.stringify in the page
+    // doesn't reach the extension's calls. Let the page hear the background's tabs.sendMessage (pages check every 100 ms).
     for _ in 0..30 {
         if text_of("out").contains("poked") {
             break;
@@ -222,8 +224,9 @@ fn extension_content_scripts() {
     }
     assert_eq!(
         text_of("out"),
-        "start saw before;page ran yes;chrome function page sees undefined;echo hi extension-test.html;\
-         storage {\"a\":1};bg poking;poked;"
+        "start saw before;page ran yes;chrome function page sees undefined;\
+         page sees undefined,undefined,undefined,undefined;echo hi extension-test.html;\
+         storage {\"a\":1} hooked no;bg poking;poked;"
     );
 }
 

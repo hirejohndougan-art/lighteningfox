@@ -4,12 +4,16 @@
 //! scripts (`tabs.sendMessage`) and storage changes wait in a queue that pages poll.
 //!
 //! **Page side** (wherever the page runs): `start`, `run` and `poll` are called by the page's
-//! script engine (js.rs) as it loads and while it runs. Each extension's scripts for one
-//! `run_at` point run together, with the extension's `chrome` and `browser` objects in scope,
-//! so the page's own scripts don't see them as globals. (The page's and the content scripts'
-//! globals are otherwise shared: there is no separate "isolated world" yet.)
+//! script engine (js.rs) as it loads and while it runs. Each extension's content scripts run
+//! in their own realm (an "isolated world", as in Chrome): `chrome`, `browser` and the
+//! `__extCall` native exist only there, and the realm has its own `Object`, `Array`,
+//! `Promise`, `JSON`…, so the page can't reach the extension's API or watch its calls by
+//! patching built-ins. The page's DOM, timers, `fetch` and other browser globals are copied
+//! in as they were when the page started, before any page script ran; globals the page's
+//! scripts make later aren't seen, and the content scripts' globals aren't seen by the page.
 
 use super::Extension;
+use boa_engine::{realm::Realm, Script, Source};
 use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -198,6 +202,8 @@ pub struct PageState {
     exts: Vec<Value>,
     seq: u64,
     last_poll: Instant,
+    /// Each extension's isolated world, by extension id.
+    worlds: HashMap<String, Realm>,
 }
 
 type State = RefCell<PageState>;
@@ -224,8 +230,63 @@ fn n_call(_: &boa_engine::JsValue, a: &[boa_engine::JsValue], ctx: &mut boa_engi
     Ok(boa_engine::JsValue::from(boa_engine::JsString::from(answer.to_string().as_str())))
 }
 
-/// As a page starts loading: find its content scripts, set up their APIs and run the
-/// `document_start` ones.
+/// Copies the page's browser globals into an isolated world (run there with `__page` set to
+/// the page's global object). Functions are bound to the page's global so `this` is right;
+/// constructors (capitalised names) are copied as they are so `instanceof` and prototypes
+/// work. `window`, `self` and `frames` are the world's own global.
+const WORLD_SETUP: &str = r#"(function () {
+  "use strict";
+  const g = globalThis, page = g.__page;
+  delete g.__page;
+  for (const k of Object.getOwnPropertyNames(page)) {
+    if (Object.prototype.hasOwnProperty.call(g, k) || k === "window" || k === "self" || k === "frames") continue;
+    const d = Object.getOwnPropertyDescriptor(page, k);
+    if (!d) continue;
+    if ("value" in d) {
+      if (typeof d.value === "function" && !/^[A-Z]/.test(k)) d.value = d.value.bind(page);
+    } else {
+      if (d.get) d.get = d.get.bind(page);
+      if (d.set) d.set = d.set.bind(page);
+    }
+    d.configurable = true;
+    try { Object.defineProperty(g, k, d); } catch (e) {}
+  }
+  for (const k of ["window", "self", "frames"]) Object.defineProperty(g, k, { value: g, configurable: true });
+})();"#;
+
+/// Run `code` in an isolated world; an uncaught exception is logged like a page's.
+fn eval_in(js: &mut crate::js::Js, realm: &Realm, code: &str, label: &str) {
+    let ctx = js.ctx_mut();
+    let old = ctx.enter_realm(realm.clone());
+    let r = Script::parse(Source::from_bytes(code.as_bytes()), Some(realm.clone()), ctx).and_then(|s| s.evaluate(ctx));
+    let _ = ctx.run_jobs();
+    ctx.enter_realm(old);
+    if let Err(e) = r {
+        log!("[js error] {label}: {e}");
+    }
+}
+
+/// A new isolated world for one extension, with its `chrome`/`browser` API.
+fn make_world(js: &mut crate::js::Js, id: &str, manifest: &Value) -> Option<Realm> {
+    let ctx = js.ctx_mut();
+    let page = ctx.global_object();
+    let realm = ctx.create_realm().ok()?;
+    let old = ctx.enter_realm(realm.clone());
+    let ok = ctx.global_object().set(boa_engine::js_string!("__page"), page, false, ctx).is_ok()
+        && ctx.register_global_callable(boa_engine::JsString::from("__extCall"), 1, boa_engine::NativeFunction::from_fn_ptr(n_call)).is_ok();
+    ctx.enter_realm(old);
+    if !ok {
+        return None;
+    }
+    eval_in(js, &realm, WORLD_SETUP, "extension world");
+    eval_in(js, &realm, super::API_JS, "extension API");
+    let setup = format!("globalThis.chrome = globalThis.browser = __extMakeApi({}, \"content\", {manifest});", js_str(id));
+    eval_in(js, &realm, &setup, "extension API");
+    Some(realm)
+}
+
+/// As a page starts loading: find its content scripts, set up each extension's isolated world
+/// and run the `document_start` scripts.
 pub fn start(js: &mut crate::js::Js) {
     let url = crate::js::page_url(js.ctx_mut());
     let top = crate::security::frame_info(&url).is_none();
@@ -235,39 +296,36 @@ pub fn start(js: &mut crate::js::Js) {
         return;
     }
     let seq = found.get("seq").and_then(Value::as_u64).unwrap_or(0);
-    js.add_native("__extCall", 1, n_call);
-    let _ = js.run_code(super::API_JS, "extension API");
-    let mut setup = String::from("Object.defineProperty(globalThis, \"__extContent\", { value: {}, enumerable: false, configurable: true });");
+    let mut worlds = HashMap::new();
     for e in &exts {
         let id = e.get("ext").and_then(Value::as_str).unwrap_or("");
         let manifest = e.get("manifest").cloned().unwrap_or(Value::Null);
-        setup.push_str(&format!("__extContent[{}] = __extMakeApi({}, \"content\", {});", js_str(id), js_str(id), manifest));
+        if let Some(realm) = make_world(js, id, &manifest) {
+            worlds.insert(id.to_string(), realm);
+        }
     }
-    let _ = js.run_code(&setup, "extension API");
-    js.ctx_mut().insert_data(RefCell::new(PageState { url, exts, seq, last_poll: Instant::now() }));
+    js.ctx_mut().insert_data(RefCell::new(PageState { url, exts, seq, last_poll: Instant::now(), worlds }));
     run(js, "document_start");
 }
 
+fn world(js: &mut crate::js::Js, id: &str) -> Option<Realm> {
+    js.ctx_mut().get_data::<State>().and_then(|s| s.borrow().worlds.get(id).cloned())
+}
+
 /// Run the content scripts for one point in loading ("document_start", "document_end",
-/// "document_idle").
+/// "document_idle"), each extension's in its own world.
 pub fn run(js: &mut crate::js::Js, when: &str) {
     let Some(exts) = js.ctx_mut().get_data::<State>().map(|s| s.borrow().exts.clone()) else { return };
     for e in exts {
         let id = e.get("ext").and_then(Value::as_str).unwrap_or("");
         let Some(runs) = e.get("runs").and_then(Value::as_array) else { continue };
+        let Some(realm) = world(js, id) else { continue };
         for r in runs {
             if r.get(0).and_then(Value::as_str) != Some(when) {
                 continue;
             }
             let code = r.get(1).and_then(Value::as_str).unwrap_or("");
-            // `chrome` and `browser` are in scope for the script but aren't globals the page can
-            // see; the script's own `var`s and functions are globals, shared with the
-            // extension's other content scripts (as in one isolated world).
-            let wrapped = format!(
-                "with (Object.assign(Object.create(null), {{ chrome: __extContent[{0}], browser: __extContent[{0}] }})) {{\n{code}\n}}",
-                js_str(id)
-            );
-            let _ = js.run_code(&wrapped, &format!("content script of {id}"));
+            eval_in(js, &realm, code, &format!("content script of {id}"));
         }
     }
 }
@@ -292,6 +350,8 @@ pub fn poll_page(js: &mut crate::js::Js) {
     for ev in ok.get("events").and_then(Value::as_array).cloned().unwrap_or_default() {
         let id = ev.get("ext").and_then(Value::as_str).unwrap_or("");
         let event = ev.get("event").cloned().unwrap_or(Value::Null);
-        let _ = js.run_code(&format!("__extContent[{}] && __extContent[{}].__dispatch({event})", js_str(id), js_str(id)), "extension event");
+        if let Some(realm) = world(js, id) {
+            eval_in(js, &realm, &format!("chrome.__dispatch({event})"), "extension event");
+        }
     }
 }
