@@ -36,7 +36,8 @@ reference screenshot and the WPT scores (flexbox, floats, CSS2) the same or bett
 wait on this one, so push in stages.
 
 ### T05. Each top-level site in its own sandboxed process
-**Status:** claimed by chat-opus-t05 2026-11-17 04:55
+**Status:** done
+**Left undone:** Off by default — turn on with Settings → "Site isolation" or `IRONSWIFT_SITE_PROCESS=1`, because on pages in a site process these don't work yet: find in page, text selection/copy, the page context menu, devtools/inspect, `<select>` dropdowns (they cycle), autofill/passwords, printing, the accessibility tree, and pushState address changes. Pictures go over a pipe whole (no shared memory). Responses aren't cached and arrive whole (no streaming; a download is fetched twice). WebSockets fail (the process has no sockets and no broker for them yet). Iframes inside a site-process page are drawn in that same process, not live and not in their own site's process. Tested by hand under Xvfb: rendering, links, back, form posts, typing, scrolling, cookies/storage/fetch through the browser, a second site in its own process with none of the first site's cookies.
 **After:** —
 **Checklist:** §13 "Process isolation: run each top-level site in its own sandboxed process"
 **Files:** `src/sandbox.rs`, new `src/process.rs`, the page-loading parts of `src/main.rs`
