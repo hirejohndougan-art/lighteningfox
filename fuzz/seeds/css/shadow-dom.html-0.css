@@ -1,0 +1,4 @@
+
+body { font: 16px sans-serif; margin: 20px; }
+p { color: #b00; }            /* page rule: must NOT reach paragraphs inside shadow trees */
+.card { margin: 10px 0; }

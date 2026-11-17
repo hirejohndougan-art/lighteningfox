@@ -106,7 +106,7 @@ impl Images {
 }
 
 fn fetch_and_decode(url: &str, page: &str) -> Option<Img> {
-    let bytes = net::fetch_sub_bytes(url, page).map_err(|e| log!("[img] {url}: {e}")).ok()?.1;
+    let bytes = net::fetch_sub_bytes(url, page, crate::security::Dest::Image).map_err(|e| log!("[img] {url}: {e}")).ok()?.1;
     let img = image::load_from_memory(&bytes).map_err(|e| log!("[img] {url}: {e}")).ok()?;
     let (w, h) = (img.width(), img.height());
     let img = if w > MAX_SIDE || h > MAX_SIDE { img.thumbnail(MAX_SIDE, MAX_SIDE) } else { img };

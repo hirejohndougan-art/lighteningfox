@@ -1,0 +1,5 @@
+
+  body { font-family: sans-serif; margin: 40px; background: #fafafa; }
+  .box { border: 2px solid #446; padding: 12px; margin: 12px 0; background: #fff; }
+  .done { background: #e3f6e3; border-color: #3a3; }
+  #counter { font-size: 28px; font-weight: bold; color: #a33; }

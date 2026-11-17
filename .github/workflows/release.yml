@@ -1,0 +1,36 @@
+name: Release
+# Push a tag like v0.2.0 to publish a release. Installed copies of Ironswift (per-user
+# installs) find it within a day, check the SHA-256 sum and update themselves on exit.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04 # an older glibc, so the program runs on more systems
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Version matches the tag
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Cargo.toml says $v, tag is $GITHUB_REF_NAME"; exit 1; }
+      - name: Build
+        run: cargo build --release
+      - name: Package
+        run: |
+          mkdir dist
+          cp target/release/ironswift dist/ironswift-linux-x86_64
+          strip dist/ironswift-linux-x86_64
+          (cd dist && sha256sum ironswift-linux-x86_64 > ironswift-linux-x86_64.sha256)
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2)
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Ironswift $GITHUB_REF_NAME" --notes "$notes"

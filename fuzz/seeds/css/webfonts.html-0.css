@@ -1,0 +1,11 @@
+
+  @font-face { font-family: "Poppins"; src: url(fonts/poppins-regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "Poppins"; src: url(fonts/poppins-bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: "Poppins"; src: url(fonts/poppins-italic.woff2) format("woff2"); font-weight: 400; font-style: italic; }
+  @font-face { font-family: 'Book Serif'; src: url("fonts/serif.woff") format("woff"); }
+  @font-face { font-family: "Unused Font"; src: url(fonts/not-downloaded.woff2) format("woff2"); }
+  body { margin: 24px; font-family: Poppins, sans-serif; color: #1e293b; }
+  h1 { font-weight: 700; margin: 0 0 8px; }
+  .serif { font-family: "Book Serif", Georgia, serif; font-size: 20px; }
+  .mono { font-family: "Fira Code", monospace; }
+  .card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; margin: 12px 0; }

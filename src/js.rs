@@ -32,6 +32,8 @@ thread_local! {
     static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
     static HISTORY: RefCell<Vec<HistoryOp>> = const { RefCell::new(Vec::new()) };
     static OPEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// Permission requests waiting for the browser's prompt: (request id, kind, page URL).
+    static PERMISSION_REQUESTS: RefCell<Vec<(u64, crate::permissions::Kind, String)>> = const { RefCell::new(Vec::new()) };
     /// True while a user's click is being handled (window.open is allowed then).
     static ACTIVATION: Cell<bool> = const { Cell::new(false) };
     /// Bumped on every DOM change; caches built from the DOM remember the generation they saw.
@@ -40,6 +42,83 @@ thread_local! {
     static ID_INDEX: RefCell<(u64, HashMap<String, NodeId>)> = RefCell::new((u64::MAX, HashMap::new()));
     /// Parsed selectors, so a script calling querySelector in a loop parses each string once.
     static SELECTORS: RefCell<HashMap<String, std::rc::Rc<Vec<css::Selector>>>> = RefCell::new(HashMap::new());
+}
+
+/// Who a page is, kept beside its script engine where scripts can't change it. Natives that
+/// touch cookies, storage or the network act for this page, whatever a script passes them.
+pub struct PageCtx {
+    /// The document's URL (pushState can move it within the same origin).
+    pub url: String,
+    /// The top-level page (differs from `url` inside a frame).
+    pub top: String,
+    pub sandbox: Option<crate::security::Sandbox>,
+    pub policy: std::sync::Arc<crate::security::PagePolicy>,
+    /// Handler attribute code a policy allowed, waiting for `new Function` to compile it.
+    approved: Vec<String>,
+}
+
+impl PageCtx {
+    /// A sandboxed frame without allow-same-origin has an opaque origin: no cookies or storage,
+    /// and it counts as a stranger to every site.
+    fn opaque(&self) -> bool {
+        self.sandbox.as_ref().is_some_and(|s| !s.same_origin)
+    }
+
+    /// The URL to use as "the page" for network rules.
+    fn net_page(&self) -> String {
+        if self.opaque() { "about:sandbox".into() } else { self.url.clone() }
+    }
+
+    /// Where this page's localStorage is kept: its origin, plus the top-level site when it's
+    /// embedded in another site (so an embedded tracker can't share storage across sites).
+    fn storage_key(&self) -> Option<String> {
+        if self.opaque() {
+            return None;
+        }
+        let origin = if self.url.starts_with("file:") { "file".to_string() } else { net::origin_of(&self.url) };
+        if origin == "null" {
+            return None;
+        }
+        let site = |u: &str| url::Url::parse(u).ok().and_then(|u| u.host_str().map(crate::cookies::site_of));
+        if self.top != self.url && site(&self.top) != site(&self.url) {
+            let top = site(&self.top).unwrap_or_else(|| "local".into());
+            return Some(format!("{origin} in {top}"));
+        }
+        Some(origin)
+    }
+}
+
+fn page_ctx<R>(ctx: &Context, f: impl FnOnce(&PageCtx) -> R) -> Option<R> {
+    ctx.get_data::<RefCell<PageCtx>>().map(|p| f(&p.borrow()))
+}
+
+/// Script engine hooks: turning strings into code (`eval`, `new Function`, string timers)
+/// is only allowed when the page's Content Security Policy allows it.
+struct Hooks;
+
+impl boa_engine::context::HostHooks for Hooks {
+    fn ensure_can_compile_strings(
+        &self,
+        _realm: boa_engine::realm::Realm,
+        _parameters: &[JsString],
+        body: &JsString,
+        _direct: bool,
+        context: &mut Context,
+    ) -> JsResult<()> {
+        let Some(page) = context.get_data::<RefCell<PageCtx>>() else { return Ok(()) };
+        let mut page = page.borrow_mut();
+        let body = body.to_std_string_escaped();
+        if let Some(i) = page.approved.iter().position(|c| *c == body) {
+            page.approved.swap_remove(i);
+            return Ok(());
+        }
+        if page.policy.csp.is_empty() || page.policy.csp.allows_eval() {
+            return Ok(());
+        }
+        Err(boa_engine::JsNativeError::eval()
+            .with_message("Refused to evaluate a string as JavaScript: 'unsafe-eval' is not allowed by the page's Content Security Policy")
+            .into())
+    }
 }
 
 fn bump_generation() {
@@ -592,16 +671,98 @@ fn n_request(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     Ok(JsValue::undefined())
 }
 
-fn n_get_cookie(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let url = arg_str(a, 0, ctx)?;
-    Ok(JsValue::from(JsString::from(crate::cookies::script_get(&url))))
+/// __getCookie(): document.cookie for this page (the argument is ignored: a page only ever
+/// reads its own cookies).
+fn n_get_cookie(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let v = page_ctx(ctx, |p| if p.opaque() { String::new() } else { crate::cookies::script_get(&p.url, &p.top) }).unwrap_or_default();
+    Ok(JsValue::from(JsString::from(v)))
 }
 
+/// __setCookie(_, "name=value; …")
 fn n_set_cookie(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let url = arg_str(a, 0, ctx)?;
     let v = arg_str(a, 1, ctx)?;
-    crate::cookies::script_set(&url, &v);
+    page_ctx(ctx, |p| {
+        if !p.opaque() {
+            crate::cookies::script_set(&p.url, &p.top, &v);
+        }
+    });
     Ok(JsValue::undefined())
+}
+
+/// __cspInline(kind, code): may this inline handler run? ("attr" = an on… attribute.)
+/// If so, `new Function(code)` is allowed once even where eval isn't.
+fn n_csp_inline(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let code = arg_str(a, 1, ctx)?;
+    let Some(page) = ctx.get_data::<RefCell<PageCtx>>() else { return Ok(JsValue::from(true)) };
+    let mut page = page.borrow_mut();
+    let ok = page.policy.csp.allows_inline(crate::security::Inline::ScriptAttr, &code, None);
+    if ok && !page.policy.csp.is_empty() {
+        if page.approved.len() > 64 {
+            page.approved.clear();
+        }
+        page.approved.push(code);
+    }
+    Ok(JsValue::from(ok))
+}
+
+/// __permState(kind) -> "granted" | "denied" | "prompt"
+fn n_perm_state(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let kind = arg_str(a, 0, ctx)?;
+    let st = match crate::permissions::Kind::parse(&kind) {
+        Some(k) => page_ctx(ctx, |p| if p.opaque() { "denied" } else { crate::permissions::state(&p.url, &p.top, k) }).unwrap_or("denied"),
+        None => "denied",
+    };
+    Ok(JsValue::from(js_string!(st)))
+}
+
+/// __permRequest(id, kind): ask the user (the answer comes back through __permDone).
+fn n_perm_request(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = a.first().map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0) as u64;
+    let kind = arg_str(a, 1, ctx)?;
+    let (Some(kind), Some(url)) = (crate::permissions::Kind::parse(&kind), page_ctx(ctx, |p| p.url.clone())) else { return Ok(JsValue::from(false)) };
+    let queued = PERMISSION_REQUESTS.with(|r| {
+        let mut r = r.borrow_mut();
+        // A page can't flood you with prompts.
+        if r.len() >= 8 {
+            return false;
+        }
+        r.push((id, kind, url));
+        true
+    });
+    Ok(JsValue::from(queued))
+}
+
+/// __notify(title, body): a desktop notification, if the site was allowed to show them.
+fn n_notify(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let title = arg_str(a, 0, ctx)?;
+    let body = arg_str(a, 1, ctx)?;
+    let ok = page_ctx(ctx, |p| {
+        let ok = !p.opaque() && crate::permissions::state(&p.url, &p.top, crate::permissions::Kind::Notifications) == "granted";
+        if ok {
+            crate::permissions::notify(&p.url, &title, &body);
+        }
+        ok
+    })
+    .unwrap_or(false);
+    Ok(JsValue::from(ok))
+}
+
+/// Permission requests from scripts since the last call.
+pub fn take_permission_requests() -> Vec<(u64, crate::permissions::Kind, String)> {
+    PERMISSION_REQUESTS.with(|r| std::mem::take(&mut *r.borrow_mut()))
+}
+
+/// __fpSeed() -> a number fixed for this site and this session (0 = fingerprinting
+/// protection is off). Canvas and audio readouts get noise derived from it, so a site sees
+/// the same values each time it looks, but different sites (and sessions) see different ones.
+fn n_fp_seed(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let seed = page_ctx(ctx, |p| crate::security::fingerprint_seed(&p.top)).unwrap_or(0);
+    Ok(JsValue::from(seed as f64))
+}
+
+/// __pageUrl(): the document's URL as the browser knows it.
+fn n_page_url(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(JsString::from(page_ctx(ctx, |p| p.url.clone()).unwrap_or_default())))
 }
 
 /// JSON string literal (also valid JavaScript).
@@ -661,7 +822,8 @@ fn response_js(r: &Result<net::Response, String>) -> String {
 /// Async requests run on a worker thread; a sync one (XHR with async=false) returns its result.
 fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = a.first().map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0) as u64;
-    let page = arg_str(a, 1, ctx)?;
+    // The page making the request is always this page, never what the script says.
+    let page = page_ctx(ctx, PageCtx::net_page).unwrap_or_else(|| "about:blank".into());
     let method = arg_str(a, 2, ctx)?;
     let url = arg_str(a, 3, ctx)?;
     let flat = arg_str(a, 4, ctx)?;
@@ -678,7 +840,16 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
             headers.push((k.to_string(), v.to_string()));
         }
     }
-    let run = move || net::script_request(&page, &method, &url, &headers, body.as_deref(), &credentials);
+    let csp_ok = page_ctx(ctx, |p| p.policy.csp.allows_url(crate::security::Dest::Connect, &url, None, false)).unwrap_or(true);
+    let run = move || {
+        if !csp_ok {
+            return Err(format!("{url}: blocked by the page's Content Security Policy (connect-src)"));
+        }
+        if let Some(why) = crate::blocklist::blocked(&url, &page, crate::security::Dest::Connect) {
+            return Err(format!("{url}: {why}"));
+        }
+        net::script_request(&page, &method, &url, &headers, body.as_deref(), &credentials)
+    };
     if sync {
         let r = run();
         return Ok(JsValue::from(JsString::from(response_js(&r))));
@@ -805,7 +976,8 @@ pub fn take_open_requests() -> Vec<String> {
 /// __open(url): window.open — only while handling a click, so pages can't pop up windows on their own.
 fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let url = arg_str(a, 0, ctx)?;
-    let allowed = ACTIVATION.with(Cell::get);
+    let sandboxed = page_ctx(ctx, |p| p.sandbox.as_ref().is_some_and(|s| !s.popups)).unwrap_or(false);
+    let allowed = ACTIVATION.with(Cell::get) && !sandboxed;
     if allowed {
         OPEN.with(|o| o.borrow_mut().push(url));
     } else {
@@ -823,6 +995,17 @@ fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     let kind = arg_str(a, 0, ctx)?;
     let url = arg_str(a, 1, ctx)?;
     let state = arg_str(a, 2, ctx)?;
+    if matches!(kind.as_str(), "push" | "replace") {
+        // pushState can only change the address within the page's own origin.
+        let Some(page) = ctx.get_data::<RefCell<PageCtx>>() else { return Ok(JsValue::from(false)) };
+        let mut page = page.borrow_mut();
+        let base = |u: &str| if u.starts_with("http") { net::origin_of(u) } else { u.split(['?', '#']).next().unwrap_or(u).to_string() };
+        if base(&url) != base(&page.url) || page.opaque() {
+            log!("[security] {kind}State to another origin refused: {url}");
+            return Ok(JsValue::from(false));
+        }
+        page.url = url.clone();
+    }
     let op = match kind.as_str() {
         "push" => HistoryOp::Push(url, state),
         "replace" => HistoryOp::Replace(url, state),
@@ -834,68 +1017,81 @@ fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     Ok(JsValue::undefined())
 }
 
-/// Where a site's localStorage lives: one JSON file per origin in the profile folder.
-fn storage_file(origin: &str) -> Option<std::path::PathBuf> {
-    store_file(origin, "storage")
-}
+/// In the frame-renderer process (which can't write files) site storage lives in memory: an
+/// embedded site gets working localStorage and IndexedDB for the session, kept apart per
+/// top-level site.
+static MEMORY_STORAGE: std::sync::Mutex<Option<HashMap<String, String>>> = std::sync::Mutex::new(None);
 
-/// A per-origin file under `<profile>/<dir>/`.
-fn store_file(origin: &str, dir: &str) -> Option<std::path::PathBuf> {
-    if origin.is_empty() || origin == "null" && !cfg!(test) {
-        // Local files share one store, like other browsers' "file://" origin.
+/// Keep site storage in memory only (for the frame process).
+pub fn use_memory_storage() {
+    if let Ok(mut m) = MEMORY_STORAGE.lock() {
+        *m = Some(HashMap::new());
     }
-    let key: String = origin.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
-    let key = if key.is_empty() { "file".to_string() } else { key };
-    crate::cookies::profile_dir().map(|d| d.join(dir).join(format!("{key}.json")))
 }
 
-/// __storageLoad(origin) -> the saved JSON object text, or "{}".
-fn n_storage_load(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let origin = arg_str(a, 0, ctx)?;
-    let text = storage_file(&origin).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into());
-    Ok(JsValue::from(JsString::from(text)))
+/// A per-origin file under `<profile>/<dir>/`. `key` is the page's storage key (its origin,
+/// plus the top-level site when it's embedded in another site).
+fn store_file(key: &str, dir: &str) -> Option<std::path::PathBuf> {
+    let name: String = key.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
+    let name = if name.is_empty() { "file".to_string() } else { name };
+    crate::cookies::profile_dir().map(|d| d.join(dir).join(format!("{name}.json")))
 }
 
-/// __storageSave(origin, json): write it back (atomically, readable only by you). 5 MB per site.
+/// This page's saved store (`dir`: "storage" for localStorage, "indexeddb") as JSON text, or
+/// "{}". The page's origin comes from the browser; any origin a script names is ignored.
+fn load_store(ctx: &Context, dir: &str) -> String {
+    let Some(key) = page_ctx(ctx, PageCtx::storage_key).flatten() else { return "{}".into() };
+    if let Ok(Some(m)) = MEMORY_STORAGE.lock().as_deref() {
+        return m.get(&format!("{dir}/{key}")).cloned().unwrap_or_else(|| "{}".into());
+    }
+    store_file(&key, dir).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into())
+}
+
+/// __storageLoad() -> this page's localStorage as JSON text.
+fn n_storage_load(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(JsString::from(load_store(ctx, "storage"))))
+}
+
+/// __storageSave(_, json): write it back. 5 MB per site.
 fn n_storage_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let origin = arg_str(a, 0, ctx)?;
     let json = arg_str(a, 1, ctx)?;
-    Ok(JsValue::from(save_store(storage_file(&origin), &json, 5 * 1024 * 1024)))
+    Ok(JsValue::from(save_store(ctx, "storage", json, 5 * 1024 * 1024)))
 }
 
-/// __idbLoad(origin) -> the site's IndexedDB databases as JSON text, or "{}".
-fn n_idb_load(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let origin = arg_str(a, 0, ctx)?;
-    let text = store_file(&origin, "indexeddb").and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into());
-    Ok(JsValue::from(JsString::from(text)))
+/// __idbLoad() -> this page's IndexedDB databases as JSON text, or "{}".
+fn n_idb_load(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(JsString::from(load_store(ctx, "indexeddb"))))
 }
 
-/// __idbSave(origin, json) -> false when over the 100 MB per-site quota or unwritable.
+/// __idbSave(_, json) -> false when over the 100 MB per-site quota or unwritable.
 fn n_idb_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let origin = arg_str(a, 0, ctx)?;
     let json = arg_str(a, 1, ctx)?;
-    Ok(JsValue::from(save_store(store_file(&origin, "indexeddb"), &json, 100 * 1024 * 1024)))
+    Ok(JsValue::from(save_store(ctx, "indexeddb", json, 100 * 1024 * 1024)))
 }
 
-/// Write a store file atomically, readable only by you.
-fn save_store(path: Option<std::path::PathBuf>, json: &str, quota: usize) -> bool {
+/// Save this page's store: atomically, readable only by you (or in memory in the frame process).
+fn save_store(ctx: &Context, dir: &str, json: String, quota: usize) -> bool {
     if json.len() > quota {
         return false;
     }
-    let Some(path) = path else { return false };
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+    let Some(key) = page_ctx(ctx, PageCtx::storage_key).flatten() else { return false };
+    if let Ok(Some(m)) = MEMORY_STORAGE.lock().as_deref_mut() {
+        m.insert(format!("{dir}/{key}"), json);
+        return true;
+    }
+    let Some(path) = store_file(&key, dir) else { return false };
+    if let Some(d) = path.parent() {
+        let _ = std::fs::create_dir_all(d);
     }
     let tmp = path.with_extension("tmp");
-    let ok = std::fs::write(&tmp, json).is_ok() && {
+    std::fs::write(&tmp, json).is_ok() && {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
         }
         std::fs::rename(&tmp, &path).is_ok()
-    };
-    ok
+    }
 }
 
 const PRELUDE: &str = include_str!("prelude.js");
@@ -904,8 +1100,20 @@ const INDEXEDDB: &str = include_str!("indexeddb.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
+        let policy = crate::security::policy_for(url).unwrap_or_default();
+        Js::with_policy(url, policy)
+    }
+
+    /// A script engine for the page at `url`, under the page's security policy.
+    pub fn with_policy(url: &str, policy: std::sync::Arc<crate::security::PagePolicy>) -> Js {
         let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-        let mut ctx = Context::default();
+        let mut ctx = boa_engine::context::ContextBuilder::new().host_hooks(std::rc::Rc::new(Hooks)).build().expect("script engine");
+        let frame = crate::security::frame_info(url);
+        let sandbox = match (&frame.as_ref().and_then(|f| f.sandbox.clone()), &policy.sandbox) {
+            (Some(a), Some(b)) => Some(a.and(b)),
+            (a, b) => a.clone().or_else(|| b.clone()),
+        };
+        ctx.insert_data(RefCell::new(PageCtx { url: url.to_string(), top: frame.map_or_else(|| url.to_string(), |f| f.top), sandbox, policy, approved: Vec::new() }));
         // Keep runaway scripts from freezing the browser.
         ctx.runtime_limits_mut().set_loop_iteration_limit(200_000_000);
         ctx.runtime_limits_mut().set_recursion_limit(2_000);
@@ -958,6 +1166,12 @@ impl Js {
             ("__formData", 1, n_form_data),
             ("__getCookie", 1, n_get_cookie),
             ("__setCookie", 2, n_set_cookie),
+            ("__cspInline", 2, n_csp_inline),
+            ("__pageUrl", 0, n_page_url),
+            ("__permState", 1, n_perm_state),
+            ("__permRequest", 2, n_perm_request),
+            ("__notify", 2, n_notify),
+            ("__fpSeed", 0, n_fp_seed),
         ];
         for (name, len, f) in natives {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
@@ -998,6 +1212,13 @@ impl Js {
         }
     }
 
+    /// The answer to permission requests `ids` (from the prompt, or automatic).
+    pub fn permission_done(&mut self, ids: &[u64], granted: bool) {
+        for id in ids {
+            self.eval(&format!("__permDone({id}, {granted})"), "permission");
+        }
+    }
+
     /// Run every <script> in document order, then fire DOMContentLoaded/load.
     /// `prefetched` = external script bodies already downloaded, keyed by absolute URL.
     /// Run the document's scripts one after another (for documents not parsed here, such
@@ -1025,12 +1246,17 @@ impl Js {
         if !is_js {
             return; // modules, JSON, templates: not yet
         }
+        let nonce = with_dom(|d| d.attr(id, "nonce").map(String::from));
+        let policy = page_ctx(&self.ctx, |p| p.policy.clone());
         let (code, label) = match src {
             Some(src) => {
                 let url = net::resolve(base_url, &src);
+                if policy.as_ref().is_some_and(|p| !p.csp.allows_url(crate::security::Dest::Script, &url, nonce.as_deref(), true)) {
+                    return;
+                }
                 let fetched = match prefetched.get(&url) {
                     Some(body) => Ok((url.clone(), body.clone())),
-                    None => net::fetch_sub(&url, base_url),
+                    None => net::fetch_sub_nonce(&url, base_url, crate::security::Dest::Script, nonce.as_deref()),
                 };
                 match fetched {
                     Ok((_, body)) => (body, url),
@@ -1040,7 +1266,12 @@ impl Js {
                     }
                 }
             }
-            None => (inline, format!("inline script #{id}")),
+            None => {
+                if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &inline, nonce.as_deref())) {
+                    return;
+                }
+                (inline, format!("inline script #{id}"))
+            }
         };
         CURRENT_SCRIPT.with(|c| c.set(id as i64));
         self.eval("__namedIds()", "named ids");

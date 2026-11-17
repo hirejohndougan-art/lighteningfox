@@ -223,7 +223,7 @@ impl<A: Clone> Menu<A> {
     }
 }
 
-fn fit(fonts: &Fonts, s: &str, size: f32, max: f32) -> String {
+pub fn fit(fonts: &Fonts, s: &str, size: f32, max: f32) -> String {
     if fonts.width(font::REGULAR, s, size) <= max {
         return s.to_string();
     }

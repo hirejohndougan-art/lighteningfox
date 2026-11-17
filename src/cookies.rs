@@ -1,9 +1,13 @@
 //! Cookies: parsing Set-Cookie, choosing which cookies go with a request, keeping
 //! them on disk between runs, and blocking third-party cookies.
 //!
-//! Privacy defaults: a cookie is only stored or sent when the request goes to the same
-//! site as the page you're on, so ad and tracking networks embedded in pages can't follow
-//! you from site to site. Set `IRONSWIFT_THIRD_PARTY_COOKIES=1` to allow them.
+//! Privacy defaults: cookies are partitioned. A site embedded in another site (an ad, a
+//! video player, a comment box) gets a separate cookie jar for each top-level site it's
+//! embedded in, so it can't follow you from site to site; only `SameSite=None` cookies are
+//! used there at all. Set `IRONSWIFT_THIRD_PARTY_COOKIES=1` (or the setting) for one shared jar.
+//!
+//! Per-site rules from settings: sites whose cookies are always allowed (one shared jar even
+//! when embedded), never allowed, or deleted when the browser closes.
 
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -22,6 +26,8 @@ pub struct Cookie {
     pub secure: bool,
     pub http_only: bool,
     pub same_site: SameSite,
+    /// For a cookie set by an embedded site: the top-level site whose jar it's in.
+    pub partition: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,15 +89,37 @@ fn site_of_url(url: &str) -> Option<String> {
     parts(url).map(|(_, h, _)| site_of(&h))
 }
 
-/// Whether cookies may flow for a request to `url` made by a page at `top`.
-pub fn allowed(url: &str, top: &str) -> bool {
-    if std::env::var("IRONSWIFT_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") || crate::settings::get().third_party_cookies {
-        return true;
+/// Which cookies a request to `url`, made for a page whose top-level page is `top`, may use.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Access {
+    /// None at all (a site you blocked).
+    Blocked,
+    /// The site's own, shared cookies.
+    Shared,
+    /// The jar this site has inside `top`'s site (an embedded third party).
+    Partitioned(String),
+}
+
+/// Does `host` fall under one of the listed sites (example.com covers www.example.com)?
+fn listed(host: &str, list: &[String]) -> bool {
+    list.iter().any(|d| domain_match(host, d))
+}
+
+pub fn access(url: &str, top: &str) -> Access {
+    let Some((_, host, _)) = parts(url) else { return Access::Blocked };
+    let s = crate::settings::get();
+    if listed(&host, &s.cookies_block) {
+        return Access::Blocked;
     }
-    match (site_of_url(url), site_of_url(top)) {
-        (Some(a), Some(b)) => a == b,
-        _ => false,
+    let top_site = site_of_url(top);
+    if top_site.as_deref() == Some(site_of(&host).as_str()) {
+        return Access::Shared;
     }
+    if std::env::var("IRONSWIFT_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") || s.third_party_cookies || listed(&host, &s.cookies_allow) {
+        return Access::Shared;
+    }
+    // A page that isn't on the web (a local file) gets one partition of its own.
+    Access::Partitioned(top_site.unwrap_or_else(|| "(local)".to_string()))
 }
 
 fn domain_match(host: &str, domain: &str) -> bool {
@@ -177,6 +205,7 @@ pub fn parse(header: &str, url: &str, from_script: bool) -> Option<Cookie> {
         secure: false,
         http_only: false,
         same_site: SameSite::Lax,
+        partition: None,
     };
     let mut max_age: Option<i64> = None;
     for attr in segs {
@@ -245,7 +274,7 @@ impl Jar {
 
     fn store(&mut self, c: Cookie, from_script: bool) {
         self.ensure_loaded();
-        let pos = self.cookies.iter().position(|o| o.name == c.name && o.domain == c.domain && o.path == c.path);
+        let pos = self.cookies.iter().position(|o| o.name == c.name && o.domain == c.domain && o.path == c.path && o.partition == c.partition);
         if let Some(i) = pos {
             // A script can't overwrite an HttpOnly cookie.
             if from_script && self.cookies[i].http_only {
@@ -288,8 +317,13 @@ impl Jar {
         }
     }
 
-    fn matching(&mut self, url: &str, for_script: bool) -> Vec<&Cookie> {
+    fn matching(&mut self, url: &str, for_script: bool, access: &Access) -> Vec<&Cookie> {
         self.ensure_loaded();
+        let partition = match access {
+            Access::Blocked => return Vec::new(),
+            Access::Shared => None,
+            Access::Partitioned(p) => Some(p.as_str()),
+        };
         let Some((scheme, host, path)) = parts(url) else { return Vec::new() };
         let t = now();
         let mut out: Vec<&Cookie> = self
@@ -301,6 +335,9 @@ impl Jar {
                     && (!c.secure || scheme == "https" || host == "localhost")
                     && c.expires.is_none_or(|e| e > t)
                     && !(for_script && c.http_only)
+                    && c.partition.as_deref() == partition
+                    // Embedded sites only see cookies meant for cross-site use.
+                    && (partition.is_none() || c.same_site == SameSite::None)
             })
             .collect();
         // Longer paths first, as browsers send them.
@@ -315,37 +352,99 @@ fn join(cookies: &[&Cookie]) -> String {
 
 /// The Cookie header for a request to `url` from a page at `top` (None = send nothing).
 pub fn header_for(url: &str, top: &str) -> Option<String> {
-    if !allowed(url, top) {
+    let access = access(url, top);
+    if access == Access::Blocked {
         return None;
     }
     let mut j = jar().lock().ok()?;
-    let h = join(&j.matching(url, false));
+    let h = join(&j.matching(url, false, &access));
     (!h.is_empty()).then_some(h)
+}
+
+/// Put a cookie in the jar `access` says it belongs to.
+fn place(mut c: Cookie, access: &Access) -> Option<Cookie> {
+    match access {
+        Access::Blocked => None,
+        Access::Shared => Some(c),
+        Access::Partitioned(p) => {
+            // Cross-site use needs SameSite=None (as in Chrome and Firefox).
+            if c.same_site != SameSite::None {
+                return None;
+            }
+            c.partition = Some(p.clone());
+            Some(c)
+        }
+    }
 }
 
 /// Store the Set-Cookie headers of a response to `url`, requested by a page at `top`.
 pub fn receive(url: &str, top: &str, headers: &[String]) {
-    if headers.is_empty() || !allowed(url, top) {
+    if headers.is_empty() {
+        return;
+    }
+    let access = access(url, top);
+    if access == Access::Blocked {
         return;
     }
     if let Ok(mut j) = jar().lock() {
         for h in headers {
-            if let Some(c) = parse(h, url, false) {
+            if let Some(c) = parse(h, url, false).and_then(|c| place(c, &access)) {
                 j.store(c, false);
             }
         }
     }
 }
 
-/// `document.cookie` for a page: every non-HttpOnly cookie that applies to it.
-pub fn script_get(url: &str) -> String {
-    jar().lock().map(|mut j| join(&j.matching(url, true))).unwrap_or_default()
+/// `document.cookie` for a page at `url` shown inside `top` (the same URL when not framed).
+pub fn script_get(url: &str, top: &str) -> String {
+    let access = access(url, top);
+    jar().lock().map(|mut j| join(&j.matching(url, true, &access))).unwrap_or_default()
 }
 
 /// `document.cookie = "…"` from a page's script.
-pub fn script_set(url: &str, s: &str) {
-    if let (Some(c), Ok(mut j)) = (parse(s, url, true), jar().lock()) {
+pub fn script_set(url: &str, top: &str, s: &str) {
+    let access = access(url, top);
+    if let (Some(c), Ok(mut j)) = (parse(s, url, true).and_then(|c| place(c, &access)), jar().lock()) {
         j.store(c, true);
+    }
+}
+
+/// Every site that has cookies, with how many (shared jar only; for about:settings).
+pub fn sites() -> Vec<(String, usize)> {
+    let mut out: Vec<(String, usize)> = Vec::new();
+    if let Ok(mut j) = jar().lock() {
+        j.ensure_loaded();
+        for c in &j.cookies {
+            let site = site_of(&c.domain);
+            match out.iter_mut().find(|(s, _)| *s == site) {
+                Some((_, n)) => *n += 1,
+                None => out.push((site, 1)),
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Delete one site's cookies (including its jars inside other sites).
+pub fn clear_site(site: &str) {
+    if let Ok(mut j) = jar().lock() {
+        j.ensure_loaded();
+        j.cookies.retain(|c| site_of(&c.domain) != site && c.partition.as_deref() != Some(site));
+        save_file(&j.cookies);
+    }
+}
+
+/// At exit: drop the cookies of sites set to "delete when Ironswift closes".
+pub fn clear_session_sites() {
+    let list = crate::settings::get().cookies_session;
+    if list.is_empty() {
+        return;
+    }
+    if let Ok(mut j) = jar().lock() {
+        j.ensure_loaded();
+        j.cookies.retain(|c| !listed(&c.domain, &list));
+        save_file(&j.cookies);
     }
 }
 
@@ -382,15 +481,16 @@ fn cookie_file() -> Option<std::path::PathBuf> {
 /// One cookie per line, tab-separated. Only cookies with an expiry date are kept.
 fn save_file(cookies: &[Cookie]) {
     let Some(path) = cookie_file() else { return };
-    let mut out = String::from("# Ironswift cookies: domain\thost_only\tpath\texpires\tsecure\thttp_only\tsame_site\tname\tvalue\n");
-    for c in cookies.iter().filter(|c| c.expires.is_some()) {
+    let mut out = String::from("# Ironswift cookies: domain\thost_only\tpath\texpires\tsecure\thttp_only\tsame_site\tname\tvalue\tpartition\n");
+    let session_sites = crate::settings::get().cookies_session;
+    for c in cookies.iter().filter(|c| c.expires.is_some() && !listed(&c.domain, &session_sites)) {
         let ss = match c.same_site {
             SameSite::Strict => "strict",
             SameSite::Lax => "lax",
             SameSite::None => "none",
         };
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             c.domain,
             c.host_only as u8,
             c.path,
@@ -399,7 +499,8 @@ fn save_file(cookies: &[Cookie]) {
             c.http_only as u8,
             ss,
             c.name.replace(['\t', '\n'], " "),
-            c.value.replace(['\t', '\n'], " ")
+            c.value.replace(['\t', '\n'], " "),
+            c.partition.as_deref().unwrap_or("")
         ));
     }
     if let Some(dir) = path.parent() {
@@ -423,8 +524,9 @@ fn load_file() -> Vec<Cookie> {
     text.lines()
         .filter(|l| !l.starts_with('#'))
         .filter_map(|l| {
-            let f: Vec<&str> = l.splitn(9, '\t').collect();
-            if f.len() != 9 {
+            // Files from before partitioning have 9 fields (no partition).
+            let f: Vec<&str> = l.splitn(10, '\t').collect();
+            if f.len() < 9 {
                 return None;
             }
             let expires: i64 = f[3].parse().ok()?;
@@ -442,6 +544,7 @@ fn load_file() -> Vec<Cookie> {
                 },
                 name: f[7].into(),
                 value: f[8].into(),
+                partition: f.get(9).filter(|p| !p.is_empty()).map(|p| p.to_string()),
             })
         })
         .collect()
@@ -469,17 +572,38 @@ mod tests {
         assert!(parse("x=1; Secure", "http://a.com/", false).is_none());
         assert_eq!(parse("x=1", "https://a.com/docs/page", false).unwrap().path, "/docs");
 
-        // Third-party blocking: same site is fine, other sites are not.
-        assert!(allowed("https://cdn.example.com/x.js", "https://www.example.com/"));
-        assert!(!allowed("https://tracker.ads.net/p.gif", "https://www.example.com/"));
+        // Same site shares the jar; an embedded site gets a jar per top-level site.
+        assert_eq!(access("https://cdn.example.com/x.js", "https://www.example.com/"), Access::Shared);
+        assert_eq!(access("https://tracker.ads.net/p.gif", "https://www.example.com/"), Access::Partitioned("example.com".into()));
 
         let mut j = Jar { cookies: Vec::new(), loaded: true };
         j.cookies.push(c);
         j.cookies.push(parse("theme=dark; Max-Age=60", "https://www.example.com/", false).unwrap());
         j.cookies.push(parse("deep=1; Path=/docs", "https://www.example.com/", false).unwrap());
-        assert_eq!(join(&j.matching("https://shop.example.com/", false)), "sid=abc");
-        assert_eq!(join(&j.matching("https://www.example.com/docs/a", false)), "deep=1; sid=abc; theme=dark");
-        assert_eq!(join(&j.matching("https://www.example.com/", true)), "theme=dark");
-        assert_eq!(join(&j.matching("http://www.example.com/", false)), "theme=dark");
+        let sh = Access::Shared;
+        assert_eq!(join(&j.matching("https://shop.example.com/", false, &sh)), "sid=abc");
+        assert_eq!(join(&j.matching("https://www.example.com/docs/a", false, &sh)), "deep=1; sid=abc; theme=dark");
+        assert_eq!(join(&j.matching("https://www.example.com/", true, &sh)), "theme=dark");
+        assert_eq!(join(&j.matching("http://www.example.com/", false, &sh)), "theme=dark");
+        // Nothing in a partition yet.
+        assert_eq!(join(&j.matching("https://www.example.com/", false, &Access::Partitioned("news.com".into()))), "");
+    }
+
+    #[test]
+    fn partitions() {
+        let mut j = Jar { cookies: Vec::new(), loaded: true };
+        let in_news = Access::Partitioned("news.com".into());
+        let in_shop = Access::Partitioned("shop.com".into());
+        // An embedded widget sets a cookie while on news.com: it lands in news.com's jar only.
+        let c = place(parse("uid=1; SameSite=None; Secure; Max-Age=60", "https://widget.io/", false).unwrap(), &in_news).unwrap();
+        j.cookies.push(c);
+        assert_eq!(join(&j.matching("https://widget.io/", false, &in_news)), "uid=1");
+        assert_eq!(join(&j.matching("https://widget.io/", false, &in_shop)), "", "another site's jar is separate");
+        assert_eq!(join(&j.matching("https://widget.io/", false, &Access::Shared)), "", "and so is the widget's own");
+        // Without SameSite=None a cookie isn't used across sites at all.
+        assert!(place(parse("lax=1", "https://widget.io/", false).unwrap(), &in_news).is_none());
+        // Per-site lists match subdomains.
+        assert!(listed("www.example.com", &["example.com".to_string()]));
+        assert!(!listed("badexample.com", &["example.com".to_string()]));
     }
 }

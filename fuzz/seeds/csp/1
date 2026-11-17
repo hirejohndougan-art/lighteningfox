@@ -1,0 +1,3 @@
+default-src 'self'; script-src 'nonce-abc' 'strict-dynamic' https: 'unsafe-inline'; img-src * data:
+https://cdn.example.com/a.js
+http://site.example:8080/x

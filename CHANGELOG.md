@@ -21,6 +21,24 @@ entry here, newest first.
 - Standard event dispatch (capture, target, bubble), mouse/keyboard/focus event classes,
   `window.<id>` named access, `template.content`.
 
+- **Security and privacy**:
+  - The same-origin policy is enforced by the browser for cookies, `localStorage`,
+    `fetch`/XHR and `pushState` (scripts could previously name another site's origin).
+  - Content Security Policy (headers and `<meta>`), `X-Frame-Options`, and `<iframe sandbox>`.
+  - Web pages can't open, frame or read local files, `about:` pages or `data:` documents.
+  - The browser runs under a seccomp system-call filter; cross-site iframes are drawn in
+    their own sandboxed process (seccomp, no programs, Landlock: no writes).
+  - Ad and tracker blocking with EasyList and EasyPrivacy (network and element-hiding
+    rules), kept up to date automatically; a warning before sites on malware and phishing
+    lists.
+  - Embedded sites get partitioned cookies and storage; per-site cookie rules (always
+    allow, block, delete on close) and a list of sites with cookies on about:settings.
+  - Permission prompts for camera, microphone, location and notifications, remembered per site.
+  - Fingerprinting: fixed screen size, processor count and fonts for scripts; canvas noise
+    ready for when `<canvas>` lands.
+  - Daily update checks; per-user installs update themselves (SHA-256 verified).
+  - Fuzz targets for the HTML, CSS, JavaScript, CSP and filter-list parsers.
+
 ### Changed
 - Renamed from LighteningFox to Ironswift.
 - The window prefers X11 (XWayland) over native Wayland for a reliable mouse pointer and keys.

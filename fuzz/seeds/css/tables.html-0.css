@@ -1,0 +1,9 @@
+
+  body { font-family: sans-serif; margin: 24px; color: #1f2937; }
+  table.data { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
+  .data caption { font-weight: bold; padding: 6px; color: #374151; }
+  .data th { background: #1f2937; color: white; padding: 8px 12px; text-align: left; }
+  .data td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+  .data tr.alt { background: #f3f4f6; }
+  .num { text-align: right; }
+  .total td { font-weight: bold; border-top: 2px solid #1f2937; }

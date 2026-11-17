@@ -207,7 +207,9 @@ pub struct Layout {
 
 /// The key an iframe's rendered document is stored under in `Images`.
 pub fn frame_key(dom: &Dom, id: NodeId) -> String {
-    match dom.attr(id, "srcdoc") {
+    // The same page framed with different sandbox flags can look different.
+    let sandbox = dom.attr(id, "sandbox").map(|s| format!(" sandbox={}", s.trim())).unwrap_or_default();
+    let key = match dom.attr(id, "srcdoc") {
         Some(doc) => {
             let mut h: u64 = 0xcbf29ce484222325;
             for b in doc.bytes() {
@@ -216,7 +218,8 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
             format!("iframe:srcdoc:{h:x}")
         }
         None => format!("iframe:{}", dom.attr(id, "src").unwrap_or("").trim()),
-    }
+    };
+    key + &sandbox
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {

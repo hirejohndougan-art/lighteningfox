@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Script timing</title>
+<style>body{font:16px sans-serif;margin:20px} li{margin:4px 0} .ok{color:#080} .bad{color:#b00}</style>
+<script defer src="data:text/javascript,log('5. defer script ran after parsing; footer present: ' + !!document.getElementById('footer'))"></script>
+</head>
+<body>
+<h1>Script timing</h1>
+<ol id="log"></ol>
+<script>
+function log(m) { var li = document.createElement('li'); li.textContent = m; document.getElementById('log').appendChild(li); }
+log('1. inline script ran; footer present yet: ' + !!document.getElementById('footer') + ' (should be false)');
+</script>
+<p id="middle">Middle paragraph.</p>
+<script>
+log('2. second script sees the paragraph above it: ' + !!document.getElementById('middle'));
+document.write('<p id="written">Written by <b>document.write</b>.</p>');
+log('3. readyState while parsing: ' + document.readyState);
+</script>
+<script>log('4. written paragraph comes before this script: ' + !!document.getElementById('written'));</script>
+<p id="footer">Footer.</p>
+<script>
+document.addEventListener('DOMContentLoaded', function () { log('6. DOMContentLoaded; readyState: ' + document.readyState); });
+</script>
+</body>
+</html>

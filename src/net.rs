@@ -6,22 +6,47 @@ pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Ironswift/0.1";
 
 /// Fetch something a page uses (stylesheet, script, image) as text. `page` is the page's URL,
 /// which decides whether cookies go along (only to the page's own site).
-pub fn fetch_sub(url: &str, page: &str) -> Result<(String, String), String> {
-    let r = load(url, None, Some(page))?;
+pub fn fetch_sub(url: &str, page: &str, dest: crate::security::Dest) -> Result<(String, String), String> {
+    fetch_sub_nonce(url, page, dest, None)
+}
+
+/// `fetch_sub` for an element with a `nonce` attribute (a nonce-approved script or style).
+pub fn fetch_sub_nonce(url: &str, page: &str, dest: crate::security::Dest, nonce: Option<&str>) -> Result<(String, String), String> {
+    let r = load_sub(url, page, dest, nonce)?;
     let text = decode_text(&r.body, r.header("content-type"));
     Ok((r.url, text))
 }
 
 /// Like `fetch_sub`, as raw bytes (images).
-pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), String> {
-    load(url, None, Some(page)).map(|r| (r.url, r.body))
+pub fn fetch_sub_bytes(url: &str, page: &str, dest: crate::security::Dest) -> Result<(String, Vec<u8>), String> {
+    load_sub(url, page, dest, None).map(|r| (r.url, r.body))
+}
+
+/// Load a piece of a page, after the page's Content Security Policy and the content
+/// blockers have had their say.
+fn load_sub(url: &str, page: &str, dest: crate::security::Dest, nonce: Option<&str>) -> Result<Response, String> {
+    let policy = crate::security::policy_for(page);
+    let url = match &policy {
+        Some(p) if p.csp.upgrade_insecure() && url.starts_with("http://") => format!("https://{}", &url[7..]),
+        _ => url.to_string(),
+    };
+    if let Some(p) = &policy {
+        if !p.csp.allows_url(dest, &url, nonce, true) {
+            return Err(format!("{url}: blocked by the page's Content Security Policy"));
+        }
+    }
+    if let Some(why) = crate::blocklist::blocked(&url, page, dest) {
+        return Err(format!("{url}: {why}"));
+    }
+    load(&url, None, Some(page))
 }
 
 /// What a navigation turned out to be.
 pub enum Navigated {
     /// Something to show: the final URL and the HTML for it.
     /// `xml`: an XHTML document (parsed as XML, not HTML).
-    Page { url: String, html: String, xml: bool },
+    /// `headers`: the response headers (for Content Security Policy and framing rules).
+    Page { url: String, html: String, xml: bool, headers: Vec<(String, String)> },
     /// A file being saved to the Downloads folder.
     Download { name: String },
 }
@@ -81,7 +106,7 @@ fn text_page(url: &str, text: &str) -> String {
 
 /// view-source: the page's HTML as text.
 pub fn source_page(url: &str) -> String {
-    match fetch_sub(url, url) {
+    match fetch_sub(url, url, crate::security::Dest::Other) {
         Ok((_, text)) => text_page(&format!("view-source:{url}"), &text),
         Err(e) => text_page(&format!("view-source:{url}"), &format!("Couldn't load {url}: {e}")),
     }
@@ -103,7 +128,7 @@ fn image_page(url: &str, content_type: &str, bytes: &[u8]) -> String {
 ///
 /// While a slow HTML page downloads, `partial(url, html_so_far)` is called now and then so the
 /// page can be shown before it has all arrived.
-pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str, &str)) -> Result<Navigated, String> {
+pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str, &str, &[(String, String)])) -> Result<Navigated, String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         // Local files and data: URLs: shown by type, never downloaded.
         let r = match post {
@@ -118,7 +143,7 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
             Kind::Download => return Err(format!("[type] {}: Ironswift can't show this kind of file", r.url)),
         };
         let xml = is_xhtml(&r.url, ct.as_deref());
-        return Ok(Navigated::Page { url: r.url, html, xml });
+        return Ok(Navigated::Page { url: r.url, html, xml, headers: Vec::new() });
     }
     let headers = match post {
         Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
@@ -164,7 +189,7 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
         // A slow page: show what's here so far (every half second at most).
         if kind == Kind::Html && started.elapsed() >= Duration::from_millis(300) && last_partial.is_none_or(|t| t.elapsed() >= Duration::from_millis(500)) {
             last_partial = Some(Instant::now());
-            partial(&final_url, &decode_html(&bytes, ct.as_deref()));
+            partial(&final_url, &decode_html(&bytes, ct.as_deref()), &st.headers);
         }
     }
     let html = match kind {
@@ -173,7 +198,7 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
         _ => text_page(&final_url, &decode_text(&bytes, ct.as_deref())),
     };
     let xml = kind == Kind::Html && is_xhtml(&final_url, ct.as_deref());
-    Ok(Navigated::Page { url: final_url, html, xml })
+    Ok(Navigated::Page { url: final_url, html, xml, headers: st.headers })
 }
 
 /// An XHTML document: served as application/xhtml+xml, or a local .xhtml/.xht file.
@@ -299,6 +324,12 @@ pub fn http(req: &Request) -> Result<Response, String> {
         return decode_data_url(rest).map(|b| Response { status: 200, status_text: "OK".into(), url: url.into(), headers: vec![("content-type".into(), ty)], body: b });
     }
     if !(url.starts_with("http://") || url.starts_with("https://")) {
+        if let Some(top) = req.top {
+            let as_file = if url.starts_with("file://") { url.to_string() } else { format!("file://{url}") };
+            if !crate::security::file_access_ok(top, &as_file) {
+                return Err(format!("{url}: blocked (pages can't read files outside their own folder)"));
+            }
+        }
         let path = url.strip_prefix("file://").unwrap_or(url);
         // The query and fragment aren't part of the file's name; keep them on the URL.
         let cut = path.find(['?', '#']).unwrap_or(path.len());
@@ -344,10 +375,16 @@ pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), Strin
     let mut method = req.method.to_ascii_uppercase();
     let mut body = req.body.map(<[u8]>::to_vec);
     let timeout = if req.top.is_none() && req.method.eq_ignore_ascii_case("GET") { 24 * 3600 } else { 30 };
+    // A document shown in a frame (and everything it loads) belongs to the top-level page's
+    // site for cookies.
+    let frame = crate::security::frame_info(req.top.unwrap_or(req.url));
     for _ in 0..20 {
         // HSTS hosts, and anything an HTTPS page loads, only over HTTPS.
         url = crate::hsts::upgrade(&url, req.top);
-        let first_party = req.top.unwrap_or(&url).to_string();
+        let first_party = match &frame {
+            Some(f) => f.top.clone(),
+            None => req.top.unwrap_or(&url).to_string(),
+        };
         let mut headers: Vec<(String, String)> = Vec::new();
         let accept = if req.top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" };
         headers.push(("Accept".into(), accept.into()));
@@ -379,6 +416,9 @@ pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), Strin
         if (300..400).contains(&status) && status != 304 {
             if let Some(loc) = resp.header("location") {
                 url = resolve(&url, loc.trim());
+                if let (Some(f), None) = (&frame, req.top) {
+                    crate::security::set_frame(&url, f.clone());
+                }
                 // 301/302/303 turn a POST into a GET; 307/308 repeat it.
                 if !matches!(status, 307 | 308) && method != "GET" && method != "HEAD" {
                     method = "GET".into();
@@ -425,7 +465,7 @@ fn guess_type(path: &str) -> &'static str {
 pub fn script_request(page: &str, method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, credentials: &str) -> Result<Response, String> {
     let page_origin = origin_of(page);
     let target_origin = origin_of(url);
-    let local_file = page.starts_with("file://") && url.starts_with("file://");
+    let local_file = page.starts_with("file://") && url.starts_with("file://") && crate::security::file_access_ok(page, url);
     let same = page_origin == target_origin && page_origin != "null" || local_file || url.starts_with("data:");
     if !same && !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err(format!("{url}: blocked (not allowed from this page)"));

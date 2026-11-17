@@ -1,0 +1,1 @@
+document.getElementById('p').textContent = 'Its own script ran: ' + (window.parent ? 'yes' : 'yes');

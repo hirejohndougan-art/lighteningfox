@@ -1,0 +1,1 @@
+log('4. written paragraph comes before this script: ' + !!document.getElementById('written'));

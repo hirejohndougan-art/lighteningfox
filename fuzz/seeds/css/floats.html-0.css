@@ -1,0 +1,12 @@
+
+  body { font-family: sans-serif; margin: 0; background: #fffdf8; color: #222; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+  .left { float: left; width: 160px; margin: 0 16px 8px 0; }
+  .right { float: right; width: 200px; margin: 0 0 8px 16px; background: #fef3c7; border: 1px solid #f59e0b; padding: 10px; border-radius: 8px; }
+  .clear { clear: both; }
+  .media { overflow: hidden; background: #eef2ff; padding: 12px; border-radius: 10px; margin-top: 16px; }
+  .media img { float: left; width: 64px; margin-right: 12px; }
+  .cols div { float: left; width: 33.33%; box-sizing: border-box; padding: 8px; }
+  .cols { overflow: hidden; margin-top: 16px; }
+  .cols div:first-child { background: #fee2e2; } 
+  .note { background: #ecfeff; border-left: 4px solid #06b6d4; padding: 8px 12px; }

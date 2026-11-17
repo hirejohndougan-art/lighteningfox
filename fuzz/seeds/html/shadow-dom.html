@@ -1,0 +1,43 @@
+<!DOCTYPE html><html><head><title>Shadow DOM</title>
+<style>
+body { font: 16px sans-serif; margin: 20px; }
+p { color: #b00; }            /* page rule: must NOT reach paragraphs inside shadow trees */
+.card { margin: 10px 0; }
+</style></head>
+<body>
+<h1>Shadow DOM</h1>
+<p>Page paragraph (red from the page's CSS).</p>
+
+<div class="card">
+  <template shadowrootmode="open">
+    <style>
+      :host { display: block; border: 2px solid #36c; border-radius: 8px; padding: 10px; background: #eef4ff; }
+      p { color: #060; margin: 4px 0; }
+      .title { font-weight: bold; color: #036; }
+    </style>
+    <div class="title"><slot name="title">Default title</slot></div>
+    <p>Declarative shadow tree (green from its own CSS, not red).</p>
+    <slot>No body given</slot>
+  </template>
+  <span slot="title">Card from markup</span>
+  <span>Light text placed in the default slot.</span>
+</div>
+
+<div class="card" id="js-host"><span>Slotted by script</span></div>
+<div class="card" id="fallback-host"></div>
+<p id="report">report</p>
+<script>
+const root = document.getElementById('js-host').attachShadow({ mode: 'open' });
+root.innerHTML = '<style>:host{display:block;border:2px dashed #a50;padding:10px;background:#fff6e8} p{color:#a50;margin:0}</style><p>attachShadow() tree: <slot></slot></p>';
+const fb = document.getElementById('fallback-host').attachShadow({ mode: 'closed' });
+fb.innerHTML = '<style>:host{display:block;padding:8px;border:1px solid #999}</style><slot>Fallback content (nothing slotted)</slot>';
+const r = [];
+r.push('shadowRoot open: ' + (document.getElementById('js-host').shadowRoot === root));
+r.push('closed hidden: ' + (document.getElementById('fallback-host').shadowRoot === null));
+r.push('host: ' + (root.host.id));
+r.push('mode: ' + root.mode);
+r.push('declarative: ' + !!document.querySelector('.card').shadowRoot);
+r.push('page query cannot see shadow: ' + (document.querySelector('.title') === null));
+document.getElementById('report').textContent = r.join(' | ');
+</script>
+</body></html>

@@ -1,0 +1,7 @@
+
+  body { font-family: sans-serif; margin: 20px; color: #1e293b; }
+  nav button { margin-right: 6px; padding: 6px 12px; }
+  #view { margin: 16px 0; padding: 16px; border-radius: 8px; background: #eef2ff; font-size: 18px; }
+  #log { font-size: 13px; color: #475569; white-space: pre; font-family: monospace; }
+  .spacer { height: 1400px; background: linear-gradient(#fff, #f1f5f9); }
+  #bottom { background: #fef3c7; padding: 12px; }

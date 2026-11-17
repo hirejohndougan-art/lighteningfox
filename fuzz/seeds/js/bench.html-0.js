@@ -1,0 +1,76 @@
+
+// Baseline workloads for measuring (and later optimizing) Boa inside Ironswift.
+const out = document.getElementById("results");
+function bench(name, fn) {
+  const t = Date.now();
+  const r = fn();
+  const ms = Date.now() - t;
+  console.log(name + ": " + ms + " ms");
+  const li = document.createElement("li");
+  li.textContent = name + ": " + ms + " ms";
+  out.appendChild(li);
+  return r;
+}
+
+bench("fib(25) recursion", () => { const f = (n) => (n < 2 ? n : f(n - 1) + f(n - 2)); return f(25); });
+bench("1M-iteration loop", () => { let s = 0; for (let i = 0; i < 1e6; i++) s += i % 7; return s; });
+bench("string building 50k", () => { let s = ""; for (let i = 0; i < 50000; i++) s += "x"; return s.length; });
+bench("array map/filter 200k", () =>
+  Array.from({ length: 200000 }, (_, i) => i).map((x) => x * 2).filter((x) => x % 3 === 0).length);
+bench("object property churn 200k", () => {
+  const o = {};
+  for (let i = 0; i < 200000; i++) o["k" + (i % 1000)] = i;
+  return Object.keys(o).length;
+});
+bench("JSON round trip", () => {
+  const data = Array.from({ length: 5000 }, (_, i) => ({ id: i, name: "item" + i, tags: ["a", "b"] }));
+  return JSON.parse(JSON.stringify(data)).length;
+});
+bench("regex 20k matches", () => {
+  const re = /(\w+)@(\w+)\.com/;
+  let n = 0;
+  for (let i = 0; i < 20000; i++) if (re.test("user" + i + "@site.com")) n++;
+  return n;
+});
+bench("DOM: create+append 2000 nodes", () => {
+  const s = document.getElementById("scratch");
+  for (let i = 0; i < 2000; i++) {
+    const d = document.createElement("div");
+    d.className = "row";
+    d.textContent = "row " + i;
+    s.appendChild(d);
+  }
+  return s.children.length;
+});
+bench("DOM: querySelectorAll x200", () => {
+  let n = 0;
+  for (let i = 0; i < 200; i++) n += document.querySelectorAll(".row").length;
+  return n;
+});
+bench("DOM: innerHTML 500 items", () => {
+  const s = document.getElementById("scratch");
+  s.innerHTML = Array.from({ length: 500 }, (_, i) => "<p class=r>p" + i + "</p>").join("");
+  return s.children.length;
+});
+bench("DOM: getElementById x20k", () => {
+  const s = document.getElementById("scratch");
+  s.innerHTML = Array.from({ length: 3000 }, (_, i) => "<div id=e" + i + " class='c c" + (i % 10) + "'><span>x</span></div>").join("");
+  let n = 0;
+  for (let i = 0; i < 20000; i++) if (document.getElementById("e" + (i % 3000))) n++;
+  return n;
+});
+bench("DOM: querySelector('#id') x5k", () => {
+  let n = 0;
+  for (let i = 0; i < 5000; i++) if (document.querySelector("#e" + (i % 3000))) n++;
+  return n;
+});
+bench("DOM: querySelector first match x5k", () => {
+  let n = 0;
+  for (let i = 0; i < 5000; i++) if (document.querySelector(".c3 span")) n++;
+  return n;
+});
+bench("DOM: getElementsByClassName x300", () => {
+  let n = 0;
+  for (let i = 0; i < 300; i++) n += document.getElementsByClassName("c7").length;
+  return n;
+});

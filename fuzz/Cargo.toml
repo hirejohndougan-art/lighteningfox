@@ -1,0 +1,54 @@
+[package]
+name = "ironswift-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+boa_engine = "0.22"
+url = "2.5"
+base64 = "0.22"
+sha2 = "0.10"
+
+# Not part of any workspace above.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "html"
+path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "css"
+path = "fuzz_targets/css.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "js"
+path = "fuzz_targets/js.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "csp"
+path = "fuzz_targets/csp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filters"
+path = "fuzz_targets/filters.rs"
+test = false
+doc = false
+bench = false

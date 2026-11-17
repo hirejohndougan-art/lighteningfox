@@ -1,0 +1,10 @@
+
+  body { margin: 0; font-family: sans-serif; color: #1e293b; }
+  header { position: sticky; top: 0; background: #1e293b; color: white; padding: 12px 20px; z-index: 10; }
+  .wrap { display: flex; gap: 20px; padding: 20px; align-items: flex-start; }
+  aside { position: sticky; top: 60px; width: 180px; background: #e0e7ff; padding: 12px; border-radius: 8px; }
+  main { flex: 1; }
+  section { margin-bottom: 20px; }
+  h2 { position: sticky; top: 46px; background: #fef3c7; margin: 0; padding: 8px 10px; border-radius: 6px; }
+  p { line-height: 1.6; }
+  a { color: #4f46e5; }

@@ -205,7 +205,9 @@
         try { if (prop.call(this, ev) === false) ev.preventDefault(); } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); }
       } else if (this.getAttribute && this.getAttribute("on" + ev.type)) {
         try {
-          const f = new Function("event", this.getAttribute("on" + ev.type));
+          const code = this.getAttribute("on" + ev.type);
+          if (!__cspInline("attr", code)) return;
+          const f = new Function("event", code);
           if (f.call(this, ev) === false) ev.preventDefault();
         } catch (e) { console.error(String(e)); }
       }
@@ -1569,4 +1571,93 @@
     Object.defineProperty(g, name, { get: () => (i === 2 ? vp()[2] : Math.round(vp()[i])), configurable: true });
   }
   Object.defineProperty(g, "outerHeight", { get: () => Math.round(vp()[1]) + 80, configurable: true });
+
+  // ------------------------------------------------------------ permissions
+  // Location, notifications, camera and microphone ask first: the browser shows a prompt and
+  // remembers the answer per site. (Only secure top-level pages can ask at all.)
+  const permWaiters = new Map();
+  let permSeq = 0;
+  function permAsk(kind) {
+    const st = __permState(kind);
+    if (st !== "prompt") return Promise.resolve(st === "granted");
+    return new Promise((res) => {
+      const id = ++permSeq;
+      permWaiters.set(id, res);
+      if (!__permRequest(id, kind)) { permWaiters.delete(id); res(false); }
+    });
+  }
+  g.__permDone = function (id, granted) {
+    const r = permWaiters.get(id);
+    permWaiters.delete(id);
+    if (r) r(!!granted);
+  };
+  const stateOf = (kind) => { const s = __permState(kind); return s; };
+  class PermissionStatus extends EventTarget {
+    constructor(name) { super(); this.name = name; this.onchange = null; }
+    get state() { return stateOf(this.name); }
+  }
+  navigator.permissions = {
+    query(desc) {
+      const name = desc && desc.name;
+      if (!["geolocation", "notifications", "camera", "microphone"].includes(name)) {
+        return Promise.reject(new TypeError("The permission '" + name + "' isn't supported"));
+      }
+      return Promise.resolve(new PermissionStatus(name));
+    },
+  };
+  // Location: asked for, but Ironswift has no location service yet, so an allowed request
+  // reports "position unavailable" (code 2) rather than a made-up place.
+  class GeolocationPositionError { constructor(code, message) { this.code = code; this.message = message; } }
+  GeolocationPositionError.PERMISSION_DENIED = 1; GeolocationPositionError.POSITION_UNAVAILABLE = 2; GeolocationPositionError.TIMEOUT = 3;
+  let watchSeq = 0;
+  const locate = (ok, err) => {
+    permAsk("geolocation").then((granted) => {
+      if (typeof err !== "function") return;
+      err(granted ? new GeolocationPositionError(2, "No location service is available")
+                  : new GeolocationPositionError(1, "User denied Geolocation"));
+    });
+  };
+  navigator.geolocation = {
+    getCurrentPosition(ok, err) { locate(ok, err); },
+    watchPosition(ok, err) { locate(ok, err); return ++watchSeq; },
+    clearWatch() {},
+  };
+  // Notifications: shown on the desktop once the site is allowed.
+  class Notification extends EventTarget {
+    constructor(title, opts) {
+      super();
+      opts = opts || {};
+      this.title = String(title); this.body = String(opts.body || ""); this.tag = opts.tag || ""; this.data = opts.data;
+      this.onclick = this.onshow = this.onclose = this.onerror = null;
+      const shown = __notify(this.title, this.body);
+      setTimeout(() => this.__fire(new Event(shown ? "show" : "error")), 0);
+    }
+    static get permission() { const s = stateOf("notifications"); return s === "prompt" ? "default" : s; }
+    static requestPermission(cb) {
+      return permAsk("notifications").then((granted) => {
+        const r = granted ? "granted" : "denied";
+        if (typeof cb === "function") cb(r);
+        return r;
+      });
+    }
+    close() {}
+  }
+  g.Notification = Notification;
+  // Camera and microphone: asked for; Ironswift can't capture video or sound yet, so an
+  // allowed request fails with NotReadableError.
+  navigator.mediaDevices = {
+    getUserMedia(c) {
+      c = c || {};
+      const kinds = [];
+      if (c.video) kinds.push("camera");
+      if (c.audio) kinds.push("microphone");
+      if (!kinds.length) return Promise.reject(new TypeError("getUserMedia needs audio or video"));
+      return kinds.reduce((p, k) => p.then((all) => permAsk(k).then((ok) => all && ok)), Promise.resolve(true)).then((ok) => {
+        if (!ok) throw new DOMException("Permission denied", "NotAllowedError");
+        throw new DOMException("Ironswift can't use cameras or microphones yet", "NotReadableError");
+      });
+    },
+    enumerateDevices() { return Promise.resolve([]); },
+    addEventListener() {}, removeEventListener() {},
+  };
 })();

@@ -28,6 +28,25 @@ pub struct Settings {
     pub min_font_size: u32,
     /// Tell sites to keep animation to a minimum (prefers-reduced-motion: reduce).
     pub reduce_motion: bool,
+    /// Block ads (EasyList) and trackers (EasyPrivacy).
+    pub block_ads: bool,
+    pub block_trackers: bool,
+    /// Warn before opening sites on malware and phishing lists.
+    pub safe_browsing: bool,
+    /// Sites where ad and tracker blocking is turned off.
+    pub no_blocking: Vec<String>,
+    /// Give scripts the same answers most browsers give (screen size, fonts…) and add noise to
+    /// canvas readouts, so sites can't single you out by your computer's details.
+    pub resist_fingerprinting: bool,
+    /// Per-site cookie rules (sites, e.g. example.com):
+    /// always allowed (even when embedded in other sites)…
+    pub cookies_allow: Vec<String>,
+    /// …never stored or sent…
+    pub cookies_block: Vec<String>,
+    /// …or kept only until Ironswift closes.
+    pub cookies_session: Vec<String>,
+    /// Check for a new version of Ironswift once a day.
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -47,6 +66,15 @@ impl Default for Settings {
             clear_on_exit: false,
             min_font_size: 0,
             reduce_motion: false,
+            block_ads: true,
+            block_trackers: true,
+            safe_browsing: true,
+            no_blocking: Vec::new(),
+            resist_fingerprinting: true,
+            cookies_allow: Vec::new(),
+            cookies_block: Vec::new(),
+            cookies_session: Vec::new(),
+            check_updates: true,
         }
     }
 }
@@ -97,8 +125,53 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "clear_on_exit" => s.clear_on_exit = on(v),
         "reduce_motion" => s.reduce_motion = on(v),
         "min_font_size" => s.min_font_size = v.trim().parse().unwrap_or(s.min_font_size).min(40),
+        "block_ads" => s.block_ads = on(v),
+        "block_trackers" => s.block_trackers = on(v),
+        "safe_browsing" => s.safe_browsing = on(v),
+        "resist_fingerprinting" => s.resist_fingerprinting = on(v),
+        "check_updates" => s.check_updates = on(v),
+        "no_blocking" => s.no_blocking = site_list(v),
+        "cookies_allow" => s.cookies_allow = site_list(v),
+        "cookies_block" => s.cookies_block = site_list(v),
+        "cookies_session" => s.cookies_session = site_list(v),
         _ => {}
     }
+}
+
+/// "example.com, https://www.news.org/page" -> ["example.com", "www.news.org"]
+fn site_list(v: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for item in v.split(|c: char| c.is_whitespace() || c == ',' || c == ';').filter(|x| !x.is_empty()) {
+        let host = match item.split_once("://") {
+            Some((_, rest)) => rest,
+            None => item,
+        };
+        let host = host.split(['/', '?', '#', ':']).next().unwrap_or("").trim_start_matches("*.").trim_start_matches('.').to_ascii_lowercase();
+        if host.contains('.') || host == "localhost" {
+            if !out.contains(&host) {
+                out.push(host);
+            }
+        }
+    }
+    out
+}
+
+/// Add or remove a site from one of the per-site lists, and save.
+pub fn set_site_rule(list: &str, site: &str, add: bool) {
+    let Ok(mut w) = store().write() else { return };
+    let mut s = w.clone();
+    for (name, l) in [("no_blocking", &mut s.no_blocking), ("cookies_allow", &mut s.cookies_allow), ("cookies_block", &mut s.cookies_block), ("cookies_session", &mut s.cookies_session)] {
+        // A site has one cookie rule at a time.
+        if name == list || (list.starts_with("cookies_") && name.starts_with("cookies_")) {
+            l.retain(|x| x != site);
+        }
+        if name == list && add {
+            l.push(site.to_string());
+        }
+    }
+    *w = s.clone();
+    drop(w);
+    save(&s);
 }
 
 pub fn get() -> Settings {
@@ -111,7 +184,7 @@ fn save(s: &Settings) {
         let _ = std::fs::create_dir_all(dir);
     }
     let b = |v: bool| if v { "1" } else { "0" };
-    let body = format!(
+    let mut body = format!(
         "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\nproxy_mode\t{}\nproxy_url\t{}\nclear_on_exit\t{}\nmin_font_size\t{}\nreduce_motion\t{}\n",
         s.home.replace(['\t', '\n'], " "),
         s.search,
@@ -128,6 +201,18 @@ fn save(s: &Settings) {
         s.min_font_size,
         b(s.reduce_motion)
     );
+    body.push_str(&format!(
+        "block_ads\t{}\nblock_trackers\t{}\nsafe_browsing\t{}\nresist_fingerprinting\t{}\ncheck_updates\t{}\nno_blocking\t{}\ncookies_allow\t{}\ncookies_block\t{}\ncookies_session\t{}\n",
+        b(s.block_ads),
+        b(s.block_trackers),
+        b(s.safe_browsing),
+        b(s.resist_fingerprinting),
+        b(s.check_updates),
+        s.no_blocking.join(" "),
+        s.cookies_allow.join(" "),
+        s.cookies_block.join(" "),
+        s.cookies_session.join(" ")
+    ));
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
         let _ = std::fs::rename(&tmp, &p);
@@ -164,6 +249,40 @@ fn make_default() -> String {
     }
 }
 
+/// One row per site with cookies: its rule and links to change it.
+fn cookie_rows(s: &Settings) -> String {
+    let rule = |site: &str| {
+        let has = |l: &[String]| l.iter().any(|d| d == site);
+        if has(&s.cookies_block) {
+            "blocked"
+        } else if has(&s.cookies_allow) {
+            "always allowed"
+        } else if has(&s.cookies_session) {
+            "deleted on close"
+        } else {
+            ""
+        }
+    };
+    crate::cookies::sites()
+        .iter()
+        .take(300)
+        .map(|(site, n)| {
+            let e = esc(site);
+            let link = |what: &str, label: &str| format!("<a href=\"about:settings?cookie_site={e}&do={what}\">{label}</a>");
+            format!(
+                "<tr><td><b>{e}</b></td><td>{n} cookie{}</td><td>{}</td><td>{} · {} · {} · {} · {}</td></tr>",
+                if *n == 1 { "" } else { "s" },
+                rule(site),
+                link("delete", "Delete"),
+                link("allow", "Always allow"),
+                link("block", "Block"),
+                link("session", "Delete on close"),
+                link("default", "Normal")
+            )
+        })
+        .collect()
+}
+
 /// The search URL for a query, with the chosen engine.
 pub fn search_url(query_encoded: &str) -> String {
     let key = get().search;
@@ -187,6 +306,51 @@ pub fn page(query: &str) -> String {
         }
         "clear_data" => cleared = format!("<p class=\"saved\">{}</p>", clear_data(true)),
         "default_browser" => cleared = format!("<p class=\"saved\">{}</p>", make_default()),
+        "update_lists" => cleared = format!("<p class=\"saved\">{}</p>", esc(&crate::blocklist::update_now(true))),
+        "check_update" => cleared = format!("<p class=\"saved\">{}</p>", esc(&crate::updates::check_now())),
+        q if q.starts_with("cookie_site=") => {
+            // cookie_site=<site>&do=delete|allow|block|session|default
+            let mut site = String::new();
+            let mut what = String::new();
+            for pair in q.split('&') {
+                match pair.split_once('=') {
+                    Some(("cookie_site", v)) => site = crate::net::percent_decode_str(v).to_ascii_lowercase(),
+                    Some(("do", v)) => what = v.to_string(),
+                    _ => {}
+                }
+            }
+            let msg = match what.as_str() {
+                "delete" => {
+                    crate::cookies::clear_site(&site);
+                    format!("Cookies from {site} deleted.")
+                }
+                "allow" => {
+                    set_site_rule("cookies_allow", &site, true);
+                    format!("{site} may always use cookies.")
+                }
+                "block" => {
+                    set_site_rule("cookies_block", &site, true);
+                    crate::cookies::clear_site(&site);
+                    format!("{site} can't use cookies any more (its cookies were deleted).")
+                }
+                "session" => {
+                    set_site_rule("cookies_session", &site, true);
+                    format!("{site}'s cookies will be deleted when Ironswift closes.")
+                }
+                _ => {
+                    set_site_rule("cookies_allow", &site, false);
+                    format!("{site} uses the normal cookie rules.")
+                }
+            };
+            if !site.is_empty() {
+                cleared = format!("<p class=\"saved\">{}</p>", esc(&msg));
+            }
+        }
+        q if q.starts_with("forget_permission=") => {
+            let site = crate::net::percent_decode_str(&q["forget_permission=".len()..]);
+            crate::permissions::forget(&site);
+            cleared = format!("<p class=\"saved\">Permissions for {} reset.</p>", esc(&site));
+        }
         _ => {}
     }
     if query.contains("save=1") {
@@ -200,6 +364,11 @@ pub fn page(query: &str) -> String {
         s.use_gpu = false;
         s.clear_on_exit = false;
         s.reduce_motion = false;
+        s.block_ads = false;
+        s.block_trackers = false;
+        s.safe_browsing = false;
+        s.resist_fingerprinting = false;
+        s.check_updates = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -210,6 +379,7 @@ pub fn page(query: &str) -> String {
             *w = s.clone();
         }
         save(&s);
+        crate::blocklist::reload();
         saved = true;
     }
     let s = get();
@@ -227,6 +397,7 @@ h2{{font-size:17px;margin:0 0 10px}} .row{{margin:10px 0}} label{{display:block}
 .hint{{color:#64748b;font-size:13px;margin:2px 0 0 24px}} .field label{{margin-bottom:4px;font-weight:600}}
 input[type=text],input[type=number],select{{font-size:14px;padding:5px 8px}} input[type=text]{{width:420px}}
 .saved{{background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px}}
+table.sites{{border-collapse:collapse;margin:8px 0;font-size:13px}} table.sites td{{padding:3px 10px 3px 0}}
 button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:15px}}
 </style></head><body>
 <h1>Settings</h1><p class="sub">Saved on this computer only.</p>{saved}{cleared}
@@ -243,12 +414,30 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> Draw with the graphics card</label><p class="hint">Smoother scrolling and less work for the processor; the graphics driver uses about 40–70 MB more memory. Takes effect the next time Ironswift starts.</p></div>
 </section>
 <section><h2>Privacy</h2>
-<div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> Allow third-party cookies</label><p class="hint">Off by default: sites embedded in other sites (ad and tracking networks) get no cookies.</p></div>
+<div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> Share cookies with embedded sites</label><p class="hint">Off by default: a site embedded in other sites (an ad or tracking network, a video player) gets a separate cookie jar on each site, so it can't follow you around.</p></div>
 <div class="row"><label><input type="checkbox" name="strip_tracking" value="1"{strip}> Remove tracking tags from links</label><p class="hint">utm_source, fbclid, gclid and similar.</p></div>
 <div class="row"><label><input type="checkbox" name="send_gpc" value="1"{gpc}> Send Global Privacy Control</label><p class="hint">Asks sites not to sell or share your data.</p></div>
 <div class="row"><label><input type="checkbox" name="clear_on_exit" value="1"{clear_exit}> Delete cookies and site data when Ironswift closes</label><p class="hint">Signs you out of sites each time; history and bookmarks are kept.</p></div>
+<div class="row field"><label>Always allow cookies from these sites</label><textarea name="cookies_allow" rows="2" cols="60" placeholder="example.com">{ck_allow}</textarea><p class="hint" style="margin-left:0">Even when they're embedded in other sites (for sign-in or comment boxes that need them).</p></div>
+<div class="row field"><label>Never allow cookies from these sites</label><textarea name="cookies_block" rows="2" cols="60">{ck_block}</textarea></div>
+<div class="row field"><label>Delete these sites' cookies when Ironswift closes</label><textarea name="cookies_session" rows="2" cols="60">{ck_session}</textarea></div>
+<p class="hint" style="margin-left:0">Other sites embedded in a page get their own separate cookie jar for that page, so they can't follow you from site to site.</p>
+<details><summary>Sites with cookies ({cookie_count})</summary><table class="sites">{cookie_rows}</table></details>
 <div class="row"><a href="about:settings?clear_data">Clear browsing data now</a> <span class="hint">History, cookies, site data and cached files. Bookmarks and settings stay.</span></div>
 <p class="hint" style="margin-left:0">For browsing that keeps nothing at all, open a private window with Ctrl+Shift+N.</p>
+</section>
+<section><h2>Blocking and safety</h2>
+<div class="row"><label><input type="checkbox" name="block_ads" value="1"{blk_ads}> Block ads</label><p class="hint">EasyList: ad requests are stopped and empty ad boxes hidden. Pages load faster.</p></div>
+<div class="row"><label><input type="checkbox" name="block_trackers" value="1"{blk_trk}> Block trackers</label><p class="hint">EasyPrivacy: analytics, tracking pixels and fingerprinting scripts.</p></div>
+<div class="row field"><label>Turn blocking off on these sites</label><textarea name="no_blocking" rows="2" cols="60" placeholder="example.com">{no_blk}</textarea></div>
+<div class="row"><label><input type="checkbox" name="safe_browsing" value="1"{safe}> Warn me before dangerous sites</label><p class="hint">Sites on the URLhaus malware list and the Phishing Army list. The check happens on this computer; nothing is sent anywhere.</p></div>
+<div class="row"><label><input type="checkbox" name="resist_fingerprinting" value="1"{rfp}> Resist fingerprinting</label><p class="hint">Sites see a common screen size, the standard fonts and slightly varied canvas readouts, so they can't recognize your computer by its details.</p></div>
+<p class="hint" style="margin-left:0">{lists} · <a href="about:settings?update_lists">Update lists now</a></p>
+<p class="hint" style="margin-left:0">Camera, microphone, location and notifications: sites ask first. {perms}</p>
+</section>
+<section><h2>Updates</h2>
+<div class="row"><label><input type="checkbox" name="check_updates" value="1"{chk_upd}> Check for new versions once a day</label><p class="hint">{upd_status}</p></div>
+<div class="row"><a href="about:settings?check_update">Check now</a></div>
 </section>
 <section><h2>Appearance</h2>
 <div class="row field"><label>Minimum font size (px, 0 = none)</label><input type="number" name="min_font_size" value="{min_font}" min="0" max="40"></div>
@@ -287,5 +476,19 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         gpc = check(s.send_gpc),
         bmbar = check(s.show_bookmarks_bar),
         gpu_on = check(s.use_gpu),
+        cookie_count = crate::cookies::sites().len(),
+        cookie_rows = cookie_rows(&s),
+        ck_allow = esc(&s.cookies_allow.join("\n")),
+        ck_block = esc(&s.cookies_block.join("\n")),
+        ck_session = esc(&s.cookies_session.join("\n")),
+        blk_ads = check(s.block_ads),
+        blk_trk = check(s.block_trackers),
+        no_blk = esc(&s.no_blocking.join("\n")),
+        safe = check(s.safe_browsing),
+        rfp = check(s.resist_fingerprinting),
+        lists = esc(&crate::blocklist::status()),
+        perms = crate::permissions::settings_html(),
+        chk_upd = check(s.check_updates),
+        upd_status = esc(&crate::updates::status()),
     )
 }

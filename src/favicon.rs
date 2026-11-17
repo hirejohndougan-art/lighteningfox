@@ -65,7 +65,7 @@ pub fn get(url: &str, page_url: &str) -> Option<Icon> {
     }
     let (url, page) = (url.to_string(), page_url.to_string());
     std::thread::spawn(move || {
-        let icon = crate::net::fetch_sub_bytes(&url, &page).ok().and_then(|(_, bytes)| decode(&bytes));
+        let icon = crate::net::fetch_sub_bytes(&url, &page, crate::security::Dest::Image).ok().and_then(|(_, bytes)| decode(&bytes));
         if let Some(icon) = icon {
             cache().lock().unwrap().insert(url, Some(icon));
             ARRIVED.store(true, Ordering::Relaxed);

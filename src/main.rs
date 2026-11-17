@@ -43,6 +43,11 @@ mod entities;
 mod conformance;
 mod crashlog;
 mod settings;
+mod security;
+mod blocklist;
+mod permissions;
+mod updates;
+mod sandbox;
 mod tiles;
 #[cfg(feature = "gpu")]
 mod gpu;
@@ -462,6 +467,8 @@ struct Prepared {
     xml: bool,
     /// The navigation turned out to be a download: there is no page to show.
     download: bool,
+    /// The page's Content Security Policy and framing rules.
+    policy: std::sync::Arc<security::PagePolicy>,
 }
 
 /// A downloaded @font-face font. `data` is None when an earlier page already loaded it.
@@ -515,7 +522,7 @@ fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url
                     let data = if skip {
                         None
                     } else {
-                        match net::fetch_sub_bytes(url, page_url) {
+                        match net::fetch_sub_bytes(url, page_url, security::Dest::Font) {
                             Ok((_, b)) => decode_font(b),
                             Err(e) => {
                                 log!("[font] {url}: {e}");
@@ -569,6 +576,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
 /// `fetch_page`, also handing over previews of a slow page while it downloads.
 fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepared)) -> Prepared {
     let mut xml = false;
+    let mut headers: Vec<(String, String)> = Vec::new();
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), start_page())
     } else if url == "about:blank" {
@@ -592,22 +600,31 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
         (url.to_string(), net::source_page(t))
     } else if let Some(q) = url.strip_prefix("about:bookmarks") {
         ("about:bookmarks".to_string(), library::bookmarks_page(q))
+    } else if let Some(q) = url.strip_prefix("about:blocked?proceed=") {
+        // "Visit this site anyway" on the dangerous-site warning.
+        let target = net::percent_decode_str(q);
+        blocklist::proceed(&target);
+        return fetch_page_with(&target, None, preview);
+    } else if blocklist::dangerous(url) {
+        log!("[safe browsing] {url} is on a malware or phishing list");
+        (format!("about:blocked?url={}", url), blocklist::warning_page(url))
     } else {
         let target = if post.is_some() { url.to_string() } else { net::strip_tracking(url) };
-        let mut on_partial = |u: &str, html: &str| {
-            let mut p = prepare(u.to_string(), html.to_string(), false, false);
+        let mut on_partial = |u: &str, html: &str, h: &[(String, String)]| {
+            let mut p = prepare(u.to_string(), html.to_string(), false, false, h);
             p.partial = true;
             preview(p);
         };
         match net::navigate_with(&target, post, &mut on_partial) {
-            Ok(net::Navigated::Page { url, html, xml: x }) => {
+            Ok(net::Navigated::Page { url, html, xml: x, headers: h }) => {
                 xml = x;
+                headers = h;
                 (url, html)
             }
             // A file being saved: the tab stays on the page it was showing.
             Ok(net::Navigated::Download { name }) => {
                 log!("[download] saving {name}");
-                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), partial: false, xml: false, download: true };
+                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), partial: false, xml: false, download: true, policy: Default::default() };
             }
             Err(e) => {
                 log!("[net] couldn't load {url}: {e}");
@@ -615,44 +632,76 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
             }
         }
     };
-    prepare(final_url, body, true, xml)
+    prepare(final_url, body, true, xml, &headers)
 }
 
 /// Parse a page and fetch what it needs: stylesheets and scripts, and with `full`, images
 /// and web fonts too (a preview of a half-downloaded page skips those).
-fn prepare(final_url: String, body: String, full: bool, xml: bool) -> Prepared {
+fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(String, String)]) -> Prepared {
     let parse_t = Instant::now();
     let dom = if xml { treebuilder::parse_xml(&body) } else { html::parse(&body) };
     if std::env::var("IRONSWIFT_PARSE_TIME").is_ok() {
         eprintln!("parse: {:?} for {} bytes", parse_t.elapsed(), body.len());
     }
 
+    // The page's security policy: CSP from headers and <meta http-equiv>, framing rules, and
+    // the sandbox of the frame it's shown in. Registered before anything else is fetched, so
+    // every request the page makes is checked against it.
+    let meta_csp: Vec<String> = dom
+        .find_all("meta")
+        .into_iter()
+        .filter(|&m| dom.attr(m, "http-equiv").is_some_and(|v| v.trim().eq_ignore_ascii_case("content-security-policy")))
+        .filter_map(|m| dom.attr(m, "content").map(String::from))
+        .collect();
+    let mut policy = security::PagePolicy::from_headers(&final_url, headers, &meta_csp);
+    if let Some(f) = security::frame_info(&final_url) {
+        policy.sandbox = match (f.sandbox, policy.sandbox.take()) {
+            (Some(a), Some(b)) => Some(a.and(&b)),
+            (a, b) => a.or(b),
+        };
+    }
+    let policy = std::sync::Arc::new(policy);
+    security::register(&final_url, policy.clone());
+    let csp = &policy.csp;
+
     // Stylesheets: inline ones in place, external ones fetched in parallel, order kept.
     enum Src {
         Inline(String),
-        External(String),
+        /// URL and the element's nonce
+        External(String, Option<String>),
     }
     let mut sources = Vec::new();
     let mut script_urls = Vec::new();
     for id in dom.descendants(dom::Dom::ROOT) {
+        let nonce = dom.attr(id, "nonce").map(String::from);
         match dom.tag(id) {
-            Some("style") => sources.push(Src::Inline(dom.text_content(id))),
+            Some("style") => {
+                let text = dom.text_content(id);
+                if csp.allows_inline(security::Inline::Style, &text, nonce.as_deref()) {
+                    sources.push(Src::Inline(text));
+                }
+            }
             Some("link") => {
                 let rel = dom.attr(id, "rel").unwrap_or("").to_ascii_lowercase();
                 if let (true, Some(href)) = (rel.split_whitespace().any(|r| r == "stylesheet"), dom.attr(id, "href")) {
                     let media = dom.attr(id, "media").unwrap_or("all");
                     if !(media.contains("print") && !media.contains("screen")) {
-                        sources.push(Src::External(net::resolve(&final_url, href)));
+                        sources.push(Src::External(net::resolve(&final_url, href), nonce));
                     }
                 }
             }
             Some("script") => {
                 if let Some(src) = dom.attr(id, "src") {
-                    script_urls.push(net::resolve(&final_url, src));
+                    script_urls.push((net::resolve(&final_url, src), nonce));
                 }
             }
             _ => {}
         }
+    }
+    // What's left of blocked ads: hidden by the filter lists' element-hiding rules.
+    let hiding = if full { blocklist::hiding_css(&final_url, &dom) } else { String::new() };
+    if !hiding.is_empty() {
+        sources.push(Src::Inline(hiding));
     }
     let page_url: &str = &final_url;
     let (sheets, scripts) = std::thread::scope(|scope| {
@@ -667,8 +716,8 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool) -> Prepared {
                         Some(sheet)
                     })
                 }
-                Src::External(u) => scope.spawn(move || {
-                    let (_, text) = net::fetch_sub(u, page_url).ok()?;
+                Src::External(u, nonce) => scope.spawn(move || {
+                    let (_, text) = net::fetch_sub_nonce(u, page_url, security::Dest::Style, nonce.as_deref()).ok()?;
                     let mut sheet = css::parse(&text);
                     css::absolutize_urls(&mut sheet, u);
                     Some(sheet)
@@ -676,7 +725,7 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool) -> Prepared {
             })
             .collect();
         let script_jobs: Vec<_> =
-            script_urls.iter().map(|u| scope.spawn(move || net::fetch_sub(u, page_url).ok().map(|(_, b)| (u.clone(), b)))).collect();
+            script_urls.iter().map(|(u, n)| scope.spawn(move || net::fetch_sub_nonce(u, page_url, security::Dest::Script, n.as_deref()).ok().map(|(_, b)| (u.clone(), b)))).collect();
         let sheets: Vec<css::Stylesheet> = sheet_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
         let scripts: HashMap<String, String> = script_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
         (sheets, scripts)
@@ -692,7 +741,7 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool) -> Prepared {
         fonts = fetch_fonts(&sheets, &styles, &final_url);
         render_frames(&dom, &styles, &final_url, &mut images);
     }
-    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, xml, download: false }
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, xml, download: false, policy }
 }
 
 // ---------------------------------------------------------------- iframes
@@ -707,6 +756,11 @@ struct FrameJob {
     src: FrameSrc,
     w: u32,
     h: u32,
+    /// The page the iframe is in, and that page's top-level page.
+    parent: String,
+    top: String,
+    /// `<iframe sandbox>` flags (combined with any sandbox the parent itself is under).
+    sandbox: Option<security::Sandbox>,
     reply: std::sync::mpsc::Sender<Option<image::RgbaImage>>,
 }
 
@@ -724,7 +778,10 @@ fn frame_worker() -> Option<std::sync::mpsc::Sender<FrameJob>> {
         let _ = std::thread::Builder::new().name("frames".into()).stack_size(32 << 20).spawn(move || {
             FRAME_DEPTH.with(|d| d.set(1));
             for job in rx {
-                let img = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job.src, job.w, job.h))).ok().flatten();
+                let img = match isolated::should_isolate(&job).then(|| isolated::render(&job)).flatten() {
+                    Some(img) => img,
+                    None => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job))).ok().flatten(),
+                };
                 let _ = job.reply.send(img);
             }
         });
@@ -734,12 +791,54 @@ fn frame_worker() -> Option<std::sync::mpsc::Sender<FrameJob>> {
 }
 
 /// Load an iframe's document, run its scripts, and draw it at w×h.
-fn render_frame(src: &FrameSrc, w: u32, h: u32) -> Option<image::RgbaImage> {
+fn render_frame(job: &FrameJob) -> Option<image::RgbaImage> {
+    let (w, h) = (job.w, job.h);
     let fonts = load_fonts()?;
-    let prepared = match src {
-        FrameSrc::Url(u) => fetch_page(u, None),
-        FrameSrc::Doc { html, base } => prepare(base.clone(), html.clone(), true, false),
+    let info = security::FrameInfo { top: job.top.clone(), sandbox: job.sandbox.clone() };
+    let prepared = match &job.src {
+        FrameSrc::Url(u) => {
+            // Known as a frame before it's fetched: its cookies go in the top-level site's jar.
+            security::set_frame(u, info.clone());
+            let p = fetch_page(u, None);
+            security::clear_frame(u);
+            // X-Frame-Options / frame-ancestors: a page can refuse to be shown inside others.
+            if !p.policy.may_be_framed_by(&p.url, &job.parent, &job.top) {
+                security::clear_frame(&p.url);
+                return Some(refused_frame(w, h));
+            }
+            p
+        }
+        // srcdoc: the parent's document (and origin), unless sandboxed.
+        FrameSrc::Doc { html, base } => {
+            // It shares the parent's URL, so the parent's registered policy is put back after.
+            let parent_policy = security::policy_for(base);
+            if job.sandbox.is_some() {
+                security::set_frame(base, info.clone());
+            }
+            let p = prepare(base.clone(), html.clone(), true, false, &[]);
+            let img = draw_frame(p, fonts, w, h);
+            security::clear_frame(base);
+            security::register(base, parent_policy.unwrap_or_default());
+            return img;
+        }
     };
+    // The document keeps its frame identity while its scripts run (storage, cookies, sandbox).
+    security::set_frame(&prepared.url, info);
+    let frame_url = prepared.url.clone();
+    let img = draw_frame(prepared, fonts, w, h);
+    security::clear_frame(&frame_url);
+    img
+}
+
+/// A grey box saying the page refused to be embedded (as browsers show).
+fn refused_frame(w: u32, h: u32) -> image::RgbaImage {
+    image::RgbaImage::from_fn(w, h, |x, y| {
+        let border = x == 0 || y == 0 || x == w - 1 || y == h - 1;
+        if border { image::Rgba([203, 213, 225, 255]) } else { image::Rgba([241, 245, 249, 255]) }
+    })
+}
+
+fn draw_frame(prepared: Prepared, fonts: &'static Fonts, w: u32, h: u32) -> Option<image::RgbaImage> {
     // (Set after preparing: nested frames rendered meanwhile use their own size.)
     geometry::set_viewport(w as f32, h as f32);
     let mut page = build_page(prepared);
@@ -758,6 +857,188 @@ fn render_frame(src: &FrameSrc, w: u32, h: u32) -> Option<image::RgbaImage> {
         let p = buf[y as usize * w as usize + x as usize];
         image::Rgba([(p >> 16) as u8, (p >> 8) as u8, p as u8, 255])
     }))
+}
+
+/// Cross-site iframes in their own sandboxed process (`ironswift --frame-renderer`): an
+/// embedded ad or widget runs its scripts away from the browser, under a filter that keeps it
+/// from writing files or starting programs (see sandbox.rs).
+mod isolated {
+    use super::*;
+    use std::io::{Read, Write};
+
+    struct Proc {
+        child: std::process::Child,
+        stdin: std::process::ChildStdin,
+        stdout: std::process::ChildStdout,
+    }
+
+    static PROC: std::sync::Mutex<Option<Proc>> = std::sync::Mutex::new(None);
+    /// The renderer's process id (0 = none), so a stuck frame can be stopped from outside.
+    static PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+    fn site(url: &str) -> Option<String> {
+        url::Url::parse(url).ok()?.host_str().map(cookies::site_of)
+    }
+
+    /// Frames from another site than the top-level page.
+    pub fn should_isolate(job: &FrameJob) -> bool {
+        if std::env::var("IRONSWIFT_FRAME_PROCESS").is_ok_and(|v| v == "0") {
+            return false;
+        }
+        match &job.src {
+            FrameSrc::Url(u) if u.starts_with("http://") || u.starts_with("https://") => site(u) != site(&job.top),
+            _ => false,
+        }
+    }
+
+    fn put(out: &mut Vec<u8>, b: &[u8]) {
+        out.extend_from_slice(&(b.len() as u32).to_le_bytes());
+        out.extend_from_slice(b);
+    }
+
+    fn get(r: &mut impl Read) -> std::io::Result<Vec<u8>> {
+        let mut n = [0u8; 4];
+        r.read_exact(&mut n)?;
+        let n = u32::from_le_bytes(n) as usize;
+        if n > 64 << 20 {
+            return Err(std::io::Error::other("message too large"));
+        }
+        let mut b = vec![0u8; n];
+        r.read_exact(&mut b)?;
+        Ok(b)
+    }
+
+    fn sandbox_bytes(s: &Option<security::Sandbox>) -> Vec<u8> {
+        match s {
+            None => vec![],
+            Some(s) => vec![s.scripts as u8, s.same_origin as u8, s.forms as u8, s.popups as u8, s.top_navigation as u8, s.modals as u8],
+        }
+    }
+
+    fn sandbox_from(b: &[u8]) -> Option<security::Sandbox> {
+        (b.len() == 6).then(|| security::Sandbox { scripts: b[0] == 1, same_origin: b[1] == 1, forms: b[2] == 1, popups: b[3] == 1, top_navigation: b[4] == 1, modals: b[5] == 1 })
+    }
+
+    fn encode(job: &FrameJob) -> Vec<u8> {
+        let mut m = Vec::new();
+        let url = match &job.src {
+            FrameSrc::Url(u) => u.clone(),
+            FrameSrc::Doc { .. } => String::new(),
+        };
+        put(&mut m, url.as_bytes());
+        put(&mut m, job.parent.as_bytes());
+        put(&mut m, job.top.as_bytes());
+        put(&mut m, &sandbox_bytes(&job.sandbox));
+        put(&mut m, &job.w.to_le_bytes());
+        put(&mut m, &job.h.to_le_bytes());
+        m
+    }
+
+    fn spawn() -> Option<Proc> {
+        let exe = std::env::current_exe().ok()?;
+        let mut child = std::process::Command::new(exe)
+            .arg("--frame-renderer")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .map_err(|e| log!("[frames] couldn't start the frame process: {e}"))
+            .ok()?;
+        PID.store(child.id(), std::sync::atomic::Ordering::SeqCst);
+        let stdin = child.stdin.take()?;
+        let stdout = child.stdout.take()?;
+        Some(Proc { child, stdin, stdout })
+    }
+
+    /// Draw the frame in the frame process. None = the process isn't available (the caller
+    /// draws it here instead).
+    pub fn render(job: &FrameJob) -> Option<Option<image::RgbaImage>> {
+        let mut g = PROC.lock().ok()?;
+        if g.is_none() {
+            *g = spawn();
+        }
+        let p = g.as_mut()?;
+        let msg = encode(job);
+        let result = (|| -> std::io::Result<Option<image::RgbaImage>> {
+            p.stdin.write_all(&msg)?;
+            p.stdin.flush()?;
+            let w = get(&mut p.stdout)?;
+            let h = get(&mut p.stdout)?;
+            let px = get(&mut p.stdout)?;
+            let (w, h) = (u32::from_le_bytes(w.try_into().unwrap_or([0; 4])), u32::from_le_bytes(h.try_into().unwrap_or([0; 4])));
+            Ok(if w == 0 || h == 0 { None } else { image::RgbaImage::from_raw(w, h, px) })
+        })();
+        match result {
+            Ok(img) => Some(img),
+            Err(e) => {
+                // It crashed or was stopped: start a fresh one next time. The frame stays blank
+                // rather than being drawn in the browser.
+                log!("[frames] frame process: {e}");
+                if let Some(mut p) = g.take() {
+                    let _ = p.child.kill();
+                    let _ = p.child.wait();
+                }
+                PID.store(0, std::sync::atomic::Ordering::SeqCst);
+                Some(None)
+            }
+        }
+    }
+
+    /// Stop a frame that's taking too long (its process is restarted for the next frame).
+    pub fn stop_stuck() {
+        let pid = PID.swap(0, std::sync::atomic::Ordering::SeqCst);
+        if pid != 0 {
+            // SAFETY: sending a signal to our own child process.
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
+        }
+    }
+
+    /// `ironswift --frame-renderer`: draw frames sent on stdin until it closes.
+    pub fn serve() {
+        if !sandbox::protect_frame_renderer() {
+            log!("[frames] refusing to run without a sandbox");
+            return;
+        }
+        if load_fonts().is_none() {
+            return;
+        }
+        js::use_memory_storage();
+        FRAME_DEPTH.with(|d| d.set(1));
+        let mut input = std::io::stdin().lock();
+        let mut output = std::io::stdout().lock();
+        loop {
+            let job = (|| -> std::io::Result<FrameJob> {
+                let url = String::from_utf8_lossy(&get(&mut input)?).to_string();
+                let parent = String::from_utf8_lossy(&get(&mut input)?).to_string();
+                let top = String::from_utf8_lossy(&get(&mut input)?).to_string();
+                let sandbox = sandbox_from(&get(&mut input)?);
+                let w = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
+                let h = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
+                let (reply, _) = std::sync::mpsc::channel();
+                Ok(FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply })
+            })();
+            let Ok(job) = job else { return };
+            let img = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job))).ok().flatten();
+            let mut m = Vec::new();
+            match img {
+                Some(img) => {
+                    put(&mut m, &img.width().to_le_bytes());
+                    put(&mut m, &img.height().to_le_bytes());
+                    put(&mut m, img.as_raw());
+                }
+                None => {
+                    put(&mut m, &0u32.to_le_bytes());
+                    put(&mut m, &0u32.to_le_bytes());
+                    put(&mut m, &[]);
+                }
+            }
+            if output.write_all(&m).and_then(|_| output.flush()).is_err() {
+                return;
+            }
+        }
+    }
 }
 
 /// Render the page's iframes (up to 8, three levels deep, 8 seconds in all) into `images`.
@@ -792,17 +1073,46 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
             // An empty frame shows nothing: the iframe's own background shows through.
             _ => continue,
         };
+        if let FrameSrc::Url(u) = &src {
+            // The page's frame-src policy, the content blockers, and no local files from web pages.
+            let policy = security::policy_for(base);
+            if policy.as_ref().is_some_and(|p| !p.csp.allows_url(security::Dest::Frame, u, None, true))
+                || blocklist::blocked(u, base, security::Dest::Frame).is_some()
+                || !security::file_access_ok(base, u)
+                || security::is_privileged_url(u)
+            {
+                continue;
+            }
+        }
+        // This page's own place: its top-level page, and any sandbox it is itself under.
+        let me = security::frame_info(base);
+        let top = me.as_ref().map_or_else(|| base.to_string(), |f| f.top.clone());
+        let own = dom.attr(id, "sandbox").map(security::Sandbox::parse);
+        let sandbox = match (own, me.and_then(|f| f.sandbox)) {
+            (Some(a), Some(b)) => Some(a.and(&b)),
+            (a, b) => a.or(b),
+        };
+        let job_parts = (base.to_string(), top, sandbox);
         let img = if depth == 0 {
             let Some(worker) = frame_worker() else { return };
             let (tx, rx) = std::sync::mpsc::channel();
-            if worker.send(FrameJob { src, w, h, reply: tx }).is_err() {
+            let (parent, top, sandbox) = job_parts;
+            if worker.send(FrameJob { src, w, h, parent, top, sandbox, reply: tx }).is_err() {
                 return;
             }
-            rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).ok().flatten()
+            match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                Ok(img) => img,
+                Err(_) => {
+                    isolated::stop_stuck();
+                    None
+                }
+            }
         } else {
             // Already on the frame worker: a frame inside a frame is drawn right here.
             FRAME_DEPTH.with(|d| d.set(depth + 1));
-            let img = render_frame(&src, w, h);
+            let (parent, top, sandbox) = job_parts;
+            let (tx, _rx) = std::sync::mpsc::channel();
+            let img = render_frame(&FrameJob { src, w, h, parent, top, sandbox, reply: tx });
             FRAME_DEPTH.with(|d| d.set(depth));
             img
         };
@@ -846,11 +1156,13 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts, fonts, source, partial, xml, .. } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts, source, partial, xml, policy, .. } = p;
     install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
-    let has_scripts = !partial && dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
+    // A sandboxed frame runs none unless its sandbox allows scripts.
+    let scripts_allowed = policy.sandbox.as_ref().is_none_or(|s| s.scripts);
+    let has_scripts = !partial && scripts_allowed && dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
         dom::NodeData::Element { tag, attrs } => tag == "script" || attrs.iter().any(|(k, _)| k.starts_with("on")),
         _ => false,
     });
@@ -881,7 +1193,7 @@ fn build_page(p: Prepared) -> Page {
         })));
     }
     let js = has_scripts.then(|| {
-        let mut js = js::Js::new(&url);
+        let mut js = js::Js::with_policy(&url, policy.clone());
         // Parse again with the scripts running as they're reached (the first parse found
         // what to download).
         if xml {
@@ -987,6 +1299,10 @@ fn main() {
                 }
                 return;
             }
+            "--frame-renderer" => {
+                isolated::serve();
+                return;
+            }
             "--conformance-tokenizer" => {
                 let dir = args.get(i + 1).cloned().unwrap_or_else(|| ".".into());
                 std::process::exit(conformance::tokenizer_tests(&dir));
@@ -1037,7 +1353,11 @@ fn main() {
     match png {
         Some(out) => render_png(fonts, &url, width, &out),
         None => {
+            blocklist::start_updates();
+            updates::start();
             run_window(fonts, &url, width, explicit);
+            cookies::clear_session_sites();
+            updates::install_staged();
             if let Some(dir) = &private_profile {
                 let _ = std::fs::remove_dir_all(dir);
             } else if settings::get().clear_on_exit {
@@ -1298,8 +1618,14 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
         return None;
     }
     let sub = js::with_dom(|d| forms::submission(d, form, submitter, &page.url));
-    if sub.url.starts_with("javascript:") {
+    if sub.url.starts_with("javascript:") || !security::page_may_navigate(&page.url, &sub.url) {
         return None;
+    }
+    // The page's CSP form-action, and a sandboxed frame without allow-forms.
+    if let Some(p) = security::policy_for(&page.url) {
+        if !p.csp.allows_form_action(&sub.url) || p.sandbox.as_ref().is_some_and(|s| !s.forms) {
+            return None;
+        }
     }
     Some(match sub.post {
         Some(body) => Go::Post(sub.url, body),
@@ -1364,6 +1690,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         g
     };
+    // The window and graphics are set up: from here on, refuse the system calls a browser
+    // never needs (see sandbox.rs).
+    sandbox::protect_browser();
     let mut idle_frames = 0u32;
     let mut slow = false;
     let typed = Rc::new(RefCell::new(Vec::new()));
@@ -1398,6 +1727,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut dl_panel: Option<chrome::Menu<DlAct>> = None;
     let mut status_link: Option<String> = None;
     let mut toast: Option<(String, Instant)> = None;
+    // Sites' permission questions (location, notifications…), shown one at a time.
+    let mut perm_queue: Vec<permissions::Prompt> = Vec::new();
     let mut ui_action: Option<Ctx> = None;
     let mut runs_cache: (u64, Vec<chrome::TextRun>) = (u64::MAX, Vec::new());
     let mut was_right = false;
@@ -1655,8 +1986,22 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             dirty = true;
         }
         if let Some(target) = js::take_navigation() {
-            navigate = Some(Go::To(net::resolve(&page.url, &target)));
+            let target = net::resolve(&page.url, &target);
+            if security::page_may_navigate(&page.url, &target) {
+                navigate = Some(Go::To(target));
+            }
         }
+        for (id, kind, url) in js::take_permission_requests() {
+            match perm_queue.iter_mut().find(|p| p.origin == url && p.kind == kind && p.doc == page.doc) {
+                Some(p) => p.ids.push(id),
+                None => perm_queue.push(permissions::Prompt { origin: url, kind, ids: vec![id], doc: page.doc, x: FIELD_X, y: TOOL_BOTTOM as f32 + 6.0 }),
+            }
+            dirty = true;
+        }
+        // Questions from a page you've left go away with it.
+        let before = perm_queue.len();
+        perm_queue.retain(|p| p.doc == page.doc);
+        dirty |= perm_queue.len() != before;
         let mut form_changed = false;
         // Requests from scripts: focus(), blur(), form.submit(), form.reset().
         for req in js::take_requests() {
@@ -2084,7 +2429,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     _ if my >= bar_h() as f32 => {
                         if let Some(href) = lay.link_at(mx, my - bar_h() as f32, scroll) {
                             let target = net::resolve(&page.url, href);
-                            if !target.starts_with("javascript:") && !target.starts_with("mailto:") {
+                            if !target.starts_with("javascript:") && !target.starts_with("mailto:") && security::page_may_navigate(&page.url, &target) {
                                 tab_cmd = Some(TabCmd::Open(target, true));
                             }
                         }
@@ -2195,6 +2540,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     dd.hover = row;
                     dirty = true;
                 }
+            }
+            // A click on a permission question: Allow or Block (remembered for the site).
+            if down && !was_down && perm_queue.first().is_some_and(|p| p.contains(mx, my)) {
+                if let Some(allow) = perm_queue[0].button_at(mx, my) {
+                    let p = perm_queue.remove(0);
+                    permissions::set(&p.origin, p.kind, allow);
+                    if let Some(js) = page.js.as_mut() {
+                        js.permission_done(&p.ids, allow);
+                    }
+                    if js::take_dirty() {
+                        page.restyle();
+                        lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                        page_version += 1;
+                    }
+                }
+                was_down = down;
+                dirty = true;
             }
             // A click with a menu open: do the item, or just close the menu.
             if down && !was_down && (ctx_menu.is_some() || dl_panel.is_some()) {
@@ -2350,7 +2712,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         reflow = true;
                     }
                     if let Some(t) = js::take_navigation() {
-                        navigate = Some(Go::To(net::resolve(&page.url, &t)));
+                        let t = net::resolve(&page.url, &t);
+                        if security::page_may_navigate(&page.url, &t) {
+                            navigate = Some(Go::To(t));
+                        }
                     }
                     // Form controls: focus, check, open a list, submit or reset.
                     let ctrl = node.and_then(|n| js::with_dom(|d| control_for(d, n)));
@@ -2424,7 +2789,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     if let (true, None, Some(href)) = (allowed, ctrl, &hit) {
                         let target = net::resolve(&page.url, href);
-                        if !target.starts_with("mailto:") && !target.starts_with("javascript:") {
+                        if !target.starts_with("mailto:") && !target.starts_with("javascript:") && security::page_may_navigate(&page.url, &target) {
                             // Ctrl+click: background tab. target="_blank": new tab in front.
                             let ctrl_key = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
                             let blank = node.is_some_and(|n| {
@@ -2450,7 +2815,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     // window.open() during this click opens a new tab.
                     if let Some(u) = js::take_open_requests().pop() {
-                        tab_cmd = Some(TabCmd::Open(u, false));
+                        let u = net::resolve(&page.url, &u);
+                        if security::page_may_navigate(&page.url, &u) {
+                            tab_cmd = Some(TabCmd::Open(u, false));
+                        }
                     }
                 }
             }
@@ -2864,7 +3232,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
-            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some();
+            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
             #[cfg(feature = "gpu")]
             let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay);
             #[cfg(not(feature = "gpu"))]
@@ -2916,6 +3284,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let Some((t, _)) = &toast {
                 chrome::draw_toast(&mut canvas, fonts, TOOL_BOTTOM as f32, t);
+            }
+            if let Some(p) = perm_queue.first() {
+                p.draw(&mut canvas, fonts);
             }
             if let Some(m) = dl_panel.as_mut() {
                 m.rows = downloads_panel(0.0, 0.0, w as f32, h as f32).rows;

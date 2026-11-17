@@ -1,0 +1,7 @@
+
+  body { font-family: sans-serif; margin: 0; background: #fbfaf7; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px; }
+  .hero { display: block; width: 100%; max-width: 100%; }
+  .logo { float: none; }
+  figure { margin: 24px 0; }
+  figcaption { color: #666; font-size: 14px; }

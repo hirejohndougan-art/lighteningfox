@@ -1,0 +1,3 @@
+frame-ancestors https://*.a.com; script-src 'sha256-bhHHL3z2vDgxUt0W3dWQOrprscmda2Y5pLsLg4GF+pI=' https://x.com/js/
+alert(1)
+https://x.com/js/a.js

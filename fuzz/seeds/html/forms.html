@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head><title>Forms test</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; color: #1f2937; }
+  fieldset { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
+  legend { font-weight: bold; padding: 0 4px; }
+  label { margin-right: 10px; }
+  .row { margin: 6px 0; }
+  .styled { border: 2px solid #6366f1; border-radius: 8px; padding: 6px 10px; width: 260px; font-size: 15px; }
+  .go { background: #4f46e5; color: white; border: none; padding: 6px 14px; border-radius: 6px; }
+</style></head>
+<body>
+<h1>Forms</h1>
+<form id="f" action="forms-result.html" method="get">
+  <fieldset>
+    <legend>Text</legend>
+    <div class="row"><label for="name">Name</label><input id="name" name="name" placeholder="Your name"></div>
+    <div class="row"><label>Email <input type="email" name="email" value="john@example.com"></label></div>
+    <div class="row"><label>Password <input type="password" name="pw" value="secret"></label></div>
+    <div class="row"><input class="styled" name="q" placeholder="Styled search box"> <button class="go" type="submit">Search</button></div>
+    <div class="row"><textarea name="notes" rows="3" cols="40" placeholder="Notes"></textarea></div>
+  </fieldset>
+  <fieldset>
+    <legend>Choices</legend>
+    <div class="row">
+      <label><input type="checkbox" name="news" checked> Newsletter</label>
+      <label><input type="checkbox" name="sms"> Text messages</label>
+    </div>
+    <div class="row">
+      <label><input type="radio" name="size" value="s"> Small</label>
+      <label><input type="radio" name="size" value="m" checked> Medium</label>
+      <label><input type="radio" name="size" value="l"> Large</label>
+    </div>
+    <div class="row">
+      <select name="color"><option value="r">Red</option><option value="g" selected>Green</option><option value="b">Blue</option></select>
+      <input type="range" name="vol" value="30"> <input type="color" value="#e11d48">
+    </div>
+  </fieldset>
+  <div class="row">
+    <input type="submit" value="Send"> <input type="reset"> <button type="button" disabled>Disabled</button>
+    <input type="hidden" name="token" value="abc">
+  </div>
+</form>
+</body></html>

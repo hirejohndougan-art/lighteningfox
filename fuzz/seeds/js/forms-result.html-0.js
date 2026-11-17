@@ -1,0 +1,1 @@
+document.getElementById("q").textContent = decodeURIComponent(location.search.slice(1)).split("&").join("\n");

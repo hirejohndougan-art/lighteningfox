@@ -51,6 +51,25 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
 - Scripts that ask where things are (`getBoundingClientRect`, `offsetWidth`) get a fresh layout
   through `geometry.rs`.
 
+## Security (`security.rs`, `blocklist.rs`, `sandbox.rs`, `permissions.rs`)
+
+- **Every page has a policy** (`security::PagePolicy`): its CSP (headers and `<meta>`),
+  `X-Frame-Options`, and the sandbox of the frame it's in. `prepare` registers it by page
+  URL before fetching anything, and `net::fetch_sub*` checks each request against it (with
+  the request's purpose, `security::Dest`) and against the filter lists (`blocklist`).
+- **Scripts act for their page only.** The script engine holds a `PageCtx` (URL, top-level
+  page, sandbox, policy) where scripts can't reach it; the natives for cookies, storage,
+  network requests and history use it rather than any URL a script passes. A Boa host hook
+  refuses `eval`/`new Function` unless the CSP allows it (approved inline handlers excepted).
+- **Frames** carry a `FrameInfo` (top-level page, sandbox) while they load, so their cookies
+  go in the top-level site's partition. Cross-site frames are drawn by a separate process,
+  `ironswift --frame-renderer`, talking over stdin/stdout (`isolated` in `main.rs`) and
+  locked down by `sandbox::protect_frame_renderer`. The browser itself calls
+  `sandbox::protect_browser` once its window is open.
+- **Navigation** from a page (links, forms, scripts, `window.open`) goes through
+  `security::page_may_navigate`, which keeps web pages away from `file:`, `about:`,
+  `view-source:` and `data:` URLs. The address bar isn't limited.
+
 ## The window (`main.rs`)
 
 `run_window` owns everything on screen and loops at up to 60 frames a second (12 when idle):
@@ -73,6 +92,9 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
 | `settings.tsv` | Settings (`settings.rs`, edited on about:settings) |
 | `session.txt` | Open tabs, for session restore |
 | `crashes/` | Crash reports (`crashlog.rs`) |
+| `filters/` | Filter lists (`easylist.txt`, `easyprivacy.txt`, malware and phishing hosts), your own rules in `custom.txt` / `custom-dangerous.txt` |
+| `permissions.tsv` | Sites' camera, microphone, location and notification permissions |
+| `update/` | A downloaded, verified update waiting to be installed on exit |
 
 Files are written privately (mode 600) and atomically (write a temporary file, then rename).
 
@@ -88,6 +110,9 @@ Files are written privately (mode 600) and atomically (write a temporary file, t
 | `IRONSWIFT_TAB_SLEEP_SECONDS=n` | Put background tabs to sleep after n seconds |
 | `IRONSWIFT_THIRD_PARTY_COOKIES=1`, `IRONSWIFT_KEEP_TRACKING_PARAMS=1` | Relax the privacy defaults |
 | `IRONSWIFT_MEM_PROBE=1` | Print memory use after each startup stage |
+| `IRONSWIFT_NO_SANDBOX=1` | Don't install the system-call filter or Landlock rules (debugging) |
+| `IRONSWIFT_FRAME_PROCESS=0` | Draw cross-site iframes in the browser process |
+| `IRONSWIFT_NO_UPDATES=1` | No update checks and no filter-list downloads |
 
 ## Command line
 
@@ -95,4 +120,5 @@ Files are written privately (mode 600) and atomically (write a temporary file, t
 ironswift [url]                              # open a window
 ironswift --png out.png [--width 1024] url   # render a page to a PNG and exit (used by the tests)
 ironswift --conformance-html5lib dir         # run the HTML-parsing conformance tests
+ironswift --frame-renderer                   # (internal) the sandboxed process that draws cross-site iframes
 ```
