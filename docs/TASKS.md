@@ -308,7 +308,7 @@ top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`.
 "stuck frame" stop working per process.
 
 ### X15. Turn site processes on by default
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 15:45
 **After:** X13, X14
 **Checklist:** none
 **Files:** `src/settings.rs` (the `site_processes` default), `docs/`
