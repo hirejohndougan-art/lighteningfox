@@ -406,7 +406,25 @@ fields such as `antialias` and `webgl2`, an unused `POINTS` constant, the `Fma` 
 two needless `mut`s). No behavior changes; WebGL tests and WPT scores stay the same.
 
 ### X11. Lay boxes out on several cores
-**Status:** claimed by chat-mseX17 2026-11-17 16:07
+**Status:** done (the line-shaping part; see Left undone)
+**Result:** Layout joins each line's words into one text item and measures it whole
+(`Ctx::content_right`, for shrink-to-fit edges), which shaped every line of a big block on one
+thread; painting then reused those shapes. `preshape::texts` now shapes a big block's unshaped
+lines across cores before they're measured (same plan/run code as the word pass). The font caches
+hit for every word use foldhash (still randomly seeded). 1500 paragraphs on 2 cores
+(`RELAYOUT_PAGES=<page> cargo test --release relayout_timing -- --ignored --nocapture`, which now
+also times a cold first layout, median of 7): first layout ~240 ms (1 thread) / ~245 ms (2 threads
+before) → ~180 ms; warm layout ~80 → ~70 ms; whole `--png` render 603 → 467 ms (1 vs 2 threads).
+Renders are byte-identical with 1 and 2 threads (that page and real-world/bootstrap.html); all 46
+reference screenshots unchanged. Real-world test pages lay out in under 1 ms either way.
+**Left undone:** laying out independent blocks on several threads. `Style` holds `Rc` fields
+(family, custom properties, transforms, filters, grid, animations), so styles can't be shared with
+other threads until those become `Arc` (a large change to style.rs); `Fonts` would also need its
+`RefCell` caches made thread-safe or per thread, and `layout::Ctx` (items, floats, counters,
+positioned boxes, the relayout cache) split and merged per block, with margin collapsing and floats
+deciding which blocks are really independent. On the 2-core machines this is aimed at, the rest of
+layout (inline line breaking, `flatten`) is ~60 ms warm on the 1500-paragraph page, so the gain left
+is modest.
 **After:** —
 **Checklist:** §21 "Lay boxes out on several cores" (required fix-up)
 **Files:** `src/font.rs`, `src/layout.rs`, `src/preshape.rs`, new files for the parallel parts
