@@ -4,8 +4,9 @@ pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Ironswift/0.1";
 
 /// Fetch a page (a top-level document) as text. Returns (final URL after redirects, body).
 pub fn fetch(url: &str) -> Result<(String, String), String> {
-    let (final_url, bytes) = load(url, None, None)?;
-    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+    let r = load(url, None, None)?;
+    let text = decode_html(&r.body, r.header("content-type"));
+    Ok((r.url, text))
 }
 
 /// POST a form (application/x-www-form-urlencoded) as a page navigation.
@@ -14,20 +15,22 @@ pub fn post_form(url: &str, body: &str) -> Result<(String, String), String> {
         // Local files can't take a POST; show them as a GET with the data in the query.
         return fetch(&format!("{}?{body}", url.split('?').next().unwrap_or(url)));
     }
-    let (final_url, bytes) = load(url, Some(body), None)?;
-    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+    let r = load(url, Some(body), None)?;
+    let text = decode_html(&r.body, r.header("content-type"));
+    Ok((r.url, text))
 }
 
 /// Fetch something a page uses (stylesheet, script, image) as text. `page` is the page's URL,
 /// which decides whether cookies go along (only to the page's own site).
 pub fn fetch_sub(url: &str, page: &str) -> Result<(String, String), String> {
-    let (final_url, bytes) = load(url, None, Some(page))?;
-    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+    let r = load(url, None, Some(page))?;
+    let text = decode_text(&r.body, r.header("content-type"));
+    Ok((r.url, text))
 }
 
 /// Like `fetch_sub`, as raw bytes (images).
 pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), String> {
-    load(url, None, Some(page))
+    load(url, None, Some(page)).map(|r| (r.url, r.body))
 }
 
 /// A response for scripts: status, headers and body.
@@ -63,13 +66,74 @@ pub struct Request<'a> {
 
 /// Load a URL: http(s) (with cookies and redirects), file:// or data:.
 /// `top` is the page making the request; `None` means the request is the page itself.
-fn load(url: &str, post: Option<&str>, top: Option<&str>) -> Result<(String, Vec<u8>), String> {
+fn load(url: &str, post: Option<&str>, top: Option<&str>) -> Result<Response, String> {
     let headers = match post {
         Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
         None => Vec::new(),
     };
-    let r = http(&Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(str::as_bytes), top, cookies: true, extra: &[] })?;
-    Ok((r.url, r.body))
+    http(&Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(str::as_bytes), top, cookies: true, extra: &[] })
+}
+
+// ---------------------------------------------------------------- text encodings
+
+/// The charset named in a Content-Type header (`text/html; charset=Shift_JIS`).
+fn charset_param(content_type: Option<&str>) -> Option<&'static encoding_rs::Encoding> {
+    let ct = content_type?;
+    let v = ct.split(';').find_map(|p| p.trim().strip_prefix("charset=").or_else(|| p.trim().strip_prefix("CHARSET=")))?;
+    encoding_rs::Encoding::for_label(v.trim().trim_matches(|c| c == '"' || c == '\'').as_bytes())
+}
+
+/// `<meta charset=…>` or `<meta http-equiv=Content-Type content="…; charset=…">` in the first
+/// 1024 bytes (the HTML standard's "prescan").
+fn meta_charset(bytes: &[u8]) -> Option<&'static encoding_rs::Encoding> {
+    let head = &bytes[..bytes.len().min(1024)];
+    let lower: Vec<u8> = head.iter().map(u8::to_ascii_lowercase).collect();
+    let mut i = 0;
+    while let Some(p) = find(&lower[i..], b"<meta") {
+        let start = i + p;
+        let end = lower[start..].iter().position(|&c| c == b'>').map_or(lower.len(), |e| start + e);
+        let tag = &lower[start..end];
+        if let Some(c) = find(tag, b"charset") {
+            let mut j = c + 7;
+            while j < tag.len() && (tag[j] == b' ' || tag[j] == b'=') {
+                j += 1;
+            }
+            while j < tag.len() && (tag[j] == b'"' || tag[j] == b'\'') {
+                j += 1;
+            }
+            let label: Vec<u8> = tag[j..].iter().take_while(|&&c| !matches!(c, b'"' | b'\'' | b' ' | b';' | b'/' | b'>')).copied().collect();
+            if let Some(enc) = encoding_rs::Encoding::for_label(&label) {
+                // A page can't declare itself UTF-16 from inside an ASCII-compatible prefix.
+                return Some(if enc == encoding_rs::UTF_16LE || enc == encoding_rs::UTF_16BE { encoding_rs::UTF_8 } else { enc });
+            }
+        }
+        i = end.max(start + 1);
+        if i >= lower.len() {
+            break;
+        }
+    }
+    None
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Decode an HTML page: byte-order mark, then the server's charset, then `<meta charset>`,
+/// then UTF-8 if the bytes are valid UTF-8, else Windows-1252 (the classic Western default).
+pub fn decode_html(bytes: &[u8], content_type: Option<&str>) -> String {
+    let enc = encoding_rs::Encoding::for_bom(bytes)
+        .map(|(e, _)| e)
+        .or_else(|| charset_param(content_type))
+        .or_else(|| meta_charset(bytes))
+        .unwrap_or(if std::str::from_utf8(bytes).is_ok() { encoding_rs::UTF_8 } else { encoding_rs::WINDOWS_1252 });
+    enc.decode(bytes).0.into_owned()
+}
+
+/// Decode a stylesheet or script: byte-order mark, then the server's charset, then UTF-8.
+pub fn decode_text(bytes: &[u8], content_type: Option<&str>) -> String {
+    let enc = encoding_rs::Encoding::for_bom(bytes).map(|(e, _)| e).or_else(|| charset_param(content_type)).unwrap_or(encoding_rs::UTF_8);
+    enc.decode(bytes).0.into_owned()
 }
 
 /// Make a request and return the response, whatever its status.
@@ -219,16 +283,11 @@ fn cors_ok(r: &Response, origin: &str, credentials: bool) -> bool {
     }
 }
 
-/// The origin (scheme://host:port) of a URL, as used by the same-origin policy.
+/// The origin (scheme://host:port) of a URL, as used by the same-origin policy. Hosts are
+/// lower-cased and international names converted to their ASCII (punycode) form.
 pub fn origin_of(url: &str) -> String {
-    match url.split_once("://") {
-        Some((scheme, rest)) if scheme == "http" || scheme == "https" => {
-            let host = rest.split(['/', '?', '#']).next().unwrap_or("").to_ascii_lowercase();
-            let host = host.rsplit_once('@').map_or(host.as_str(), |(_, h)| h).to_string();
-            let default = if scheme == "http" { ":80" } else { ":443" };
-            format!("{scheme}://{}", host.strip_suffix(default).unwrap_or(&host))
-        }
-        Some(("file", _)) => "null".into(),
+    match url::Url::parse(url) {
+        Ok(u) if u.scheme() == "http" || u.scheme() == "https" => u.origin().ascii_serialization(),
         _ => "null".into(),
     }
 }
@@ -317,8 +376,17 @@ pub fn normalize_input(input: &str) -> String {
     if std::path::Path::new(s).exists() {
         return format!("file://{}", std::fs::canonicalize(s).map(|p| p.display().to_string()).unwrap_or(s.into()));
     }
-    if s.contains('.') && !s.contains(' ') {
-        return format!("https://{s}");
+    if !s.contains(' ') {
+        // example.com, bücher.de, localhost:8080, 192.168.1.1, [::1]:3000
+        let host = s.split(['/', '?', '#']).next().unwrap_or("");
+        let local = host == "localhost" || host.starts_with("localhost:") || host.starts_with('[');
+        let has_port = host.rsplit_once(':').is_some_and(|(_, p)| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+        if host.contains('.') || local || has_port {
+            let scheme = if local || host.starts_with("127.") || host.starts_with("192.168.") || host.starts_with("10.") { "http" } else { "https" };
+            if let Ok(u) = url::Url::parse(&format!("{scheme}://{s}")) {
+                return u.to_string();
+            }
+        }
     }
     let q: String = s
         .bytes()
@@ -331,49 +399,22 @@ pub fn normalize_input(input: &str) -> String {
     crate::settings::search_url(&q)
 }
 
-/// Resolve `href` relative to `base`.
+/// Resolve `href` relative to `base`, by the WHATWG URL standard (as browsers do): ports,
+/// IPv6 addresses, international domain names, percent-encoding, `.` and `..` segments.
 pub fn resolve(base: &str, href: &str) -> String {
-    let href = href.trim();
-    if href.contains("://") || href.starts_with("about:") || href.starts_with("data:") || href.starts_with("mailto:") {
+    let href = href.trim_matches(|c: char| c.is_ascii_whitespace() || c.is_control());
+    if href.starts_with("about:") {
         return href.to_string();
     }
-    let (scheme, rest) = base.split_once("://").unwrap_or(("file", base));
-    let (host, path) = match rest.find('/') {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, "/"),
+    let joined = match url::Url::parse(base) {
+        Ok(b) => b.join(href),
+        Err(_) => url::Url::parse(href),
     };
-    let path = path.split(['?', '#']).next().unwrap_or("/");
-    if let Some(r) = href.strip_prefix("//") {
-        return format!("{scheme}://{r}");
+    match joined {
+        Ok(u) => u.to_string(),
+        // Something no URL parser accepts: keep it as written (it will fail to load).
+        Err(_) => href.to_string(),
     }
-    if href.starts_with('#') {
-        return format!("{}{}", base.split('#').next().unwrap_or(base), href);
-    }
-    if href.starts_with('?') {
-        return format!("{scheme}://{host}{path}{href}");
-    }
-    let joined = if href.starts_with('/') {
-        href.to_string()
-    } else {
-        let dir = &path[..path.rfind('/').map(|i| i + 1).unwrap_or(0)];
-        format!("{dir}{href}")
-    };
-    // Normalize "." and ".." segments.
-    let (p, suffix) = match joined.find(['?', '#']) {
-        Some(i) => (joined[..i].to_string(), joined[i..].to_string()),
-        None => (joined.clone(), String::new()),
-    };
-    let mut parts: Vec<&str> = Vec::new();
-    for seg in p.split('/').skip(1) {
-        match seg {
-            "." => {}
-            ".." => {
-                parts.pop();
-            }
-            s => parts.push(s),
-        }
-    }
-    format!("{scheme}://{host}/{}{suffix}", parts.join("/"))
 }
 
 #[cfg(test)]
@@ -396,5 +437,46 @@ mod tests {
         assert_eq!(resolve("https://a.com/x/", "//b.com/q"), "https://b.com/q");
         assert_eq!(resolve("https://a.com", "q?x=1"), "https://a.com/q?x=1");
         assert_eq!(resolve("file:///home/j/a.html", "b.html"), "file:///home/j/b.html");
+        // WHATWG details: ports, IPv6, international names, spaces, backslashes.
+        assert_eq!(resolve("https://a.com:443/x", "y"), "https://a.com/y");
+        assert_eq!(resolve("http://[::1]:8080/a/", "b"), "http://[::1]:8080/a/b");
+        assert_eq!(resolve("https://a.com/", "https://bücher.de/ä"), "https://xn--bcher-kva.de/%C3%A4");
+        assert_eq!(resolve("https://a.com/x/", "a b.html"), "https://a.com/x/a%20b.html");
+        assert_eq!(resolve("https://a.com/x/y", "..\\z"), "https://a.com/z");
+        assert_eq!(resolve("https://a.com/p?q#f", "#g"), "https://a.com/p?q#g");
+    }
+
+    #[test]
+    fn origins() {
+        use super::origin_of;
+        assert_eq!(origin_of("https://A.com:443/x"), "https://a.com");
+        assert_eq!(origin_of("http://a.com:8080/"), "http://a.com:8080");
+        assert_eq!(origin_of("https://bücher.de/"), "https://xn--bcher-kva.de");
+        assert_eq!(origin_of("file:///x"), "null");
+    }
+
+    #[test]
+    fn address_bar_input() {
+        use super::normalize_input;
+        assert_eq!(normalize_input("example.com"), "https://example.com/");
+        assert_eq!(normalize_input("localhost:8080/x"), "http://localhost:8080/x");
+        assert_eq!(normalize_input("bücher.de"), "https://xn--bcher-kva.de/");
+        assert!(normalize_input("how do browsers work").contains("how+do+browsers+work"));
+    }
+
+    #[test]
+    fn encodings() {
+        use super::decode_html;
+        // Windows-1252 page with no declaration: "café"
+        assert_eq!(decode_html(b"caf\xe9", None), "café");
+        // Server says Shift_JIS: こんにちは
+        let sjis = b"\x82\xb1\x82\xf1\x82\xc9\x82\xbf\x82\xcd";
+        assert_eq!(decode_html(sjis, Some("text/html; charset=Shift_JIS")), "こんにちは");
+        // <meta charset> in the page
+        let mut page = b"<meta charset=\"euc-kr\"><p>".to_vec();
+        page.extend_from_slice(b"\xbe\xc8\xb3\xe7");
+        assert!(decode_html(&page, Some("text/html")).ends_with("안녕"));
+        // Byte-order mark beats everything.
+        assert_eq!(decode_html(b"\xef\xbb\xbfok", Some("text/html; charset=iso-8859-2")), "ok");
     }
 }
