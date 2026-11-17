@@ -263,3 +263,20 @@ fn observer_ignores_the_widget_it_restyles() {
     let _page = open("tests/sites/mutation-theme.html");
     assert_eq!(text_of("out"), "calls 2 rgb(255, 255, 255)");
 }
+
+#[test]
+fn rem_follows_the_root_font_size() {
+    let _serial = serial();
+    let mut page = open("tests/sites/rem-root.html");
+    assert_eq!(eval(&mut page, "getComputedStyle(document.body).fontSize"), "\"18px\"");
+    assert_eq!(eval(&mut page, "document.getElementById('box').getBoundingClientRect().width"), "120");
+}
+
+#[test]
+fn flex_end_menu_shrinks_to_its_items() {
+    let _serial = serial();
+    let mut page = open("tests/sites/flex-end-shrink.html");
+    // The menu sits on the logo's line, at the right.
+    assert_eq!(eval(&mut page, "document.getElementById('menu').getBoundingClientRect().top === document.getElementById('brand').getBoundingClientRect().top"), "true");
+    assert_eq!(eval(&mut page, "document.getElementById('menu').getBoundingClientRect().width < 400"), "true");
+}

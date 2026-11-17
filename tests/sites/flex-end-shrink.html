@@ -1,0 +1,10 @@
+<!doctype html>
+<!-- rust-lang.org (2026-11): a nav bar whose menu is a shrink-to-fit flex row with
+     justify-content: flex-end. Measuring its width must not count the space the items are
+     pushed across, or the menu takes the whole row and wraps below the logo. -->
+<html><head><title>flex-end shrink</title>
+<style>nav { display: flex; flex-wrap: wrap; align-items: center } .brand { flex: 1 1 auto }
+ul { display: flex; flex: none; justify-content: flex-end; margin: 0; padding: 0; list-style: none }
+li { padding: 0 12px }</style></head>
+<body><nav><div class="brand" id="brand">Logo</div>
+<ul id="menu"><li>Install</li><li>Learn</li><li>Tools</li><li>Blog</li></ul></nav><script>/* scripts make the page measurable from tests */</script></body></html>

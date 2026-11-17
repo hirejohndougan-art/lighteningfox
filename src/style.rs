@@ -106,6 +106,11 @@ pub fn uses_hover(sheets: &[Stylesheet]) -> bool {
 
 pub const VIEWPORT_W: f32 = 1024.0;
 
+thread_local! {
+    /// The root element's font size, which `rem` is relative to (16px until it's styled).
+    static ROOT_FONT: std::cell::Cell<f32> = const { std::cell::Cell::new(16.0) };
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Color {
     pub r: u8,
@@ -928,6 +933,7 @@ fn rewrite_host(rule: &str, root: NodeId) -> String {
 
 pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     css::forget_media_answers();
+    ROOT_FONT.with(|r| r.set(16.0));
     let ua = css::parse(UA_CSS);
     let scoped = if dom.render_scope.is_empty() { HashMap::new() } else { shadow_sheets(dom) };
     let min_font = crate::settings::get().min_font_size as f32;
@@ -988,6 +994,10 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         }
         let bloom = blooms[id];
         let parent_style = styles[parent].clone();
+        // rem follows the root element's font size; the root is styled before what's inside.
+        if parent != 0 && dom.nodes[parent].parent == Some(0) {
+            ROOT_FONT.with(|r| r.set(parent_style.font_size));
+        }
         let NodeData::Element { tag, attrs } = &dom.nodes[id].data else {
             // Text inherits everything it uses from its parent.
             styles[id] = parent_style;
@@ -1818,7 +1828,7 @@ pub fn parse_len(v: &str, font_size: f32) -> Option<Len> {
     Some(match unit {
         "" | "px" => Len::Px(num),
         "em" => Len::Px(num * font_size),
-        "rem" => Len::Px(num * 16.0),
+        "rem" => Len::Px(num * ROOT_FONT.with(std::cell::Cell::get)),
         "%" => Len::Pct(num),
         "pt" => Len::Px(num * 4.0 / 3.0),
         "vw" => Len::Px(num * VIEWPORT_W / 100.0),

@@ -1,0 +1,7 @@
+<!doctype html>
+<!-- rust-lang.org (2026-11): html { font-size: 62.5% } (75% on wider screens) and sizes in rem.
+     rem must follow the root element's font size, not a fixed 16px. -->
+<html><head><title>rem</title>
+<style>html { font-size: 62.5% } @media screen and (min-width: 30em) { html { font-size: 75% } }
+body { font-size: 1.5rem } .box { width: 10rem; height: 2rem; background: #2a7 }</style></head>
+<body><p>Body text is 18px.</p><div class="box" id="box"></div><script>/* scripts make the page measurable from tests */</script></body></html>

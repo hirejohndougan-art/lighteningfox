@@ -1805,7 +1805,9 @@ impl<'a> Ctx<'a> {
                 }
             }
             let gaps = col_gap * (line.len().saturating_sub(1)) as f32;
-            let free = (w - sizes.iter().sum::<f32>() - gaps).max(0.0);
+            // While measuring, items stay packed at the start: spreading them over the trial
+            // width (justify-content, auto margins) would make the content seem that wide.
+            let free = if self.measuring { 0.0 } else { (w - sizes.iter().sum::<f32>() - gaps).max(0.0) };
             // Auto margins on the main axis take the free space first (margin-left: auto
             // pushes an item to the end, as in navigation bars); justify-content gets the rest.
             let autos: Vec<(bool, bool)> = line
