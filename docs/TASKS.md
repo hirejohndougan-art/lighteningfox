@@ -607,9 +607,38 @@ ad blocker or dark-mode extension.
 
 Build checklist §18. Each one picks up where the done task it names left off.
 
+### O7. Claude connection: automated compatibility testing over MCP
+**Status:** free
+**After:** —
+**Checklist:** §18 "Claude connection for automated compatibility testing"
+**Files:** new `src/automation.rs` (or `src/mcp/`), `src/main.rs` (the `--mcp` flag), `tools/site_check.py`, new `docs/CLAUDE_CONNECTION.md`
+Let Claude drive Ironswift and find, test and fix compatibility gaps on its own.
+
+1. `ironswift --mcp`: an MCP server over stdio (no network port, so nothing outside the computer
+   can reach it), headless, with a fresh temporary profile. Tools:
+   - `open_url`, `click`, `type`, `scroll`, `wait_for` (selector or idle)
+   - `screenshot` (PNG), `compare_with_chrome` (Chrome's rendering + the 0-100 likeness score
+     and a diff picture, reusing `site_check.py`'s code)
+   - `script_errors` and `console_log`, `failed_requests` (status, blocked, unsupported)
+   - `dom` (serialized tree or one element), `computed_style`, `box` (an element's layout box),
+     `run_js` (evaluate in the page)
+   - `unsupported_features`: every unimplemented JS API, CSS property or HTML element the page
+     touched (log these from the bindings, the CSS parser and the tree builder)
+   - `run_site_check` (all or some sites, returns grades) and `run_wpt` (a WPT directory, returns
+     pass/fail counts and the failing subtests)
+2. `docs/CLAUDE_CONNECTION.md`: how to add it to Claude Code (`claude mcp add ironswift --
+   target/release/ironswift --mcp`) and the loop to follow: pick the lowest-graded site in
+   `docs/site-compat.json`, open it next to Chrome, list script errors and unsupported features,
+   make the smallest test case, fix it, re-run the site and the WPT areas touched, commit with the
+   before and after likeness. One site or one feature per commit.
+3. Tests: an integration test that starts `--mcp`, opens `tests/` pages and checks each tool's answer.
+
+When it's done, John sets up a scheduled Claude task that runs the loop every night and writes a
+summary of what it fixed and what got worse.
+
 ### O1. Web compatibility: every tracked site to "Works"
 **Status:** free
-**After:** X1a, X1b, X1c, X1d, X1e
+**After:** O7, X1a, X1b, X1c, X1d, X1e
 **Checklist:** §18 "Web compatibility"
 **Files:** wherever the failing sites lead; `tools/sites.json`, `docs/SITE_COMPAT.md`
 `docs/SITE_COMPAT.md` (2026-11-17): 15 works, 19 usable, 6 broken. Take the broken sites first,
