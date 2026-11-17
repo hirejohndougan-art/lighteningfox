@@ -932,10 +932,11 @@ fn n_computed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::from(JsString::from(s)))
 }
 
-/// __viewport() -> "width,height,scrollY,documentHeight"
+/// __viewport() -> "width,height,scrollY,documentHeight,devicePixelRatio"
 fn n_viewport(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let (w, h, s, d) = crate::geometry::viewport();
-    Ok(JsValue::from(JsString::from(format!("{w},{h},{s},{d}"))))
+    let r = crate::zoom::pixel_ratio();
+    Ok(JsValue::from(JsString::from(format!("{w},{h},{s},{d},{r}"))))
 }
 
 /// __scrollTo(y): scroll the page (in page pixels).

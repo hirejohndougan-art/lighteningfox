@@ -1567,8 +1567,8 @@
   });
   // Live window geometry from the layout.
   const vp = () => __viewport().split(",").map(Number);
-  for (const [name, i] of [["innerWidth", 0], ["outerWidth", 0], ["innerHeight", 1], ["scrollY", 2], ["pageYOffset", 2]]) {
-    Object.defineProperty(g, name, { get: () => (i === 2 ? vp()[2] : Math.round(vp()[i])), configurable: true });
+  for (const [name, i] of [["innerWidth", 0], ["outerWidth", 0], ["innerHeight", 1], ["scrollY", 2], ["pageYOffset", 2], ["devicePixelRatio", 4]]) {
+    Object.defineProperty(g, name, { get: () => (i >= 2 ? vp()[i] || (i === 4 ? 1 : 0) : Math.round(vp()[i])), configurable: true });
   }
   Object.defineProperty(g, "outerHeight", { get: () => Math.round(vp()[1]) + 80, configurable: true });
 

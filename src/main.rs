@@ -40,6 +40,7 @@ mod effects;
 mod anim;
 mod background;
 mod gradient;
+mod smooth;
 mod images;
 mod srcset;
 mod page_images;
@@ -447,7 +448,9 @@ impl Page {
     /// 100% the page is laid out narrower (in CSS pixels) and drawn scaled up, so it reflows
     /// like in other browsers; scripts see CSS pixels.
     fn layout(&mut self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
-        let z = zoom::get(&self.url);
+        // Page zoom times the screen's HiDPI scale: device pixels per CSS pixel.
+        let z = zoom::get(&self.url) * zoom::device_scale();
+        zoom::set_pixel_ratio(z);
         let (cw, ch) = (width / z, viewport_h / z);
         // @media rules follow the window: a new size can mean different styles.
         if (cw, ch) != self.styled_for {
@@ -475,6 +478,11 @@ impl Page {
 
     fn zoom(&self) -> f32 {
         zoom::get(&self.url)
+    }
+
+    /// Device pixels per CSS pixel (page zoom × HiDPI scale).
+    fn scale(&self) -> f32 {
+        self.zoom() * zoom::device_scale()
     }
 }
 
@@ -1729,6 +1737,8 @@ fn is_private() -> bool {
 }
 
 fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
+    zoom::use_device_scale();
+    zoom::set_pixel_ratio(zoom::device_scale());
     // Without a page on the command line, reopen last session's tabs (if that's the setting),
     // else open the home page.
     let session = if explicit || !settings::get().restore_tabs { None } else { load_session() };
@@ -1814,6 +1824,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut draw_times: Vec<f64> = Vec::new();
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
+    let mut smooth = smooth::Smooth::default();
     let mut editing = false;
     let mut address = page.url.clone();
     let mut dirty = true;
@@ -2405,12 +2416,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                 }
                 match key {
-                    Key::Down => scroll += 48.0,
-                    Key::Up => scroll -= 48.0,
-                    Key::PageDown | Key::Space => scroll += view_h * 0.9,
-                    Key::PageUp => scroll -= view_h * 0.9,
-                    Key::Home => scroll = 0.0,
-                    Key::End => scroll = max_scroll,
+                    Key::Down => scroll = smooth.by(scroll, 48.0),
+                    Key::Up => scroll = smooth.by(scroll, -48.0),
+                    Key::PageDown | Key::Space => scroll = smooth.by(scroll, view_h * 0.9),
+                    Key::PageUp => scroll = smooth.by(scroll, -view_h * 0.9),
+                    Key::Home => scroll = smooth.to(scroll, 0.0),
+                    Key::End => scroll = smooth.to(scroll, max_scroll),
                     Key::L if ctrl => {
                         editing = true;
                         aedit = textedit::TextEdit::select_all(&address);
@@ -2498,19 +2509,29 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     reflow = true;
                 }
+<<<<<<< HEAD
                 None if wanted => {
                     scroll += delta;
+=======
+                None => {
+                    scroll = smooth.by(scroll, delta);
+>>>>>>> c8794a4 (Smooth scrolling and HiDPI screens)
                     dirty = true;
                 }
                 None => {}
             }
         }
         if let Some(y) = geometry::take_scroll_request() {
-            scroll = y * page.zoom();
+            scroll = y * page.scale();
             dirty = true;
         }
         scroll = scroll.clamp(0.0, max_scroll);
-        geometry::set_scroll(scroll / page.zoom());
+        if let Some(y) = smooth.step(scroll, max_scroll) {
+            scroll = y;
+            dirty = true;
+        }
+        scroll = scroll.clamp(0.0, max_scroll);
+        geometry::set_scroll(scroll / page.scale());
 
         // Mouse: hover cursor and clicks.
         let down = window.get_mouse_down(MouseButton::Left);
@@ -3352,7 +3373,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
 
         // Idle: poll less often. Anything happening (input, redraws, loading) goes back to 60 fps.
-        let busy = dirty || animating || any_loading || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
+        let busy = dirty || animating || smooth.moving() || any_loading || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
         if busy {
             idle_frames = 0;
             if slow {

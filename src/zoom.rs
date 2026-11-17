@@ -91,3 +91,54 @@ mod tests {
         assert_eq!(key("https://example.com/a?b"), "example.com");
     }
 }
+
+/// The screen's scale factor for HiDPI displays: IRONSWIFT_SCALE, else GDK_SCALE ×
+/// GDK_DPI_SCALE, else QT_SCALE_FACTOR, else the X server's Xft.dpi ÷ 96 (1.0 if unknown).
+/// Pages are laid out in CSS pixels and drawn this many device pixels per CSS pixel.
+pub fn device_scale() -> f32 {
+    // Only the window uses it; PNG renders and printing stay at 1 CSS px = 1 px.
+    if !WINDOWED.load(std::sync::atomic::Ordering::Relaxed) {
+        return 1.0;
+    }
+    static SCALE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *SCALE.get_or_init(|| {
+        let env = |k: &str| std::env::var(k).ok().and_then(|v| v.trim().parse::<f32>().ok()).filter(|v| v.is_finite() && *v > 0.0);
+        let s = env("IRONSWIFT_SCALE")
+            .or_else(|| match (env("GDK_SCALE"), env("GDK_DPI_SCALE")) {
+                (None, None) => None,
+                (a, b) => Some(a.unwrap_or(1.0) * b.unwrap_or(1.0)),
+            })
+            .or_else(|| env("QT_SCALE_FACTOR"))
+            .or_else(xft_dpi_scale)
+            .unwrap_or(1.0);
+        // Quarter steps, like desktop scaling settings.
+        ((s * 4.0).round() / 4.0).clamp(1.0, 4.0)
+    })
+}
+
+static WINDOWED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Called when the browser window opens: from then on pages follow the screen's scale.
+pub fn use_device_scale() {
+    WINDOWED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn xft_dpi_scale() -> Option<f32> {
+    std::env::var_os("DISPLAY")?;
+    let out = std::process::Command::new("xrdb").arg("-query").stderr(std::process::Stdio::null()).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let dpi: f32 = text.lines().find_map(|l| l.strip_prefix("Xft.dpi:"))?.trim().parse().ok()?;
+    (dpi > 0.0).then_some(dpi / 96.0)
+}
+
+/// Device pixels per CSS pixel on the page being shown (screen scale × page zoom), for
+/// scripts' `devicePixelRatio`.
+static PIXEL_RATIO: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3f80_0000);
+
+pub fn set_pixel_ratio(r: f32) {
+    PIXEL_RATIO.store(r.to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn pixel_ratio() -> f32 {
+    f32::from_bits(PIXEL_RATIO.load(std::sync::atomic::Ordering::Relaxed))
+}
