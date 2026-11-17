@@ -436,9 +436,12 @@ impl<'a> Ctx<'a> {
         if st.min_width != Len::Auto {
             w = w.max(pct(st.min_width) - sizing);
         }
-        // Form controls have their own natural width.
+        // Form controls have their own natural width. While measuring how wide something
+        // wants to be, a percentage width has nothing to be a percentage of, so it counts
+        // as the natural width too (as in other browsers).
         let ctrl = self.control_kind(id);
-        if let (Some(_), Len::Auto, None) = (ctrl, self.styles[id].width, forced.0) {
+        let pct_while_measuring = self.measuring && matches!(self.styles[id].width, Len::Pct(_) | Len::Mix(..));
+        if ctrl.is_some() && forced.0.is_none() && (self.styles[id].width == Len::Auto || pct_while_measuring) {
             w = self.control_width(id);
             constrained = true;
         }
@@ -1092,7 +1095,11 @@ impl<'a> Ctx<'a> {
                         + st.margin[1].resolve(w) + st.margin[3].resolve(w);
                     // border-box: the size already includes padding and border; add margins only.
                     let edges = if st.border_box { st.margin[1].resolve(w) + st.margin[3].resolve(w) } else { edges };
-                    match (st.flex.basis, st.width) {
+                    // Measuring an intrinsic size: percentages have no basis yet and act as auto.
+                    let pct_measure = self.measuring && matches!(st.width, Len::Pct(_) | Len::Mix(..));
+                    let width = if pct_measure { Len::Auto } else { st.width };
+                    match (st.flex.basis, width) {
+                        (Len::Auto, Len::Auto) if pct_measure && self.control_kind(*n).is_some() => self.control_outer(*n, w),
                         (Len::Auto, Len::Auto) => self.layout_detached(*n, w).w,
                         (Len::Auto, wl) => wl.resolve(w) + edges,
                         (b, _) => b.resolve(w) + edges,
@@ -1219,10 +1226,24 @@ impl<'a> Ctx<'a> {
             }
             let gaps = col_gap * (line.len().saturating_sub(1)) as f32;
             let free = (w - sizes.iter().sum::<f32>() - gaps).max(0.0);
-            let (mut pos, between) = justify_offsets(fl.justify, free, line.len());
+            // Auto margins on the main axis take the free space first (margin-left: auto
+            // pushes an item to the end, as in navigation bars); justify-content gets the rest.
+            let autos: Vec<(bool, bool)> = line
+                .iter()
+                .map(|&i| match &items[i] {
+                    FlexItem::Node(n) => (self.styles[*n].margin[3] == Len::Auto, self.styles[*n].margin[1] == Len::Auto),
+                    FlexItem::Text(_) => (false, false),
+                })
+                .collect();
+            let n_auto = autos.iter().map(|&(l, r)| l as usize + r as usize).sum::<usize>();
+            let share = if n_auto > 0 { free / n_auto as f32 } else { 0.0 };
+            let (mut pos, between) = if n_auto > 0 { (0.0, 0.0) } else { justify_offsets(fl.justify, free, line.len()) };
             let line_baseline = boxes.iter().map(|d| d.baseline).fold(0.0f32, f32::max);
             for (k, d) in boxes.into_iter().enumerate() {
                 let i = line[k];
+                if autos[k].0 {
+                    pos += share;
+                }
                 let dy = match align_of(self, &items[i]) {
                     AlignItems::Center => (cross - d.h) / 2.0,
                     AlignItems::End => cross - d.h,
@@ -1231,6 +1252,9 @@ impl<'a> Ctx<'a> {
                 };
                 self.place_detached(d, x + pos, cy + dy);
                 pos += sizes[k] + col_gap + between;
+                if autos[k].1 {
+                    pos += share;
+                }
             }
             cy += cross;
             if li + 1 < lines.len() {

@@ -1,0 +1,17 @@
+<!DOCTYPE html><html><head><title>Vue 3</title>
+<style>body{font-family:sans-serif;margin:24px} li{margin:3px 0} .on{color:#15803d;font-weight:bold}</style>
+<script src="vue.global.prod.js"></script></head>
+<body><div id="app"><h1>Vue {{ version }} running in LighteningFox</h1>
+<p>Message: <b>{{ message.toUpperCase() }}</b> ({{ message.length }} characters)</p>
+<p :class="{ on: active }">This line is green when active = {{ active }}</p>
+<ul><li v-for="(item, i) in items" :key="i">{{ i + 1 }}. {{ item }}</li></ul>
+<button @click="count++">Count is {{ count }}</button> <span v-if="count > 2">More than two!</span>
+<p>Computed: doubled = {{ doubled }}</p></div>
+<script>
+const { createApp, ref, computed } = Vue;
+createApp({ setup() {
+  const count = ref(0), message = ref("hello from vue"), active = ref(true);
+  const items = ref(["Reactive state", "v-for lists", "Event handling", "Computed values"]);
+  return { version: Vue.version, count, message, active, items, doubled: computed(() => count.value * 2) };
+} }).mount("#app");
+</script></body></html>

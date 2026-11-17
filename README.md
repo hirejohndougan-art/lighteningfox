@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Real-world libraries**: React 18, Vue 3, jQuery 3 and Bootstrap 5 render and respond to clicks (kept as screenshot tests in `tests/real-world/`); standard element interfaces (`HTMLInputElement`, `SVGElement`… with honest `instanceof`), `document.implementation.createHTMLDocument`, `DOMParser`
 - **Web fonts**: `@font-face` with WOFF2, WOFF, TrueType and OpenType sources (decoded with the pure-Rust `wuff` crate); only fonts the page uses are downloaded, in parallel; weight and italic matching; characters a web font lacks fall back to the system font; generic families (`serif`, `monospace`…)
 - **Event loop**: each timer and message is its own task with promise callbacks (microtasks) run after it; `requestAnimationFrame` runs once per drawn frame; `MessageChannel`, `window.postMessage`, `structuredClone`; headless snapshots wait for network requests and timers due within 0.5 s
 - **Web Storage**: `localStorage` saved per site in the profile folder and kept between runs (5 MB per site), `sessionStorage` for the page; both also work as `localStorage.key = value`

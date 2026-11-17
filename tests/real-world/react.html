@@ -1,0 +1,22 @@
+<!DOCTYPE html><html><head><title>React 18</title>
+<style>body{font-family:sans-serif;margin:24px} .todo{display:flex;gap:8px;align-items:center;margin:4px 0} .done{text-decoration:line-through;color:#888} button{padding:4px 10px}</style>
+<script src="react.production.min.js"></script><script src="react-dom.production.min.js"></script></head>
+<body><div id="root">React hasn't rendered yet</div>
+<script>
+const e = React.createElement;
+function App() {
+  const [count, setCount] = React.useState(0);
+  const [todos, setTodos] = React.useState([{ t: "Build a browser", d: true }, { t: "Run React in it", d: false }, { t: "Sign in to Gmail", d: false }]);
+  const [ticks, setTicks] = React.useState(0);
+  React.useEffect(() => { const id = setTimeout(() => setTicks(1), 10); return () => clearTimeout(id); }, []);
+  return e("div", null,
+    e("h1", null, "React " + React.version + " running in LighteningFox"),
+    e("p", null, "useEffect ran: " + (ticks ? "yes" : "not yet")),
+    e("p", null, e("button", { id: "inc", onClick: () => setCount(count + 1) }, "Clicked " + count + " times")),
+    e("h2", null, "Todos (" + todos.filter(x => !x.d).length + " left)"),
+    todos.map((x, i) => e("div", { key: i, className: "todo" },
+      e("input", { type: "checkbox", checked: x.d, onChange: () => setTodos(todos.map((y, j) => j === i ? { ...y, d: !y.d } : y)) }),
+      e("span", { className: x.d ? "done" : "" }, x.t))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+</script></body></html>

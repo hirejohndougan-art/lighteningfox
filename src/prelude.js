@@ -427,6 +427,45 @@
   const document = new Document(0);
   cache.set(0, document);
 
+  // A separate, blank document (document.implementation.createHTMLDocument, DOMParser).
+  // Its nodes live in the same tree storage, detached from the page.
+  class DetachedDocument extends Document {
+    constructor(title) {
+      const html = document.createElement("html");
+      super(html.__id);
+      this._root = html;
+      const head = document.createElement("head"), body = document.createElement("body");
+      html.appendChild(head);
+      html.appendChild(body);
+      if (title !== undefined) { const t = document.createElement("title"); t.textContent = String(title); head.appendChild(t); }
+    }
+    get documentElement() { return this._root; }
+    get head() { return this._root.querySelector("head"); }
+    get body() { return this._root.querySelector("body"); }
+    get readyState() { return "complete"; }
+    get defaultView() { return null; }
+    getElementById(id) { return this._root.querySelector("#" + CSS.escape(String(id))); }
+    querySelector(sel) { return this._root.querySelector(sel); }
+    querySelectorAll(sel) { return this._root.querySelectorAll(sel); }
+    write(...html) { this.body.insertAdjacentHTML ? this.body.insertAdjacentHTML("beforeend", html.join("")) : (this.body.innerHTML += html.join("")); }
+  }
+  document.implementation = {
+    createHTMLDocument: (title) => new DetachedDocument(title),
+    createDocument: () => new DetachedDocument(),
+    hasFeature: () => true,
+  };
+  class DOMParser {
+    parseFromString(text, type) {
+      const d = new DetachedDocument();
+      const src = String(text);
+      const head = /<head[^>]*>([\s\S]*?)<\/head>/i.exec(src);
+      const body = /<body[^>]*>([\s\S]*)<\/body>/i.exec(src);
+      if (head) d.head.innerHTML = head[1];
+      d.body.innerHTML = body ? body[1] : head ? src.replace(head[0], "").replace(/<\/?html[^>]*>/gi, "") : src;
+      return d;
+    }
+  }
+
   // ------------------------------------------------------------ timers
   let __timerId = 0;
   const timers = new Map();
@@ -907,14 +946,52 @@
   };
   Object.assign(g, { MessageEvent, MessagePort, MessageChannel });
 
+  // The standard element interfaces (HTMLInputElement, SVGElement…). Each matches only its
+  // own tags with instanceof, so checks like `x instanceof HTMLIFrameElement` are honest.
+  const SVG_TAGS = "svg g path circle ellipse line polyline polygon rect text tspan textpath defs use symbol clippath mask pattern image marker lineargradient radialgradient stop filter fegaussianblur feoffset feblend fecolormatrix foreignobject title desc switch view".split(" ");
+  const interfaces = {
+    HTMLAnchorElement: "a", HTMLAreaElement: "area", HTMLAudioElement: "audio", HTMLBRElement: "br", HTMLBaseElement: "base",
+    HTMLBodyElement: "body", HTMLButtonElement: "button", HTMLCanvasElement: "canvas", HTMLDListElement: "dl",
+    HTMLDataListElement: "datalist", HTMLDetailsElement: "details", HTMLDialogElement: "dialog", HTMLDivElement: "div",
+    HTMLEmbedElement: "embed", HTMLFieldSetElement: "fieldset", HTMLFormElement: "form", HTMLHRElement: "hr",
+    HTMLHeadElement: "head", HTMLHeadingElement: "h1 h2 h3 h4 h5 h6", HTMLHtmlElement: "html", HTMLIFrameElement: "iframe",
+    HTMLImageElement: "img", HTMLInputElement: "input", HTMLLIElement: "li", HTMLLabelElement: "label", HTMLLegendElement: "legend",
+    HTMLLinkElement: "link", HTMLMapElement: "map", HTMLMetaElement: "meta", HTMLMeterElement: "meter", HTMLOListElement: "ol",
+    HTMLObjectElement: "object", HTMLOptGroupElement: "optgroup", HTMLOptionElement: "option", HTMLOutputElement: "output",
+    HTMLParagraphElement: "p", HTMLPictureElement: "picture", HTMLPreElement: "pre", HTMLProgressElement: "progress",
+    HTMLQuoteElement: "q blockquote", HTMLScriptElement: "script", HTMLSelectElement: "select", HTMLSlotElement: "slot",
+    HTMLSourceElement: "source", HTMLSpanElement: "span", HTMLStyleElement: "style", HTMLTableElement: "table",
+    HTMLTableCaptionElement: "caption", HTMLTableCellElement: "td th", HTMLTableColElement: "col colgroup",
+    HTMLTableRowElement: "tr", HTMLTableSectionElement: "thead tbody tfoot", HTMLTemplateElement: "template",
+    HTMLTextAreaElement: "textarea", HTMLTimeElement: "time", HTMLTitleElement: "title", HTMLTrackElement: "track",
+    HTMLUListElement: "ul", HTMLVideoElement: "video", HTMLMediaElement: "audio video",
+  };
+  const isEl = (x) => x != null && typeof x === "object" && x.nodeType === 1;
+  for (const [name, tags] of Object.entries(interfaces)) {
+    const set = new Set(tags.split(" "));
+    const C = class extends HTMLElement { static [Symbol.hasInstance](x) { return isEl(x) && set.has(x.localName || x.tagName.toLowerCase()); } };
+    Object.defineProperty(C, "name", { value: name });
+    g[name] = C;
+  }
+  const svgSet = new Set(SVG_TAGS);
+  const isSvg = (x) => isEl(x) && svgSet.has((x.localName || x.tagName).toLowerCase());
+  g.SVGElement = class SVGElement extends Element { static [Symbol.hasInstance](x) { return isSvg(x); } };
+  g.SVGGraphicsElement = class SVGGraphicsElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isSvg(x); } };
+  g.SVGSVGElement = class SVGSVGElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isEl(x) && x.tagName.toLowerCase() === "svg"; } };
+  g.HTMLUnknownElement = class HTMLUnknownElement extends HTMLElement { static [Symbol.hasInstance]() { return false; } };
+  g.ShadowRoot = class ShadowRoot extends DocumentFragment {};
+  g.HTMLDocument = Document;
+  g.NodeList = Array;
+  g.HTMLCollection = Array;
+  g.NodeFilter = { SHOW_ALL: -1, SHOW_ELEMENT: 1, SHOW_TEXT: 4, SHOW_COMMENT: 128, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 };
+
   Object.assign(g, { Headers, Response, Request, FormData, AbortController, AbortSignal, DOMException, XMLHttpRequest });
 
   Object.assign(g, {
     window: g, self: g, top: g, parent: g, globalThis: g, frames: g,
     document, location, Node, Element, HTMLElement, Text, Comment, Document, DocumentFragment,
     CharacterData, Event, CustomEvent, EventTarget,
-    HTMLDivElement: HTMLElement, HTMLAnchorElement: HTMLElement, HTMLImageElement: HTMLElement,
-    HTMLInputElement: HTMLElement, HTMLButtonElement: HTMLElement, HTMLScriptElement: HTMLElement,
+    DOMParser,
     navigator: { userAgent: __userAgent, language: "en-US", languages: ["en-US", "en"], platform: "Linux x86_64",
                  onLine: true, cookieEnabled: true, globalPrivacyControl: true, doNotTrack: "1", hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
     screen: { width: 1366, height: 768, availWidth: 1366, availHeight: 768, colorDepth: 24 },

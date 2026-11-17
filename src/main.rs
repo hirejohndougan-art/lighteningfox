@@ -915,10 +915,37 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 } else {
                     // Let the page's JavaScript see the click first.
                     let node = lay.hit_at(mx, view_y, scroll);
+                    // Checkboxes and radio buttons change before the click event, so handlers
+                    // (React's onChange, for one) see the new state; a cancelled click undoes it.
+                    let toggled = node
+                        .and_then(|n| js::with_dom(|d| control_for(d, n)))
+                        .filter(|&c| js::with_dom(|d| matches!(forms::control(d, c), Some(forms::Control::Checkbox | forms::Control::Radio)) && !forms::is_disabled(d, c)));
+                    let before: Vec<(dom::NodeId, bool)> = match toggled {
+                        Some(_) => js::with_dom(|d| {
+                            d.find_all("input").into_iter().map(|i| (i, d.attr(i, "checked").is_some())).collect()
+                        }),
+                        None => Vec::new(),
+                    };
+                    if let Some(c) = toggled {
+                        js::with_dom_mut(|d| forms::toggle(d, c));
+                    }
                     let allowed = match (node, page.js.as_mut()) {
                         (Some(n), Some(js)) => js.click(n),
                         _ => true,
                     };
+                    if let Some(c) = toggled {
+                        if allowed {
+                            fire(&mut page, c, "input");
+                            fire(&mut page, c, "change");
+                        } else {
+                            js::with_dom_mut(|d| {
+                                for &(i, was) in &before {
+                                    if was { d.set_attr(i, "checked", "") } else { d.remove_attr(i, "checked") }
+                                }
+                            });
+                        }
+                        form_changed = true;
+                    }
                     if js::take_dirty() {
                         page.restyle();
                         reflow = true;
@@ -946,12 +973,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                             fire(&mut page, c, "click");
                         }
                         match js::with_dom(|d| forms::control(d, c)) {
-                            Some(forms::Control::Checkbox | forms::Control::Radio) => {
-                                js::with_dom_mut(|d| forms::toggle(d, c));
-                                fire(&mut page, c, "input");
-                                fire(&mut page, c, "change");
-                                form_changed = true;
-                            }
+                            // Already changed before the click event (above).
+                            Some(forms::Control::Checkbox | forms::Control::Radio) => {}
                             Some(forms::Control::Select) => {
                                 if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r) {
                                     let options = js::with_dom(|d| forms::options(d, c).into_iter().map(|o| (o, forms::option_label(d, o))).collect());
@@ -1279,6 +1302,10 @@ mod screenshot_tests {
         ("tests/transforms.html", 900),
         ("tests/history.html", 800),
         ("tests/webfonts.html", 900),
+        ("tests/real-world/react.html", 1024),
+        ("tests/real-world/vue.html", 1024),
+        ("tests/real-world/jquery.html", 1024),
+        ("tests/real-world/bootstrap.html", 1024),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
@@ -1299,7 +1326,7 @@ mod screenshot_tests {
         std::fs::create_dir_all("target/screenshot-diffs").unwrap();
         let mut failures = Vec::new();
         for (url, width) in PAGES {
-            let name = url.trim_start_matches("tests/").trim_end_matches(".html").replace(':', "-");
+            let name = url.trim_start_matches("tests/").trim_end_matches(".html").replace([':', '/'], "-");
             let reference = format!("tests/reference/{name}.png");
             let (_, _, canvas) = render_page(fonts, url, *width);
             if update || !std::path::Path::new(&reference).exists() {
