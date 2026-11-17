@@ -149,7 +149,8 @@ def update_tracker(sites, results):
             continue
         if entry.get("grade") and entry.get("grade") != r["grade"]:
             entry["previous_grade"] = entry["grade"]
-        entry.update({"grade": r["grade"], "likeness": r["likeness"], "script_errors": r["errors"], "seconds": round(r["time"], 1), "checked": today, "version": ver})
+        entry.update({"grade": r["grade"], "likeness": r["likeness"], "script_errors": r["errors"], "seconds": round(r["time"], 1), "checked": today, "version": ver,
+                      "first_errors": [e[:200] for e in r.get("first_errors", [])[:5]]})
     data["last_run"] = today
     with open(TRACKER_JSON, "w") as f:
         json.dump(data, f, indent=1, sort_keys=True)
