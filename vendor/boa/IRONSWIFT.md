@@ -86,10 +86,14 @@ changes.
    objects are never cached this way. `deep_prototype_cache_invalidation` tests shadowing,
    deletes, prototype swaps, getters and proxies along the chain.
 
+7. **Free drops for plain values (`value/inner/nan_boxed.rs`).** Dropping a number, boolean,
+   `null` or `undefined` used to call the full drop routine; a single bit test now skips it,
+   and only values holding a pointer make a call. NavierStokes −5%, Crypto −4.5%.
+
 Changes 1–4 together, instructions per benchmark vs Boa 0.22.0: Richards −9%, DeltaBlue −7%,
 RayTrace −6%, Splay −8%, EarleyBoyer −8%, RegExp −1%, NavierStokes +1%, Crypto +1%.
-With change 6 as well: Richards −10%, DeltaBlue −13%, RayTrace −6%, Splay −7%, EarleyBoyer
-−15%, RegExp −3%, NavierStokes +1%, Crypto +1%.
+With changes 6 and 7 as well: Richards −9%, DeltaBlue −12%, RayTrace −6%, Splay −8%,
+EarleyBoyer −15%, RegExp −2%, NavierStokes −4%, Crypto −4%.
 
 ## Testing changes
 

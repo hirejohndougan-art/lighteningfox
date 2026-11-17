@@ -168,6 +168,8 @@ mod bits {
     pub(super) const MASK_STRING: u64 = MASK_NAN | TAG_STRING;
     pub(super) const MASK_SYMBOL: u64 = MASK_NAN | TAG_SYMBOL;
     pub(super) const MASK_BIGINT: u64 = MASK_NAN | TAG_BIGINT;
+    /// Ironswift: object, string, symbol and bigint tags (0xC-0xF) all have both of these bits.
+    pub(super) const MASK_POINTER_KINDS: u64 = MASK_NAN | TAG_OBJECT;
 
     // The masks for the different kinds of values.
     const MASK_INT32_VALUE: u64 = 0xFFFF_FFFF;
@@ -834,6 +836,17 @@ impl NanBoxedValue {
 impl Drop for NanBoxedValue {
     #[inline(always)]
     fn drop(&mut self) {
+        // Ironswift: numbers, booleans, null and undefined own nothing, so dropping them is
+        // now free; only values holding a pointer make a call.
+        if self.value() & bits::MASK_POINTER_KINDS == bits::MASK_POINTER_KINDS {
+            self.drop_pointer();
+        }
+    }
+}
+
+impl NanBoxedValue {
+    #[inline(never)]
+    fn drop_pointer(&mut self) {
         match self.value() & bits::MASK_KIND {
             bits::MASK_OBJECT => {
                 unsafe { ManuallyDrop::into_inner(self.as_object_unchecked()) };
