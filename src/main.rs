@@ -66,6 +66,7 @@ mod conformance;
 mod crashlog;
 mod settings;
 mod contrast;
+mod a11y_bridge;
 mod security;
 mod sysfonts;
 mod text;
@@ -1823,6 +1824,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     };
     // The window and graphics are set up: from here on, refuse the system calls a browser
     // never needs (see sandbox.rs).
+    // Screen readers (AT-SPI): connects to the accessibility bus; costs nothing until one listens.
+    let mut a11y = a11y_bridge::Bridge::new();
+    let mut window_active = false;
     sandbox::protect_browser();
     let mut idle_frames = 0u32;
     let mut slow = false;
@@ -2190,6 +2194,74 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         let view_h = h.saturating_sub(bar_h()) as f32;
+        // Requests from screen readers: focus, press, scroll to or fill in an element; the
+        // browser's own buttons and tabs.
+        if let Some(bridge) = a11y.as_mut() {
+            let max_scroll = (lay.height - view_h).max(0.0);
+            if bridge.wants_frame() {
+                dirty = true;
+            }
+            for req in bridge.take_requests() {
+                use a11y_bridge::Request as R;
+                match req {
+                    R::Focus(n) | R::ScrollTo(n) | R::Click(n) if n >= js::with_dom(|d| d.nodes.len()) => {}
+                    R::Focus(n) => {
+                        if focused != Some(n) {
+                            if let Some(old) = focused {
+                                fire(&mut page, old, "blur");
+                            }
+                            focused = Some(n);
+                            fire(&mut page, n, "focus");
+                            form_changed = true;
+                        }
+                        editing = false;
+                        focus_visible = true;
+                        if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, n)) {
+                            if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
+                                scroll = s;
+                            }
+                        }
+                        dirty = true;
+                    }
+                    R::ScrollTo(n) => {
+                        if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, n)) {
+                            if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
+                                scroll = s;
+                                dirty = true;
+                            }
+                        }
+                    }
+                    R::Click(n) => {
+                        // Bring it on screen, then click its middle as the mouse would.
+                        if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, n)) {
+                            if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
+                                scroll = s;
+                            }
+                            key_click = Some(keynav::center_on_screen(r, fixed, bar_h() as f32, scroll));
+                            dirty = true;
+                        }
+                    }
+                    R::SetValue(n, v) => {
+                        if js::with_dom(|d| forms::is_editable(d, n)) {
+                            js::with_dom_mut(|d| forms::set_value(d, n, &v));
+                            fire(&mut page, n, "input");
+                            fire(&mut page, n, "change");
+                            form_changed = true;
+                        }
+                    }
+                    R::Back => navigate = Some(Go::Back),
+                    R::Forward => navigate = Some(Go::Forward),
+                    R::Reload => navigate = Some(Go::Reload),
+                    R::FocusAddress => {
+                        editing = true;
+                        aedit = textedit::TextEdit::select_all(&address);
+                        dirty = true;
+                    }
+                    R::Tab(i) if i < tabs.len() => tab_cmd = Some(TabCmd::Switch(i)),
+                    R::Tab(_) => {}
+                }
+            }
+        }
         // Files picked in the file chooser go into their input (if its page is still shown).
         if let Some(chosen) = file_pick.as_ref().and_then(|p| p.poll()) {
             let p = file_pick.take().unwrap();
@@ -3627,6 +3699,39 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 })
                 .collect();
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
+            if let Some(bridge) = a11y.as_mut() {
+                if window.is_active() != window_active {
+                    window_active = window.is_active();
+                    bridge.window_focused(window_active);
+                }
+                if bridge.active() {
+                    let names: Vec<String> = labels.iter().map(|l| l.0.clone()).collect();
+                    let rects = tab_rects(w as f32, tabs.len());
+                    let chrome = a11y_bridge::Chrome {
+                        tabs: &names,
+                        active_tab: active,
+                        address: &address,
+                        editing_address: editing,
+                        can_back: !back.is_empty(),
+                        can_forward: !forward.is_empty(),
+                        win_w: w as f32,
+                        win_h: h as f32,
+                        page_top: bar_h() as f32,
+                        buttons: [BUTTONS[0].0, BUTTONS[1].0, BUTTONS[2].0],
+                        button_w: BTN_W,
+                        field_x: FIELD_X,
+                        tab_h: TAB_H,
+                        tool_h: TOOL_H,
+                        tab_rects: &rects,
+                    };
+                    let title = page.title.clone();
+                    let url = page.url.clone();
+                    js::with_dom(|d| {
+                        let pg = a11y_bridge::Page { dom: d, styles: &page.styles, layout: &lay, focused, scroll, url: &url };
+                        bridge.update(&title, &chrome, &pg);
+                    });
+                }
+            }
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
             let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || picker.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();

@@ -311,7 +311,7 @@ pub fn page(query: &str) -> String {
     match query.trim_start_matches('?') {
         "clear_cache" => {
             let freed = crate::cache::clear();
-            cleared = format!("<p class=\"saved\">Cached files cleared ({:.1} MB freed).</p>", freed as f64 / 1_048_576.0);
+            cleared = format!("<p class=\"saved\">{}</p>", esc(&crate::i18n::tf("settings-cache-cleared", &[("mb", &format!("{:.1}", freed as f64 / 1_048_576.0))])));
         }
         "clear_data" => cleared = format!("<p class=\"saved\">{}</p>", clear_data(true)),
         "default_browser" => cleared = format!("<p class=\"saved\">{}</p>", make_default()),
@@ -331,24 +331,24 @@ pub fn page(query: &str) -> String {
             let msg = match what.as_str() {
                 "delete" => {
                     crate::cookies::clear_site(&site);
-                    format!("Cookies from {site} deleted.")
+                    crate::i18n::tf("settings-cookies-deleted", &[("site", &site)])
                 }
                 "allow" => {
                     set_site_rule("cookies_allow", &site, true);
-                    format!("{site} may always use cookies.")
+                    crate::i18n::tf("settings-cookies-allowed", &[("site", &site)])
                 }
                 "block" => {
                     set_site_rule("cookies_block", &site, true);
                     crate::cookies::clear_site(&site);
-                    format!("{site} can't use cookies any more (its cookies were deleted).")
+                    crate::i18n::tf("settings-cookies-blocked", &[("site", &site)])
                 }
                 "session" => {
                     set_site_rule("cookies_session", &site, true);
-                    format!("{site}'s cookies will be deleted when Ironswift closes.")
+                    crate::i18n::tf("settings-cookies-session-set", &[("site", &site)])
                 }
                 _ => {
                     set_site_rule("cookies_allow", &site, false);
-                    format!("{site} uses the normal cookie rules.")
+                    crate::i18n::tf("settings-cookies-default", &[("site", &site)])
                 }
             };
             if !site.is_empty() {
@@ -358,7 +358,7 @@ pub fn page(query: &str) -> String {
         q if q.starts_with("forget_permission=") => {
             let site = crate::net::percent_decode_str(&q["forget_permission=".len()..]);
             crate::permissions::forget(&site);
-            cleared = format!("<p class=\"saved\">Permissions for {} reset.</p>", esc(&site));
+            cleared = format!("<p class=\"saved\">{}</p>", esc(&crate::i18n::tf("settings-permissions-reset", &[("site", &site)])));
         }
         _ => {}
     }
@@ -399,8 +399,8 @@ pub fn page(query: &str) -> String {
         .iter()
         .map(|(k, name, _)| format!("<option value=\"{k}\"{}>{name}</option>", if *k == s.search { " selected" } else { "" }))
         .collect();
-    format!(
-        r#"<!DOCTYPE html><html><head><title>Settings</title><style>
+    fill_messages(&format!(
+        r#"<!DOCTYPE html><html lang="{lang}" dir="{dir}"><head><title>@@settings-title@@</title><style>
 body{{font-family:sans-serif;margin:32px auto;max-width:720px;padding:0 20px;color:#1f2937}}
 h1{{margin-bottom:4px}} .sub{{color:#64748b;margin-top:0}}
 section{{border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;margin:16px 0}}
@@ -411,72 +411,72 @@ input[type=text],input[type=number],select{{font-size:14px;padding:5px 8px}} inp
 table.sites{{border-collapse:collapse;margin:8px 0;font-size:13px}} table.sites td{{padding:3px 10px 3px 0}}
 button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:15px}}
 </style></head><body>
-<h1>Settings</h1><p class="sub">Saved on this computer only.</p>{saved}{cleared}
+<h1>@@settings-title@@</h1><p class="sub">@@settings-sub@@</p>{saved}{cleared}
 <form action="about:settings" method="get"><input type="hidden" name="save" value="1">
-<section><h2>Startup and search</h2>
-<div class="row field"><label>Home page</label><input type="text" name="home" value="{home}"></div>
-<div class="row field"><label>Search engine</label><select name="search">{engines}</select></div>
-<div class="row"><label><input type="checkbox" name="restore_tabs" value="1"{restore}> Reopen the tabs from last time</label></div>
-<div class="row"><label><input type="checkbox" name="show_bookmarks_bar" value="1"{bmbar}> Show the bookmarks bar</label></div>
+<section><h2>@@settings-startup@@</h2>
+<div class="row field"><label>@@settings-home@@</label><input type="text" name="home" value="{home}"></div>
+<div class="row field"><label>@@settings-search-engine@@</label><select name="search">{engines}</select></div>
+<div class="row"><label><input type="checkbox" name="restore_tabs" value="1"{restore}> @@settings-restore-tabs@@</label></div>
+<div class="row"><label><input type="checkbox" name="show_bookmarks_bar" value="1"{bmbar}> @@settings-bookmarks-bar@@</label></div>
 </section>
-<section><h2>Memory</h2>
-<div class="row field"><label>Put background tabs to sleep after (minutes, 0 = never)</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
-<p class="hint" style="margin-left:0">A sleeping tab frees its page and reloads when you come back to it.</p>
-<div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> Draw with the graphics card</label><p class="hint">Smoother scrolling and less work for the processor; the graphics driver uses about 40–70 MB more memory. Takes effect the next time Ironswift starts.</p></div>
+<section><h2>@@settings-memory@@</h2>
+<div class="row field"><label>@@settings-sleep@@</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
+<p class="hint" style="margin-left:0">@@settings-sleep-hint@@</p>
+<div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> @@settings-gpu@@</label><p class="hint">@@settings-gpu-hint@@</p></div>
 </section>
-<section><h2>Privacy</h2>
-<div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> Share cookies with embedded sites</label><p class="hint">Off by default: a site embedded in other sites (an ad or tracking network, a video player) gets a separate cookie jar on each site, so it can't follow you around.</p></div>
-<div class="row"><label><input type="checkbox" name="strip_tracking" value="1"{strip}> Remove tracking tags from links</label><p class="hint">utm_source, fbclid, gclid and similar.</p></div>
-<div class="row"><label><input type="checkbox" name="send_gpc" value="1"{gpc}> Send Global Privacy Control</label><p class="hint">Asks sites not to sell or share your data.</p></div>
-<div class="row"><label><input type="checkbox" name="clear_on_exit" value="1"{clear_exit}> Delete cookies and site data when Ironswift closes</label><p class="hint">Signs you out of sites each time; history and bookmarks are kept.</p></div>
-<div class="row field"><label>Always allow cookies from these sites</label><textarea name="cookies_allow" rows="2" cols="60" placeholder="example.com">{ck_allow}</textarea><p class="hint" style="margin-left:0">Even when they're embedded in other sites (for sign-in or comment boxes that need them).</p></div>
-<div class="row field"><label>Never allow cookies from these sites</label><textarea name="cookies_block" rows="2" cols="60">{ck_block}</textarea></div>
-<div class="row field"><label>Delete these sites' cookies when Ironswift closes</label><textarea name="cookies_session" rows="2" cols="60">{ck_session}</textarea></div>
-<p class="hint" style="margin-left:0">Other sites embedded in a page get their own separate cookie jar for that page, so they can't follow you from site to site.</p>
-<details><summary>Sites with cookies ({cookie_count})</summary><table class="sites">{cookie_rows}</table></details>
-<div class="row"><a href="about:settings?clear_data">Clear browsing data now</a> <span class="hint">History, cookies, site data and cached files. Bookmarks and settings stay.</span></div>
-<p class="hint" style="margin-left:0">For browsing that keeps nothing at all, open a private window with Ctrl+Shift+N.</p>
+<section><h2>@@settings-privacy@@</h2>
+<div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> @@settings-tpc@@</label><p class="hint">@@settings-tpc-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="strip_tracking" value="1"{strip}> @@settings-strip@@</label><p class="hint">@@settings-strip-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="send_gpc" value="1"{gpc}> @@settings-gpc@@</label><p class="hint">@@settings-gpc-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="clear_on_exit" value="1"{clear_exit}> @@settings-clear-exit@@</label><p class="hint">@@settings-clear-exit-hint@@</p></div>
+<div class="row field"><label>@@settings-cookies-allow@@</label><textarea name="cookies_allow" rows="2" cols="60" placeholder="example.com">{ck_allow}</textarea><p class="hint" style="margin-left:0">@@settings-cookies-allow-hint@@</p></div>
+<div class="row field"><label>@@settings-cookies-block@@</label><textarea name="cookies_block" rows="2" cols="60">{ck_block}</textarea></div>
+<div class="row field"><label>@@settings-cookies-session@@</label><textarea name="cookies_session" rows="2" cols="60">{ck_session}</textarea></div>
+<p class="hint" style="margin-left:0">@@settings-partition-hint@@</p>
+<details><summary>{cookie_sites}</summary><table class="sites">{cookie_rows}</table></details>
+<div class="row"><a href="about:settings?clear_data">@@settings-clear-data@@</a> <span class="hint">@@settings-clear-data-hint@@</span></div>
+<p class="hint" style="margin-left:0">@@settings-private-hint@@</p>
 </section>
-<section><h2>Blocking and safety</h2>
-<div class="row"><label><input type="checkbox" name="block_ads" value="1"{blk_ads}> Block ads</label><p class="hint">EasyList: ad requests are stopped and empty ad boxes hidden. Pages load faster.</p></div>
-<div class="row"><label><input type="checkbox" name="block_trackers" value="1"{blk_trk}> Block trackers</label><p class="hint">EasyPrivacy: analytics, tracking pixels and fingerprinting scripts.</p></div>
-<div class="row field"><label>Turn blocking off on these sites</label><textarea name="no_blocking" rows="2" cols="60" placeholder="example.com">{no_blk}</textarea></div>
-<div class="row"><label><input type="checkbox" name="safe_browsing" value="1"{safe}> Warn me before dangerous sites</label><p class="hint">Sites on the URLhaus malware list and the Phishing Army list. The check happens on this computer; nothing is sent anywhere.</p></div>
-<div class="row"><label><input type="checkbox" name="resist_fingerprinting" value="1"{rfp}> Resist fingerprinting</label><p class="hint">Sites see a common screen size, the standard fonts and slightly varied canvas readouts, so they can't recognize your computer by its details.</p></div>
-<p class="hint" style="margin-left:0">{lists} · <a href="about:settings?update_lists">Update lists now</a></p>
-<p class="hint" style="margin-left:0">Camera, microphone, location and notifications: sites ask first. {perms}</p>
+<section><h2>@@settings-blocking@@</h2>
+<div class="row"><label><input type="checkbox" name="block_ads" value="1"{blk_ads}> @@settings-block-ads@@</label><p class="hint">@@settings-block-ads-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="block_trackers" value="1"{blk_trk}> @@settings-block-trackers@@</label><p class="hint">@@settings-block-trackers-hint@@</p></div>
+<div class="row field"><label>@@settings-no-blocking@@</label><textarea name="no_blocking" rows="2" cols="60" placeholder="example.com">{no_blk}</textarea></div>
+<div class="row"><label><input type="checkbox" name="safe_browsing" value="1"{safe}> @@settings-safe@@</label><p class="hint">@@settings-safe-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="resist_fingerprinting" value="1"{rfp}> @@settings-rfp@@</label><p class="hint">@@settings-rfp-hint@@</p></div>
+<p class="hint" style="margin-left:0">{lists} · <a href="about:settings?update_lists">@@settings-update-lists@@</a></p>
+<p class="hint" style="margin-left:0">@@settings-permissions-hint@@ {perms}</p>
 </section>
-<section><h2>Updates</h2>
-<div class="row"><label><input type="checkbox" name="check_updates" value="1"{chk_upd}> Check for new versions once a day</label><p class="hint">{upd_status}</p></div>
-<div class="row"><a href="about:settings?check_update">Check now</a></div>
+<section><h2>@@settings-updates@@</h2>
+<div class="row"><label><input type="checkbox" name="check_updates" value="1"{chk_upd}> @@settings-check-updates@@</label><p class="hint">{upd_status}</p></div>
+<div class="row"><a href="about:settings?check_update">@@settings-check-now@@</a></div>
 </section>
-<section><h2>Appearance</h2>
-<div class="row field"><label>Minimum font size (px, 0 = none)</label><input type="number" name="min_font_size" value="{min_font}" min="0" max="40"></div>
-<p class="hint" style="margin-left:0">Makes small print on pages larger. Ctrl + and Ctrl − zoom a whole site.</p>
-<div class="row"><label><input type="checkbox" name="reduce_motion" value="1"{reduce}> Reduce motion</label><p class="hint">Asks sites to keep animations to a minimum.</p></div>
+<section><h2>@@settings-appearance@@</h2>
+<div class="row field"><label>@@settings-min-font@@</label><input type="number" name="min_font_size" value="{min_font}" min="0" max="40"></div>
+<p class="hint" style="margin-left:0">@@settings-min-font-hint@@</p>
+<div class="row"><label><input type="checkbox" name="reduce_motion" value="1"{reduce}> @@settings-reduce-motion@@</label><p class="hint">@@settings-reduce-motion-hint@@</p></div>
 <div class="row"><label><input type="checkbox" name="high_contrast" value="1"{hc}> {hc_label}</label><p class="hint">{hc_hint}</p></div>
 <div class="row field"><label>{lang_label}</label><select name="language">{lang_opts}</select><p class="hint" style="margin-left:0">{lang_hint}</p></div>
 </section>
-<section><h2>Default browser</h2>
-<div class="row"><a href="about:settings?default_browser">Make Ironswift my default browser</a></div>
+<section><h2>@@settings-default-browser@@</h2>
+<div class="row"><a href="about:settings?default_browser">@@settings-make-default@@</a></div>
 </section>
-<section><h2>Network</h2>
-<div class="row field"><label>Proxy</label><select name="proxy_mode">{proxy_opts}</select></div>
-<div class="row field"><label>Proxy address (for "Use this proxy")</label><input type="text" name="proxy_url" value="{proxy_url}" placeholder="http://proxy.example.com:8080 or socks5://127.0.0.1:1080"></div>
-<p class="hint" style="margin-left:0">"System settings" follows your desktop's proxy and the http_proxy / https_proxy / no_proxy variables. Secure sites are checked against your computer's certificate store.</p>
-<div class="row"><a href="about:settings?clear_cache">Clear cached files</a> <span class="hint">({cache_mb} MB saved so pages load faster)</span></div>
+<section><h2>@@settings-network@@</h2>
+<div class="row field"><label>@@settings-proxy@@</label><select name="proxy_mode">{proxy_opts}</select></div>
+<div class="row field"><label>@@settings-proxy-address@@</label><input type="text" name="proxy_url" value="{proxy_url}" placeholder="http://proxy.example.com:8080 or socks5://127.0.0.1:1080"></div>
+<p class="hint" style="margin-left:0">@@settings-proxy-hint@@</p>
+<div class="row"><a href="about:settings?clear_cache">@@settings-clear-cache@@</a> <span class="hint">{cache_size}</span></div>
 </section>
-<button type="submit">Save settings</button></form>
-<p class="sub" style="margin-top:20px"><a href="about:history">History</a> · <a href="about:bookmarks">Bookmarks</a></p>
+<button type="submit">@@settings-save@@</button></form>
+<p class="sub" style="margin-top:20px"><a href="about:history">@@settings-history@@</a> · <a href="about:bookmarks">@@settings-bookmarks@@</a></p>
 </body></html>"#,
-        saved = if saved { "<p class=\"saved\">Settings saved.</p>" } else { "" },
+        saved = if saved { "<p class=\"saved\">@@settings-saved@@</p>" } else { "" },
         cleared = cleared,
-        proxy_opts = [("system", "System settings"), ("none", "No proxy"), ("manual", "Use this proxy")]
+        proxy_opts = [("system", "@@settings-proxy-system@@"), ("none", "@@settings-proxy-none@@"), ("manual", "@@settings-proxy-manual@@")]
             .iter()
             .map(|(k, n)| format!("<option value=\"{k}\"{}>{n}</option>", if *k == s.proxy_mode { " selected" } else { "" }))
             .collect::<String>(),
         proxy_url = esc(&s.proxy_url),
-        cache_mb = format!("{:.1}", crate::cache::size() as f64 / 1_048_576.0),
+        cache_size = esc(&crate::i18n::tf("settings-cache-size", &[("mb", &format!("{:.1}", crate::cache::size() as f64 / 1_048_576.0))])),
         home = esc(&s.home),
         engines = engines,
         restore = check(s.restore_tabs),
@@ -489,7 +489,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         gpc = check(s.send_gpc),
         bmbar = check(s.show_bookmarks_bar),
         gpu_on = check(s.use_gpu),
-        cookie_count = crate::cookies::sites().len(),
+        cookie_sites = esc(&crate::i18n::tf("settings-cookie-sites", &[("count", &crate::cookies::sites().len().to_string())])),
         cookie_rows = cookie_rows(&s),
         ck_allow = esc(&s.cookies_allow.join("\n")),
         ck_block = esc(&s.cookies_block.join("\n")),
@@ -503,6 +503,8 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         perms = crate::permissions::settings_html(),
         chk_upd = check(s.check_updates),
         upd_status = esc(&crate::updates::status()),
+        lang = esc(&crate::i18n::locale()),
+        dir = if crate::i18n::rtl() { "rtl" } else { "ltr" },
         hc = check(s.high_contrast),
         hc_label = esc(&crate::i18n::t("set-high-contrast")),
         hc_hint = esc(&crate::i18n::t("set-high-contrast-hint")),
@@ -512,5 +514,27 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
             .chain(crate::i18n::LANGUAGES.iter().map(|l| (l.0.to_string(), l.1.to_string())))
             .map(|(k, n)| format!("<option value=\"{k}\"{}>{}</option>", if k == s.language { " selected" } else { "" }, esc(&n)))
             .collect::<String>(),
-    )
+    ))
+}
+
+/// Replace each `@@message-id@@` with that UI message in the current language.
+fn fill_messages(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    while let Some(i) = rest.find("@@") {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 2..];
+        match after.find("@@") {
+            Some(j) if after[..j].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') => {
+                out.push_str(&esc(&crate::i18n::t(&after[..j])));
+                rest = &after[j + 2..];
+            }
+            _ => {
+                out.push_str("@@");
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
