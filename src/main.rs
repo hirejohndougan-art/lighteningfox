@@ -1248,7 +1248,8 @@ fn build_page(p: Prepared) -> Page {
         geometry::set_styler(Some(Box::new(move || {
             js::with_dom(|d| {
                 let c = d.composed();
-                style::compute(c.as_ref().unwrap_or(d), &sheets)
+                // Scripts must not learn which links were visited.
+                style::without_visited(|| style::compute(c.as_ref().unwrap_or(d), &sheets))
             })
         })));
     }
@@ -1266,6 +1267,9 @@ fn build_page(p: Prepared) -> Page {
     });
     js::take_dirty();
     style::set_hover(None);
+    style::set_active(None);
+    // :visited: links to addresses in the history (only their colors change).
+    style::set_visited(&url, library::history().into_iter().map(|v| v.url).collect());
     let hover_rules = style::uses_hover(&sheets);
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -1847,6 +1851,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut tab_drag: Option<(f32, bool)> = None;
     let mut folder_menu: Option<FolderMenu> = None;
     let mut hovered: Option<dom::NodeId> = None;
+    let mut active_node: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
     // so a stopped or superseded load is ignored when it arrives.
     let (tx, rx) = mpsc::channel::<(u64, Prepared)>();
@@ -2869,6 +2874,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if over != hovered {
                     hovered = over;
                     style::set_hover(over);
+                    restyle = true;
+                    reflow = true;
+                }
+            }
+            // :active — the element the left button is held down on.
+            if style::uses_active() {
+                let now = if down && my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                if now != active_node {
+                    active_node = now;
+                    style::set_active(now);
                     restyle = true;
                     reflow = true;
                 }

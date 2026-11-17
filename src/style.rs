@@ -9,6 +9,50 @@ use std::rc::Rc;
 thread_local! {
     /// The element under the mouse, for :hover.
     static HOVER: Cell<Option<NodeId>> = const { Cell::new(None) };
+    /// The element the mouse button is held down on, for :active.
+    static ACTIVE: Cell<Option<NodeId>> = const { Cell::new(None) };
+    /// Whether the last styled page has :active rules.
+    static ACTIVE_RULES: Cell<bool> = const { Cell::new(false) };
+    /// The page's address and the visited addresses, for :visited.
+    static VISITED: std::cell::RefCell<(String, std::collections::HashSet<String>)> = std::cell::RefCell::new(Default::default());
+}
+
+pub fn set_active(node: Option<NodeId>) {
+    ACTIVE.with(|h| h.set(node));
+}
+
+pub fn uses_active() -> bool {
+    ACTIVE_RULES.with(Cell::get)
+}
+
+/// The page :visited links are resolved against, and the addresses in history.
+pub fn set_visited(base: &str, urls: std::collections::HashSet<String>) {
+    VISITED.with(|v| *v.borrow_mut() = (base.to_string(), urls));
+}
+
+/// Run `f` as if no link had been visited (for styles that scripts can read).
+pub fn without_visited<T>(f: impl FnOnce() -> T) -> T {
+    let saved = VISITED.with(|v| std::mem::take(&mut *v.borrow_mut()));
+    let out = f();
+    VISITED.with(|v| *v.borrow_mut() = saved);
+    out
+}
+
+fn is_visited(href: &str) -> bool {
+    VISITED.with(|v| {
+        let v = v.borrow();
+        !v.1.is_empty() && v.1.contains(&crate::net::resolve(&v.0, href))
+    })
+}
+
+/// Properties a :visited rule may change: only colors, so pages can't measure which links
+/// were visited from layout.
+fn visited_safe(name: &str) -> bool {
+    matches!(name, "color" | "background-color" | "border-color" | "border-top-color" | "border-right-color" | "border-bottom-color" | "border-left-color" | "outline-color" | "text-decoration-color" | "column-rule-color" | "fill" | "stroke")
+}
+
+fn uses_visited(sel: &Selector) -> bool {
+    sel.parts.iter().any(|p| p.pseudo.iter().any(|x| x.contains("visited")))
 }
 
 pub fn set_hover(node: Option<NodeId>) {
@@ -558,6 +602,8 @@ i, em, cite, var, dfn, address { font-style: italic; }
 code, kbd, samp, tt, pre { font-family: monospace; }
 pre { white-space: pre; margin-top: 1em; margin-bottom: 1em; }
 a:link { color: #0000ee; text-decoration: underline; }
+a:visited { color: #551a8b; text-decoration: underline; }
+a:link:active, a:visited:active { color: #ee0000; }
 u, ins { text-decoration: underline; }
 small { font-size: 0.83em; }
 sub { vertical-align: sub; font-size: 0.83em; }
@@ -694,6 +740,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         pseudo_index.insert(sheet as *const Stylesheet, pseudo_rules(sheet));
     }
     let layers = crate::cascade::LayerOrder::new(std::iter::once(&ua).chain(sheets.iter()));
+    ACTIVE_RULES.with(|a| a.set(sheets.iter().any(|sh| sh.rules.iter().any(|r| r.selectors.iter().any(|s| s.parts.iter().any(|p| p.pseudo.iter().any(|x| x == "active")))))));
     crate::anim::begin_pass(sheets);
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
@@ -745,14 +792,14 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 if rule.container.as_deref().is_some_and(|c| !crate::cascade::matches(dom, &styles, id, c)) {
                     continue;
                 }
-                let best = rule
-                    .selectors
-                    .iter()
-                    .filter(|s| matches(dom, id, s))
-                    .map(|s| s.specificity())
-                    .max();
+                let mut best: Option<(u32, u32, u32)> = None;
+                let mut only_visited = true;
+                for s in rule.selectors.iter().filter(|s| matches(dom, id, s)) {
+                    best = best.max(Some(s.specificity()));
+                    only_visited &= uses_visited(s);
+                }
                 if let Some(spec) = best {
-                    for d in &rule.decls {
+                    for d in rule.decls.iter().filter(|d| !only_visited || visited_safe(&d.name)) {
                         let layer = layers.key(rule.layer.as_ref(), d.important);
                         matched.push(Matched { important: d.important, origin, layer, spec, order, decl: d });
                         order += 1;
@@ -1134,8 +1181,21 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
     }
     for p in &c.pseudo {
         let ok = match p.as_str() {
-            "link" | "any-link" => tag == "a" && dom.attr(id, "href").is_some(),
-            "visited" => false,
+            "any-link" => matches!(tag, "a" | "area") && dom.attr(id, "href").is_some(),
+            "link" => matches!(tag, "a" | "area") && dom.attr(id, "href").is_some_and(|h| !is_visited(h)),
+            "visited" => matches!(tag, "a" | "area") && dom.attr(id, "href").is_some_and(is_visited),
+            "active" => {
+                let mut n = ACTIVE.with(|h| h.get());
+                let mut hit = false;
+                while let Some(e) = n {
+                    if e == id {
+                        hit = true;
+                        break;
+                    }
+                    n = dom.nodes[e].parent;
+                }
+                hit
+            }
             "root" => tag == "html",
             "first-child" | "last-child" | "only-child" => {
                 let elems = element_siblings(dom, id);
@@ -2674,4 +2734,29 @@ pub fn first_strong_rtl(text: &str) -> Option<bool> {
             None
         }
     })
+}
+
+#[cfg(test)]
+mod state_tests {
+    use super::*;
+
+    #[test]
+    fn visited_changes_only_colors_and_active_follows_the_press() {
+        let dom = crate::html::parse("<a id=v href='/seen'>a</a><a id=n href='/new'><b>b</b></a>");
+        let sheet = css::parse("a:visited { color: rgb(255, 0, 0); width: 100px } a:active { color: rgb(0, 128, 0) }");
+        let find = |name: &str| dom.find_all("a").into_iter().find(|&a| dom.attr(a, "id") == Some(name)).unwrap();
+        let (v, n) = (find("v"), find("n"));
+        set_visited("http://x.test/page", ["http://x.test/seen".to_string()].into_iter().collect());
+        let st = compute(&dom, std::slice::from_ref(&sheet));
+        assert_eq!(st[v].color, Color::rgb(255, 0, 0));
+        assert_eq!(st[v].width, Len::Auto, "layout properties don't apply to :visited");
+        assert_eq!(st[n].color, Color::rgb(0, 0, 238));
+        // Pressing the <b> inside the second link makes the link :active.
+        set_active(dom.nodes[n].children.first().copied());
+        let st = compute(&dom, std::slice::from_ref(&sheet));
+        assert_eq!(st[n].color, Color::rgb(0, 128, 0));
+        assert!(uses_active());
+        set_active(None);
+        set_visited("", Default::default());
+    }
 }
