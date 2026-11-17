@@ -254,9 +254,11 @@ the copy); the cache stores nested boxes' items once per level (a shallower budg
 items would use less memory).
 
 ### R5. Security review of the per-site processes
-**Status:** claimed by chat-opus-t12 2026-11-17 12:05
+**Status:** done
 **After:** —
 **Checklist:** none
+**Done:** the frame process (every cross-site iframe) could read the whole profile (all cookies, storage, history, cache): Landlock now allows only its settings files, and its requests and `document.cookie` go through the browser. Renderers no longer see cookies: they send a placeholder, and the browser attaches cookies and keeps Set-Cookie (HttpOnly cookies never reach a renderer). `document.cookie` only for a document the process holds; no storage or extension calls from the frame process; at most 64 requests in flight per process; iframe `sandbox` top-navigation and popup rules and the tab-URL check enforced in the browser. Malformed or oversized messages end only that renderer. Tests for each rule (process.rs, frames.rs, sandbox.rs).
+**Left undone:** the frame process is still one process for all cross-site frames, and keeps network access (for WebSockets), so a compromised frame can read other frames in it and make cookie-less requests directly; no ORB/CORB, so a compromised renderer can read cross-site responses it fetches with credentials; WebSockets don't work in site processes (no browser-side proxy) and send no cookies from frames; with third-party cookies turned on, the shared frame process reaches the non-HttpOnly cookies of any site framed under its pages' top-level sites; site processes are still off by default (the `site_processes` setting).
 **Files:** `src/process.rs`, `src/sandbox.rs`, the IPC code
 Check what a compromised site process can ask the browser process to do (reading other sites'
 cookies or storage, opening files, network requests as another origin), that the seccomp and
