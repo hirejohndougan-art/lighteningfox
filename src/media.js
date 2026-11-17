@@ -110,6 +110,16 @@
     const list = s.waitingPlays.splice(0);
     if (list.length) queue(() => list.forEach((p) => p.resolve()));
   }
+  // "Notify about playing": one task fires playing and resolves the waiting play() promises
+  // (as the spec does), so no timeupdate can land between the two. The first timeupdate is
+  // due a full interval after playback starts.
+  function notifyPlaying(el, now_) {
+    const s = S(el), gen = s.gen;
+    const list = s.waitingPlays.splice(0);
+    s.lastUpdate = now();
+    const run = () => { if (S(el).gen === gen) fire(el, "playing"); list.forEach((p) => p.resolve()); };
+    if (now_) run(); else queue(run);
+  }
   function load(el, fromPlay) {
     const s = S(el);
     if (s.networkState === NETWORK_LOADING || s.networkState === NETWORK_IDLE) queueFire(el, "abort");
@@ -209,7 +219,7 @@
       fire(el, "loadeddata");
       fire(el, "progress");
       fire(el, "canplay");
-      if (!s.paused) { startOutput(el); fire(el, "playing"); resolvePlays(s); }
+      if (!s.paused) { startOutput(el); notifyPlaying(el, true); }
       fire(el, "canplaythrough");
       fire(el, "suspend");
       if (s.paused && !s.autoplayed && el.hasAttribute("autoplay") && autoplayAllowed(el)) {
@@ -298,9 +308,8 @@
       queueFire(el, "play");
       if (s.readyState < HAVE_FUTURE_DATA) queueFire(el, "waiting");
       else {
-        queueFire(el, "playing");
         if (!s.seeking) startOutput(el);
-        resolvePlays(s);
+        notifyPlaying(el);
       }
     } else if (s.readyState >= HAVE_FUTURE_DATA) resolvePlays(s);
     render(el);
