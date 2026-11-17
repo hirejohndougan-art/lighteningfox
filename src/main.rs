@@ -38,7 +38,46 @@ use style::Color;
 /// The tab strip above the toolbar, and the toolbar itself.
 const TAB_H: f32 = 34.0;
 const TOOL_H: f32 = 36.0;
-const BAR_H: usize = (TAB_H + TOOL_H) as usize;
+/// Bottom of the toolbar; the bookmarks bar (when shown) sits under it, then the page.
+const TOOL_BOTTOM: usize = (TAB_H + TOOL_H) as usize;
+const BOOK_H: f32 = 28.0;
+static BOOKMARKS_BAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Where the page starts: below the toolbar and the bookmarks bar, if it's showing.
+fn bar_h() -> usize {
+    TOOL_BOTTOM + if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { BOOK_H as usize } else { 0 }
+}
+
+/// Bookmarks-bar chips that fit in width `w`: (x, width) each; the rest go behind "»".
+const BOOK_MORE_W: f32 = 30.0;
+fn bookmark_rects(fonts: &Fonts, w: f32, list: &[library::Bookmark]) -> Vec<(f32, f32)> {
+    let mut out = Vec::new();
+    let mut x = 8.0;
+    for (i, b) in list.iter().enumerate() {
+        let label = bookmark_label(fonts, b);
+        let cw = fonts.width(font::REGULAR, &label, 12.5) + 20.0;
+        // Leave room for "»" unless this is the last one.
+        let limit = if i + 1 == list.len() { w - 8.0 } else { w - 8.0 - BOOK_MORE_W };
+        if x + cw > limit {
+            break;
+        }
+        out.push((x, cw));
+        x += cw + 2.0;
+    }
+    out
+}
+
+fn bookmark_label(fonts: &Fonts, b: &library::Bookmark) -> String {
+    let mut t: String = if b.title.trim().is_empty() { b.url.clone() } else { b.title.trim().to_string() };
+    t.retain(|c| !c.is_control());
+    if fonts.width(font::REGULAR, &t, 12.5) > 150.0 {
+        while !t.is_empty() && fonts.width(font::REGULAR, &format!("{t}…"), 12.5) > 150.0 {
+            t.pop();
+        }
+        t.push('…');
+    }
+    t
+}
 const TAB_MAX_W: f32 = 220.0;
 const NEW_TAB_W: f32 = 32.0;
 /// The bookmark star at the right end of the address field, and the suggestion rows below it.
@@ -61,7 +100,7 @@ enum Go {
 
 /// Which toolbar button (0 back, 1 forward, 2 reload) is under (x, y), if any.
 fn button_at(x: f32, y: f32) -> Option<usize> {
-    if y < TAB_H || y >= BAR_H as f32 {
+    if y < TAB_H || y >= TOOL_BOTTOM as f32 {
         return None;
     }
     BUTTONS.iter().position(|(bx, _)| x >= *bx && x < bx + BTN_W)
@@ -880,6 +919,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut back: Vec<Entry> = Vec::new();
     let mut forward: Vec<Entry> = Vec::new();
     let mut hover: Option<usize> = None;
+    // Bookmarks bar: the list, and which chip the mouse is over (usize::MAX = "»").
+    let mut bm_list: Vec<library::Bookmark>;
+    let mut bm_hover: Option<usize> = None;
     let mut hovered: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
     // so a stopped or superseded load is ignored when it arrives.
@@ -888,10 +930,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut loading: Option<Loading> = None;
     let mut last_spin = Instant::now();
     let (mut w, mut h) = window.get_size();
-    geometry::set_viewport(w as f32, h.saturating_sub(BAR_H) as f32);
+    geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
     let mut page = load(start);
     library::visit(&page.url, &page.title);
-    let mut lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+    let mut lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
     let mut editing = false;
@@ -996,8 +1038,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             hovered = None;
             style::set_hover(None);
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
-            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
-            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             window.set_title(&format!("{} — LighteningFox", page.label()));
             dirty = true;
         }};
@@ -1084,10 +1126,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let mut reflow = false;
         let mut stop_key = false;
 
+        // Bookmarks bar: shown when there are bookmarks (and the setting is on); showing or
+        // hiding it moves the page, so lay it out again.
+        bm_list = library::bookmarks();
+        let want_bar = !bm_list.is_empty() && settings::get().show_bookmarks_bar;
+        if want_bar != BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) {
+            BOOKMARKS_BAR.store(want_bar, std::sync::atomic::Ordering::Relaxed);
+            geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+            dirty = true;
+        }
         // Resize -> relayout.
         let (nw, nh) = window.get_size();
         if (nw, nh) != (w, h) && nw > 0 && nh > 0 {
-            lay = page.layout(fonts, nw as f32, nh.saturating_sub(BAR_H) as f32);
+            lay = page.layout(fonts, nw as f32, nh.saturating_sub(bar_h()) as f32);
             (w, h) = (nw, nh);
             canvas = Canvas::new(w, h);
             dirty = true;
@@ -1104,7 +1157,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         if js::take_dirty() {
             page.restyle();
-            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             dirty = true;
         }
         if let Some(target) = js::take_navigation() {
@@ -1135,7 +1188,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 _ => {}
             }
         }
-        let view_h = h.saturating_sub(BAR_H) as f32;
+        let view_h = h.saturating_sub(bar_h()) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
 
         // This frame's key presses (from the input callback, so none are missed).
@@ -1346,8 +1399,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             // The wheel scrolls the innermost scrollable box under the mouse, else the page.
             let inner = window
                 .get_mouse_pos(MouseMode::Discard)
-                .filter(|&(_, my)| my >= BAR_H as f32)
-                .and_then(|(mx, my)| lay.scroller_at(mx, my - BAR_H as f32, scroll, delta));
+                .filter(|&(_, my)| my >= bar_h() as f32)
+                .and_then(|(mx, my)| lay.scroller_at(mx, my - bar_h() as f32, scroll, delta));
             match inner {
                 Some((id, max)) => {
                     layout::set_element_scroll(id, (layout::element_scroll(id) + delta).clamp(0.0, max));
@@ -1370,7 +1423,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let down = window.get_mouse_down(MouseButton::Left);
         let mid = window.get_mouse_down(MouseButton::Middle);
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
-            let sh = (editing && my >= BAR_H as f32 && mx >= FIELD_X).then(|| ((my - BAR_H as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
+            let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
                 sugg_hover = sh;
                 dirty = true;
@@ -1380,12 +1433,30 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 tab_hover = th;
                 dirty = true;
             }
+            // Which bookmarks-bar chip is under the mouse.
+            let bh = (my >= TOOL_BOTTOM as f32 && my < bar_h() as f32)
+                .then(|| {
+                    let rects = bookmark_rects(fonts, w as f32, &bm_list);
+                    match rects.iter().position(|&(x, cw)| mx >= x && mx < x + cw) {
+                        Some(i) => Some(i),
+                        None if rects.len() < bm_list.len() && mx >= w as f32 - 8.0 - BOOK_MORE_W => Some(usize::MAX),
+                        None => None,
+                    }
+                })
+                .flatten();
+            if bh != bm_hover {
+                bm_hover = bh;
+                dirty = true;
+            }
             // Middle click: close a tab, or open a link in a background tab.
             if mid && !was_mid {
                 match th {
                     Some(TabHit::Tab(i) | TabHit::Close(i)) => tab_cmd = Some(TabCmd::Close(i)),
-                    _ if my >= BAR_H as f32 => {
-                        if let Some(href) = lay.link_at(mx, my - BAR_H as f32, scroll) {
+                    _ if bm_hover.is_some_and(|i| i < bm_list.len()) => {
+                        tab_cmd = Some(TabCmd::Open(bm_list[bm_hover.unwrap()].url.clone(), true));
+                    }
+                    _ if my >= bar_h() as f32 => {
+                        if let Some(href) = lay.link_at(mx, my - bar_h() as f32, scroll) {
                             let target = net::resolve(&page.url, href);
                             if !target.starts_with("javascript:") && !target.starts_with("mailto:") {
                                 tab_cmd = Some(TabCmd::Open(target, true));
@@ -1395,12 +1466,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     _ => {}
                 }
             }
-            let view_y = my - BAR_H as f32;
-            let hit = if my >= BAR_H as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
+            let view_y = my - bar_h() as f32;
+            let hit = if my >= bar_h() as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             let btn = button_at(mx, my);
             // :hover — restyle when the element under the mouse changes.
             if page.hover_rules {
-                let over = if my >= BAR_H as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                let over = if my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
                 if over != hovered {
                     hovered = over;
                     style::set_hover(over);
@@ -1414,14 +1485,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             window.set_cursor_style(if hit.is_some() || btn.is_some() {
                 CursorStyle::ClosedHand
-            } else if my >= TAB_H && (my as usize) < BAR_H && mx >= FIELD_X {
+            } else if my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= FIELD_X {
                 CursorStyle::Ibeam
             } else {
                 CursorStyle::Arrow
             });
             // Highlight the option under the mouse in an open list.
             if let Some(dd) = dropdown.as_mut() {
-                let row = dd.row_at(mx, my - BAR_H as f32 + scroll);
+                let row = dd.row_at(mx, my - bar_h() as f32 + scroll);
                 if row != dd.hover {
                     dd.hover = row;
                     dirty = true;
@@ -1430,23 +1501,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if down && !was_down && dropdown.is_some() {
                 // A click while a list is open picks an option or closes the list.
                 let dd = dropdown.take().unwrap();
-                if let Some(i) = dd.row_at(mx, my - BAR_H as f32 + scroll) {
+                if let Some(i) = dd.row_at(mx, my - bar_h() as f32 + scroll) {
                     let opt = dd.options[i].0;
                     js::with_dom_mut(|d| forms::select_option(d, dd.select, opt));
                     fire(&mut page, dd.select, "input");
                     fire(&mut page, dd.select, "change");
                 }
                 form_changed = true;
-            } else if down && !was_down && editing && !suggestions.is_empty() && my >= BAR_H as f32 && mx >= FIELD_X && my < BAR_H as f32 + suggestions.len() as f32 * SUGGEST_H {
+            } else if down && !was_down && editing && !suggestions.is_empty() && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X && my < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H {
                 // A click on an address suggestion opens it.
-                let i = ((my - BAR_H as f32) / SUGGEST_H) as usize;
+                let i = ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize;
                 if let Some(sg) = suggestions.get(i) {
                     navigate = Some(Go::To(sg.url.clone()));
                 }
                 editing = false;
                 suggestions.clear();
                 dirty = true;
-            } else if down && !was_down && my >= TAB_H && (my as usize) < BAR_H && mx >= w as f32 - 8.0 - STAR_W {
+            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W {
                 library::toggle_bookmark(&page.url, &page.title);
                 dirty = true;
             } else if down && !was_down && my < TAB_H {
@@ -1464,7 +1535,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         1 => Go::Forward,
                         _ => Go::Reload,
                     });
-                } else if (my as usize) < BAR_H && mx >= FIELD_X {
+                } else if (my as usize) < TOOL_BOTTOM && mx >= FIELD_X {
                     let double = last_click.0.elapsed().as_millis() < 450 && (mx - last_click.1).abs() < 5.0 && (my - last_click.2).abs() < 5.0;
                     if !editing {
                         // First click selects the whole address, ready to type over.
@@ -1479,7 +1550,22 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         }
                     }
                     dirty = true;
-                } else if (my as usize) >= BAR_H {
+                } else if (my as usize) < bar_h() {
+                    // Bookmarks bar: open the bookmark (Ctrl: in a background tab), or "»" for all.
+                    editing = false;
+                    match bm_hover {
+                        Some(usize::MAX) => navigate = Some(Go::To("about:bookmarks".into())),
+                        Some(i) if i < bm_list.len() => {
+                            let url = bm_list[i].url.clone();
+                            if ctrl_down {
+                                tab_cmd = Some(TabCmd::Open(url, true));
+                            } else {
+                                navigate = Some(Go::To(url));
+                            }
+                        }
+                        _ => {}
+                    }
+                } else if (my as usize) >= bar_h() {
                     if editing {
                         editing = false;
                         address = page.url.clone();
@@ -1651,7 +1737,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             reflow = true;
         }
         if reflow && navigate.is_none() {
-            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             dirty = true;
         }
         if down && !was_down {
@@ -1731,14 +1817,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if !popstate || old.split('#').nth(1) != current.url.split('#').nth(1) {
                 if let Some(y) = fragment_target(&current.url) {
-                    scroll = y.clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
+                    scroll = y.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
                 }
             }
             address = page.url.clone();
             editing = false;
             if js::take_dirty() {
                 page.restyle();
-                lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+                lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             }
             dirty = true;
         }
@@ -1805,9 +1891,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             dropdown = None;
             layout::set_focus(None);
             release_free_memory();
-            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             // A URL with a #fragment opens scrolled to it.
-            scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
+            scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             address = page.url.clone();
             window.set_title(&format!("{} — LighteningFox", page.label()));
             dirty = true;
@@ -1880,7 +1966,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url) };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
@@ -1903,6 +1989,9 @@ struct Toolbar<'a> {
     /// While editing the address: (caret, selection anchor).
     caret: Option<(usize, usize)>,
     bookmarked: bool,
+    /// The bookmarks bar (empty when hidden) and the chip under the mouse.
+    bookmarks: &'a [library::Bookmark],
+    bm_hover: Option<usize>,
     address: &'a str,
     editing: bool,
     can_back: bool,
@@ -1920,9 +2009,9 @@ struct Loading {
 
 fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar) {
     canvas.clear(lay.page_bg);
-    canvas.paint(fonts, images, &lay.items, BAR_H as f32, scroll);
+    canvas.paint(fonts, images, &lay.items, bar_h() as f32, scroll);
     let w = canvas.w as f32;
-    let bar = BAR_H as f32;
+    let bar = TOOL_BOTTOM as f32;
     let top = TAB_H;
     // Tab strip
     canvas.fill_rect(0.0, 0.0, w, top, Color::rgb(222, 222, 228));
@@ -1966,9 +2055,26 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     }
     canvas.draw_text(fonts, end + 4.0 + (NEW_TAB_W - fonts.width(font::REGULAR, "+", 18.0)) / 2.0, 26.0, "+", font::REGULAR, 18.0, Color::rgb(60, 60, 70));
 
-    // Toolbar
-    canvas.fill_rect(0.0, top, w, bar - top, toolbar_bg);
-    canvas.fill_rect(0.0, bar - 1.0, w, 1.0, Color::rgb(200, 200, 205));
+    // Toolbar, and the bookmarks bar under it
+    canvas.fill_rect(0.0, top, w, bar_h() as f32 - top, toolbar_bg);
+    canvas.fill_rect(0.0, bar_h() as f32 - 1.0, w, 1.0, Color::rgb(200, 200, 205));
+    if !ui.bookmarks.is_empty() {
+        let rects = bookmark_rects(fonts, w, ui.bookmarks);
+        for (i, &(x, cw)) in rects.iter().enumerate() {
+            if ui.bm_hover == Some(i) {
+                canvas.fill_rect(x, bar + 2.0, cw, BOOK_H - 6.0, Color::rgb(214, 214, 222));
+            }
+            let label = bookmark_label(fonts, &ui.bookmarks[i]);
+            canvas.draw_text(fonts, x + 10.0, bar + 17.0, &label, font::REGULAR, 12.5, Color::rgb(45, 45, 55));
+        }
+        if rects.len() < ui.bookmarks.len() {
+            let x = w - 8.0 - BOOK_MORE_W;
+            if ui.bm_hover == Some(usize::MAX) {
+                canvas.fill_rect(x, bar + 2.0, BOOK_MORE_W, BOOK_H - 6.0, Color::rgb(214, 214, 222));
+            }
+            canvas.draw_text(fonts, x + 9.0, bar + 18.0, "»", font::REGULAR, 15.0, Color::rgb(60, 60, 70));
+        }
+    }
 
     // Back, forward, reload
     let enabled = [ui.can_back, ui.can_forward, true];
@@ -2010,7 +2116,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
 
 /// Address bar suggestions: a panel under the field, one row per page (title, then address).
 fn draw_suggestions(canvas: &mut Canvas, fonts: &Fonts, list: &[library::Suggestion], hot: Option<usize>) {
-    let (x, y0) = (FIELD_X, BAR_H as f32);
+    let (x, y0) = (FIELD_X, TOOL_BOTTOM as f32);
     let w = canvas.w as f32 - FIELD_X - 8.0;
     let h = list.len() as f32 * SUGGEST_H;
     canvas.fill_rect(x + 2.0, y0 + 2.0, w, h + 2.0, Color { r: 0, g: 0, b: 0, a: 35 });
@@ -2041,7 +2147,7 @@ fn draw_suggestions(canvas: &mut Canvas, fonts: &Fonts, list: &[library::Suggest
 
 /// An open <select> list: a white panel of options below the control.
 fn draw_dropdown(canvas: &mut Canvas, fonts: &Fonts, dd: &Dropdown, scroll: f32) {
-    let top = dd.y - scroll + BAR_H as f32;
+    let top = dd.y - scroll + bar_h() as f32;
     let h = dd.options.len() as f32 * OPTION_H + 2.0;
     canvas.fill_rect(dd.x + 2.0, top + 2.0, dd.w, h, Color { r: 0, g: 0, b: 0, a: 40 });
     canvas.fill_rect(dd.x, top, dd.w, h, Color::rgb(140, 140, 150));

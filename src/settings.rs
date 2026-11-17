@@ -15,6 +15,7 @@ pub struct Settings {
     pub third_party_cookies: bool,
     pub strip_tracking: bool,
     pub send_gpc: bool,
+    pub show_bookmarks_bar: bool,
 }
 
 impl Default for Settings {
@@ -27,6 +28,7 @@ impl Default for Settings {
             third_party_cookies: false,
             strip_tracking: true,
             send_gpc: true,
+            show_bookmarks_bar: true,
         }
     }
 }
@@ -70,6 +72,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "third_party_cookies" => s.third_party_cookies = on(v),
         "strip_tracking" => s.strip_tracking = on(v),
         "send_gpc" => s.send_gpc = on(v),
+        "show_bookmarks_bar" => s.show_bookmarks_bar = on(v),
         _ => {}
     }
 }
@@ -85,14 +88,15 @@ fn save(s: &Settings) {
     }
     let b = |v: bool| if v { "1" } else { "0" };
     let body = format!(
-        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\n",
+        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\n",
         s.home.replace(['\t', '\n'], " "),
         s.search,
         b(s.restore_tabs),
         s.sleep_minutes,
         b(s.third_party_cookies),
         b(s.strip_tracking),
-        b(s.send_gpc)
+        b(s.send_gpc),
+        b(s.show_bookmarks_bar)
     );
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
@@ -122,6 +126,7 @@ pub fn page(query: &str) -> String {
         s.third_party_cookies = false;
         s.strip_tracking = false;
         s.send_gpc = false;
+        s.show_bookmarks_bar = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -157,6 +162,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row field"><label>Home page</label><input type="text" name="home" value="{home}"></div>
 <div class="row field"><label>Search engine</label><select name="search">{engines}</select></div>
 <div class="row"><label><input type="checkbox" name="restore_tabs" value="1"{restore}> Reopen the tabs from last time</label></div>
+<div class="row"><label><input type="checkbox" name="show_bookmarks_bar" value="1"{bmbar}> Show the bookmarks bar</label></div>
 </section>
 <section><h2>Memory</h2>
 <div class="row field"><label>Put background tabs to sleep after (minutes, 0 = never)</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
@@ -178,5 +184,6 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         tpc = check(s.third_party_cookies),
         strip = check(s.strip_tracking),
         gpc = check(s.send_gpc),
+        bmbar = check(s.show_bookmarks_bar),
     )
 }
