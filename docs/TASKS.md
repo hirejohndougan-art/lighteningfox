@@ -133,6 +133,52 @@ blocks); it needs the XDG Location portal instead. `altitudeAccuracy` is always 
 doesn't report it). When T05 moves pages into sandboxed processes, `src/geo.rs` must stay in the
 browser process and pass positions to the page process.
 
+## Review and cleanup of the overnight work
+
+### R1. Re-run the official test suites
+**Status:** claimed by main-chat 2026-11-17 11:10
+**After:** —
+**Checklist:** none
+**Files:** whatever a regression needs
+Run `tools/wpt.py` on dom/nodes, shadow-dom, css/selectors, IndexedDB, css/css-flexbox and
+css/CSS2/floats; compare with `docs/CONFORMANCE.md` and fix anything that got worse overnight.
+
+### R2. Site check: compare with last night
+**Status:** claimed by main-chat 2026-11-17 11:10
+**After:** —
+**Checklist:** none
+**Files:** whatever a regression needs
+Compare the new `docs/SITE_COMPAT.md` run with last night's (16 work, 16 usable, 7 broken,
+1 crash) and fix any site that got worse. (X1 keeps fixing the sites that were already broken.)
+
+### R3. Clean up the compiler warnings
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** any, but only to remove dead code or fix warnings; no behavior changes
+`cargo build --release` prints 128 warnings, mostly unused code left over from the parallel
+work. Remove what's truly unused, fix the rest, and make CI fail on new warnings once it's clean
+(`RUSTFLAGS=-D warnings` in the build step).
+
+### R4. Review the box tree and incremental relayout
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/boxtree.rs`, `src/layout.rs`
+The largest overnight change. Read it for correctness (stale boxes after DOM edits, relayout
+that misses a change, anonymous boxes, `display: contents`), add tests for each bug found, and
+fix them. Check memory use and speed on a large page against the version before T01.
+
+### R5. Security review of the per-site processes
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/process.rs`, `src/sandbox.rs`, the IPC code
+Check what a compromised site process can ask the browser process to do (reading other sites'
+cookies or storage, opening files, network requests as another origin), that the seccomp and
+Landlock rules still hold in each process, and that a crashing site process can't take the
+browser down. Write tests for each rule.
+
 ## Checklist tasks that wait on others
 
 ### T02. Incremental relayout
