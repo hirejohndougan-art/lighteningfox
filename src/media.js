@@ -143,6 +143,16 @@
     s.pendingSeek = null;
     s.played = [];
     s.rate = s.defaultRate;
+    if (s.srcObject && internals.attachObject) {
+      // srcObject = a MediaSource (mse.js): it comes before src.
+      s.networkState = NETWORK_LOADING;
+      queueFire(el, "loadstart");
+      s.currentSrc = "";
+      const ms = internals.attachObject(el, s.srcObject);
+      if (ms) { s.mse = ms; s.deferred = false; s.source = null; render(el); return; }
+      fail(el, 4, "This MediaSource is already in use", null);
+      return;
+    }
     const pick = selectSource(el);
     if (!pick) { s.networkState = NETWORK_EMPTY; render(el); return; }
     s.networkState = NETWORK_LOADING;
@@ -450,7 +460,11 @@
   mediaProp("videoWidth", function () { return S(this).vw; }, null, "video");
   mediaProp("videoHeight", function () { return S(this).vh; }, null, "video");
   mediaProp("currentTime", function () { return clock(S(this)); }, function (v) { seek(this, v); });
-  mediaProp("srcObject", function () { return null; }, function (v) { if (v != null) throw new DOMException("MediaStream sources aren't supported", "NotSupportedError"); });
+  mediaProp("srcObject", function () { return S(this).srcObject || null; }, function (v) {
+    if (v != null && !(internals.isMediaSource && internals.isMediaSource(v))) throw new DOMException("MediaStream sources aren't supported", "NotSupportedError");
+    S(this).srcObject = v == null ? null : v;
+    load(this);
+  });
   mediaProp("volume", function () { return S(this).volume; }, function (v) {
     v = Number(v);
     if (!isFinite(v)) throw new TypeError("The provided double value is non-finite.");
@@ -500,8 +514,9 @@
   });
   const emptyTracks = () => Object.assign([], { onaddtrack: null, onremovetrack: null, onchange: null, getTrackById: () => null, addEventListener() {}, removeEventListener() {} });
   mediaProp("textTracks", function () { return S(this).textTracks || (S(this).textTracks = emptyTracks()); });
-  mediaProp("audioTracks", function () { return S(this).audioTracks || (S(this).audioTracks = emptyTracks()); });
-  mediaProp("videoTracks", function () { return S(this).videoTracks || (S(this).videoTracks = emptyTracks()); }, null, "video");
+  const trackList = (kind) => (internals.trackList ? internals.trackList(kind) : emptyTracks());
+  mediaProp("audioTracks", function () { return S(this).audioTracks || (S(this).audioTracks = trackList("audio")); });
+  mediaProp("videoTracks", function () { return S(this).videoTracks || (S(this).videoTracks = trackList("video")); }, null, "video");
   mediaProp("mediaKeys", function () { return null; });
 
   // new Audio(src)
@@ -571,6 +586,23 @@
   // For mse.js (Media Source Extensions).
   const internals = {
     available: AVAILABLE, schedule, fail: (el, code, msg) => fail(el, code, msg, null),
+    // A MediaSource's init segments are all in: HAVE_METADATA, with loadedmetadata to follow.
+    metadata(el, d, vw, vh) {
+      const s = S(el);
+      if (s.readyState >= HAVE_METADATA || s.error) return;
+      s.duration = isNaN(d) ? Infinity : d;
+      s.vw = vw; s.vh = vh;
+      s.readyState = HAVE_METADATA;
+      const gen = s.gen;
+      queue(() => {
+        if (S(el).gen !== gen) return;
+        fire(el, "durationchange");
+        if (el.localName === "video" && vw) fire(el, "resize");
+        fire(el, "loadedmetadata");
+        if (s.pendingSeek != null) { const t = s.pendingSeek; s.pendingSeek = null; seek(el, t); }
+        else if (startFragment(el) != null) seek(el, startFragment(el));
+      });
+    },
     setDuration(el, d) {
       const s = S(el);
       if (s.readyState < HAVE_METADATA || s.duration === d) return;

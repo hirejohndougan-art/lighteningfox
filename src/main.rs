@@ -91,6 +91,7 @@ mod cache;
 mod canvas;
 mod media;
 mod mse;
+mod mse_frames;
 mod channels;
 mod geo;
 mod parallel;

@@ -1275,9 +1275,11 @@ mod page_tests {
             js.settle(std::time::Duration::from_millis(200));
         }
         let checks = text("checks");
-        assert!(checks.starts_with("true,true,false,false,false,closed,true,open:open,NotSupportedError,2,true,InvalidStateError,true,buffered:0.0-2.0,dur:3.0,ready:"), "{checks}");
+        assert!(checks.starts_with("true,true,false,false,false,closed,true,open:open,NotSupportedError,2,true,InvalidStateError,true,buffered:0.1-2.0,dur:3.0,ready:"), "{checks}");
         let out = text("out");
-        assert!(out.starts_with("play,waiting,durationchange,loadedmetadata,loadeddata,canplay,playing,waiting,t~2,ended,"), "{out}");
-        assert!(out.ends_with(",canplay,playing,ended buffered=0.0-3.0 t=3.0"), "{out}");
+        // The element has its metadata as soon as the init segments are in, before play().
+        assert!(out.starts_with("durationchange,loadedmetadata,play,waiting,loadeddata,canplay,playing,waiting,t~2,ended,"), "{out}");
+        // The duration ends with the last frame of any track (the video's, presented 0.133 s late).
+        assert!(out.ends_with(",canplay,playing,ended buffered=0.1-3.1 t=3.1"), "{out}");
     }
 }

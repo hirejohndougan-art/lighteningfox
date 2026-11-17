@@ -26,10 +26,26 @@
     [/^vorbis$/i, false, "webm"],
     [/^flac$/i, false, "mp4"],
   ];
+  // Byte streams without timestamps (they're generated: the "generate timestamps flag").
+  const RAW = /^audio\/(mpeg|mp3|aac)$/;
+  const generatesTimestamps = (type) => RAW.test((String(type).split(";")[0] || "").trim().toLowerCase());
   function isTypeSupported(type) {
     if (!M.available || type == null) return false;
     const parts = String(type).split(";").map((x) => x.trim());
     const base = (parts.shift() || "").toLowerCase();
+    const raw = RAW.exec(base);
+    if (raw) {
+      for (const p of parts) {
+        if (!p) continue;
+        const eq = p.indexOf("=");
+        if (eq < 0) return false;
+        if (p.slice(0, eq).trim().toLowerCase() !== "codecs") continue;
+        const list = p.slice(eq + 1).trim().replace(/^"|"$/g, "").split(",").map((c) => c.trim());
+        // MSE's MPEG audio byte streams take no codecs parameter at all.
+        return false;
+      }
+      return true;
+    }
     const m = /^(video|audio)\/(mp4|webm)$/.exec(base);
     if (!m) return false;
     let sawCodecs = false;
@@ -67,6 +83,90 @@
     return out.sort((x, y) => x[0] - y[0]);
   }
 
+  // ---- AudioTrack, VideoTrack and their lists (SourceBuffer's, and the media element's)
+  if (!g.TrackEvent) {
+    g.TrackEvent = class TrackEvent extends Event {
+      constructor(type, init) {
+        super(type, init);
+        Object.defineProperty(this, "track", { value: (init && init.track) || null, enumerable: true });
+      }
+    };
+  }
+  class MediaTrack {
+    constructor(id, kind, language, sb) {
+      Object.defineProperty(this, "__t", { value: { id, kind, language, sb, on: false, lists: [] } });
+    }
+    get id() { return this.__t.id; }
+    get kind() { return this.__t.kind; }
+    get label() { return ""; }
+    get language() { return this.__t.language; }
+    get sourceBuffer() { return this.__t.sb; }
+    __set(on) {
+      on = !!on;
+      if (on === this.__t.on) return;
+      this.__t.on = on;
+      for (const l of this.__t.lists) queue(() => emit(l, "change"));
+      const sb = this.__t.sb;
+      if (sb && !sb.__s.removed) sb.__s.ms.__refreshActive();
+    }
+  }
+  class AudioTrack extends MediaTrack {
+    get [Symbol.toStringTag]() { return "AudioTrack"; }
+    get enabled() { return this.__t.on; }
+    set enabled(v) { this.__set(v); }
+  }
+  class VideoTrack extends MediaTrack {
+    get [Symbol.toStringTag]() { return "VideoTrack"; }
+    get selected() { return this.__t.on; }
+    set selected(v) {
+      // Only one video track is selected at a time.
+      if (v) {
+        for (const l of this.__t.lists) for (const o of l.__l) if (o !== this && o.__t.on) { o.__t.on = false; if (o.__t.sb) o.__t.sb.__s.ms.__refreshActive(); }
+      }
+      this.__set(v);
+    }
+  }
+  class TrackList extends EventTarget {
+    constructor() {
+      super();
+      this.onchange = this.onaddtrack = this.onremovetrack = null;
+      Object.defineProperty(this, "__l", { value: [] });
+    }
+    get length() { return this.__l.length; }
+    getTrackById(id) { return this.__l.find((t) => t.id === String(id)) || null; }
+    [Symbol.iterator]() { return this.__l[Symbol.iterator](); }
+    __sync() {
+      for (let i = 0; i < this.__l.length + 1; i++) delete this[i];
+      this.__l.forEach((t, i) => Object.defineProperty(this, i, { value: t, configurable: true, enumerable: true }));
+    }
+    __add(t) {
+      if (this.__l.includes(t)) return;
+      this.__l.push(t);
+      t.__t.lists.push(this);
+      this.__sync();
+      this.dispatchEvent(new g.TrackEvent("addtrack", { track: t }));
+    }
+    __remove(t) {
+      const i = this.__l.indexOf(t);
+      if (i < 0) return;
+      this.__l.splice(i, 1);
+      t.__t.lists = t.__t.lists.filter((l) => l !== this);
+      this.__sync();
+      this.dispatchEvent(new g.TrackEvent("removetrack", { track: t }));
+    }
+  }
+  class AudioTrackList extends TrackList { get [Symbol.toStringTag]() { return "AudioTrackList"; } }
+  class VideoTrackList extends TrackList {
+    get [Symbol.toStringTag]() { return "VideoTrackList"; }
+    get selectedIndex() { return this.__l.findIndex((t) => t.selected); }
+  }
+  // media.js: an element's audioTracks/videoTracks.
+  M.trackList = (kind) => (kind === "video" ? new VideoTrackList() : new AudioTrackList());
+  const elementTracks = (el, video) => {
+    const l = el && (video ? el.videoTracks : el.audioTracks);
+    return l instanceof TrackList ? l : null;
+  };
+
   // ---- SourceBufferList
   class SourceBufferList extends EventTarget {
     constructor() { super(); this.onaddsourcebuffer = null; this.onremovesourcebuffer = null; Object.defineProperty(this, "__l", { value: [] }); }
@@ -77,7 +177,13 @@
       for (let i = 0; i < this.__l.length + 1; i++) delete this[i];
       this.__l.forEach((sb, i) => Object.defineProperty(this, i, { value: sb, configurable: true, enumerable: true }));
     }
-    __add(sb) { this.__l.push(sb); this.__sync(); queue(() => emit(this, "addsourcebuffer")); }
+    __add(sb, order) {
+      this.__l.push(sb);
+      // activeSourceBuffers keeps the order of sourceBuffers.
+      if (order) this.__l.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      this.__sync();
+      queue(() => emit(this, "addsourcebuffer"));
+    }
     __remove(sb) {
       const i = this.__l.indexOf(sb);
       if (i < 0) return;
@@ -93,8 +199,9 @@
       super();
       this.onupdatestart = this.onupdate = this.onupdateend = this.onerror = this.onabort = null;
       Object.defineProperty(this, "__s", { value: {
-        ms, id, type, updating: false, mode: "segments", tsOffset: 0, winStart: 0, winEnd: Infinity,
-        hasInit: false, info: null, pending: null, removed: false,
+        ms, id, type, updating: false, mode: generatesTimestamps(type) ? "sequence" : "segments", tsOffset: 0, winStart: 0, winEnd: Infinity,
+        hasInit: false, info: null, pending: null, removed: false, genTs: generatesTimestamps(type),
+        audio: new AudioTrackList(), video: new VideoTrackList(), tracksMade: false,
       } });
     }
     get [Symbol.toStringTag]() { return "SourceBuffer"; }
@@ -103,7 +210,12 @@
       v = String(v);
       if (v !== "segments" && v !== "sequence") return;
       this.__check();
-      this.__s.mode = v;
+      const s = this.__s;
+      if (s.genTs && v === "segments") throw new TypeError("This SourceBuffer's byte stream has no timestamps, so its mode must be 'sequence'.");
+      if (s.ms.readyState === "ended") s.ms.__reopen();
+      this.__checkMid();
+      s.mode = v;
+      __mseSetMode(s.id, v === "sequence");
     }
     get updating() { return this.__s.updating; }
     get buffered() {
@@ -111,7 +223,16 @@
       return new g.TimeRanges(pairs(__mseBuffered(this.__s.id)));
     }
     get timestampOffset() { return this.__s.tsOffset; }
-    set timestampOffset(v) { this.__check(); this.__s.tsOffset = Number(v); }
+    set timestampOffset(v) {
+      v = Number(v);
+      if (!isFinite(v)) throw new TypeError("The provided double value is non-finite.");
+      this.__check();
+      const s = this.__s;
+      if (s.ms.readyState === "ended") s.ms.__reopen();
+      this.__checkMid();
+      s.tsOffset = v;
+      __mseSetOffset(s.id, v);
+    }
     get appendWindowStart() { return this.__s.winStart; }
     set appendWindowStart(v) {
       this.__check();
@@ -126,13 +247,52 @@
       if (isNaN(v) || v <= this.__s.winStart) throw new TypeError("appendWindowEnd is out of range");
       this.__s.winEnd = v;
     }
-    get audioTracks() { return []; }
-    get videoTracks() { return []; }
+    get audioTracks() { return this.__s.audio; }
+    get videoTracks() { return this.__s.video; }
     get textTracks() { return []; }
     __check() {
       const s = this.__s;
       if (s.removed) throw DOMEx("This SourceBuffer has been removed from its MediaSource.", "InvalidStateError");
       if (s.updating) throw DOMEx("This SourceBuffer is still processing an append or remove.", "InvalidStateError");
+    }
+    // mode and timestampOffset can't change in the middle of a media segment.
+    __checkMid() {
+      if (this.__s.midMedia) throw DOMEx("A media segment is still being parsed.", "InvalidStateError");
+    }
+    // The first init segment: make its tracks, in this SourceBuffer's lists and the element's.
+    __makeTracks(flat) {
+      const s = this.__s;
+      if (s.tracksMade) return;
+      s.tracksMade = true;
+      const el = s.ms.__s.el;
+      for (let i = 0; i + 2 < flat.length; i += 3) {
+        const video = !!flat[i + 1];
+        const elList = elementTracks(el, video);
+        // IDs are unique within the element (two SourceBuffers may both have a track 1).
+        let id = String(flat[i]), n = 1;
+        while ((elList && elList.getTrackById(id)) || (video ? s.video : s.audio).getTrackById(id)) id = flat[i] + "-" + ++n;
+        const t = video ? new VideoTrack(id, "main", String(flat[i + 2]), this) : new AudioTrack(id, "main", String(flat[i + 2]), this);
+        // The first audio track is enabled, the first video track selected.
+        const others = elList ? elList.__l : (video ? s.video : s.audio).__l;
+        t.__t.on = !others.some((o) => o.__t.on);
+        (video ? s.video : s.audio).__add(t);
+        if (elList) elList.__add(t);
+      }
+    }
+    // The SourceBuffer is going away: so are its tracks.
+    __dropTracks(el) {
+      const s = this.__s;
+      for (const list of [s.audio, s.video]) {
+        for (const t of list.__l.slice()) {
+          const elList = elementTracks(el, list === s.video);
+          list.__remove(t);
+          if (elList && elList.__l.includes(t)) {
+            elList.__remove(t);
+            if (t.__t.on) queue(() => emit(elList, "change"));
+          }
+          t.__t.sb = null;
+        }
+      }
     }
     __begin() {
       const s = this.__s;
@@ -148,7 +308,7 @@
       else throw new TypeError("Failed to execute 'appendBuffer' on 'SourceBuffer': The provided value is not an ArrayBuffer or ArrayBufferView.");
       this.__check();
       const s = this.__s;
-      const r = __mseAppend(s.id, new Uint8Array(bytes), s.tsOffset);
+      const r = __mseAppend(s.id, new Uint8Array(bytes), s.tsOffset, s.winStart, s.winEnd);
       if (r[0] === "quota") throw DOMEx("The SourceBuffer is full, and cannot free space to append additional buffers.", "QuotaExceededError");
       this.__begin();
       const token = (s.pending = {});
@@ -162,9 +322,12 @@
           s.ms.endOfStream("decode");
           return;
         }
+        s.tsOffset = r[7];
+        s.midMedia = !!r[9];
         if (r[1]) {
           s.hasInit = true;
           s.info = { duration: r[2], video: r[3], audio: r[4], width: r[5], height: r[6] };
+          this.__makeTracks(r[8] || []);
           s.ms.__initReceived(this);
         }
         s.updating = false;
@@ -184,6 +347,7 @@
         queue(() => { emit(this, "abort"); emit(this, "updateend"); });
       }
       __mseAbort(s.id);
+      s.midMedia = false;
       s.winStart = 0;
       s.winEnd = Infinity;
     }
@@ -210,7 +374,10 @@
       if (!type) throw new TypeError("The type provided is empty.");
       this.__check();
       if (!isTypeSupported(type) || !__mseChangeType(this.__s.id, type)) throw DOMEx("The type provided ('" + type + "') is not supported.", "NotSupportedError");
-      this.__s.type = type;
+      const s = this.__s;
+      s.type = type;
+      s.genTs = generatesTimestamps(type);
+      if (s.genTs) { s.mode = "sequence"; __mseSetMode(s.id, true); }
     }
   }
 
@@ -263,6 +430,7 @@
       }
       s.removed = true;
       __mseFree(s.id);
+      sb.__dropTracks(this.__s.el);
       this.__s.active.__remove(sb);
       this.__s.list.__remove(sb);
     }
@@ -318,6 +486,7 @@
     __detach() {
       const st = this.__s;
       if (!st.el) return;
+      for (const sb of st.list.__l) sb.__dropTracks(st.el);
       st.el = null;
       st.attached = false;
       st.readyState = "closed";
@@ -328,21 +497,42 @@
     // Every SourceBuffer has its init segment: the element has its metadata.
     __initReceived(sb) {
       const st = this.__s;
-      if (!st.active.__l.includes(sb)) st.active.__add(sb);
+      this.__refreshActive();
       if (isNaN(st.duration)) st.duration = isFinite(sb.__s.info.duration) && sb.__s.info.duration > 0 ? sb.__s.info.duration : Infinity;
       if (st.attached || !st.el || !st.list.__l.every((b) => b.__s.hasInit)) return;
       st.attached = true;
       __mseAttach(st.el.__id, st.list.__l.map((b) => b.__s.id), st.duration);
+      // Every init segment is in: the element has its metadata now (not when the decoder starts).
+      const v = st.list.__l.map((b) => b.__s.info).find((i) => i.video);
+      if (M.metadata) M.metadata(st.el, st.duration, v ? v.width : 0, v ? v.height : 0);
       M.schedule(st.el, 0);
+    }
+    // activeSourceBuffers: those with an enabled audio track or a selected video track (or,
+    // before their tracks are known, any with an init segment).
+    __refreshActive() {
+      const st = this.__s;
+      for (const sb of st.list.__l) {
+        const s = sb.__s;
+        const tracks = s.audio.__l.concat(s.video.__l);
+        const want = s.hasInit && (!tracks.length || tracks.some((t) => t.__t.on));
+        const has = st.active.__l.includes(sb);
+        if (want && !has) st.active.__add(sb, st.list.__l);
+        else if (!want && has) st.active.__remove(sb);
+      }
     }
     __appended() { if (this.__s.el) M.schedule(this.__s.el, 0); }
     // For the element: what's buffered in every SourceBuffer, and is playback at `t` ready?
     __buffered() {
       const l = this.__s.list.__l;
       if (!l.length) return [];
-      let r = pairs(__mseBuffered(l[0].__s.id));
-      for (const sb of l.slice(1)) r = intersect(r, pairs(__mseBuffered(sb.__s.id)));
-      // When the stream has ended, the last ranges run to the end of the longest.
+      const lists = l.map((sb) => pairs(__mseBuffered(sb.__s.id)));
+      // When the stream has ended, each one's last range runs to the end of the longest.
+      if (this.__s.readyState === "ended") {
+        const highest = Math.max(...lists.map((r) => (r.length ? r[r.length - 1][1] : -Infinity)));
+        for (const r of lists) if (r.length) r[r.length - 1][1] = highest;
+      }
+      let r = lists[0];
+      for (const x of lists.slice(1)) r = intersect(r, x);
       return r;
     }
     __ready(t) {
@@ -376,7 +566,15 @@
     return ms;
   };
 
+  // media.js: srcObject = mediaSource.
+  M.isMediaSource = (v) => v instanceof MediaSource;
+  M.attachObject = (el, ms) => (ms instanceof MediaSource && ms.__attach(el) ? ms : null);
+
   g.MediaSource = MediaSource;
+  g.AudioTrack = AudioTrack;
+  g.VideoTrack = VideoTrack;
+  g.AudioTrackList = AudioTrackList;
+  g.VideoTrackList = VideoTrackList;
   g.SourceBuffer = SourceBuffer;
   g.SourceBufferList = SourceBufferList;
 })();
