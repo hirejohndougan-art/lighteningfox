@@ -1,0 +1,35 @@
+GET https://static01.nyt.com/elections-assets/pages/assets/TrendingRaces-BaxgyEq2.css
+200 OK
+content-type: text/css
+x-guploader-uploadid: AFy3sg2-G2J6L-BGTk9XSks7l3-4NmztxUcTe5e5cfj17dWKwMy_ZW2HPcNzhz2eywdHWh3Owz05HTHJ_QchKw
+cache-control: public, max-age=31536000, stale-while-revalidate=86400, stale-if-error=86400
+expires: Thu, 04 Nov 2027 14:54:47 GMT
+last-modified: Wed, 04 Nov 2026 14:49:20 GMT
+etag: W/"8cb1da7d1b86edf38d6c441a0614a381"
+x-goog-generation: 1793803760492456
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 450
+x-goog-hash: crc32c=D0upCQ==
+x-goog-hash: md5=jLHafRuG7fONbEQaBhSjgQ==
+x-amz-checksum-crc32c: D0upCQ==
+x-goog-storage-class: STANDARD
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+lei-timing: fetch=35876,misspass=355,do_stream=0
+lei-origin: shield=IAD,src_ip=167.82.233.66,alternate_path=0,ip=167.82.233.66,port=443,name=shield_ssl_cache_iad_kiad7000066_IAD,status=200,reason=OK,method=GET,path="/elections-assets/pages/assets/TrendingRaces-BaxgyEq2.css",host=static01.nyt.com
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:50 GMT
+age: 1135803
+x-served-by: cache-iad-kiad7000066-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 1009, 3317
+x-timer: S1794939891.613653,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

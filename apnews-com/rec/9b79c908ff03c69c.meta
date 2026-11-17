@@ -1,0 +1,25 @@
+GET https://assets.apnews.com/00/6a/4e6afbf14a88a79026fe263713da/gameicon-2.svg
+200 OK
+content-type: image/svg+xml
+x-guploader-uploadid: AKhXX7Jmgd_Nv254yRw0UvGmM0XIjmH0ylJZpntOCqPmqRrux5Cans3I8M24VqmtRbQljIX8
+date: Tue, 17 Nov 2026 18:24:00 GMT
+cache-control: public, max-age=31536000
+expires: Sat, 23 Oct 2027 07:06:30 GMT
+last-modified: Thu, 05 Mar 2026 15:18:28 GMT
+server-timing: cfExtPri
+x-goog-generation: 1772723908405913
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 300
+x-goog-meta-content-length: 300
+x-goog-hash: crc32c=FgIA/w==
+x-goog-hash: md5=6RRpV+bGSUaU2hZ0aNrPMA==
+x-goog-storage-class: STANDARD
+etag: W/"e9146957e6c6494694da167468dacf30"
+cf-cache-status: HIT
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+priority: u=3,i=?0
+age: 2198011
+cf-ray: a5c0c5158f66d130-ORD

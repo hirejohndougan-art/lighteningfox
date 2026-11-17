@@ -1,0 +1,12 @@
+HEAD https://edge.cdn-vitals.com/px
+204 No Content
+date: Tue, 17 Nov 2026 18:24:06 GMT
+access-control-allow-origin: *
+cache-control: no-store
+access-control-expose-headers: *
+x-bot-score: 96
+x-verified-bot: false
+set-cookie: __cf_bm=_2e97vRa2a.DWOHb9lcX3mbWs9tDLH7dW7WtaJ8YnvE-1794939846.324482-1.0.1.1-yvwC528Or3WUUziPXdcvGuWsmaU8M_ltwoh2JaUzy2q3uYTDq_WaApNJ6fCyzZpFF9dlBlpZ6a9u3l4RcakLtH0bTSAsYxMRlkHJBmFs5ywc5cok_seXuiz0icz_vue6; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=cdn-vitals.com; Expires=Tue, 17 Nov 2026 18:54:06 GMT
+server: cloudflare
+cf-ray: a5c0c5377f715110-MSP
+alt-svc: h3=":443"; ma=86400

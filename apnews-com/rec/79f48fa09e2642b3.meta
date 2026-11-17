@@ -1,0 +1,27 @@
+GET https://assets.apnews.com/36/99/6781a572454ab56e66c16b5b0e13/circuits.png
+200 OK
+content-type: image/png
+x-guploader-uploadid: AKhXX7LgOwBH4GjTvzv_c_td2MZYs9O1ivhQeetp35UFNv8sXbOBOx7I_3c9guHyGMkT8zEK0SR63w
+date: Tue, 17 Nov 2026 18:24:01 GMT
+cache-control: public, max-age=31536000
+expires: Thu, 28 Oct 2027 08:15:25 GMT
+last-modified: Thu, 30 Jul 2026 15:05:51 GMT
+etag: "7e6913d261b19f6993f329eefc5a0457"
+x-goog-generation: 1785423951684122
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 26764
+x-goog-meta-content-length: 26764
+x-goog-hash: crc32c=gAgiZw==
+x-goog-hash: md5=fmkT0mGxn2mT8ynu/FoEVw==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+priority: u=3,i=?0
+age: 1764515
+cf-cache-status: HIT
+cf-ray: a5c0c517b83cd130-ORD
+content-length: 26764

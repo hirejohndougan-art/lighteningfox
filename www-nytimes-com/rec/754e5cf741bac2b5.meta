@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2020/09/21/podcasts/modernlove-logo/modernlove-logo-thumbLarge-v3.jpg?quality=75&auto=webp&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "0WEojDgjk8dt0Jms8j1F2851ufD/ykBgx9pQEVZqsbI"
+expires: Tue, 22 Sep 2026 12:49:16 GMT
+fastly-io-info: ifsz=11068 idim=150x150 ifmt=jpeg ofsz=5416 odim=150x150 ofmt=jpeg
+fastly-io-served-by: img03-us-east4
+fastly-io-transform-stats: ifsz=11068 ofsz=5416 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: BQuLtQ==
+x-goog-generation: 1665608966820623
+x-goog-hash: crc32c=BQuLtQ==
+x-goog-hash: md5=p/lR9gCKmtliQRSN6dd/dg==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 11068
+x-guploader-uploadid: AJjja9YBDvAZ19AyFKC8Seaf3D-yLRNSpbP94Pki87hefU4-YZWK7BTAqBPcElMDYTrbbfOhqM9X0Gtl6ED5Xg
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 205178
+x-served-by: cache-iad-khef600033-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 1, 4
+x-timer: S1794939914.046540,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 5416

@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/images/cli.svg
+200 OK
+server: GitHub.com
+content-type: image/svg+xml
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-440"
+expires: Tue, 17 Nov 2026 01:42:38 GMT
+cache-control: max-age=600
+x-fastly-request-id: feed6d5d737402a7d026ba4f166cccbda0c512c9
+x-proxy-cache: EXPIRED
+x-github-request-id: 6C3C:3B0B92:B17EC7:C5452A:6AFBAEB6
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794939992.849774,VS0,VE44
+vary: Accept-Encoding

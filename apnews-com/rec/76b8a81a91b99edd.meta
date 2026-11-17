@@ -1,0 +1,13 @@
+GET https://dualping.com/dist/ij7hx87j3gt9.v1.js
+200 OK
+cache-control: private, must-revalidate, max-age=21600
+alt-svc: h3=":443"; ma=2592000
+content-type: text/javascript; charset=utf-8
+etag: W/"a87a0b2f17de7f3202a5bf793a29ee7ef296f4c0b82dbd4d1b57b6925e770373"
+server: hoothoot/3050813286
+strict-transport-security: max-age=15724800; preload
+timing-allow-origin: *
+vary: Accept-Encoding, Accept-Language
+via: fen-hoothoot-us-central1-spot-lwrd.gce-us-central1, 1.1 google
+x-robots-tag: noindex, nofollow
+date: Tue, 17 Nov 2026 18:24:15 GMT

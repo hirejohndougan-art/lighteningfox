@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/family/cheltenham-text-cond/cheltenham-text-cond-normal-700.7e78f9e7e6c2e02d82592c4466929fa3.woff2
+200 OK
+x-amz-id-2: L0ZAT3t4V3hGRcR4VayXEj8XoZDDqHO85EF2n4CtTypFYzGi+cfeUIJvIxSaC1Ux8ZM/xRS8KO0=
+x-amz-request-id: G1Z80PJQY7JY9W76
+last-modified: Mon, 16 Sep 2024 19:49:44 GMT
+etag: "7e78f9e7e6c2e02d82592c4466929fa3"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+x-amz-version-id: 8D1ZRQvnmikeB10nS.x7255hhemoykg0
+content-type: binary/octet-stream
+server: AmazonS3
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+via: 1.1 varnish
+age: 66905
+x-served-by: cache-chi-kmdw8640097-CHI
+x-cache: HIT
+x-cache-hits: 419
+x-timer: S1794939893.030712,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 28868

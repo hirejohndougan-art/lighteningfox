@@ -1,0 +1,23 @@
+GET https://i.guim.co.uk/img/uploads/2023/11/15/Sidney_Blumenthal.png?width=150&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "zr0oR8KK7uG33THPd3FLFbV4kmcFAq5D/jxb6sceepo"
+fastly-io-info: ifsz=463985 idim=720x600 ifmt=png ofsz=9615 odim=150x150 ofmt=png
+fastly-io-served-by: img05-europe-west3
+fastly-io-transform-stats: ifsz=463985 ofsz=9615 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+x-amz-server-side-encryption: AES256
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 7544
+date: Tue, 17 Nov 2026 18:25:25 GMT
+x-served-by: cache-lcy-egml8630032-LCY, cache-chi-kmdw8640033-CHI
+x-cache: MISS, HIT
+x-cache-hits: 0, 0
+x-timer: S1794939926.939217,VS0,VE2
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 9615

@@ -1,0 +1,20 @@
+GET https://www.gstatic.com/recaptcha/releases/4i3aN5wAweL7i3ADI7BSX4B-/recaptcha__en.js
+200 OK
+accept-ranges: bytes
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+access-control-allow-origin: *
+content-security-policy-report-only: require-trusted-types-for 'script'; report-uri https://csp.withgoogle.com/csp/recaptcha-scs
+cross-origin-resource-policy: cross-origin
+cross-origin-opener-policy: same-origin-allow-popups; report-to="recaptcha-scs"
+report-to: {"group":"recaptcha-scs","max_age":2592000,"endpoints":[{"url":"https://csp.withgoogle.com/csp/report-to/recaptcha-scs"}]}
+timing-allow-origin: *
+age: 40397
+x-content-type-options: nosniff
+server: sffe
+x-xss-protection: 0
+date: Tue, 17 Nov 2026 07:11:00 GMT
+expires: Wed, 17 Nov 2027 07:11:00 GMT
+cache-control: public, max-age=31536000
+last-modified: Fri, 13 Nov 2026 01:32:47 GMT
+content-type: text/javascript
+vary: Accept-Encoding

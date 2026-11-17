@@ -1,0 +1,26 @@
+GET https://assets.guim.co.uk/assets/765.client.web.906aeba149e537e283a5.js
+200 OK
+x-gu-debug-url: /PROD/frontend-static/assets/765.client.web.906aeba149e537e283a5.js
+x-amz-request-id: AT0B07SY8HG7MFBE
+x-amz-id-2: hkcV8BaNq/zQCysk3JkyRV2FVmSJ5bA252WSZOV/hVWFAEnIrJuMOxwvBqUcEBmRmnJp1Ot3feM=
+server: AmazonS3
+last-modified: Thu, 05 Nov 2026 10:30:53 GMT
+etag: "e6ded366898c0efe49c84f14f4350307"
+x-amz-version-id: GxzvHoFwEKjn_dnl0p_SkV.H7tePLQAM
+cache-control: public, max-age=315360000, immutable
+content-type: application/javascript
+x-amz-server-side-encryption: AES256
+fastly-restarts: 1
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:28 GMT
+via: 1.1 varnish
+age: 495535
+x-served-by: cache-dfw-kdal2120028-DFW
+x-cache: HIT
+x-cache-hits: 65
+x-timer: S1794939928.314956,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000

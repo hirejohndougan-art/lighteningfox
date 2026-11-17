@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/fonts/woff2/FiraSans-Italic.latin.woff2
+200 OK
+server: GitHub.com
+content-type: font/woff2
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-4bb0"
+expires: Tue, 17 Nov 2026 09:37:54 GMT
+cache-control: max-age=600
+x-proxy-cache: REVALIDATED
+x-github-request-id: 4E4A:92D9B:FA9FB2:12BBBBE:6AFC3233
+x-github-edge-region: iad
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+age: 26
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939992.939423,VS0,VE3
+vary: Accept-Encoding
+x-fastly-request-id: 459ee7d078a0331b34948e58b063558f08b40c0f
+content-length: 19376

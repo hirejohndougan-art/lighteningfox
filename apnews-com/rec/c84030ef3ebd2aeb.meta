@@ -1,0 +1,17 @@
+GET https://live.primis.tech/live/liveView.php?s=122329
+200 OK
+content-type: text/javascript; charset=utf-8
+server: nginx
+date: Tue, 17 Nov 2026 18:23:59 GMT
+set-cookie: csuuid=6afc9bc005724; expires=Sat, 12-Dec-2026 18:24:00 GMT; Max-Age=2160000; path=/; domain=.primis.tech
+p3p: CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT"
+access-control-allow-origin: *
+cache-control: no-store
+pragma: no-cache
+vary: Accept-Encoding
+age: 0
+x-cache: Miss from cloudfront
+via: 1.1 db50cf369fe479ad02ec89b3d2484892.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD58-P13
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: N7dlwFIB-naTr5XpudAoL_yIFGxwzLKmph9gYJyKJypzGgxugB9c-w==

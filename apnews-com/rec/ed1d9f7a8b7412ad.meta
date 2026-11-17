@@ -1,0 +1,26 @@
+GET https://assets.apnews.com/resource/00000188-2a81-d28a-a1fd-7bfb6ccb0000/4c8008fe47695f4a98df.3c0c9d016bf55b85d0800dd405b807e3.woff2
+200 OK
+content-type: application/octet-stream
+x-guploader-uploadid: AKhXX7I2RGs6OmzLtxsc5FJKlEOUo1md_v30P5ei08PWZjdOmJe4uAv7gjpEkmmGmydAZXDBPzO4GFw
+date: Tue, 17 Nov 2026 18:24:01 GMT
+cache-control: public, max-age=31536000
+expires: Fri, 22 Oct 2027 09:51:32 GMT
+last-modified: Wed, 05 Aug 2026 14:50:41 GMT
+etag: "668ff87fcea4e669fcdff0970dcf0c0a"
+x-goog-generation: 1785941441287870
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 141160
+x-goog-hash: crc32c=1WhCow==
+x-goog-hash: md5=Zo/4f86k5mn83/CXDc8MCg==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+priority: u=3,i=?0
+age: 2277148
+cf-cache-status: HIT
+cf-ray: a5c0c5183878d130-ORD
+content-length: 141160

@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/08/01/podcasts/the-interview-logo/the-interview-logo-thumbLarge.jpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "UPp9dhUDTTum/3S1qglw67/OcXXULVu6EBnKNMiYQ2s"
+expires: Wed, 23 Sep 2026 14:27:43 GMT
+fastly-io-info: ifsz=7249 idim=150x150 ifmt=jpeg ofsz=4289 odim=150x150 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010214
+fastly-io-transform-stats: ifsz=7249 ofsz=4289 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: aITUMw==
+x-goog-generation: 1785601107185693
+x-goog-hash: crc32c=aITUMw==
+x-goog-hash: md5=HzzuEGLXu3R8VFPSZBDGTw==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 7249
+x-guploader-uploadid: AP6rU817505uO3kqcWL0Grifjd02IUfdpwW2of0pNg3Zwb73dxK28DAmy01PLiAVtuDrVrWg
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 114733
+x-served-by: cache-iad-kiad7000144-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 515, 1
+x-timer: S1794939914.046552,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 4289

@@ -1,0 +1,25 @@
+GET https://client.threenoodles.com/dist/embed/embed.js?game=strands&partnerid=YtUP5pFgG3NV3EGrs2Mf&partnername=AP&strandspuzzleid=f55fd9f6-5da7-4e70-bfb2-c0f440d98ae0&target=threenoodles-widget-f55fd9f6-5da7-4e70-bfb2-c0f440d98ae0
+200 OK
+date: Tue, 17 Nov 2026 18:24:00 GMT
+content-type: text/javascript
+x-guploader-uploadid: AFy3sg3PvQau-iw-fcHVlqzaf0Lb1VaifB670aagcA6QNNOCc_WAxNgnCfFH94DlgOb3PVdej8lldpw
+cache-control: public, max-age=0, s-maxage=120, must-revalidate
+expires: Tue, 17 Nov 2026 18:24:20 GMT
+last-modified: Tue, 03 Nov 2026 02:23:47 GMT
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+x-goog-generation: 1793672627036408
+x-goog-metageneration: 11
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 17247
+x-goog-meta-goog-reserved-file-mtime: 1793672139
+x-goog-hash: crc32c=+BUg4Q==
+x-goog-hash: md5=4RXxegTmrO39ORjFSgIzpg==
+x-goog-storage-class: STANDARD
+etag: W/"e115f17a04e6acedfd3918c54a0233a6"
+access-control-allow-origin: *
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 99
+cf-cache-status: HIT
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=qs6yVbXvs3L2Nk0jPwzCASxN2aQBIQIwTo1BiMzh9TG4TEe%2B%2BHWIx7HIhSBMQmRABGdY9lwY2%2FScIrkHCS47Gz56Kn4%2BE6J8sY3LYgTmPaA1hZ5SVM3X%2BqFtKcwjdVSdjzy52ulVPHmXrA%3D%3D"}]}
+cf-ray: a5c0c5106f727a57-STL

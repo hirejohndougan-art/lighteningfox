@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/styles-homepage-footer.5d6588cf8c9b4dc6.css
+200 OK
+last-modified: Tue, 19 Aug 2025 15:41:12 GMT
+expires: Tue, 09 Dec 2025 16:52:28 GMT
+origin-trial: AxVILwizhbMjxFeHOn1P3R8niO1RJY/smaK4B4d1rLzc1gTaxtXMSaTi+FoigYgCw40uFRDwFcEAeqDR+vVLOW4AAABfeyJvcmlnaW4iOiJodHRwczovL2RldmVsb3Blci5tb3ppbGxhLm9yZyIsImZlYXR1cmUiOiJQcml2YXRlQXR0cmlidXRpb25WMiIsImV4cGlyeSI6MTc0MjA3OTYwMH0=
+x-goog-metageneration: 1
+x-goog-storage-class: STANDARD
+x-goog-generation: 1755618072543681
+cache-control: public, max-age=31536000
+x-goog-hash: crc32c=2CJo5A==, md5=EWo4Eq1fcga2oMLoi4vl1A==
+server: Google Frontend
+x-goog-stored-content-encoding: identity
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+referrer-policy: strict-origin-when-cross-origin
+x-goog-stored-content-length: 140
+x-cloud-trace-context: 9183d954af7fbb617afcce77951346ea
+x-frame-options: DENY
+x-content-type-options: nosniff
+x-guploader-uploadid: AHVrFxO_xk-HSlNqo1jr_rkZJhNF62EPfl_tWTEM8KmX2YcmV2YhybTPfpa68BPfgrSZtG0lmVWnFkU
+content-type: text/css
+etag: "116a3812ad5f7206b6a0c2e88b8be5d4"
+strict-transport-security: max-age=63072000
+vary: Accept-Encoding
+accept-ranges: bytes
+age: 524138
+date: Tue, 17 Nov 2026 18:24:40 GMT
+x-served-by: cache-bfi-krnt7300050-BFI, cache-bfi-krnt7300082-BFI, cache-dfw-kdal2120133-DFW
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 7, 0
+x-timer: S1794939880.414450,VS0,VE3

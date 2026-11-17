@@ -1,0 +1,36 @@
+GET https://www.nytimes.com/games-assets/v2/assets/apps/NYT-Crossplay-AppIcon.svg
+200 OK
+x-amz-id-2: UPjTfEApnkuB4L8xyo0X+5uObyGnfOMMPGou6O6L5NPX5GszkFuzGQCsPzgdSlCyYsYMN8ZcA5NggZRmrdOUR1KM4xC517Y4Ia2YLwf9qto=
+x-amz-request-id: 31EAQAVWJ93ZJD95
+last-modified: Wed, 19 Nov 2025 22:01:23 GMT
+etag: "dddbf08a9bfd2403b727dbce450d9d08"
+x-amz-server-side-encryption: AES256
+x-amz-meta-last-modified: 1763589679
+x-amz-meta-origin: main
+cache-control: public,max-age=31536000
+content-type: image/svg+xml
+server: AmazonS3
+x-origin-time: 2025-11-19 22:05:08 UTC
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:52 GMT
+age: 1121943
+x-served-by: cache-chi-kmdw8640066-CHI
+x-cache: HIT
+x-cache-hits: 8568
+x-timer: S1794939893.986182,VS0,VE0
+vary: Accept-Encoding, Fastly-SSL
+set-cookie: nyt-gdpr=0; Expires=Wed, 18 Nov 2026 00:24:52 GMT; Path=/; Domain=.nytimes.com
+set-cookie: datadome=0; Domain=.nytimes.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure
+x-gdpr: 0
+permissions-policy: browsing-topics=()
+x-frame-options: DENY
+x-api-version: F-X
+x-nyt-route: games-phoenix-assets-prd
+content-security-policy: upgrade-insecure-requests; default-src data: 'unsafe-inline' 'unsafe-eval' https: nytresource:; script-src data: 'unsafe-inline' 'unsafe-eval' https: blob: nytresource:; style-src data: 'unsafe-inline' https: nytresource:; img-src data: https: blob: android-webview-video-poster: nytresource:; font-src data: https: nytresource:; connect-src data: https: wss: blob: nytresource:; media-src data: https: blob: nytresource:; object-src https:; child-src https: data: blob: nytresource:; form-action https: nytimes: nytcooking: nytxwd:; report-uri https://csp.nytimes.com/report;
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+access-control-expose-headers: X-Nyt-Mktg-Group
+x-nyt-mktg-group: group1
+x-nyt-edge-cache: HIT
+x-nyt-app-webview: 0
+x-nyt-app-map: webview=false,preloaded=false,service-worker-enabled=false

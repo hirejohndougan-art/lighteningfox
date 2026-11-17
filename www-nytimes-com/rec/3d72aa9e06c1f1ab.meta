@@ -1,0 +1,27 @@
+GET https://www.nytimes.com/vi-assets/static-assets/icon-clean-everything_144x144-97312e349d7284039a2153cb541b7fda.webp
+200 OK
+x-amz-id-2: GxaV/VNQDgDL/mL7ZJbKkDDkRi3lsrCGGDnZ/PVtXeVUNo3k75i+7svf+wWTUTtlBO/U5dh/ygc=
+x-amz-request-id: QAYV2H9JP3SWA35P
+last-modified: Mon, 02 Jun 2025 20:08:59 GMT
+etag: "d75bf842483274a9d6c4274aa6367e1c"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: W6NbK6Z5RQARpEpkUhXsXGlEaNa_Y_AI
+content-type: image/webp
+server: AmazonS3
+x-nyt-route: vi-assets
+log-lem-timing: fetch=19581,misspass=84,do_stream=0
+log-lem-origin: shield=LGA,src_ip=157.52.117.31,alternate_path=0,ip=157.52.117.31,port=443,name=shield_ssl_cache_lga21931_LGA,status=200,reason=OK,method=GET,url="/vi-assets/static-assets/icon-clean-everything_144x144-97312e349d7284039a2153cb541b7fda.webp",host=www.nytimes.com
+x-origin-time: 2025-06-02 20:09:23 UTC
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 2276904
+x-served-by: cache-lga21931-LGA, cache-chi-kmdw8640066-CHI
+x-cache: HIT, HIT
+x-cache-hits: 6, 3243
+x-timer: S1794939914.044468,VS0,VE1
+vary: Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, x-nyt-programming-abtest, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 2380

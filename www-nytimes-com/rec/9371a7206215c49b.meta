@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2023/11/27/opinion/the-opinions-art/the-opinions-art-thumbLarge.jpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "U+f2q+c6DgwMqczp+OUll1ZC75ayUWjZqdfUNi3DwGY"
+expires: Thu, 17 Sep 2026 05:33:02 GMT
+fastly-io-info: ifsz=9909 idim=150x150 ifmt=jpeg ofsz=6281 odim=150x150 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010229
+fastly-io-transform-stats: ifsz=9909 ofsz=6281 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 8hAdHg==
+x-goog-generation: 1744044408793571
+x-goog-hash: crc32c=8hAdHg==
+x-goog-hash: md5=kLBOKKSp0RnwMvfU/0gMTw==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 9909
+x-guploader-uploadid: AJjja9b2EM140iDIgybVR_4Vl1LF-Fhy_NUnqiTvgPr5g3-Yrs6c8siI5Q1nc5TPypYnCvP1
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 541268
+x-served-by: cache-iad-kiad7000219-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 653, 1
+x-timer: S1794939914.047130,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 6281

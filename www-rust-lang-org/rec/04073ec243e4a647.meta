@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/fonts/woff2/FiraSans-SemiBold.cyrillic-ext.woff2
+200 OK
+server: GitHub.com
+content-type: font/woff2
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-4764"
+expires: Tue, 17 Nov 2026 18:36:31 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: 7324:3C5D77:581CB0:5EE334:6AFC9C57
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 18:26:32 GMT
+via: 1.1 varnish
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1794939992.951095,VS0,VE49
+vary: Accept-Encoding
+x-fastly-request-id: 5d4720e1959d5a836418ebed8281891ef01c6351
+content-length: 18276

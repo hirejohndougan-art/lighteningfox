@@ -1,0 +1,21 @@
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (https://gn-web-assets.api.bbc.com/ngas/latest/dotcom-bootstrap.js:1:22213)
+    at oe (https://gn-web-assets.api.bbc.com/ngas/latest/dotcom-bootstrap.js:1:22380)
+    at dn (https://gn-web-assets.api.bbc.com/ngas/latest/dotcom-bootstrap.js:1:74176)
+    at <main> (https://gn-web-assets.api.bbc.com/ngas/latest/dotcom-bootstrap.js:1:75788)
+    at  (native)
+[js error] TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (unknown at :1:13736)
+    at e (unknown at :1:13804)
+    at <main> (unknown at :1:16021)
+    at eL (unknown at :1:12958)
+[js error] A client-side exception has occurred, see here for more info: https://nextjs.org/docs/messages/client-side-exception-occurred
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (unknown at :1:13736)
+    at e (unknown at :1:13804)
+    at <main> (unknown at :1:16021)
+    at eL (unknown at :1:12958)
+    at eW (unknown at :1:13127)
+    at e (unknown at :1:15140)
+https://www.bbc.com/news: 1708 nodes, 5467 display items, 1280x5224 px, 2.76307755s total | JS: 59 scripts, 2 errors, 1.032577182s
+exit 0

@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/images/webassembly.svg
+200 OK
+server: GitHub.com
+content-type: image/svg+xml
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-9f9"
+expires: Tue, 17 Nov 2026 05:48:30 GMT
+cache-control: max-age=600
+x-fastly-request-id: 9599c64b288f63444b4e9df99f94455600f1b5fe
+x-proxy-cache: HIT
+x-github-request-id: C0F8:21BCA5:12FA134:148AA69:6AFBE914
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794939992.849862,VS0,VE51
+vary: Accept-Encoding

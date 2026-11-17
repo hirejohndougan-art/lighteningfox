@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";var n=e(t()).createContext({overlays:{},setMode:()=>{},setVisibility:()=>{},registerOverlay:()=>{}});export{n as t};
+//# sourceMappingURL=OverlayContext-CwslwEj8.js.map

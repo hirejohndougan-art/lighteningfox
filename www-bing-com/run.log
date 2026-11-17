@@ -1,0 +1,8 @@
+[js error] inline script #27: ReferenceError: PerformanceObserver is not defined (unknown at :3:4266)
+    at <main> (unknown at :3:3689)
+    at <main> (unknown at :3:4266)
+[js error] inline script #350: ReferenceError: cannot assign to uninitialized global property `onload` (unknown at :3:4031)
+    at <main> (unknown at :3:3939)
+    at <main> (unknown at :3:4031)
+https://www.bing.com/: 376 nodes, 213 display items, 1280x768 px, 954.63451ms total | JS: 10 scripts, 2 errors, 123.661953ms
+exit 0

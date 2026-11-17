@@ -1,0 +1,31 @@
+GET https://static01.nyt.com/video-static/betamax/use-share-BZUxByCu.js
+200 OK
+content-type: text/javascript
+x-guploader-uploadid: AFy3sg1f5EA89mYUc8bhuItsvvl1ZWqg8s2cIVd1cHo4io6njLbO948sXBv44mSndg3_dbtO3CuA7aQ
+cache-control: public,max-age=31536000,s-maxage=31536000
+expires: Fri, 12 Nov 2027 14:31:53 GMT
+last-modified: Thu, 12 Nov 2026 14:26:17 GMT
+etag: "660c325c27cc233298e7ae67b6cb048c"
+x-goog-generation: 1794493577774838
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 2360
+x-goog-hash: crc32c=6BqGYQ==
+x-goog-hash: md5=ZgwyXCfMIzKY565ntssEjA==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-allow-origin: *
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:54 GMT
+age: 445981
+x-served-by: cache-iad-kiad7000078-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 194, 3626
+x-timer: S1794939894.383459,VS0,VE0
+vary: Accept-Encoding
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

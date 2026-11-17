@@ -1,0 +1,110 @@
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x (||googletagmanager.com^$third-party)
+[js log] Error: Fides Wrapper: No valid GPP string value was found. GPP CMP will not be loaded.
+    at c (unknown at :81:28)
+    at e (unknown at :41:21)
+    at fidesScript (unknown at :147:6)
+    at <main> (unknown at :160:3)
+[js debug] [nyt-betamax] waiting for page to load
+[js debug] [nyt-betamax] waiting for page to load
+[js debug] [nyt-betamax] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-cover] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-cover] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for page to load
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-poster] waiting for page to load
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-poster] waiting for page to load
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for page to load
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax-overlay-controls] waiting for page to load
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax-overlay-controls] waiting for page to load
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js error] https://static01.nyt.com/video-static/betamax/video-feed-0.3.50-DaA5I5pM.js: Error: Custom element with tag nyt-betamax is already defined
+[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax is already defined
+    at wn (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:29727)
+    at ao (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:33294)
+    at <main> (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:41929)
+    at  (native)
+[js error] https://static01.nyt.com/video-static/betamax/pool-0.3.50-DvQFLz0N.js: Error: Custom element with tag nyt-betamax-pool is already defined
+[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax-pool is already defined
+    at wn (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:29727)
+    at ao (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:33294)
+    at <main> (https://static01.nyt.com/video-static/betamax/pool-0.3.50-DvQFLz0N.js:1:3517)
+    at  (native)
+[js error] https://static01.nyt.com/elections-assets/pages/assets/index-CJowZzFG.js: TypeError: cannot convert 'null' or 'undefined' to object
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at a (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:408)
+    at <main> (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:754)
+    at rr (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:866)
+    at xe (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:1201)
+    at a (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:3739)
+    at P (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:3987)
+[js error] https://www.nytimes.com/vi-assets/static-assets/main-DO_eT3jf.js: TypeError: cannot convert 'null' or 'undefined' to object
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/vendor-u8E3U9GY.js:64:62347)
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/vendor-u8E3U9GY.js:64:62431)
+    at Nu (https://www.nytimes.com/vi-assets/static-assets/chunks/vendor-u8E3U9GY.js:64:58856)
+    at forEach (native)
+    at Zu (https://www.nytimes.com/vi-assets/static-assets/chunks/vendor-u8E3U9GY.js:64:63100)
+    at call (native)
+[js warn] userinfo data unavailable
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x (||googletagmanager.com^$third-party)
+[js] couldn't load https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x: https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x: blocked by filter rule ||googletagmanager.com^$third-party
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with SSRed props
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with SSRed props
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with SSRed props
+[js error] Uncaught (in promise): ReferenceError: crypto is not defined
+    at Ot (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:3442)
+    at Wn (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:39568)
+    at Xr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:9791)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:6782)
+    at lr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:2335)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:7061)
+[js error] Uncaught (in promise): ReferenceError: crypto is not defined
+    at Ot (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:3442)
+    at Wn (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:39568)
+    at Xr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:9791)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:6782)
+    at lr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:2335)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:7061)
+[js error] Uncaught (in promise): ReferenceError: crypto is not defined
+    at Ot (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:3442)
+    at Wn (https://static01.nyt.com/video-static/betamax/player-GcI9Wuku.js:1:39568)
+    at Xr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:9791)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:6782)
+    at lr (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:2335)
+    at it (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:7061)
+[js warn] limitedAds is not set, defaulting to false
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||doubleclick.net^)
+[js] couldn't load https://securepubads.g.doubleclick.net/tag/js/gpt.js: https://securepubads.g.doubleclick.net/tag/js/gpt.js: blocked by filter rule ||doubleclick.net^
+[js error] https://static01.nyt.com/elections-assets/pages/assets/index-CJowZzFG.js: TypeError: cannot convert 'null' or 'undefined' to object
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at a (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:408)
+    at <main> (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:754)
+    at rr (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:866)
+    at xe (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:1201)
+    at a (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:3739)
+    at P (https://static01.nyt.com/elections-assets/pages/assets/sentryLogger-Bnk8PWxf.js:2:3987)
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||doubleclick.net^)
+[js] couldn't load https://securepubads.g.doubleclick.net/tag/js/gpt.js: https://securepubads.g.doubleclick.net/tag/js/gpt.js: blocked by filter rule ||doubleclick.net^
+[js warn] XMLHttpRequest failed: https://eg.nytimes.com/api/v1/events: blocked by CORS (no Access-Control-Allow-Origin for https://www.nytimes.com)
+[js error] https://rumcdn.geoedge.be/b3960cc6-bfd2-4adc-910c-6e917e8a6a0e/grumi-ip.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:18861)
+    at t (unknown at :1:5076)
+    at e (unknown at :1:5491)
+    at <main> (unknown at :1:5600)
+    at <main> (unknown at :1:18861)
+[blocked] https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1 (||media.net^$third-party)
+[js] couldn't load https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1: https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1: blocked by filter rule ||media.net^$third-party
+[blocked] https://c.amazon-adsystem.com/aax2/apstag.js (||amazon-adsystem.com^)
+[js] couldn't load https://c.amazon-adsystem.com/aax2/apstag.js: https://c.amazon-adsystem.com/aax2/apstag.js: blocked by filter rule ||amazon-adsystem.com^
+https://www.nytimes.com/: 10819 nodes, 12386 display items, 1280x768 px, 24.525014943s total | JS: 31 scripts, 14 errors, 9.9618276s
+exit 0

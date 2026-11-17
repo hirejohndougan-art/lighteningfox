@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/images/embedded.svg
+200 OK
+server: GitHub.com
+content-type: image/svg+xml
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-2b86"
+expires: Tue, 17 Nov 2026 05:05:15 GMT
+cache-control: max-age=600
+x-fastly-request-id: ca2121e213f5bf3b8731542d37a5bd19ab160abf
+x-proxy-cache: HIT
+x-github-request-id: FECA:18CD7D:10325BF:133BD2E:6AFC2F66
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794939992.849685,VS0,VE52
+vary: Accept-Encoding

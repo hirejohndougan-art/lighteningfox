@@ -1,0 +1,13 @@
+[js error] https://wordpress.org/wp-content/plugins/gutenberg/build/modules/block-library/navigation/view.min.js?ver=459046a3816f848f72d6-20240308: TypeError: cannot convert 'null' or 'undefined' to object
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at Et (https://wordpress.org/wp-content/plugins/gutenberg/build/modules/interactivity/index.min.js?ver=7b290c1d3da1e77618ce:1:21136)
+    at <main> (https://wordpress.org/wp-content/plugins/gutenberg/build/modules/interactivity/index.min.js?ver=7b290c1d3da1e77618ce:1:43838)
+    at  (native)
+[js error] inline script #1347: SyntaxError: expected value at line 1 column 1
+[js error] Uncaught (in promise): SyntaxError: expected value at line 1 column 1
+    at <main> (https://wordpress.org/#inline-1347:3:156)
+    at  (native)
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P24PF4B (||googletagmanager.com^$third-party)
+[js] couldn't load https://www.googletagmanager.com/gtm.js?id=GTM-P24PF4B: https://www.googletagmanager.com/gtm.js?id=GTM-P24PF4B: blocked by filter rule ||googletagmanager.com^$third-party
+https://wordpress.org/: 1482 nodes, 1148 display items, 1280x5521 px, 1.647262465s total | JS: 12 scripts, 4 errors, 286.353582ms
+exit 0

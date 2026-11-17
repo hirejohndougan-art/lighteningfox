@@ -1,0 +1,15 @@
+GET https://developer.mozilla.org/api/v1/whoami
+200 OK
+server: Google Frontend
+accept-ranges: bytes
+content-type: application/json
+x-cloud-trace-context: 518050b4dc9c7ad867eed94a742c7179/7873072795408477365
+traceparent: 00-518050b4dc9c7ad867eed94a742c7179-6d42c5fe7d1d2cb5-00
+via: 1.1 google, 1.1 google, 1.1 varnish, 1.1 varnish
+date: Tue, 17 Nov 2026 18:24:40 GMT
+x-served-by: cache-dfw-kdal2120111-DFW, cache-dfw-kdal2120111-DFW, cache-dfw-kdal2120133-DFW
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1794939881.726002,VS0,VE113
+vary: Accept-Encoding
+content-length: 187

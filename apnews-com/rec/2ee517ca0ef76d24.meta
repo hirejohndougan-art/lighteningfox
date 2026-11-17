@@ -1,0 +1,27 @@
+GET https://assets.apnews.com/9f/14/e730153245ddbefdf1f69031adea/download-on-the-app-store-badge-us-uk-rgb-blk-01.png
+200 OK
+x-guploader-uploadid: AAVLpEiKRC_qIBpPOoqgyBt2ybF0diRwq15hoIGUQs0FGKbklsJ4w935Z4qropiUU6r0QnRu
+x-goog-generation: 1745515343029187
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 10625
+x-goog-meta-content-length: 10625
+x-goog-hash: crc32c=o6EnQg==
+x-goog-hash: md5=JjOF6+50sX94FXzjS3oW3g==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+server: cloudflare
+date: Tue, 17 Nov 2026 18:24:00 GMT
+expires: Thu, 21 Oct 2027 08:34:19 GMT
+cache-control: public, max-age=31536000
+last-modified: Thu, 24 Apr 2025 17:22:23 GMT
+etag: "263385ebee74b17f78157ce34b7a16de"
+content-type: image/png
+vary: Origin
+alt-svc: h3=":443"; ma=86400
+priority: u=3,i=?0
+age: 2368180
+cf-cache-status: HIT
+cf-ray: a5c0c514ff33d130-ORD
+content-length: 10625

@@ -1,0 +1,19 @@
+GET https://s.ntv.io/serve/load.js
+200 OK
+x-amz-id-2: sQw1+6Dq9Sl/WAlGfz6vu2fUj8sVe/gq9iv3SGHkyzzEH/b3FmvMtdS3MEu05kRK/HlVqGOabRs=
+x-amz-request-id: QY11STDVBBZF8BB5
+server: AmazonS3
+last-modified: Fri, 06 Nov 2026 18:57:16 GMT
+etag: "5fce6dceedcf80e7c79a52f992cb31f8"
+x-amz-server-side-encryption: AES256
+accept-ranges: bytes
+content-type: application/x-javascript
+vary: Accept-Encoding
+access-control-allow-origin: *
+date: Tue, 17 Nov 2026 18:24:00 GMT
+transfer-encoding: chunked
+connection: keep-alive
+connection: Transfer-Encoding
+cache-control: public, max-age=3600
+access-control-allow-headers: *
+access-control-allow-methods: GET

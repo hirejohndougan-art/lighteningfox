@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/images/mastodon.svg
+200 OK
+server: GitHub.com
+content-type: image/svg+xml
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-6a5"
+expires: Tue, 17 Nov 2026 01:33:05 GMT
+cache-control: max-age=600
+x-fastly-request-id: 7290139c3c8cac392b29539a7d2ee4c6e9bdb4f8
+x-proxy-cache: HIT
+x-github-request-id: 963A:9B08C:6F819C:88797D:6AFBAEB7
+x-github-edge-region: iad
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+age: 26
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939992.850298,VS0,VE2
+vary: Accept-Encoding

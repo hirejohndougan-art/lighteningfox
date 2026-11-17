@@ -1,0 +1,24 @@
+GET https://www.nytimes.com/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css
+200 OK
+x-amz-id-2: GCRtGwKS0PCj2xvtpH07W7Np76fKb5/8XO5bN4VE7Kok+J0r2+4GWz3EHrV/8i2k1k/2yf6WyZ0=
+x-amz-request-id: ETHAE6VV8G4MAG1W
+server: AmazonS3
+last-modified: Mon, 19 Oct 2026 20:50:03 GMT
+etag: "d9a6e77102b8649419259ee66efbfe1d"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: 48Lc9Z9MJvzF2ECIf5IOe2TjLQPoXbs2
+content-type: text/css
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-route: vi-assets
+x-origin-time: 2026-10-19 20:50:03 UTC
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:50 GMT
+age: 2192186
+x-served-by: cache-lga-kjfk8660026-LGA, cache-chi-kmdw8640066-CHI
+x-cache: HIT, HIT
+x-cache-hits: 13, 24566
+x-timer: S1794939891.514765,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

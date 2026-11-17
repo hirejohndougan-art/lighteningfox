@@ -1,0 +1,18 @@
+GET https://www.rust-lang.org/
+301 Moved Permanently
+server: GitHub.com
+content-type: text/html
+location: https://rust-lang.org/
+x-github-request-id: 9542:4A930:20AA9F:26AB24:6AFC8E66
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 3568
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+x-served-by: cache-chi-kmdw8640090-CHI
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794939992.713294,VS0,VE2
+vary: Accept-Encoding
+x-fastly-request-id: 81050fa19ca8eee07a5e1fb5c4c3748abdaf0fe0
+content-length: 162

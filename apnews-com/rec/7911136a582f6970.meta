@@ -1,0 +1,21 @@
+GET https://apcdp.apnews.com/script.js
+200 OK
+content-type: text/javascript; charset=utf-8
+x-amz-cf-id: OTLj0vdSK4EUZt7uvTuzQMwz0mLcojRO1jKA85QTMctXuQus-2Vs7A==
+date: Tue, 17 Nov 2026 18:23:51 GMT
+age: 9
+server: -
+x-content-type-options: nosniff
+x-permitted-cross-domain-policies: master-only
+x-robots-tag: noindex, nofollow
+x-xss-protection: 1; mode=block
+p3p: policyref="", CP="DSP"
+strict-transport-security: max-age=63072000; includeSubDomains
+expires: Tue, 17 Nov 2026 18:33:51 GMT
+last-modified: Tue, 17 Nov 2026 18:23:51 GMT
+cache-control: public, no-cache="Set-Cookie", max-age=600
+etag: 8f903d89bdafc6109ef8a84b0cdb3fdc
+x-cache: Hit from cloudfront
+via: 1.1 8f12d98e16716f721c4d4dbbc67ed8a8.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD58-P13
+alt-svc: h3=":443"; ma=86400

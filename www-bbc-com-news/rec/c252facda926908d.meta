@@ -1,0 +1,36 @@
+GET https://www.bbc.com/news
+200 OK
+content-type: text/html; charset=utf-8
+belfrage-cache-status: HIT
+bid: joan
+brequestid: 28755573118c4dc99cc2e66a85686a01
+bsig: dbbc8ba7bc41ff9f463c38fdd7539655
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+etag: "1rnwckxe5986n8"
+referrer-policy: no-referrer-when-downgrade
+req-svc-chain: FASTLY,GTM,BELFRAGE,BBCX
+via: 1.1 BBC-GTM, 1.1 Belfrage, 1.1 varnish
+x-content-type-options: nosniff
+x-correlation-id: 2c20d91b-4905-41ff-a27a-3d4a343caccd
+x-frame-options: SAMEORIGIN
+origin-agent-cluster: ?0
+nel: {"report_to":"default","max_age":2592000,"include_subdomains":true,"failure_fraction":0.25}
+x-bbc-edge-cache-status: HIT
+report-to: {"group":"default","max_age":2592000,"endpoints":[{"url":"https://default.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+server: BBC-GTM
+strict-transport-security: max-age=31536000; preload
+x-robots-tag: bingbot: noarchive
+fastly-restarts: 1
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:45 GMT
+x-fastly-cache-status: HIT-CLUSTER
+x-served-by: cache-dfw-kdal2120113-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939885.468614,VS0,VE45
+x-fastly-pre-flight-cache: MISS, MISS
+x-fastly-pre-flight-cache-status: MISS-CLUSTER
+x-cache-age: 28
+x-lb-nocache: true
+cache-control: private, stale-if-error=90, stale-while-revalidate=30, max-age=0, must-revalidate
+vary: X-BBC-Edge-Scheme,bbc-mvt-1,bbc-mvt-2,bbc-mvt-3,bbc-mvt-4,bbc-mvt-5,bbc-mvt-6,bbc-mvt-7,bbc-mvt-8,bbc-mvt-9,bbc-mvt-10,Accept-Encoding

@@ -1,0 +1,17 @@
+GET https://www.bing.com/th?id=OHR.TrailCedars_EN-US2240500417_1920x1080.webp
+200 OK
+content-length: 240416
+content-type: image/webp
+access-control-allow-headers: *
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-allow-origin: *
+cache-control: public, max-age=691200
+timing-allow-origin: *
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingth&ndcParam=nadatio"}]}
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":1}
+server-timing: mapi;desc="northcentralus";dur=16.2
+x-mapi-region: northcentralus
+date: Tue, 17 Nov 2026 18:24:43 GMT
+quic-version: 0x00000001
+alt-svc: h3=":443"; ma=93600
+x-cdn-traceid: 0.a451c317.1794939883.546e513f

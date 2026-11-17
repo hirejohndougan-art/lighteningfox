@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2023/04/05/podcasts/ezra-klein-album-art/ezra-klein-album-art-thumbLarge-v3.png
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "XdEetugL8tDQNDue32hDv/z2SpERXUtYu1nbPmA+PYU"
+expires: Wed, 23 Sep 2026 14:27:43 GMT
+fastly-io-info: ifsz=37760 idim=150x150 ifmt=png ofsz=34297 odim=150x150 ofmt=png
+fastly-io-served-by: vpop-kiad7010211
+fastly-io-transform-stats: ifsz=37760 ofsz=34297 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: l4wISg==
+x-goog-generation: 1728412192068335
+x-goog-hash: crc32c=l4wISg==
+x-goog-hash: md5=iOS3hHGZQVgkaiXBkcVguQ==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 37760
+x-guploader-uploadid: AJjja9ZlIBSuZlZtatItH8S9dKM1vD0sFbArOXu-SJGxtEllwbttNglmAXTNR6_IbUi2yuJvCCQbuXE
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 359033
+x-served-by: cache-iad-khef600077-IAD, cache-dfw-kdal2120084-DFW
+x-cache: HIT, HIT
+x-cache-hits: 670, 1
+x-timer: S1794939914.046109,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 34297

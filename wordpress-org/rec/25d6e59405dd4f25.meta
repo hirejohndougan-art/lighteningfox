@@ -1,0 +1,15 @@
+GET https://wordpress.org/files/2022/08/Time-Magazine.png
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 18:26:34 GMT
+content-type: image/png
+content-length: 925
+strict-transport-security: max-age=3600
+last-modified: Fri, 12 Aug 2022 20:23:07 GMT
+expires: Thu, 31 Dec 2037 23:55:55 GMT
+x-frame-options: SAMEORIGIN
+cache-control: max-age=315360000
+alt-svc: clear
+x-remembering: Eric Binnion <https://friendsofericbinnion.wordpress.com/>
+x-nc: HIT dca 1
+accept-ranges: bytes

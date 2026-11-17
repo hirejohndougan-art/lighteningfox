@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/inter-italic-cyrillic.d153dcd2916c4842.woff2
+200 OK
+last-modified: Tue, 19 Aug 2025 15:41:06 GMT
+x-guploader-uploadid: AJ5rDhF8yRUV5fSFKs9G9nKWXr_TyrtYvlMtR57Rg9IggC3MQBzhNW5iwqGDEGuaCKQr5Sxn
+x-goog-hash: crc32c=tNGeyA==, md5=A7piEYF1ezcysSeljs+Vyw==
+strict-transport-security: max-age=63072000
+x-goog-stored-content-length: 31700
+x-goog-metageneration: 1
+expires: Sat, 13 Jun 2026 02:32:18 GMT
+x-frame-options: DENY
+server: Google Frontend
+referrer-policy: strict-origin-when-cross-origin
+content-type: font/woff2
+etag: "03ba621181757b3732b127a58ecf95cb"
+x-goog-stored-content-encoding: identity
+x-goog-generation: 1755618066832800
+x-content-type-options: nosniff
+cache-control: public, max-age=31536000
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+x-cloud-trace-context: 0ec72c49afe33317384a374d25328dc3
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+age: 28976
+date: Tue, 17 Nov 2026 18:24:40 GMT
+x-served-by: cache-bfi-krnt7300052-BFI, cache-bfi-krnt7300052-BFI, cache-bfi-krnt7300116-BFI, cache-dfw-kdal2120133-DFW
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 57, 0
+x-timer: S1794939880.468703,VS0,VE2
+content-length: 31700

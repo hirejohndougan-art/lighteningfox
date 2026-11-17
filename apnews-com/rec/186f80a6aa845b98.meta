@@ -1,0 +1,22 @@
+GET https://apnews.com/
+200 OK
+date: Tue, 17 Nov 2026 18:23:59 GMT
+content-type: text/html;charset=UTF-8
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+content-security-policy: frame-ancestors 'self' https://cms.apnews.com/
+cache-control: public, max-age=120, stale-if-error=86400
+x-powered-by: Brightspot
+vary: Accept-Encoding
+content-security-policy-report-only: script-src 'unsafe-inline' 'unsafe-eval'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=BhO843gaPMRIVMdfs30lm5ka_5vHLgN88SEC25Br6cI-1794939839.750571-1.0.1.1-zQAEZC9V6qvjxXstjWekhodUFLX6u6ZM6Dj2Y4fniAKCNAO8GowmZiB3iOif1RggoA1TfmHIvckxwSdPalgMcHpeuO51zKDl2xq48lFhlGrbH6ZYnpplxDfDwJctpcwLx.hLuZjVSsFVRbEytYYX635sBGp1krcJZU7uRPZ0rF4; report-to cf-csp-endpoint
+x-envoy-upstream-service-time: 1270
+x-envoy-decorator-operation: brightspot-frontend-verify.prod-news.svc.cluster.local:80/*
+via: 1.1 google
+alt-svc: h3=":443"; ma=86400
+age: 79
+last-modified: Tue, 17 Nov 2026 18:22:40 GMT
+cf-cache-status: HIT
+set-cookie: __cf_bm=UNe7Fxkps0yjB2NsRt0WgZ0jP9exwPf5hfX5RrWsjAQ-1794939839.750571-1.0.1.1-TuB5oiUs4MxT7SJP73D522xst95aVSybyXUV6zS4VKVDoqmyRRyR_1Gu6Tzb6F6xEtiLhu7l_5oZ2xYGUUVH1FTKR2Tmar27jB6jfTrNPKBOxYeejg_iqIAN7VPTHJArKXlbyny_N5cSzLm_dAeJTA; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=apnews.com; Expires=Tue, 17 Nov 2026 18:53:59 GMT
+report-to: {"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=BhO843gaPMRIVMdfs30lm5ka_5vHLgN88SEC25Br6cI-1794939839.750571-1.0.1.1-zQAEZC9V6qvjxXstjWekhodUFLX6u6ZM6Dj2Y4fniAKCNAO8GowmZiB3iOif1RggoA1TfmHIvckxwSdPalgMcHpeuO51zKDl2xq48lFhlGrbH6ZYnpplxDfDwJctpcwLx.hLuZjVSsFVRbEytYYX635sBGp1krcJZU7uRPZ0rF4"}]}
+reporting-endpoints: cf-csp-endpoint="https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=BhO843gaPMRIVMdfs30lm5ka_5vHLgN88SEC25Br6cI-1794939839.750571-1.0.1.1-zQAEZC9V6qvjxXstjWekhodUFLX6u6ZM6Dj2Y4fniAKCNAO8GowmZiB3iOif1RggoA1TfmHIvckxwSdPalgMcHpeuO51zKDl2xq48lFhlGrbH6ZYnpplxDfDwJctpcwLx.hLuZjVSsFVRbEytYYX635sBGp1krcJZU7uRPZ0rF4"
+cf-ray: a5c0c50e691def0e-ORD

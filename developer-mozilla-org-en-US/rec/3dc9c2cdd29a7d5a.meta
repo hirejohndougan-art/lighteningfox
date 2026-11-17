@@ -1,0 +1,16 @@
+POST https://developer.mozilla.org/pong/get
+200 OK
+server: Google Frontend
+content-type: application/json
+x-cloud-trace-context: 6428ad62186692e1948cdb97a32a3d95/14942712606579019146
+via: 1.1 google, 1.1 varnish, 1.1 varnish
+cache-control: no-store
+traceparent: 00-6428ad62186692e1948cdb97a32a3d95-cf5f2df21fe4cd8a-00
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:41 GMT
+x-served-by: cache-dfw-kdal2120137-DFW, cache-dfw-kdal2120137-DFW, cache-dfw-kdal2120133-DFW
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1794939881.169583,VS0,VE184
+vary: Accept-Encoding
+content-length: 2794

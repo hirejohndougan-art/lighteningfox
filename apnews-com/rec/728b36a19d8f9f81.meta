@@ -1,0 +1,27 @@
+GET https://tag.wknd.ai/5127/i.js
+200 OK
+server: istio-envoy
+date: Tue, 17 Nov 2026 18:24:13 GMT
+content-type: application/javascript
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+x-cdn-cache-id: DFW
+cache-control: public, max-age=60
+timing-allow-origin: *
+x-region: us-central1
+vary: Accept-Encoding
+access-control-allow-origin: *
+link: <https://assets.bounceexchange.com>; rel=dns-prefetch
+link: <https://events.bouncex.net>; rel=dns-prefetch
+link: <https://data.cdnbasket.net>; rel=dns-prefetch
+link: <https://page.cdnbasket.net>; rel=dns-prefetch
+link: <https://view.cdnbasket.net>; rel=dns-prefetch
+link: <https://ids.cdnwidget.com>; rel=dns-prefetch
+link: <https://u.cdnwidget.com>; rel=dns-prefetch
+link: <https://pix.cdnwidget.com>; rel=dns-prefetch
+link: <https://api.bounceexchange.com>; rel=preconnect
+link: <https://pd.cdnwidget.com>; rel=preconnect
+etag: 9bb2b0e17d4151
+x-envoy-upstream-service-time: 1
+x-envoy-decorator-operation: tag-router.tag-router.svc.cluster.local:80/*
+via: 1.1 google
+x-cdn-cache-status: miss

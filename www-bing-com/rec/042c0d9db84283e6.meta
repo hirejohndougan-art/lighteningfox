@@ -1,0 +1,18 @@
+GET https://www.bing.com/rp/C29j_SFE6-a8s0cWL6Cq81juG44.br.js
+200 OK
+alt-svc: h3=":443"; ma=93600
+content-type: text/javascript; charset=utf-8
+x-cdn-traceid: 0.a451c317.1794939883.546e50e5
+content-md5: hfCm7ykNQeXhmeBB8ShwMA==
+last-modified: Thu, 11 Jun 2026 23:28:54 GMT
+etag: 0x8DEC8113433DBF2
+x-ms-request-id: bc49c047-901e-0040-40cf-19ca6a000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+akamai-amd-bc-debug: [a=23.195.81.198,b=2588892842,c=p,d=1784721964,h=200,k=1,l=1,n=US_NE_OMAHA,o=20940,r=2,p=672]
+cache-control: public, no-transform, max-age=21316874
+expires: Thu, 22 Jul 2027 11:45:57 GMT
+date: Tue, 17 Nov 2026 18:24:43 GMT
+quic-version: 0x00000001

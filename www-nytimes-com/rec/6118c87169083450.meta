@@ -1,0 +1,27 @@
+GET https://www.nytimes.com/vi-assets/static-assets/icon-five-weeknight-dishes_144x144-97d51c5d4ba98233667b4057e3d852ab.webp
+200 OK
+x-amz-id-2: /X+SrqEednGR2pCWnRX2Olf8/OruKhMHK2MY2D2meUYvzgJ35C+F9Qi9JzWAuH7vFemQRcpGptw=
+x-amz-request-id: QAYSM55ZWFDX6EVC
+last-modified: Mon, 02 Jun 2025 20:08:59 GMT
+etag: "91e51718c8fbf5057e408865d634eefa"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: XAM8e6l1C3kE2nJBBT9Kj_8fvyYgFJnu
+content-type: image/webp
+server: AmazonS3
+x-nyt-route: vi-assets
+log-lem-timing: fetch=18450,misspass=114,do_stream=0
+log-lem-origin: shield=LGA,src_ip=157.52.117.27,alternate_path=0,ip=157.52.117.27,port=443,name=shield_ssl_cache_lga21927_LGA,status=200,reason=OK,method=GET,url="/vi-assets/static-assets/icon-five-weeknight-dishes_144x144-97d51c5d4ba98233667b4057e3d852ab.webp",host=www.nytimes.com
+x-origin-time: 2025-06-02 20:09:22 UTC
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 1759034
+x-served-by: cache-lga21927-LGA, cache-chi-kmdw8640066-CHI
+x-cache: HIT, HIT
+x-cache-hits: 8, 3268
+x-timer: S1794939914.044595,VS0,VE2
+vary: Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, x-nyt-programming-abtest, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 3322

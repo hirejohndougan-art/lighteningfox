@@ -1,0 +1,61 @@
+[js error] TypeError: cannot convert 'null' or 'undefined' to object
+[js error] https://sourcepoint.theguardian.com/unified/wrapperMessagingWithoutDetection.js: ReferenceError: DocumentType is not defined (unknown at :1:2629)
+    at <main> (unknown at :1:143995)
+    at call (native)
+    at o (unknown at :1:504)
+    at <main> (unknown at :1:2619)
+    at <main> (unknown at :1:2629)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&experiences=adapted%2Cdotcom-rendering: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&inPrivateBrowsingMode=false: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&edition=US: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/1?v=17&platform=next-gen&url=https%3A%2F%2Fwww.theguardian.com%2Fus&ref=&tz=0&contentType=network%20front&frontsTestExposure=%7B%22variant%22%3A%22b%22%2C%22dt%22%3A1794939926770%2C%22path%22%3A%22%2Fus%22%7D&viewId=mwl0vz6qwaruz66g9vut: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&attentionMs=0: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:1128)
+    at <main> (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:1211)
+    at _ (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:9306)
+    at <main> (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:9346)
+    at <main> (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:9434)
+    at X (https://assets.guim.co.uk/assets/frameworks.client.web.d4864592db0ae9c44631.js:2:3203)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&abTestRegister=%7B%22growth-auxia-banner%22%3A%7B%22variantName%22%3A%22variant%22%2C%22complete%22%3Afalse%7D%2C%22fronts-and-curation-editorial-test%22%3A%7B%22variantName%22%3A%22b%22%2C%22complete%22%3Afalse%7D%7D: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl0vz6qwaruz66g9vut&adUnitWasHidden=true: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1190:80)
+    at <main> (unknown at :1162:15)
+    at <main> (unknown at :1:10)
+https://www.theguardian.com/us: 6308 nodes, 7766 display items, 1280x16000 px, 8.382057125s total | JS: 42 scripts, 11 errors, 4.78394713s
+exit 0

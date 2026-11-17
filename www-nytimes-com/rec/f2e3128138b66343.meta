@@ -1,0 +1,35 @@
+GET https://static01.nytimes.com/newsgraphics/_l-HTaf6CYlN-Q/_app.BkfIOve6aYl_Y5pDM7LehOYwrOOh9tSo-t3VcUqg0Hs/immutable/chunks/ChauSWxv.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg0ohZsdOFJKBWih4KVwWQJpqZ3gMf6rmQ3hEHQsCA65WNa8LUbnw4fdwJ6xjBm5ML7Ggyv4X4KD-gZ-4g
+cache-control: max-age=31536000, stale-if-error=3600, stale-while-revalidate=60, public, immutable
+expires: Wed, 17 Nov 2027 16:45:01 GMT
+last-modified: Tue, 17 Nov 2026 16:44:59 GMT
+etag: W/"fd59c5590e4a40a3bbba877263b5550d"
+x-goog-generation: 1794933899743263
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 985
+x-amz-meta-checksum: ba557884588862e95d8ec6322d4ec005
+x-goog-hash: crc32c=36/Yiw==
+x-goog-hash: md5=/VnFWQ5KQKO7uodyY7VVDQ==
+x-amz-checksum-crc32c: 36/Yiw==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, Warning, X-GUploader-Response-Body-Transformations, X-GUploader-UploadID, X-Google-Trace, etag, if-match, range
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+age: 5992
+x-served-by: cache-iad-kcgs7200086-IAD, cache-chi-kmdw8640045-CHI
+x-cache: HIT, HIT
+x-cache-hits: 8, 830
+x-timer: S1794939894.729363,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

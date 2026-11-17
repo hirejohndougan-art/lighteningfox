@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/family/franklin/franklin-italic-800.be53478fd7c32b04647c16795817c00a.woff2
+200 OK
+x-amz-id-2: Ql1VfH71Y5SmqBfnFDkE1ElHGiGuwXSE+bKupdORNzgZ6bYoQyN4KeXYOSSAmuAVWoeA2CCP4Tw=
+x-amz-request-id: VKD8VYR8QQMWG6XH
+last-modified: Fri, 21 Feb 2025 15:52:13 GMT
+etag: "be53478fd7c32b04647c16795817c00a"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+x-amz-version-id: 3WAhmtcLfQqhwwQbusPzIo0ekUHRf9fu
+content-type: binary/octet-stream
+server: AmazonS3
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+via: 1.1 varnish
+age: 715298
+x-served-by: cache-chi-kmdw8640097-CHI
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939893.029874,VS0,VE1
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 24640

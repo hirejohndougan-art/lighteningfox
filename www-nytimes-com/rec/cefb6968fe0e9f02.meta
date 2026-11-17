@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/cheltenham/cheltenham-italic-200.64dd3cfc209bc73fb3279ba16dd3d09f.woff2
+200 OK
+x-guploader-uploadid: ADPycdt0ZZVulLHQ96QP98_kKbFNocx40HSj5MUJ5rPnVWVZx0u1afiBP64SsVlSWDxQnR1OVkovOEvTiOBRK6jPxIijVPx6cuo8
+x-goog-generation: 1673991775030459
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 27404
+x-goog-hash: crc32c=R+uvjg==
+x-goog-hash: md5=ZN08/CCbxz+zJ5uhbdPQnw==
+x-goog-storage-class: STANDARD
+server: UploadServer
+expires: Thu, 19 Sep 2024 06:32:54 GMT
+cache-control: public,max-age=31536000,immutable
+last-modified: Tue, 17 Jan 2023 21:42:55 GMT
+etag: "64dd3cfc209bc73fb3279ba16dd3d09f"
+content-type: application/octet-stream
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+via: 1.1 varnish
+age: 1113946
+x-served-by: cache-chi-kmdw8640097-CHI
+x-cache: HIT
+x-cache-hits: 42
+x-timer: S1794939893.030516,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 27404

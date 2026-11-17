@@ -1,0 +1,27 @@
+[js debug] (Glean.core.metrics.Event) glean.page_load: Unexpected value for extra key referrer: undefined
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js debug] (Glean.core.metrics.Event) glean.element_click: Unexpected value for extra key referrer: undefined
+[js debug] (Glean.core.metrics.Event) glean.element_click: Unexpected value for extra key referrer: undefined
+[js debug] (Glean.core.metrics.Event) glean.element_click: Unexpected value for extra key referrer: undefined
+https://developer.mozilla.org/en-US/: 2590 nodes, 2174 display items, 1280x2744 px, 1.272755758s total | JS: 6 scripts, 3 errors, 723.672285ms
+exit 0

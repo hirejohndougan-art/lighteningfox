@@ -1,0 +1,25 @@
+GET https://assets.apnews.com/resource/00000188-2a81-d28a-a1fd-7bfb6ccb0000/styles/default/All.min.6b51ae5986734c24dd9b0ca7ba39badb.gz.css
+200 OK
+date: Tue, 17 Nov 2026 18:23:59 GMT
+content-type: text/css
+set-cookie: _cfuvid=5zMDCrMVlcXxgdGUMf7EkvH.D8x0LVc14fgylolux74-1794939839.983051-1.0.1.1-8tN.OLrCjJh3f5QbDY8NbC7gh6.m9tOExBYqxpz1xZo; HttpOnly; SameSite=None; Secure; Path=/; Domain=apnews.com
+x-guploader-uploadid: AFy3sg0kGmj4_jPeCF8tTC9DjtFfDdT_-z9I8kbw2kefWQK3OTzckSSgB-MmUwpPOGp9GTYK
+cache-control: public, max-age=31536000
+expires: Thu, 11 Nov 2027 15:43:57 GMT
+last-modified: Wed, 11 Nov 2026 15:43:55 GMT
+etag: "f41ea2ea5806145c8a341f162c216af3"
+vary: Accept-Encoding
+vary: Origin
+x-goog-generation: 1794411835575353
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 139606
+cf-ray: a5c0c50fd839acc9-MSP
+x-goog-hash: crc32c=6ZKkbQ==
+x-goog-hash: md5=9B6i6lgGFFyKNB8WLCFq8w==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 528002
+cf-cache-status: HIT

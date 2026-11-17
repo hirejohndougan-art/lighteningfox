@@ -1,0 +1,2 @@
+var e=function(){var e=window.navigator.userAgent||window.navigator.vendor||window.opera||``,t=e.includes(`nytios`)||e.includes(`nyt_android`),n=e.includes(`nyt_xwords_ios`)||e.includes(`Crosswords`),r=e.includes(`nyt_android`)||e.includes(`Crosswords`),i=e.includes(`nytios`)||e.includes(`nyt_xwords_ios`);return{appType:function(){return t?`newsreader`:n?`crosswords`:``}(),deviceType:function(){return r?`ANDROID`:i?`IOS`:``}(),isInWebview:(r||i)&&(t||n)}};export{e as t};
+//# sourceMappingURL=getAppEnvironment-CjTBNvfA.js.map

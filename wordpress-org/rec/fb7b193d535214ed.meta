@@ -1,0 +1,20 @@
+GET https://i0.wp.com/wordpress.org/files/2024/04/brush.png?w=1198&ssl=1
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 18:26:34 GMT
+content-type: image/png
+content-length: 87855
+last-modified: Thu, 30 Oct 2025 14:37:51 GMT
+expires: Sun, 31 Oct 2027 02:37:51 GMT
+cache-control: public, max-age=63115200
+link: <https://wordpress.org/files/2024/04/brush.png>; rel="canonical"
+x-content-type-options: nosniff
+etag: "c3095ebf7768017a"
+x-bytes-saved: 88293
+vary: Accept
+alt-svc: clear
+x-nc: HIT mdw 34
+server-timing: a8c-cdn, dc;desc=mdw, cache;desc=HIT;dur=0.0
+access-control-allow-origin: *
+access-control-allow-methods: GET, HEAD
+timing-allow-origin: *

@@ -1,0 +1,31 @@
+GET https://www.bbc.co.uk/userinfo
+200 OK
+content-type: application/json
+access-control-allow-origin: https://www.bbc.com
+access-control-allow-methods: GET, OPTIONS
+access-control-allow-headers: DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range
+access-control-expose-headers: Content-Length,Content-Range
+cache-control: public,max-age=300,stale-while-revalidate=300,stale-if-error=7200
+origin-agent-cluster: ?0
+nel: {"report_to":"default","max_age":2592000,"include_subdomains":true,"failure_fraction":0.25}
+req-svc-chain: FASTLY,GTM
+via: 1.1 BBC-GTM, 1.1 varnish
+report-to: {"group":"default","max_age":2592000,"endpoints":[{"url":"https://default.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+server: BBC-GTM
+strict-transport-security: max-age=31536000; preload
+permissions-policy: browsing-topics=(), join-ad-interest-group=(), run-ad-auction=()
+x-robots-tag: bingbot: noarchive
+fastly-restarts: 1
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:46 GMT
+x-fastly-cache-status: HIT-CLUSTER
+x-served-by: cache-chi-kmdw8640032-CHI
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939887.847529,VS0,VE8
+x-fastly-pre-flight-cache: HIT
+x-fastly-pre-flight-cache-status: HIT-CLUSTER
+x-cache-age: 141
+x-lb-nocache: true
+vary: Origin,X-BBC-Edge-Scheme,Accept-Encoding

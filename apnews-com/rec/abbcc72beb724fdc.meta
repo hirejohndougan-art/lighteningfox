@@ -1,0 +1,15 @@
+GET https://assets.zephr.com/zephr-browser/1.9.1/zephr-browser.umd.js
+200 OK
+content-type: application/javascript
+age: 23917
+server: AmazonS3
+last-modified: Wed, 27 Mar 2024 14:25:59 GMT
+x-amz-server-side-encryption: AES256
+date: Tue, 17 Nov 2026 11:45:24 GMT
+etag: W/"0beca054bdf93ce3f933aaf8080dfd19"
+vary: Accept-Encoding
+x-cache: Hit from cloudfront
+via: 1.1 645e6d47c657d2e5f64af7aa55f91a06.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD56-P14
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: Ug3qdogh1SuflhukQtSLENDacA2H66J7wua9c06wxKdisOyhKJhKYQ==

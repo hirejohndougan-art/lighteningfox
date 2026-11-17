@@ -1,0 +1,20 @@
+GET https://cdn.viafoura.net/entry/index.js
+200 OK
+content-type: text/javascript
+server: AmazonS3
+x-amz-replication-status: COMPLETED
+last-modified: Tue, 17 Nov 2026 12:04:52 GMT
+timing-allow-origin: *
+x-amz-server-side-encryption: AES256
+x-amz-version-id: XcFM5zYFBy82_J71zaw16e_9Z2a49URf
+date: Tue, 17 Nov 2026 18:17:05 GMT
+cache-control: public,max-age=600,s-max-age=60
+etag: W/"2870eeb619f3b23a56cb8c8ba184dd64"
+vary: Accept-Encoding
+vary: Origin
+x-cache: Hit from cloudfront
+via: 1.1 82b6251dbe2da311f6b88d87bb8855aa.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD56-P16
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: rsxQEHg6gUHKq6EitUqk3ucloGhZ-uIDVYWGlwmbKYKdUSPyfiZ61A==
+age: 414

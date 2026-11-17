@@ -1,0 +1,23 @@
+GET https://static.files.bbci.co.uk/bbcdotcom/web/20261110-133831-0053d0afea-web-3.28.0-4/_next/static/chunks/13lckzgg918t5.js
+200 OK
+x-amz-request-id: W76RF4Z55T639P0Z
+x-amz-id-2: JXyAYasZnQ4KWlLrWkqtscK8acXU0Nzg+IiyUqX/aaR8My9sBuKqgyb9FoWdb0wydgdR7egIsvq4mcS7hkgFW3w8dPWMkK3e
+accept-ranges: bytes
+server: AmazonS3
+last-modified: Tue, 10 Nov 2026 13:47:36 GMT
+etag: "d9af4a2e0a5fe1ef75dd224eafce7677"
+x-amz-version-id: W.r9Bj0ySBv_FHenSgeM0IkUEa3W2rLs
+cache-control: max-age=31622400
+content-type: text/javascript
+x-amz-server-side-encryption: AES256
+vary: Accept-Encoding
+access-control-allow-origin: *
+access-control-allow-methods: HEAD,GET
+date: Tue, 17 Nov 2026 18:24:45 GMT
+nel: {"report_to":"default","max_age": 604800,"include_subdomains":true,"failure_fraction":0.01}
+report-to: {"group":"default","max_age":3600,"endpoints":[{"url":"https://assets.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+timing-allow-origin: https://www.bbc.co.uk, https://www.bbc.com
+strict-transport-security: max-age=31536000
+access-control-max-age: 300
+access-control-allow-credentials: false
+access-control-allow-headers: *

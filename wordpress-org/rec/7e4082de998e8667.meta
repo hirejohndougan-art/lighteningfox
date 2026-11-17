@@ -1,0 +1,20 @@
+GET https://i0.wp.com/wordpress.org/files/2026/08/Whats-new-visual-7.1.webp?resize=1536%2C1081&ssl=1
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 18:26:34 GMT
+content-type: image/png
+content-length: 155852
+last-modified: Thu, 20 Aug 2026 00:02:16 GMT
+expires: Sat, 19 Aug 2028 12:02:16 GMT
+cache-control: public, max-age=63115200
+link: <https://wordpress.org/files/2026/08/Whats-new-visual-7.1.webp>; rel="canonical"
+x-content-type-options: nosniff
+etag: "4ac06282020c9e09"
+x-bytes-saved: 373145
+vary: Accept
+alt-svc: clear
+x-nc: HIT mdw 34
+server-timing: a8c-cdn, dc;desc=mdw, cache;desc=HIT;dur=1.0
+access-control-allow-origin: *
+access-control-allow-methods: GET, HEAD
+timing-allow-origin: *

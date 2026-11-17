@@ -1,0 +1,35 @@
+GET https://static01.nytimes.com/newsgraphics/_l-HTaf6CYlN-Q/_app.BkfIOve6aYl_Y5pDM7LehOYwrOOh9tSo-t3VcUqg0Hs/immutable/nodes/1.BNM7CPXh.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg2dW2uv8QyIwV2VesljpVON1OjX-dUyry1LTMKVkPQmTkz4oWWpOVQnv87HBJnQDuYOynC3MF-E-5Y8iA
+cache-control: max-age=31536000, stale-if-error=3600, stale-while-revalidate=60, public, immutable
+expires: Wed, 17 Nov 2027 16:45:01 GMT
+last-modified: Tue, 17 Nov 2026 16:44:59 GMT
+etag: W/"32cb92e7f6e544ac90f741b6e27f5c29"
+x-goog-generation: 1794933899744109
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 348
+x-amz-meta-checksum: acab42337f04fdf3c824e2b06cb52594
+x-goog-hash: crc32c=naO6gg==
+x-goog-hash: md5=MsuS5/blRKyQ90G24n9cKQ==
+x-amz-checksum-crc32c: naO6gg==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, Warning, X-GUploader-Response-Body-Transformations, X-GUploader-UploadID, X-Google-Trace, etag, if-match, range
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+age: 5992
+x-served-by: cache-iad-kiad7000181-IAD, cache-chi-kmdw8640045-CHI
+x-cache: HIT, HIT
+x-cache-hits: 6, 646
+x-timer: S1794939894.812419,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

@@ -1,0 +1,27 @@
+GET https://assets.guim.co.uk/static/frontend/fonts/guardian-headline/noalts-not-hinted/GHGuardianHeadline-Light.woff2
+200 OK
+content-length: 15764
+x-amz-id-2: 0VTbojBuej6HCT7krVQfzn9NW5pNiYRTEN3zNf7QWBvSVHudoDCcrqkz5/slq2fjnfzlWaC6j6k=
+x-amz-request-id: F716CAZ2W692ZQ7G
+last-modified: Wed, 05 Feb 2025 09:57:32 GMT
+etag: "5acde69d26abfad0f3ef938733057577"
+x-amz-server-side-encryption: AES256
+cache-control: max-age=315360000, immutable
+x-amz-version-id: 9GbC5Sx5cytgySjFJc22GTTr087tDmWl
+content-type: font/woff2
+server: AmazonS3
+fastly-restarts: 1
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:26 GMT
+via: 1.1 varnish
+age: 706761
+x-served-by: cache-dfw-kdal2120028-DFW
+x-cache: HIT
+x-cache-hits: 266
+x-timer: S1794939926.358216,VS0,VE0
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000
+x-gu-debug-url: /PROD/frontend-static/static/frontend/fonts/guardian-headline/noalts-not-hinted/GHGuardianHeadline-Light.woff2
+x-fonts-legal-notice: The displayed fonts and associated software are the exclusive property of Schwartzco Inc (trading as Commercial Type). Reproduction or further transmission of all or part of the fonts, or use of the associated software, without written permission of Commercial Type is prohibited. By displaying the fonts, no permission or sub-licence is granted by Guardian News & Media Limited for use of the fonts by third parties.
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400

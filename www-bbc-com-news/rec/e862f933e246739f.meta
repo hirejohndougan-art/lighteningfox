@@ -1,0 +1,16 @@
+GET https://gn-web-assets.api.bbc.com/ngas/latest/dotcom-bootstrap.js
+200 OK
+content-type: application/javascript
+transfer-encoding: chunked
+connection: keep-alive
+x-amz-cf-id: 982f1O8EaKew2F9ou0icts5db6H8lTwXCutzfYNzzfQk-g3yAc7Mkw==
+server: AmazonS3
+last-modified: Thu, 05 Nov 2026 11:29:08 GMT
+x-amz-server-side-encryption: AES256
+date: Tue, 17 Nov 2026 18:24:47 GMT
+cache-control: max-age=360,public
+etag: W/"27ced1ca8ccd346c1569b66e2ddc7342"
+vary: Accept-Encoding
+x-cache: RefreshHit from cloudfront
+via: 1.1 00ef8ecd78271874d21d6af1bcec168e.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD56-P7

@@ -1,0 +1,13 @@
+GET https://api.sail-personalize.com/v1/personalize/simple?pageviews=1&isMobile=0
+200 OK
+date: Tue, 17 Nov 2026 18:24:14 GMT
+content-type: application/json
+allowedmethods: GET,OPTIONS
+vary: Origin, Accept-Encoding
+access-control-allow-origin: *
+access-control-allow-credentials: true
+pragma: no-cache
+cache-control: no-store
+expires: -1
+allowedheaders: Content-Type,Authorization,X-Requested-With,Content-Length,Accept,Origin
+allowedorigins: *

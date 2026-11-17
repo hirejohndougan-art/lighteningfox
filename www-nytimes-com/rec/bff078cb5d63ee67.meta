@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/franklin/franklin-italic-900.93f61fe226df92cc8d8c7aa742f291e7.woff2
+200 OK
+x-guploader-uploadid: ADPycdvsF4a-MpJpwCV82LAbMUhV1dbAQta0qns8hXgjV9LeOWzWkPrSbu8IzecM2sduvcHZKMP_zUmUf2Xd6NdIf7AW-w
+cache-control: public,max-age=31536000,immutable
+expires: Wed, 25 Sep 2024 05:30:03 GMT
+last-modified: Tue, 17 Jan 2023 21:42:56 GMT
+etag: "93f61fe226df92cc8d8c7aa742f291e7"
+x-goog-generation: 1673991776170878
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 24764
+content-type: application/octet-stream
+x-goog-hash: crc32c=dRbTlQ==
+x-goog-hash: md5=k/Yf4ibfksyNjHqnQvKR5w==
+x-goog-storage-class: STANDARD
+server: UploadServer
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:53 GMT
+via: 1.1 varnish
+age: 64664
+x-served-by: cache-chi-kmdw8640097-CHI
+x-cache: HIT
+x-cache-hits: 14
+x-timer: S1794939893.030470,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 24764

@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/styles/a11y-dark.css
+200 OK
+server: GitHub.com
+content-type: text/css; charset=utf-8
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-6c0"
+expires: Tue, 17 Nov 2026 01:36:07 GMT
+cache-control: max-age=600
+x-fastly-request-id: d425a33152ba92a9e83357772cc647f1ea7cfb1b
+x-proxy-cache: HIT
+x-github-request-id: F336:26A2E6:6C628F:851575:6AFBAD49
+x-github-edge-region: iad
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+age: 26
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939992.823047,VS0,VE2
+vary: Accept-Encoding

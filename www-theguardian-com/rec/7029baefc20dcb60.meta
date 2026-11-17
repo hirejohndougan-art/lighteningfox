@@ -1,0 +1,23 @@
+GET https://i.guim.co.uk/img/uploads/2026/11/16/Wajahat_Ali.png?width=98&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "j5LTzm1yYDGQlRFl+Wq9q1XfbGvO/xggbEywo3joU5M"
+fastly-io-info: ifsz=410542 idim=720x600 ifmt=png ofsz=4724 odim=98x98 ofmt=png
+fastly-io-served-by: img04-europe-west3
+fastly-io-transform-stats: ifsz=410542 ofsz=4724 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+x-amz-server-side-encryption: AES256
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 994
+date: Tue, 17 Nov 2026 18:25:25 GMT
+x-served-by: cache-lcy-egml8630045-LCY, cache-chi-kmdw8640033-CHI
+x-cache: HIT, HIT
+x-cache-hits: 3, 0
+x-timer: S1794939926.683662,VS0,VE2
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 4724

@@ -1,0 +1,22 @@
+GET https://rust-lang.org/
+200 OK
+server: GitHub.com
+content-type: text/html; charset=utf-8
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-48a3"
+expires: Tue, 17 Nov 2026 01:38:48 GMT
+cache-control: max-age=600
+x-fastly-request-id: c837c397aaf881d4be066e37cd5f69d89b01751e
+x-proxy-cache: HIT
+x-github-request-id: 6FA2:14AB66:B41045:C7D906:6AFBAEB6
+x-github-edge-region: iad
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+age: 303
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939992.804991,VS0,VE1
+vary: Accept-Encoding

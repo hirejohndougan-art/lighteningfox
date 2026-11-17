@@ -1,0 +1,17 @@
+GET https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js
+200 OK
+date: Tue, 17 Nov 2026 18:24:00 GMT
+content-type: application/javascript
+etag: W/"0b962a314870874b88adc710d0a88076"
+access-control-allow-headers: OneSignal-Subscription-Id
+server: cloudflare
+via: 1.1 google
+alt-svc: h3=":443"; ma=86400
+vary: accept-encoding
+set-cookie: __cf_bm=T95LtgX4pHgMM0An_M0t3x5FEhDlzEoVy1I2U4bjJzY-1794939839.9979434-1.0.1.1-DQfcZbUgIAqSCeDOMv5a5Jg7IfX7Q_.Pq0t2I4HMU846wTtJ1ucU6pJwcO56qsbHM_6LxX0wYAb4v2bLMiTlLVk3ojUH7bKlwOHHPTZQHKYlcNLxCDuNBSuEsSiw9IEZ; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=onesignal.com; Expires=Tue, 17 Nov 2026 18:54:00 GMT
+age: 82
+expires: Fri, 20 Nov 2026 18:24:00 GMT
+cache-control: public, max-age=259200
+cf-cache-status: HIT
+strict-transport-security: max-age=15552000; includeSubDomains
+cf-ray: a5c0c50ff921fa19-ORD

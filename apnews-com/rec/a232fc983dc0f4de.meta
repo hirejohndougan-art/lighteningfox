@@ -1,0 +1,15 @@
+GET https://tyrion.viafoura.co/v3/sections/sites/apnews.com
+200 OK
+content-type: application/json; charset=utf-8
+x-amz-cf-id: PmuY4vYIuXhuw6RfiW9xBHQNCHZYSCOq7NRLIBZf2inkpBDSDfE0bw==
+access-control-allow-credentials: true
+access-control-allow-origin: https://apnews.com
+age: 192
+x-envoy-upstream-service-time: 1
+timing-allow-origin: *
+date: Tue, 17 Nov 2026 18:20:53 GMT
+server: istio-envoy
+x-cache: Hit from cloudfront
+via: 1.1 8b1c9f51d282a3cf670569654d83d794.cloudfront.net (CloudFront)
+x-amz-cf-pop: ORD58-P16
+alt-svc: h3=":443"; ma=86400

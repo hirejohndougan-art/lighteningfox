@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/4759.54979af6d4fd4f4f.js
+200 OK
+server: Google Frontend
+content-type: text/javascript
+referrer-policy: strict-origin-when-cross-origin
+x-goog-metageneration: 1
+x-cloud-trace-context: 6f98ef4299d9381e11f1abd44578e0b7
+x-frame-options: DENY
+last-modified: Tue, 03 Nov 2026 00:40:02 GMT
+x-goog-stored-content-length: 3804
+x-content-type-options: nosniff
+etag: "2dd2a5d4359e9409661f750af85fbf20"
+x-goog-hash: crc32c=uY2n5Q==, md5=LdKl1DWelAlmH3UK+F+/IA==
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+expires: Tue, 03 Nov 2026 02:13:09 GMT
+cache-control: public, max-age=31536000
+x-guploader-uploadid: AFy3sg1ZPPOiHdSQ2SmPHntFk4fhKvrKcDuiKO2xsycKXiZBynTio7ds2KS5zt7NaQsSXwtjKNsQnhiomhh_Mg
+x-goog-storage-class: STANDARD
+strict-transport-security: max-age=63072000
+x-goog-stored-content-encoding: identity
+x-goog-generation: 1793666402920903
+vary: Accept-Encoding
+accept-ranges: bytes
+age: 1271492
+date: Tue, 17 Nov 2026 18:24:41 GMT
+x-served-by: cache-bfi-kbfi7400045-BFI, cache-bfi-kbfi7400045-BFI, cache-bfi-kbfi7400045-BFI, cache-dfw-kdal2120133-DFW
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 7, 0
+x-timer: S1794939881.090260,VS0,VE1

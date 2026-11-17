@@ -1,0 +1,18 @@
+GET https://html-load.cc/script/YXBuZXdzLmNvbQ.js
+200 OK
+date: Tue, 17 Nov 2026 18:24:16 GMT
+content-type: application/javascript
+access-control-allow-origin: *
+cache-control: private, max-age=300, stale-while-revalidate=3600
+strict-transport-security: max-age=300
+vary: Origin
+access-control-allow-headers: *
+access-control-allow-methods: GET, POST, PUT, PATCH, OPTIONS, DELETE
+access-control-expose-headers: X-Length, X-Crc32, X-XcxUrl
+cross-origin-resource-policy: cross-origin
+x-crc32: 3137615719
+x-length: 523411
+x-xcxurl: https://html-load.cc/script/YXBuZXdzLmNvbQ.js
+etag: W/"452e3bf4847058420606f233c12baaedc56fd16ae21f60a0b04a3e24ffdd0ba7"
+cf-ray: a5c0c573cdd61ae6-ORD
+server: cloudflare

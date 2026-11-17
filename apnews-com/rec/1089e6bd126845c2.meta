@@ -1,0 +1,17 @@
+GET https://www.dianomi.com/js/contextfeedAPNews.js
+200 OK
+date: Tue, 17 Nov 2026 18:23:59 GMT
+content-type: application/javascript
+server: cloudflare
+x-content-type-options: nosniff
+x-xss-protection: 1; mode=block
+access-control-allow-origin: *
+access-control-allow-credentials: true
+strict-transport-security: max-age=2592000
+vary: X-FORWARDED-PROTO, accept-encoding
+last-modified: Fri, 04 Sep 2026 18:48:14 GMT
+etag: W/"102c-65aacb6043620"
+age: 476683
+cache-control: max-age=14400
+cf-cache-status: HIT
+cf-ray: a5c0c50fd8b69007-MSP

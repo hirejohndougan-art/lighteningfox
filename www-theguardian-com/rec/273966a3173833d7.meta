@@ -1,0 +1,15 @@
+GET https://static.theguardian.com/commercial/sponsor/20/Oct/2026/928db500-ade2-4e93-921f-01ad5ae0a4a1-Quince_280x180_logo.png
+200 OK
+last-modified: Tue, 20 Oct 2026 19:49:59 GMT
+etag: "2d5097118b7146be1ba316c47c71a53c"
+content-type: image/png
+x-amz-server-side-encryption: AES256
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:26 GMT
+via: 1.1 varnish
+age: 2716
+x-served-by: cache-dfw-kdfw8210147-DFW
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1794939926.047184,VS0,VE0
+content-length: 7941

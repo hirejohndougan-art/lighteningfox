@@ -1,0 +1,37 @@
+GET https://static.nytimes.com/email-images/newsletters/Weekender/NYT-TheWeekender-Icon.jpg
+200 OK
+cache-control: public, max-age=3600
+content-type: image/jpeg
+etag: "y7ASpwTk9E9VcBKBd61Fa34jK21OxEb/p/CmixSk19U"
+expires: Thu, 05 Nov 2026 00:40:45 GMT
+fastly-io-info: ifsz=179738 idim=3000x3000 ifmt=jpeg ofsz=87430 odim=3000x3000 ofmt=jpeg
+fastly-io-served-by: img08-us-east4
+fastly-io-transform-stats: ifsz=179738 ofsz=87430 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: DWG6Ww==
+x-goog-generation: 1604674086850390
+x-goog-hash: crc32c=DWG6Ww==
+x-goog-hash: md5=ArMNtYLGEgcA8sj+nGex/g==
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 179738
+x-guploader-uploadid: AFy3sg2hkCl1q9IGYTtneq9POPWCFzuA2f5rKEQVUeJEx3TnPwsF_loQPHu7AEBeeMI2dvRKkcdiTyM
+via: 1.1 varnish, 1.1 varnish
+lei-timing: fetch=22048,misspass=123,do_stream=0
+lei-origin: shield=IAD,src_ip=167.82.137.78,alternate_path=0,ip=104.156.83.59,port=443,name=shield_ssl_cache_iad_kcgs7200059_IAD,status=200,reason=OK,method=GET,path="/email-images/newsletters/Weekender/NYT-TheWeekender-Icon.jpg",host=static.nytimes.com
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:25:14 GMT
+age: 3156
+x-served-by: cache-iad-kcgs7200059-IAD, cache-chi-kmdw8640065-CHI
+x-cache: HIT, HIT
+x-cache-hits: 9, 1
+x-timer: S1794939914.190915,VS0,VE1
+vary: Accept
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 87430

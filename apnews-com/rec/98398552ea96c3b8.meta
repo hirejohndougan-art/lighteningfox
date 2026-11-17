@@ -1,0 +1,17 @@
+GET https://www.dianomi.com/js/contextfeed.js
+200 OK
+date: Tue, 17 Nov 2026 18:24:17 GMT
+content-type: application/javascript
+server: cloudflare
+x-content-type-options: nosniff
+x-xss-protection: 1; mode=block
+access-control-allow-origin: *
+access-control-allow-credentials: true
+strict-transport-security: max-age=2592000
+vary: X-FORWARDED-PROTO, accept-encoding
+last-modified: Thu, 12 Nov 2026 10:09:02 GMT
+etag: W/"48154-6601180407390"
+age: 361119
+cache-control: max-age=14400
+cf-cache-status: HIT
+cf-ray: a5c0c5805c5d9007-MSP

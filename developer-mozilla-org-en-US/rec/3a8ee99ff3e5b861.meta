@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/styles-page-layout.5a4354f33e894319.css
+200 OK
+strict-transport-security: max-age=63072000
+x-guploader-uploadid: AJRbA5VQ1Lx0ObgyDXkY2EFkdg2T5aBcqrTi9EFxvIeMVREH7T-dMsSPLvDphE_8JhZWJpr0-mf5-08
+server: Google Frontend
+x-goog-metageneration: 1
+content-type: text/css
+cache-control: public, max-age=31536000
+x-goog-hash: crc32c=Po4yyQ==, md5=921xrlQsreBqNWtXeOieFQ==
+last-modified: Sat, 07 Feb 2026 00:58:35 GMT
+x-cloud-trace-context: 7100ad5c93cfbe041eb88c5321adcf60
+x-goog-generation: 1770425914996930
+x-content-type-options: nosniff
+x-goog-stored-content-encoding: identity
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+referrer-policy: strict-origin-when-cross-origin
+x-goog-storage-class: STANDARD
+x-goog-stored-content-length: 718
+etag: "f76d71ae542cade06a356b5778e89e15"
+x-frame-options: DENY
+origin-trial: AxVILwizhbMjxFeHOn1P3R8niO1RJY/smaK4B4d1rLzc1gTaxtXMSaTi+FoigYgCw40uFRDwFcEAeqDR+vVLOW4AAABfeyJvcmlnaW4iOiJodHRwczovL2RldmVsb3Blci5tb3ppbGxhLm9yZyIsImZlYXR1cmUiOiJQcml2YXRlQXR0cmlidXRpb25WMiIsImV4cGlyeSI6MTc0MjA3OTYwMH0=
+expires: Sat, 07 Feb 2026 02:01:42 GMT
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:24:40 GMT
+age: 719529
+x-served-by: cache-bfi-kbfi7400058-BFI, cache-bfi-kbfi7400112-BFI, cache-dfw-kdal2120133-DFW
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 6874, 1
+x-timer: S1794939880.427271,VS0,VE2

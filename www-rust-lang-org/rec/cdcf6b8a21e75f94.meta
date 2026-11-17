@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/styles/fonts_8049871103083011125.css
+200 OK
+server: GitHub.com
+content-type: text/css; charset=utf-8
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-4fcb"
+expires: Tue, 17 Nov 2026 01:35:54 GMT
+cache-control: max-age=600
+x-fastly-request-id: bc5abdceccbea1ec14b59110758b41df6294fdd7
+x-proxy-cache: EXPIRED
+x-github-request-id: B292:3004A4:CBEF8D:DD33EB:6AFBAD22
+x-github-edge-region: iad
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+age: 26
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794939992.822633,VS0,VE2
+vary: Accept-Encoding

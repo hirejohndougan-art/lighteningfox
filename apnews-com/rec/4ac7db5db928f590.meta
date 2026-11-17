@@ -1,0 +1,27 @@
+GET https://assets.apnews.com/54/95/4fab11fc4f1bb6e1c6d486086a02/getitongoogleplay-badge-web-color-english.png
+200 OK
+content-type: image/png
+x-guploader-uploadid: AGQBYWwdIngjpahT4Ty5U9EdauU1eaSpGwKJEyAuO7HgljUocuN2MO3io6Apd9xcOcQM438
+date: Tue, 17 Nov 2026 18:24:00 GMT
+cache-control: public, max-age=31536000
+expires: Fri, 22 Oct 2027 06:49:49 GMT
+last-modified: Thu, 24 Apr 2025 17:23:23 GMT
+etag: "e6d552c5deec92675d47f9b89d816ab8"
+x-goog-generation: 1745515403185814
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 4698
+x-goog-meta-content-length: 4698
+x-goog-hash: crc32c=qZ2sTw==
+x-goog-hash: md5=5tVSxd7skmddR/m4nYFquA==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+priority: u=3,i=?0
+age: 2288051
+cf-cache-status: HIT
+cf-ray: a5c0c514ff35d130-ORD
+content-length: 4698

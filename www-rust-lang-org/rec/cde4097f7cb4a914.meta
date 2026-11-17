@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/images/networking.svg
+200 OK
+server: GitHub.com
+content-type: image/svg+xml
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-b66"
+expires: Tue, 17 Nov 2026 01:31:41 GMT
+cache-control: max-age=600
+x-fastly-request-id: d4102dc7d04576aa48790c6cf15a8bead68c808b
+x-proxy-cache: HIT
+x-github-request-id: 830E:AE64D:8197EB:909496:6AFBAEB6
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 18:26:31 GMT
+via: 1.1 varnish
+x-served-by: cache-dfw-kdfw8210148-DFW
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794939992.849789,VS0,VE56
+vary: Accept-Encoding
