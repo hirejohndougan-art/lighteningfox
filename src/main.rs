@@ -3758,6 +3758,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     log!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {}, kept {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused, page_tiles.stats.kept);
                 }
             }
+            // High contrast: the toolbars now, and whatever is drawn over the page from here on.
+            let contrast_before = contrast::on().then(|| {
+                contrast::recolor_rect(&mut canvas, 0, 0, w, bar_h());
+                canvas.buf.clone()
+            });
             if let Some(menu) = &folder_menu {
                 draw_folder_menu(&mut canvas, fonts, menu, &bm_list);
             }
@@ -3809,6 +3814,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let Some(m) = &ctx_menu {
                 m.draw(&mut canvas, fonts);
+            }
+            if let Some(before) = &contrast_before {
+                contrast::recolor_changed(&mut canvas, before);
             }
             #[cfg(feature = "gpu")]
             let presented = match gpu.as_mut() {

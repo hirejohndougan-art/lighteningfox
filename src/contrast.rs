@@ -82,6 +82,50 @@ pub fn force_colors(dom: &Dom, styles: &mut [Rc<Style>]) {
     }
 }
 
+/// One pixel (0RGB) of the browser's own UI in the high-contrast palette: light surfaces
+/// become black and dark text white (by inverting brightness), and colored accents
+/// (selection, the loading dot, a private window's purple) become yellow.
+pub fn recolor_px(p: u32) -> u32 {
+    let (r, g, b) = ((p >> 16) & 255, (p >> 8) & 255, p & 255);
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    if max - min > 60 {
+        // An accent: yellow, as bright as the accent is strong.
+        let k = ((max - min) * 255 / max.max(1)).min(255);
+        let y = 255 * k / 255;
+        return (y << 16) | (y << 8);
+    }
+    let lum = (r * 30 + g * 59 + b * 11) / 100;
+    let v = 255 - lum.min(255);
+    // Push mid greys apart so borders and text stay crisp.
+    let v = ((v as i32 - 128) * 3 / 2 + 128).clamp(0, 255) as u32;
+    (v << 16) | (v << 8) | v
+}
+
+/// Recolor a rectangle of the canvas (the toolbars).
+pub fn recolor_rect(canvas: &mut crate::paint::Canvas, x0: usize, y0: usize, x1: usize, y1: usize) {
+    let w = canvas.w;
+    for y in y0..y1.min(canvas.h) {
+        for x in x0..x1.min(w) {
+            let i = y * w + x;
+            canvas.buf[i] = recolor_px(canvas.buf[i]);
+        }
+    }
+}
+
+/// Recolor every pixel that changed since `before` (menus, panels, prompts and notes drawn
+/// over the page after it).
+pub fn recolor_changed(canvas: &mut crate::paint::Canvas, before: &[u32]) {
+    if before.len() != canvas.buf.len() {
+        return;
+    }
+    for (p, &b) in canvas.buf.iter_mut().zip(before) {
+        if *p != b {
+            *p = recolor_px(*p);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,5 +147,15 @@ mod tests {
         assert_eq!(styles[span].background, Color::TRANSPARENT);
         assert_eq!(styles[button].color, BUTTON_TEXT);
         assert_eq!(styles[body].background, CANVAS);
+    }
+
+    #[test]
+    fn ui_palette() {
+        // Light toolbar → black, dark text → white, blue accent → yellow.
+        assert_eq!(recolor_px(0xececf0), 0x000000);
+        assert_eq!(recolor_px(0x1e1e28), 0xffffff);
+        let a = recolor_px(0x1a73e8);
+        assert_eq!(a & 0xff, 0);
+        assert!((a >> 16) > 200 && ((a >> 8) & 255) > 200);
     }
 }
