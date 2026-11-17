@@ -69,7 +69,7 @@ tests that fit.
 ## Follow-ups (not checklist items; found by the batch chats)
 
 ### X1. Fix the broken and crashing sites
-**Status:** free
+**Status:** claimed by chat-opus-x1 2026-11-17 04:52
 **After:** —
 **Checklist:** none
 **Files:** whatever each fix needs; keep changes small (other chats are editing layout and JS)
