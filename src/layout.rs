@@ -236,9 +236,15 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
     key + &sandbox
 }
 
-/// The id of the marks left where `visibility: hidden` text and images would be: they paint
-/// nothing but still count towards content widths. Dropped when layout ends.
+/// The id of marks that paint nothing but count towards content widths: where
+/// `visibility: hidden` text and images would be, and the right padding, border and margin
+/// after a block's content. Dropped when layout ends.
 const HIDDEN_INK: usize = usize::MAX - 2;
+
+/// The `h` of a block's own extent mark: tells it apart from its descendants' marks.
+fn own_extent(id: NodeId) -> f32 {
+    -(id as f32) - 1.0
+}
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     // <html>'s and <body>'s overflow belong to the window, not to them (doc_extent.rs).
@@ -858,7 +864,26 @@ impl<'a> Ctx<'a> {
         )
     }
 
+    /// A block, plus (when its width is auto and it has right padding, border or margin) a
+    /// mark where its content plus those edges end, so shrink-to-fit ancestors measuring
+    /// how far content reaches leave room for them (The Guardian's "Print subscriptions").
     fn block_fresh(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
+        let i0 = self.items.len();
+        let out = self.block_fresh_inner(id, x, y, avail, prev_mb);
+        let st = &self.styles[id];
+        if st.width == Len::Auto && self.items.len() > i0 {
+            let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail).max(0.0);
+            if tail > 0.0 {
+                let right = self.content_right(&self.items[i0..], true);
+                if right > 0.0 {
+                    self.items.push(Item::Mark { id: HIDDEN_INK, x: right, y, w: tail, h: own_extent(id) });
+                }
+            }
+        }
+        out
+    }
+
+    fn block_fresh_inner(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
         let flow = std::mem::replace(&mut self.flow_child, false);
         let absorbed = self.absorb_top == Some(id);
         if absorbed {
@@ -1618,6 +1643,16 @@ impl<'a> Ctx<'a> {
     }
 
     /// Rightmost edge of the content drawn in a detached box (text, images, inner boxes).
+    /// How far a block's content reaches, leaving out the block's own extent mark (whoever
+    /// measures the block adds its right edges themselves).
+    fn measured_right(&self, id: NodeId, items: &[Item]) -> f32 {
+        let items = match items.last() {
+            Some(Item::Mark { id: HIDDEN_INK, h, .. }) if *h == own_extent(id) => &items[..items.len() - 1],
+            _ => items,
+        };
+        self.content_right(items, true)
+    }
+
     fn content_right(&self, items: &[Item], skip_first_boxes: bool) -> f32 {
         let mut right = 0.0f32;
         let mut sideways = false;
@@ -2064,8 +2099,8 @@ impl<'a> Ctx<'a> {
         let wide = self.detach(|cx| (100_000.0, cx.block(id, 0.0, 0.0, 100_000.0, 0.0).0));
         self.fitting.pop();
         self.measuring = was;
-        let mn = self.content_right(&narrow.items, true).ceil() + tail;
-        let mx = self.content_right(&wide.items, true).ceil() + tail;
+        let mn = self.measured_right(id, &narrow.items).ceil() + tail;
+        let mx = self.measured_right(id, &wide.items).ceil() + tail;
         self.widths_memo.insert(key, (mn, mx.max(mn)));
         (mn, mx.max(mn))
     }
@@ -2984,7 +3019,7 @@ impl<'a> Ctx<'a> {
             self.measuring = true;
             let probe = self.detach(|cx| (avail, cx.block(id, 0.0, 0.0, avail, 0.0).0));
             self.measuring = was;
-            let right = self.content_right(&probe.items, true);
+            let right = self.measured_right(id, &probe.items);
             let st = &self.styles[id];
             let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail);
             width = (right.ceil() + tail).min(avail);
@@ -2996,7 +3031,7 @@ impl<'a> Ctx<'a> {
             // can't wrap any narrower (a word, a table cell) makes the box that wide.
             Len::Auto => {
                 let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail);
-                width.max(self.content_right(&d.items, true).ceil() + tail)
+                width.max(self.measured_right(id, &d.items).ceil() + tail)
             }
             l => {
                 let ml = st.margin[3].resolve(avail);

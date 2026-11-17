@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- From The Guardian (2026-11): "Print subscriptions" sits in a flex item whose inner block has
+     right padding. Shrink-to-fit measured only how far the text reached, so the padding came out
+     of the text's room and it wrapped onto two lines. -->
+<html><head><title>Shrink-to-fit leaves room for inner padding</title>
+<style>
+  body { font: 16px sans-serif; }
+  .row { display: flex; justify-content: flex-end; width: 600px; }
+  .pad { padding-right: 12px; }
+  .ib { display: inline-block; }
+</style></head>
+<body>
+<span class="ib" id="w">Print subscriptions</span>
+<div class="row"><div id="a"><div class="pad">Print subscriptions</div></div></div>
+<div><div class="ib" id="b"><div class="pad" style="border-right: 3px solid">Print subscriptions</div></div></div>
+<div class="row"><div id="c" class="pad" style="display: flex"><a>Print subscriptions</a></div></div>
+<p id="out"></p>
+<script>
+  const w = (id) => document.getElementById(id).getBoundingClientRect().width;
+  const t = w("w");
+  document.getElementById("out").textContent = [Math.abs(w("a") - t - 12) < 1, Math.abs(w("b") - t - 15) < 1, Math.abs(w("c") - t - 12) < 1].join(";");
+</script>
+</body></html>

@@ -654,3 +654,12 @@ fn custom_properties_inherit_in_layers() {
     let _page = open("tests/sites/many-vars.html");
     assert_eq!(text_of("out"), "899px;rgb(0, 128, 0);rgb(1, 2, 3);7px;5px");
 }
+
+/// The Guardian's "Print subscriptions": shrink-to-fit leaves room for inner blocks' right padding.
+#[test]
+fn shrink_to_fit_counts_inner_padding() {
+    let _serial = serial();
+    let _page = open("tests/sites/shrink-padding.html");
+    assert_eq!(text_of("out"), "true;true;true");
+}
+
