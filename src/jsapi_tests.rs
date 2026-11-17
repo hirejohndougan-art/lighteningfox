@@ -523,8 +523,17 @@ fn legacy_navigation_timing() {
     );
     assert_eq!(r.trim_matches('"'), "0,0,1,true,0,number");
 }
-}
 
+#[test]
+fn content_below_a_full_height_root_scrolls() {
+    let _serial = serial();
+    let mut page = open("tests/sites/tall-root.html");
+    let fonts = crate::load_fonts().expect("fonts");
+    let lay = page.layout(fonts, 800.0, 600.0);
+    assert!(lay.height > 3000.0 && lay.height < 4000.0, "page height {}", lay.height);
+    // body's overflow belongs to the window: the link below the first screen isn't clipped.
+    assert!(lay.links.iter().any(|(r, u)| u.ends_with("#end") && r.h > 0.0 && r.y >= 3000.0), "end link clipped");
+}
 
 /// BBC News headlines: font-weight 500 uses the family's 500 face, not the 400 one.
 #[test]

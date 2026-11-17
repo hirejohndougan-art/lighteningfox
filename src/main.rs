@@ -86,6 +86,7 @@ mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
 mod layout;
+mod doc_extent;
 mod cssvars;
 mod library;
 mod cache;

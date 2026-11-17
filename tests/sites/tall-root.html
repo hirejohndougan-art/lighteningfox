@@ -1,0 +1,9 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): html and body are 100% tall and body has overflow-x:
+     hidden. The content runs far below the root box; browsers move body's overflow to the
+     window and still scroll to the bottom. Ironswift drew one screen and clipped the rest. -->
+<html><head><title>Content taller than the root box</title>
+<style>html, body { height: 100%; margin: 0 } body { overflow-x: hidden }
+#inner { height: 200px; overflow: hidden } #inner div { height: 5000px }</style></head>
+<body><div style="height: 3000px">top</div><a id="end" href="#end">the end</a>
+<div id="inner"><div>clipped: doesn't make the page taller</div></div></body></html>

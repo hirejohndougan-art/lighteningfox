@@ -241,6 +241,8 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
 const HIDDEN_INK: usize = usize::MAX - 2;
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+    // <html>'s and <body>'s overflow belong to the window, not to them (doc_extent.rs).
+    let styles = &*crate::doc_extent::viewport_overflow(dom, styles);
     // Shape the page's new words across CPU cores first (see preshape.rs).
     crate::preshape::run(dom, styles, fonts);
     // Layout works on the box tree (anonymous boxes, ::before/::after, markers,
@@ -338,6 +340,8 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         }
         _ => true,
     });
+    // Content overflowing the root box still makes the page taller (doc_extent.rs).
+    let height = height.max(crate::doc_extent::bottom(dom, styles, &boxes));
     // A sticky box can travel until it reaches the bottom of its parent's content box.
     let mut sticky = Vec::new();
     for it in items.iter_mut() {
