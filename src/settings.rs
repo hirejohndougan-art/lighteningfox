@@ -16,6 +16,8 @@ pub struct Settings {
     pub strip_tracking: bool,
     pub send_gpc: bool,
     pub show_bookmarks_bar: bool,
+    /// Draw with the graphics card (takes effect at the next start).
+    pub use_gpu: bool,
 }
 
 impl Default for Settings {
@@ -29,6 +31,7 @@ impl Default for Settings {
             strip_tracking: true,
             send_gpc: true,
             show_bookmarks_bar: true,
+            use_gpu: true,
         }
     }
 }
@@ -73,6 +76,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "strip_tracking" => s.strip_tracking = on(v),
         "send_gpc" => s.send_gpc = on(v),
         "show_bookmarks_bar" => s.show_bookmarks_bar = on(v),
+        "use_gpu" => s.use_gpu = on(v),
         _ => {}
     }
 }
@@ -88,7 +92,7 @@ fn save(s: &Settings) {
     }
     let b = |v: bool| if v { "1" } else { "0" };
     let body = format!(
-        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\n",
+        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\n",
         s.home.replace(['\t', '\n'], " "),
         s.search,
         b(s.restore_tabs),
@@ -96,7 +100,8 @@ fn save(s: &Settings) {
         b(s.third_party_cookies),
         b(s.strip_tracking),
         b(s.send_gpc),
-        b(s.show_bookmarks_bar)
+        b(s.show_bookmarks_bar),
+        b(s.use_gpu)
     );
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
@@ -127,6 +132,7 @@ pub fn page(query: &str) -> String {
         s.strip_tracking = false;
         s.send_gpc = false;
         s.show_bookmarks_bar = false;
+        s.use_gpu = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -167,6 +173,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <section><h2>Memory</h2>
 <div class="row field"><label>Put background tabs to sleep after (minutes, 0 = never)</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
 <p class="hint" style="margin-left:0">A sleeping tab frees its page and reloads when you come back to it.</p>
+<div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> Draw with the graphics card</label><p class="hint">Smoother scrolling and less work for the processor; the graphics driver uses about 40–70 MB more memory. Takes effect the next time LighteningFox starts.</p></div>
 </section>
 <section><h2>Privacy</h2>
 <div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> Allow third-party cookies</label><p class="hint">Off by default: sites embedded in other sites (ad and tracking networks) get no cookies.</p></div>
@@ -185,5 +192,6 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         strip = check(s.strip_tracking),
         gpc = check(s.send_gpc),
         bmbar = check(s.show_bookmarks_bar),
+        gpu_on = check(s.use_gpu),
     )
 }

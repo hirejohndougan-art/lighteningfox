@@ -20,6 +20,8 @@ mod layout;
 mod library;
 mod settings;
 mod tiles;
+#[cfg(feature = "gpu")]
+mod gpu;
 mod net;
 mod paint;
 mod style;
@@ -984,6 +986,17 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             std::process::exit(1);
         });
     window.set_target_fps(60);
+    // Draw with the graphics card when there is one (see gpu.rs); otherwise in software.
+    #[cfg(feature = "gpu")]
+    let mut gpu = {
+        let (gw, gh) = window.get_size();
+        let g = gpu::Gpu::new(&window, gw as u32, gh as u32);
+        match &g {
+            Some(g) => eprintln!("[gpu] drawing with {}", g.name),
+            None => eprintln!("[gpu] no graphics adapter; drawing in software"),
+        }
+        g
+    };
     let mut idle_frames = 0u32;
     let mut slow = false;
     let typed = Rc::new(RefCell::new(Vec::new()));
@@ -2125,7 +2138,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 .collect();
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover };
             let t0 = Instant::now();
-            draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui, use_tiles.then_some((&mut page_tiles, page_version)));
+            #[cfg(feature = "gpu")]
+            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty());
+            #[cfg(feature = "gpu")]
+            let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay);
+            #[cfg(not(feature = "gpu"))]
+            let gpu_tiled = false;
+            if gpu_tiled {
+                // The GPU draws the page from tiles: make sure the visible ones are painted.
+                let range = tiles::PageTiles::visible(scroll.round().max(0.0), h.saturating_sub(bar_h()));
+                for idx in range.clone() {
+                    page_tiles.tile(idx, fonts, &page.images, &lay);
+                }
+                page_tiles.evict(&range);
+                draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui, PagePaint::Skip);
+            } else {
+                draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui, if use_tiles { PagePaint::Tiles(&mut page_tiles, page_version) } else { PagePaint::Paint });
+            }
             if frame_stats {
                 draw_times.push(t0.elapsed().as_secs_f64() * 1000.0);
                 if draw_times.len() == 60 {
@@ -2143,7 +2172,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if editing && !suggestions.is_empty() {
                 draw_suggestions(&mut canvas, fonts, &suggestions, sugg_sel.or(sugg_hover));
             }
-            let _ = window.update_with_buffer(&canvas.buf, w, h);
+            #[cfg(feature = "gpu")]
+            let presented = match gpu.as_mut() {
+                Some(g) => {
+                    let top = if gpu_tiled { bar_h() as u32 } else { h as u32 };
+                    g.present(&canvas.buf, w as u32, h as u32, top, gpu_tiled.then_some((&page_tiles, page_version, scroll.round().max(0.0))));
+                    window.update();
+                    true
+                }
+                None => false,
+            };
+            #[cfg(not(feature = "gpu"))]
+            let presented = false;
+            if !presented {
+                let _ = window.update_with_buffer(&canvas.buf, w, h);
+            }
             dirty = false;
         } else {
             window.update();
@@ -2176,20 +2219,29 @@ struct Loading {
     started: Instant,
 }
 
-fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar, tiles: Option<(&mut tiles::PageTiles, u64)>) {
+/// How `draw` puts the page in the window: painted whole, copied from stored tiles, or left
+/// out (the GPU draws the tiles itself).
+enum PagePaint<'a> {
+    Paint,
+    Tiles(&'a mut tiles::PageTiles, u64),
+    Skip,
+}
+
+fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layout::Layout, scroll: f32, ui: &Toolbar, page: PagePaint) {
     // Whole pixels: text stays sharp, and tiles line up exactly.
     let scroll = scroll.round();
     // The page: from stored tiles when it looks the same at every scroll position,
     // otherwise painted whole.
-    let tiled = match tiles {
-        Some((t, version)) => {
+    let tiled = match page {
+        PagePaint::Tiles(t, version) => {
             let ok = t.sync(version, canvas.w, lay);
             if ok {
                 t.compose(canvas, fonts, images, lay, bar_h(), scroll);
             }
             ok
         }
-        None => false,
+        PagePaint::Skip => true,
+        PagePaint::Paint => false,
     };
     if !tiled {
         canvas.clear(lay.page_bg);

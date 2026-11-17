@@ -25,8 +25,6 @@ pub struct PageTiles {
     bg: u32,
     cacheable: bool,
     tiles: HashMap<usize, Vec<u32>>,
-    /// Tiles painted since the last call to `take_painted` (for the GPU uploader).
-    painted: Vec<usize>,
     pub stats: TileStats,
 }
 
@@ -51,7 +49,6 @@ impl PageTiles {
         let bg = pack(lay.page_bg);
         if version != self.version || width != self.width || bg != self.bg || (self.tiles.is_empty() && self.version == 0) {
             self.tiles.clear();
-            self.painted.clear();
             self.version = version;
             self.width = width;
             self.bg = bg;
@@ -66,7 +63,6 @@ impl PageTiles {
             c.clear(lay.page_bg);
             c.paint(fonts, images, &lay.items, 0.0, (idx * TILE_H) as f32);
             self.tiles.insert(idx, c.buf);
-            self.painted.push(idx);
             self.stats.painted += 1;
         } else {
             self.stats.reused += 1;
@@ -108,20 +104,13 @@ impl PageTiles {
         self.evict(&range);
     }
 
-    /// Strips painted since the last call (the GPU presenter uploads these).
-    pub fn take_painted(&mut self) -> Vec<usize> {
-        std::mem::take(&mut self.painted)
-    }
-
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
     pub fn get(&self, idx: usize) -> Option<&[u32]> {
         self.tiles.get(&idx).map(|v| v.as_slice())
     }
 
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
     pub fn width(&self) -> usize {
         self.width
-    }
-
-    pub fn memory_bytes(&self) -> usize {
-        self.tiles.len() * self.width * TILE_H * 4
     }
 }

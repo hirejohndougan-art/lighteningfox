@@ -14,6 +14,13 @@ wuff = "0.2"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 ab_glyph = "0.2"
 rustybuzz = "0.20.1"
+wgpu = { version = "30.0.2", default-features = false, features = ["vulkan", "gles", "wgsl"], optional = true }
+pollster = { version = "1.0.1", optional = true }
 
 [profile.release]
 opt-level = 3
+
+[features]
+default = ["gpu"]
+# Draw with the graphics card (Vulkan or OpenGL); falls back to software drawing at run time.
+gpu = ["dep:wgpu", "dep:pollster"]
