@@ -1,5 +1,7 @@
 //! Networking: load http(s):// and file:// URLs, and resolve relative links.
 
+use std::time::{Duration, Instant};
+
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Ironswift/0.1";
 
 /// Fetch something a page uses (stylesheet, script, image) as text. `page` is the page's URL,
@@ -85,7 +87,10 @@ fn image_page(url: &str, content_type: &str, bytes: &[u8]) -> String {
 
 /// Navigate to a URL (a link, the address bar, a form): load it and decide whether to show it
 /// or save it as a download.
-pub fn navigate(url: &str, post: Option<&str>) -> Result<Navigated, String> {
+///
+/// While a slow HTML page downloads, `partial(url, html_so_far)` is called now and then so the
+/// page can be shown before it has all arrived.
+pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str, &str)) -> Result<Navigated, String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         // Local files and data: URLs: shown by type, never downloaded.
         let r = match post {
@@ -132,7 +137,22 @@ pub fn navigate(url: &str, post: Option<&str>) -> Result<Navigated, String> {
         return Ok(Navigated::Download { name });
     }
     let mut bytes = head;
-    body.take(50_000_000).read_to_end(&mut bytes).map_err(|e| format!("[net] {final_url}: {e}"))?;
+    let started = Instant::now();
+    let mut last_partial: Option<Instant> = None;
+    let mut chunk = vec![0u8; 64 * 1024];
+    let mut body = body.take(50_000_000);
+    loop {
+        match body.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(k) => bytes.extend_from_slice(&chunk[..k]),
+            Err(e) => return Err(format!("[net] {final_url}: {e}")),
+        }
+        // A slow page: show what's here so far (every half second at most).
+        if kind == Kind::Html && started.elapsed() >= Duration::from_millis(300) && last_partial.is_none_or(|t| t.elapsed() >= Duration::from_millis(500)) {
+            last_partial = Some(Instant::now());
+            partial(&final_url, &decode_html(&bytes, ct.as_deref()));
+        }
+    }
     let html = match kind {
         Kind::Html => decode_html(&bytes, ct.as_deref()),
         Kind::Image => image_page(&final_url, ct.as_deref().unwrap_or("image/png"), &bytes),

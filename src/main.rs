@@ -415,6 +415,8 @@ struct Prepared {
     fonts: Vec<WebFont>,
     /// The page's HTML, parsed again with scripts running if it has any.
     source: String,
+    /// Only the part of the page downloaded so far (shown while the rest arrives; no scripts).
+    partial: bool,
     /// The navigation turned out to be a download: there is no page to show.
     download: bool,
 }
@@ -518,6 +520,11 @@ fn install_fonts(fonts: Vec<WebFont>) {
 /// Fetch the page, its stylesheets, scripts and images, all in parallel where possible.
 /// Runs on a worker thread; touches nothing the UI thread owns.
 fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
+    fetch_page_with(url, post, &mut |_| {})
+}
+
+/// `fetch_page`, also handing over previews of a slow page while it downloads.
+fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepared)) -> Prepared {
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), start_page())
     } else if url == "about:blank" {
@@ -539,12 +546,17 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         ("about:bookmarks".to_string(), library::bookmarks_page(q))
     } else {
         let target = if post.is_some() { url.to_string() } else { net::strip_tracking(url) };
-        match net::navigate(&target, post) {
+        let mut on_partial = |u: &str, html: &str| {
+            let mut p = prepare(u.to_string(), html.to_string(), false);
+            p.partial = true;
+            preview(p);
+        };
+        match net::navigate_with(&target, post, &mut on_partial) {
             Ok(net::Navigated::Page { url, html }) => (url, html),
             // A file being saved: the tab stays on the page it was showing.
             Ok(net::Navigated::Download { name }) => {
                 log!("[download] saving {name}");
-                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), download: true };
+                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), partial: false, download: true };
             }
             Err(e) => {
                 log!("[net] couldn't load {url}: {e}");
@@ -552,6 +564,12 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
             }
         }
     };
+    prepare(final_url, body, true)
+}
+
+/// Parse a page and fetch what it needs: stylesheets and scripts, and with `full`, images
+/// and web fonts too (a preview of a half-downloaded page skips those).
+fn prepare(final_url: String, body: String, full: bool) -> Prepared {
     let parse_t = Instant::now();
     let dom = html::parse(&body);
     if std::env::var("IRONSWIFT_PARSE_TIME").is_ok() {
@@ -615,11 +633,14 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
 
     // Images: <img> sources plus CSS background images, fetched in parallel.
     let mut images = images::Images::default();
-    let styles = style::compute(&dom, &sheets);
-    let bg_urls = background_urls(&styles);
-    images.load_missing(&dom, &final_url, &bg_urls);
-    let fonts = fetch_fonts(&sheets, &styles, &final_url);
-    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, download: false }
+    let mut fonts = Vec::new();
+    if full {
+        let styles = style::compute(&dom, &sheets);
+        let bg_urls = background_urls(&styles);
+        images.load_missing(&dom, &final_url, &bg_urls);
+        fonts = fetch_fonts(&sheets, &styles, &final_url);
+    }
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, download: false }
 }
 
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
@@ -653,11 +674,11 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts, fonts, source, .. } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts, source, partial, .. } = p;
     install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
-    let has_scripts = dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
+    let has_scripts = !partial && dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
         dom::NodeData::Element { tag, attrs } => tag == "script" || attrs.iter().any(|(k, _)| k.starts_with("on")),
         _ => false,
     });
@@ -1138,6 +1159,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let (tx, rx) = mpsc::channel::<(u64, Prepared)>();
     let mut generation = 0u64;
     let mut loading: Option<Loading> = None;
+    // The load whose first part is on screen already.
+    let mut preview_of: Option<u64> = None;
     let mut last_spin = Instant::now();
     let (mut w, mut h) = window.get_size();
     geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
@@ -1284,7 +1307,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     generation += 1;
                     let (g, t, tx) = (generation, url.clone(), tx.clone());
                     std::thread::spawn(move || {
-                        let _ = tx.send((g, fetch_page(&t, None)));
+                        let ptx = tx.clone();
+                        let _ = tx.send((g, fetch_page_with(&t, None, &mut |p| {
+                            let _ = ptx.send((g, p));
+                        })));
                     });
                     let l = Loading { generation, kind: Go::To(url.clone()), started: Instant::now() };
                     tabs.insert(active + 1, Some(Slot { loading: Some(l), ..Slot::new(url.clone(), url) }));
@@ -2135,7 +2161,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             generation += 1;
             let (g, t, tx) = (generation, target.clone(), tx.clone());
             std::thread::spawn(move || {
-                let _ = tx.send((g, fetch_page(&t, post.as_deref())));
+                let ptx = tx.clone();
+                let _ = tx.send((g, fetch_page_with(&t, post.as_deref(), &mut |p| {
+                    let _ = ptx.send((g, p));
+                })));
             });
             window.set_title(&format!("Loading {target} — Ironswift"));
             address = target;
@@ -2145,6 +2174,25 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A finished load: build the page here, where JavaScript lives.
         while let Ok((g, prepared)) = rx.try_recv() {
+            if prepared.partial {
+                // The first part of a slow page: show it (if it's still the one wanted), keep
+                // the loading bar going; the finished page replaces it.
+                if loading.as_ref().is_some_and(|l| l.generation == g) {
+                    page = build_page(prepared);
+                    focused = None;
+                    dropdown = None;
+                    layout::set_focus(None);
+                    lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                    page_version += 1;
+                    if preview_of != Some(g) {
+                        scroll = 0.0;
+                    }
+                    scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+                    preview_of = Some(g);
+                    dirty = true;
+                }
+                continue;
+            }
             if prepared.download {
                 // Nothing to show: stop the loading bar and stay on the current page.
                 if loading.take_if(|l| l.generation == g).is_some() {
@@ -2201,8 +2249,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
-            // A URL with a #fragment opens scrolled to it.
-            scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+            // A URL with a #fragment opens scrolled to it; a page shown while it loaded keeps
+            // where the reader scrolled.
+            if preview_of != Some(g) {
+                scroll = fragment_target(&page.url).unwrap_or(0.0);
+            }
+            preview_of = None;
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             address = page.url.clone();
             window.set_title(&format!("{} — Ironswift", page.label()));
             dirty = true;
