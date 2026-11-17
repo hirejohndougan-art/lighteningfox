@@ -59,7 +59,7 @@ GStreamer or ffmpeg bindings; play/pause/seek/volume, the `controls` UI, poster 
 events, and the HTMLMediaElement API. Add the new system libraries to the packages in `packaging/`.
 
 ### T12. WebGL
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 04:55
 **After:** —
 **Checklist:** §7 "WebGL"
 **Files:** new `src/webgl.rs` (on wgpu or glow), a new JS file, `src/canvas.rs` only for `getContext`
