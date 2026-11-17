@@ -177,7 +177,7 @@ Load such images when their `src` is set, fire `load`/`error`, and give `complet
 the `html/semantics/embedded-content/the-img-element` tests that apply.
 
 ### X13. WebSockets in site processes
-**Status:** free
+**Status:** claimed by chat-opus-x5 2026-11-17 12:48
 **After:** —
 **Checklist:** none
 **Files:** `src/websocket.rs`, the request parts of `src/process.rs`
