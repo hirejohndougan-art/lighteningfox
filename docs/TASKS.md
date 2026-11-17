@@ -136,7 +136,8 @@ browser process and pass positions to the page process.
 ## Checklist tasks that wait on others
 
 ### T02. Incremental relayout
-**Status:** claimed by chat-opus-a 2026-11-17 10:40
+**Status:** done
+**Left undone:** the box tree and fingerprints are still rebuilt in full each pass (cheap: ~0.1 ms on Bootstrap); boxes holding absolutely positioned, fixed or z-index descendants that escape them, content inside multi-column boxes, and min/max-content measuring passes are always laid out afresh.
 **After:** T01
 **Checklist:** §5 "Incremental relayout (only redo what changed)"
 **Files:** `src/boxtree.rs`, `src/layout.rs`
