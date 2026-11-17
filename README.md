@@ -147,14 +147,22 @@ Screenshot tests render each page listed in `src/main.rs` (`screenshot_tests`) a
 `tests/reference/*.png`. Failures save the new rendering to `target/screenshot-diffs/`.
 GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md): how a page goes from URL to pixels, and where each part lives
+- [How to add things](docs/ADDING.md): recipes for a new CSS property or DOM API
+- [Conformance](docs/CONFORMANCE.md): results on the official test suites (Test262, WPT) and how to run them
+- Live-site check: `python3 tools/site_check.py` renders real websites (and, if installed, Chrome's version of each) into a side-by-side report
+- Debugging: `about:log` shows the debug log, `about:crashes` lists crash reports (kept on your computer only)
+
 ## Roadmap
 
-1. **Vertical-align**, percentage heights and multi-column layout
-2. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
-   then profile Boa itself and work on its interpreter
-3. **Sleeping tabs** and a settings page
-4. **GPU painting** and incremental layout for speed
-5. *Optional, after everything else:* a JIT compiler for Boa
+1. **Security and release**: run each site in its own sandboxed process, a security review, and
+   install packages (AppImage, Flatpak, `.deb`)
+2. **Standards**: the full HTML5 parsing algorithm, the missing DOM pieces, `::before`/`::after`,
+   `opacity` (see [Conformance](docs/CONFORMANCE.md))
+3. **JavaScript speed**: profile Boa on real sites and work on its interpreter
+4. *Optional, after everything else:* a JIT compiler for Boa
 
 ## License
 

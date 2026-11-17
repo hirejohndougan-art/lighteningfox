@@ -509,7 +509,10 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         };
         match got {
             Ok(r) => r,
-            Err(e) => (url.to_string(), error_page(url, &e)),
+            Err(e) => {
+                log!("[net] couldn't load {url}: {e}");
+                (url.to_string(), error_page(url, &e))
+            }
         }
     };
     let dom = html::parse(&body);
