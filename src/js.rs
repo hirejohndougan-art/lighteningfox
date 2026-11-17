@@ -517,6 +517,19 @@ fn n_set_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::undefined())
 }
 
+/// __setSheetRules(id, textItWasBasedOn, css): a <style> element's rules after the page changed
+/// them through its CSSOM sheet (livesheets.rs uses them in place of the element's text).
+fn n_set_sheet_rules(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let (based_on, css) = (arg_str(a, 1, ctx)?, arg_str(a, 2, ctx)?);
+    if let Some(id) = valid(id) {
+        crate::livesheets::set_cssom(id, &based_on, &css);
+        // Nothing in the tree changed, but the page needs styling again.
+        with_dom_mut(|_| ());
+    }
+    Ok(JsValue::undefined())
+}
+
 fn n_remove_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     let name = arg_str(a, 1, ctx)?;
@@ -1264,6 +1277,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("observers.js", include_str!("observers.js")),
     ("traversal.js", include_str!("traversal.js")),
     ("cssom.js", include_str!("cssom.js")),
+    ("docprops.js", include_str!("docprops.js")),
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 
@@ -1341,6 +1355,7 @@ impl Js {
     pub fn with_policy(url: &str, policy: std::sync::Arc<crate::security::PagePolicy>) -> Js {
         // A new page: the last one's inserted scripts are forgotten.
         crate::dynscripts::reset();
+        crate::livesheets::reset();
         let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         THREAD_EPOCH.with(|e| e.set(epoch));
         let modules = std::rc::Rc::new(crate::jsmodules::Loader::default());
@@ -1376,6 +1391,7 @@ impl Js {
             ("__tag", 1, n_tag),
             ("__getAttr", 2, n_get_attr),
             ("__setAttr", 3, n_set_attr),
+            ("__setSheetRules", 3, n_set_sheet_rules),
             ("__removeAttr", 2, n_remove_attr),
             ("__attrNames", 1, n_attr_names),
             ("__getHTML", 2, n_get_html),

@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Styles scripts add or change: BBC (Next.js with Emotion) and many other sites build their
+     CSS this way (2026-11). A new <style>, a changed one, a new <link>, and rules added with
+     sheet.insertRule (Emotion's "speedy" mode, which leaves the element's text empty). -->
+<html><head><title>Live styles</title><style id="s">#b { color: rgb(255, 0, 0) }</style></head>
+<body><p id="a">added</p><p id="b">changed</p><p id="c">linked</p><p id="d">insertRule</p><p id="out"></p>
+<script>
+  const added = document.createElement("style");
+  added.textContent = "#a { color: rgb(0, 128, 0) }";
+  document.head.appendChild(added);
+  document.getElementById("s").textContent = "#b { color: rgb(0, 128, 0) }";
+  const link = document.createElement("link");
+  link.rel = "stylesheet"; link.href = "dyn/linked.css";
+  document.head.appendChild(link);
+  const emo = document.createElement("style");
+  emo.setAttribute("data-emotion", "css");
+  document.head.appendChild(emo);
+  emo.sheet.insertRule("#d { color: rgb(0, 128, 0) }", emo.sheet.cssRules.length);
+  const own = [...document.styleSheets].some((s) => s.ownerNode === emo);
+  const color = (id) => getComputedStyle(document.getElementById(id)).color;
+  document.getElementById("out").textContent = ["a", "b", "c", "d"].map(color).join(";") + ";" + own + ";" + JSON.stringify(emo.textContent);
+</script></body></html>

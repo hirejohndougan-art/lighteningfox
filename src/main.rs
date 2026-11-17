@@ -51,6 +51,7 @@ mod html;
 mod http;
 mod record;
 mod dynscripts;
+mod livesheets;
 mod hsts;
 mod tokenizer;
 mod a11y;
@@ -455,6 +456,7 @@ impl Page {
             form_defaults: Vec::new(),
             loaded_at: Instant::now(),
             styled_for: (0.0, 0.0),
+            live: Rc::new(RefCell::new(livesheets::Live::new("about:blank", Default::default(), &dom::Dom::new(), Vec::new()))),
         }
     }
 
@@ -508,11 +510,18 @@ struct Page {
     loaded_at: Instant,
     /// The window size (CSS px) its styles were computed for, for @media rules.
     styled_for: (f32, f32),
+    /// Its stylesheets as scripts add and change them (livesheets.rs).
+    live: Rc<RefCell<livesheets::Live>>,
 }
 
 impl Page {
     /// Re-run the cascade after the DOM changed.
     fn restyle(&mut self) {
+        // <style> and <link> elements scripts added or changed.
+        if js::with_dom(|d| self.live.borrow_mut().refresh_for_page(d)) {
+            self.sheets = (*self.live.borrow().sheets()).clone();
+            self.hover_rules = style::uses_hover(&self.sheets);
+        }
         if self.styled_for.0 > 0.0 {
             css::set_viewport(self.styled_for.0, self.styled_for.1);
         }
@@ -1161,14 +1170,20 @@ fn build_page(p: Prepared) -> Page {
         _ => false,
     });
     let icon = favicon::icon_url(&dom, &url);
+    let live = Rc::new(RefCell::new(livesheets::Live::new(&url, policy.clone(), &dom, sheets.clone())));
     js::set_dom(dom);
     layout::reset_element_scrolls();
     // Scripts that ask where elements are get a fresh layout of the page as it is then.
     let provider: Option<Box<dyn Fn(f32, f32) -> layout::Layout>> = FONTS.with(|c| c.get()).map(|fonts| {
-        let sheets = sheets.clone();
+        let live = live.clone();
         let images = images.share();
         Box::new(move |w: f32, h: f32| {
             js::with_dom(|d| {
+                let sheets = {
+                    let mut l = live.borrow_mut();
+                    l.refresh(d);
+                    l.sheets()
+                };
                 let c = d.composed();
                 let d = c.as_ref().unwrap_or(d);
                 // Styled without :visited, like getComputedStyle (which reuses these styles).
@@ -1180,9 +1195,14 @@ fn build_page(p: Prepared) -> Page {
     });
     geometry::set_provider(provider);
     {
-        let sheets = sheets.clone();
+        let live = live.clone();
         geometry::set_styler(Some(Box::new(move || {
             js::with_dom(|d| {
+                let sheets = {
+                    let mut l = live.borrow_mut();
+                    l.refresh(d);
+                    l.sheets()
+                };
                 let c = d.composed();
                 // Scripts must not learn which links were visited.
                 style::without_visited(|| style::compute(c.as_ref().unwrap_or(d), &sheets))
@@ -1213,7 +1233,7 @@ fn build_page(p: Prepared) -> Page {
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut page = Page { url, icon, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0) };
+    let mut page = Page { url, icon, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0), live };
     page.restyle();
     release_free_memory();
     page

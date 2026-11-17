@@ -73,6 +73,65 @@
     removeRule(index = 0) { this.deleteRule(index); }
   }
 
+  // A <style> element's sheet: built from its text, and kept while that text doesn't change.
+  // Rules scripts add or remove (insertRule, used by Emotion and styled-components) are handed
+  // to the renderer with __setSheetRules, so they're drawn like the element's own text.
+  const owned = new WeakMap(); // element -> { sheet, text }
+  const sync = (sheet) => {
+    const o = sheet.__owner;
+    if (!o || typeof g.__setSheetRules !== "function") return;
+    const id = o.el.__id;
+    if (id === undefined) return;
+    g.__setSheetRules(id, o.text, sheet.__rules.map((r) => r.cssText).join("\n"));
+  };
+  for (const m of ["insertRule", "deleteRule", "replaceSync"]) {
+    const plain = CSSStyleSheet.prototype[m];
+    CSSStyleSheet.prototype[m] = function (...a) { const r = plain.apply(this, a); sync(this); return r; };
+  }
+  const sheetOf = (el) => {
+    const tag = (el.localName || "").toLowerCase();
+    if (tag === "link") {
+      if (!/(^|\s)stylesheet(\s|$)/i.test(el.getAttribute("rel") || "")) return null;
+      let o = owned.get(el);
+      if (!o || o.href !== el.href) {
+        const sheet = new CSSStyleSheet();
+        sheet.href = el.href || null;
+        sheet.ownerNode = el;
+        o = { sheet, href: el.href };
+        owned.set(el, o);
+      }
+      return o.sheet;
+    }
+    if (tag !== "style" || !el.isConnected) return null;
+    const text = el.textContent;
+    let o = owned.get(el);
+    if (!o || o.text !== text) {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync.call(sheet, text); // (not yet owned: nothing to hand over)
+      sheet.ownerNode = el;
+      o = { sheet, text, el };
+      owned.set(el, o);
+      sheet.__owner = o;
+    }
+    return o.sheet;
+  };
+  // Element objects share Element.prototype (the HTML*Element classes only answer instanceof).
+  const proto = g.Element && g.Element.prototype;
+  if (proto && !Object.getOwnPropertyDescriptor(proto, "sheet")) {
+    Object.defineProperty(proto, "sheet", { get() { return sheetOf(this); }, configurable: true });
+  }
+  if (g.document && !("styleSheets" in g.document)) {
+    Object.defineProperty(g.document, "styleSheets", {
+      get() {
+        const list = [];
+        for (const el of g.document.querySelectorAll("style, link")) { const s = sheetOf(el); if (s) list.push(s); }
+        list.item = (i) => list[i] ?? null;
+        return list;
+      },
+      configurable: true,
+    });
+  }
+
   g.StyleSheet = StyleSheet;
   g.CSSStyleSheet = CSSStyleSheet;
   g.CSSRule = CSSRule;
