@@ -109,6 +109,14 @@ pub fn parse(src: &str) -> Stylesheet {
 
 /// Parse a declaration list like the `style=""` attribute.
 pub fn parse_declarations(src: &str) -> Vec<Decl> {
+    // Inline style attributes can carry comments too.
+    let cleaned;
+    let src = if src.contains("/*") {
+        cleaned = strip_comments(src);
+        cleaned.as_str()
+    } else {
+        src
+    };
     split_top(src, ';')
         .into_iter()
         .filter_map(|d| {
@@ -117,9 +125,12 @@ pub fn parse_declarations(src: &str) -> Vec<Decl> {
             // Custom property names are case-sensitive; everything else isn't.
             let name = if name.starts_with("--") { name.to_string() } else { name.to_ascii_lowercase() };
             let mut value = value.trim().to_string();
-            let important = value.to_ascii_lowercase().ends_with("!important");
-            if important {
-                value.truncate(value.len() - "!important".len());
+            // `!important`, with or without space after the `!`.
+            let lower = value.to_ascii_lowercase();
+            let bang = lower.rfind('!').filter(|&p| lower[p + 1..].trim() == "important");
+            let important = bang.is_some();
+            if let Some(p) = bang {
+                value.truncate(p);
                 value = value.trim().to_string();
             }
             if name.is_empty() || value.is_empty() {
@@ -466,4 +477,128 @@ fn rewrite_urls(v: &str, base: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decls(src: &str) -> Vec<(String, String, bool)> {
+        parse_declarations(src).into_iter().map(|d| (d.name, d.value, d.important)).collect()
+    }
+
+    #[test]
+    fn rules_and_declarations() {
+        let s = parse("h1, .a > b { color: red; margin : 0 auto }  p{}");
+        assert_eq!(s.rules.len(), 2);
+        assert_eq!(s.rules[0].selectors.len(), 2);
+        assert_eq!(s.rules[0].decls.len(), 2);
+        assert_eq!(s.rules[0].decls[1].name, "margin");
+        assert_eq!(s.rules[0].decls[1].value, "0 auto");
+    }
+
+    #[test]
+    fn important_and_case() {
+        assert_eq!(decls("COLOR: Red !important; width:1px ! important"), vec![
+            ("color".into(), "Red".into(), true),
+            ("width".into(), "1px".into(), true),
+        ]);
+    }
+
+    #[test]
+    fn comments_are_ignored() {
+        let s = parse("/* a { color: red } */ b { /* x */ color: blue; /* y */ }");
+        assert_eq!(s.rules.len(), 1);
+        assert_eq!(decls("/*c*/color:/*d*/blue")[0].1.trim(), "blue");
+    }
+
+    #[test]
+    fn values_with_semicolons_and_braces_in_strings() {
+        let d = decls(r#"content: "a;b}"; background: url(data:image/png;base64,AAA=) no-repeat"#);
+        assert_eq!(d.len(), 2, "{d:?}");
+        assert_eq!(d[0].1, r#""a;b}""#);
+        assert!(d[1].1.starts_with("url(data:image/png;base64,AAA=)"), "{d:?}");
+    }
+
+    #[test]
+    fn custom_properties_keep_their_case_and_value() {
+        let d = decls("--Main-Color: #ABC; --gap: calc(1px + 2px)");
+        assert_eq!(d[0].0, "--Main-Color");
+        assert_eq!(d[1].1, "calc(1px + 2px)");
+    }
+
+    #[test]
+    fn broken_declarations_are_skipped() {
+        let d = decls("color red; width: 2px; : nothing; height:");
+        assert!(d.iter().any(|x| x.0 == "width" && x.1 == "2px"), "{d:?}");
+        assert!(!d.iter().any(|x| x.0 == "color"), "{d:?}");
+    }
+
+    #[test]
+    fn selectors_parts_and_combinators() {
+        let s = parse_selector_list("div#main.a.b[href^=\"http\"]:hover > p + span ~ em i");
+        assert_eq!(s.len(), 1);
+        let sel = &s[0];
+        assert_eq!(sel.parts.len(), 5);
+        assert_eq!(sel.parts[0].tag.as_deref(), Some("div"));
+        assert_eq!(sel.parts[0].id.as_deref(), Some("main"));
+        assert_eq!(sel.parts[0].classes, vec!["a", "b"]);
+        assert_eq!(sel.parts[0].attrs[0].0, "href");
+        assert_eq!(sel.parts[0].attrs[0].1, '^');
+        assert_eq!(sel.parts[0].pseudo, vec!["hover"]);
+        assert_eq!(sel.combinators, vec![Combinator::Child, Combinator::Adjacent, Combinator::Sibling, Combinator::Descendant]);
+    }
+
+    #[test]
+    fn specificity() {
+        let sp = |s: &str| parse_selector_list(s)[0].specificity();
+        assert_eq!(sp("*"), (0, 0, 0));
+        assert_eq!(sp("li"), (0, 0, 1));
+        assert_eq!(sp("ul li.x"), (0, 1, 2));
+        assert_eq!(sp("#a .b:hover"), (1, 2, 0));
+        assert_eq!(sp("a[href]"), (0, 1, 1));
+    }
+
+    #[test]
+    fn invalid_selectors_drop_only_their_rule() {
+        let s = parse("a<<b { color: red } p { color: blue }");
+        assert!(s.rules.iter().any(|r| r.decls.iter().any(|d| d.value == "blue")));
+        assert!(!s.rules.iter().any(|r| r.decls.iter().any(|d| d.value == "red")));
+    }
+
+    #[test]
+    fn media_queries_for_a_desktop_screen() {
+        let s = parse("@media screen and (min-width: 768px) { a { x: 1 } } @media print { b { x: 2 } } @media (max-width: 600px) { c { x: 3 } }");
+        assert_eq!(s.rules.len(), 1);
+        assert_eq!(s.rules[0].selectors[0].parts[0].tag.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn supports_and_layer_blocks_are_used() {
+        let s = parse("@supports (display: grid) { a { x: 1 } } @layer base { b { x: 2 } }");
+        assert_eq!(s.rules.len(), 2);
+    }
+
+    #[test]
+    fn font_face() {
+        let s = parse("@font-face { font-family: 'My Font'; src: url(a.woff2) format('woff2'), url(a.ttf); font-weight: 100 900; font-style: italic }");
+        assert_eq!(s.font_faces.len(), 1);
+        let f = &s.font_faces[0];
+        assert_eq!(f.family, "my font");
+        assert_eq!(f.weight, (100, 900));
+        assert!(f.italic);
+        assert_eq!(f.best_url().as_deref(), Some("a.woff2"));
+    }
+
+    #[test]
+    fn unknown_at_rules_are_skipped_whole() {
+        let s = parse("@keyframes spin { from { a: 1 } to { a: 2 } } p { color: red }");
+        assert_eq!(s.rules.len(), 1);
+        assert_eq!(s.rules[0].selectors[0].parts[0].tag.as_deref(), Some("p"));
+    }
+
+    #[test]
+    fn split_top_respects_nesting() {
+        assert_eq!(split_top("a, rgb(1, 2, 3), \"x,y\"", ','), vec!["a", " rgb(1, 2, 3)", " \"x,y\""]);
+    }
 }

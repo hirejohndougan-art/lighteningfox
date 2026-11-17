@@ -187,7 +187,18 @@ fn implied_closes(dom: &Dom, stack: &mut Vec<NodeId>, tag: &str) {
 fn flush(dom: &mut Dom, stack: &[NodeId], text: &mut String) {
     if !text.is_empty() {
         let decoded = decode_entities(text);
-        dom.add(NodeData::Text(decoded), *stack.last().unwrap());
+        let parent = *stack.last().unwrap();
+        // Text next to text (split by a comment or a stray end tag) is one text node.
+        match dom.nodes[parent].children.last().copied() {
+            Some(last) if matches!(dom.nodes[last].data, NodeData::Text(_)) => {
+                if let NodeData::Text(t) = &mut dom.nodes[last].data {
+                    t.push_str(&decoded);
+                }
+            }
+            _ => {
+                dom.add(NodeData::Text(decoded), parent);
+            }
+        }
         text.clear();
     }
 }
@@ -312,3 +323,123 @@ fn named_entity(name: &str) -> Option<char> {
     })
 }
 
+
+/// The tree in the html5lib-tests text format (`| <html>`, `|   "text"`), used by the parser
+/// tests and the conformance runner.
+pub fn dump(dom: &Dom) -> String {
+    fn walk(dom: &Dom, id: NodeId, depth: usize, out: &mut String) {
+        for &c in &dom.nodes[id].children {
+            let pad = "  ".repeat(depth);
+            match &dom.nodes[c].data {
+                NodeData::Element { tag, attrs } => {
+                    out.push_str(&format!("| {pad}<{tag}>\n"));
+                    let mut a: Vec<&(String, String)> = attrs.iter().collect();
+                    a.sort();
+                    for (k, v) in a {
+                        out.push_str(&format!("| {pad}  {k}=\"{v}\"\n"));
+                    }
+                    walk(dom, c, depth + 1, out);
+                }
+                NodeData::Text(t) => out.push_str(&format!("| {pad}\"{t}\"\n")),
+                NodeData::Document => {}
+            }
+        }
+    }
+    let mut out = String::new();
+    walk(dom, Dom::ROOT, 0, &mut out);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tree(src: &str) -> String {
+        dump(&parse(src))
+    }
+
+    fn body(src: &str) -> String {
+        // Just the part inside <body>, without the indentation of html/body.
+        let t = tree(src);
+        let lines: Vec<&str> = t.lines().collect();
+        let start = lines.iter().position(|l| l.trim() == "|   <body>").expect("has body") + 1;
+        lines[start..].iter().map(|l| format!("| {}", &l[6..])).collect::<Vec<_>>().join("\n")
+    }
+
+    #[test]
+    fn skeleton_is_added() {
+        assert_eq!(tree("hi"), "| <html>\n|   <head>\n|   <body>\n|     \"hi\"\n");
+        assert_eq!(tree(""), "| <html>\n|   <head>\n|   <body>\n");
+    }
+
+    #[test]
+    fn head_elements_go_in_head() {
+        let t = tree("<title>T</title><p>x");
+        assert!(t.contains("|   <head>\n|     <title>\n|       \"T\"\n|   <body>\n|     <p>\n|       \"x\""), "{t}");
+    }
+
+    #[test]
+    fn attributes_quoted_unquoted_and_bare() {
+        let b = body(r#"<a href="x y" id=one class='two' hidden>t</a>"#);
+        assert_eq!(b, "| <a>\n|   class=\"two\"\n|   hidden=\"\"\n|   href=\"x y\"\n|   id=\"one\"\n|   \"t\"");
+    }
+
+    #[test]
+    fn tag_and_attribute_names_are_lower_case() {
+        assert_eq!(body("<DIV CLASS=A>x</DIV>"), "| <div>\n|   class=\"A\"\n|   \"x\"");
+    }
+
+    #[test]
+    fn entities_named_and_numeric() {
+        assert_eq!(decode_entities("a &amp; b &lt;c&gt; &quot;"), "a & b <c> \"");
+        assert_eq!(decode_entities("&#169; &#x263A; &#X263a;"), "© ☺ ☺");
+        assert_eq!(decode_entities("&nbsp;"), "\u{a0}");
+        // Unknown names stay as written.
+        assert_eq!(decode_entities("&bogus; & alone"), "&bogus; & alone");
+        assert_eq!(body("<p title=\"a&amp;b\">&copy;</p>"), "| <p>\n|   title=\"a&b\"\n|   \"©\"");
+    }
+
+    #[test]
+    fn void_elements_have_no_children() {
+        assert_eq!(body("<br>a<img src=x>b<br/>c"), "| <br>\n| \"a\"\n| <img>\n|   src=\"x\"\n| \"b\"\n| <br>\n| \"c\"");
+    }
+
+    #[test]
+    fn raw_text_is_not_parsed() {
+        let t = tree("<script>if (a<b && c>d) x='</p>'</script>");
+        assert!(t.contains("\"if (a<b && c>d) x='</p>'\""), "{t}");
+        let b = body("<textarea><b>bold</b></textarea>");
+        assert_eq!(b, "| <textarea>\n|   \"<b>bold</b>\"");
+    }
+
+    #[test]
+    fn implied_end_tags() {
+        assert_eq!(body("<p>one<p>two"), "| <p>\n|   \"one\"\n| <p>\n|   \"two\"");
+        assert_eq!(body("<ul><li>a<li>b</ul>"), "| <ul>\n|   <li>\n|     \"a\"\n|   <li>\n|     \"b\"");
+        assert_eq!(body("<p>a<div>b</div>"), "| <p>\n|   \"a\"\n| <div>\n|   \"b\"");
+    }
+
+    #[test]
+    fn table_cells_and_rows_close_each_other() {
+        let b = body("<table><tr><td>1<td>2<tr><td>3</table>");
+        assert!(b.matches("<td>").count() == 3 && b.matches("<tr>").count() == 2, "{b}");
+        // The second cell is a sibling of the first, not inside it.
+        assert!(!b.contains("|       <td>\n|         \"1\"\n|         <td>"), "{b}");
+    }
+
+    #[test]
+    fn unclosed_and_stray_tags() {
+        assert_eq!(body("<div><span>x"), "| <div>\n|   <span>\n|     \"x\"");
+        assert_eq!(body("a</span>b"), "| \"ab\"");
+    }
+
+    #[test]
+    fn comments_and_doctype_are_skipped() {
+        assert_eq!(body("<!DOCTYPE html>a<!-- note -->b"), "| \"ab\"");
+    }
+
+    #[test]
+    fn fragment_has_no_skeleton() {
+        assert_eq!(dump(&parse_fragment("<b>x</b>")), "| <b>\n|   \"x\"\n");
+    }
+}

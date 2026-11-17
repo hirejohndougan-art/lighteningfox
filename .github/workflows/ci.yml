@@ -1,17 +1,23 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: System packages
-        run: sudo apt-get update && sudo apt-get install -y fonts-dejavu-core libxkbcommon-dev libwayland-dev libx11-dev
+        # DejaVu is the default font; Noto CJK and FreeFont are the fallback fonts the
+        # text-shaping test page needs (Chinese/Japanese/Korean, Hindi, Thai, Hebrew).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core fonts-noto-cjk fonts-freefont-ttf \
+            libxkbcommon-dev libwayland-dev libx11-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release
-      - name: Unit and screenshot tests
+      - name: Unit, parser and screenshot tests
         run: cargo test --release
       - name: Keep screenshot diffs on failure
         if: failure()
@@ -19,3 +25,15 @@ jobs:
         with:
           name: screenshot-diffs
           path: target/screenshot-diffs/
+
+  build-without-gpu:
+    # The software-only build (no wgpu) must keep compiling.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --no-default-features

@@ -155,3 +155,8 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 3. **Sleeping tabs** and a settings page
 4. **GPU painting** and incremental layout for speed
 5. *Optional, after everything else:* a JIT compiler for Boa
+
+## License
+
+LighteningFox is released under the [MIT License](LICENSE). Third-party files used only by the
+tests keep their own licenses: see `tests/real-world/README.md` and `tests/fonts/README.md`.
