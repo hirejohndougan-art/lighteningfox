@@ -27,6 +27,7 @@ fuzz_target!(|data: &[u8]| {
         let _ = e.check(u, "https://news.example/", security::Dest::Script);
         let _ = e.check(u, u, security::Dest::Image);
         let _ = e.is_dangerous(u);
+        let _ = blocklist::clean_url(u, "https://news.example/", None);
     }
     let classes: std::collections::HashSet<String> = urls.split_whitespace().map(String::from).collect();
     let _ = e.hiding_css("https://news.example/", &classes, &classes);

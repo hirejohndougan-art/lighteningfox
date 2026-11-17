@@ -535,3 +535,69 @@ fn numeric_font_weights_pick_the_closest_face() {
     assert_eq!(w500, w600, "600 falls back to the 500 face (no heavier one)");
     assert_eq!(w500, short, "the font shorthand's weight");
 }
+
+/// The content blocker's scriptlets and procedural cosmetic filters, run in a real page.
+#[test]
+fn content_blocking_scriptlets_and_procedural_filters() {
+    let _serial = serial();
+    let mut page = open("tests/content-blocking.html");
+    let call = |parts: &[&str]| parts.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let calls = vec![
+        call(&["set-constant", "adBlock.detected", "false"]),
+        call(&["set-constant", "showAds", "noopFunc"]),
+        call(&["aopr", "adsLib"]),
+        call(&["aopw", "blockerCheck"]),
+        call(&["nostif", "adblock"]),
+        call(&["json-prune", "ads data.[].promo"]),
+        call(&["json-prune", "entries.[-].isAd"]),
+        call(&["aeld", "click", "trackAd"]),
+        call(&["remove-attr", "onclick", ".hero"]),
+        call(&["remove-class", "wall"]),
+        call(&["nowoif", "/popunder/"]),
+    ];
+    let procs = [".card:has-text(Sponsored)", ".label:has-text(Advertisement):upward(2)", ".slot:remove()", ".feed > .box:has(.label:has-text(News)):style(outline: 2px solid red)"];
+    let code = crate::blocklist::code_for(&calls, &procs);
+    let r = eval(&mut page, &code);
+    assert!(!r.starts_with("error"), "{r}");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_millis(500));
+    }
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            window.adBlock = { detected: true };
+            out.push(String(adBlock.detected));
+            out.push(typeof showAds);
+            try { window.adsLib; out.push("read"); } catch (e) { out.push(e.name); }
+            try { window.blockerCheck = 1; out.push("wrote"); } catch (e) { out.push(e.name); }
+            window.fired = "no";
+            setTimeout(function () { /* adblock check */ window.fired = "adblock"; }, 0);
+            setTimeout(function () { window.other = "ran"; }, 0);
+            const j = JSON.parse('{"ads":[1],"data":[{"promo":1,"id":2}],"keep":3}');
+            out.push(JSON.stringify(j).replace(/"/g, "'"));
+            out.push(JSON.parse('{"entries":[{"id":1},{"id":2,"isAd":true}]}').entries.length);
+            window.clicked = "";
+            document.body.addEventListener("click", function () { /* trackAd */ window.clicked += "t"; });
+            document.body.addEventListener("click", function () { window.clicked += "k"; });
+            document.body.dispatchEvent(new Event("click"));
+            out.push(window.clicked);
+            out.push(String(window.open("https://x.example/popunder")));
+            return out.join("|");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "false|function|ReferenceError|ReferenceError|{'data':[{'id':2}],'keep':3}|1|k|null");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_millis(300));
+    }
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const d = (id) => { const e = document.getElementById(id); return e ? (e.style.display || "-") : "gone"; };
+            return [window.fired, window.other, d("c1"), d("c2"), d("b1"), d("b2"), d("s1"),
+                document.getElementById("b2").style.outline ? "styled" : "plain",
+                String(document.getElementById("h1").hasAttribute("onclick")), document.getElementById("w1").className || "-"].join("|");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "no|ran|-|none|none|-|gone|styled|false|-");
+}

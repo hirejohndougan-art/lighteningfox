@@ -75,7 +75,8 @@ tests that fit.
 ## Follow-ups (not checklist items; found by the batch chats)
 
 ### AB1. Content blocking on a par with uBlock Origin
-**Status:** claimed by adblock-chat 2026-11-17 14:20
+**Status:** done
+**Left undone:** uBO's `trusted-*` scriptlets (only trusted lists may use them; YouTube's ad rules rely on several) and `replace-node-text`/`rpnt`, `xml-prune`, `m3u-prune`, `href-sanitizer`, `spoof-css`; HTML filters (`##^`); `$header=`, `$permissions=`, `$replace=`, `$urltransform`, `$cname`; `$method` assumes GET; `:others()` selects nothing; no per-page blocked-request counter in the toolbar. The fuzz target `filters` doesn't build (pre-existing: `dom.rs` now needs `crate::validation`, which the fuzz stubs don't have). Checks with all the lists loaded take about 30 µs per request (release).
 **After:** —
 **Checklist:** none (the §14 ad-blocking items are already ticked; this deepens them)
 **Files:** `src/blocklist.rs`, new `src/scriptlets.js` and `src/cosmetic.js`, `src/net.rs`, `src/js.rs` (document-start hook), `src/settings.rs`, locales

@@ -35,10 +35,26 @@ fn load_sub(url: &str, page: &str, dest: crate::security::Dest, nonce: Option<&s
             return Err(format!("{url}: blocked by the page's Content Security Policy"));
         }
     }
-    if let Some(why) = crate::blocklist::blocked(&url, page, dest) {
-        return Err(format!("{url}: {why}"));
+    let url = crate::blocklist::clean_url(&url, page, Some(dest));
+    if let Some(b) = crate::blocklist::decide(&url, page, dest) {
+        return match b.stand_in {
+            Some(stand_in) => Ok(stand_in_response(&url, stand_in)),
+            None => Err(format!("{url}: {}", b.why)),
+        };
     }
     load(&url, None, Some(page))
+}
+
+/// The answer to a request the content blocker replaced with a harmless stand-in (an empty
+/// script, a blank image, a no-op version of an ad library).
+pub fn stand_in_response(url: &str, (content_type, body): (&'static str, Vec<u8>)) -> Response {
+    Response {
+        status: 200,
+        status_text: "OK".into(),
+        url: url.to_string(),
+        headers: vec![("content-type".into(), content_type.into()), ("access-control-allow-origin".into(), "*".into())],
+        body,
+    }
 }
 
 /// What a navigation turned out to be.
@@ -565,6 +581,12 @@ fn percent_decode(s: &str) -> String {
 /// Remove tracking parameters (utm_*, fbclid, gclid…) from a page URL before loading it.
 /// They exist only to tell sites and ad networks where you came from.
 pub fn strip_tracking(url: &str) -> String {
+    let url = &strip_known_trackers(url);
+    crate::blocklist::clean_url(url, url, None)
+}
+
+/// The tracking parameters Ironswift strips on its own (before the filter lists' `$removeparam`).
+fn strip_known_trackers(url: &str) -> String {
     const EXACT: &[&str] = &[
         "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "mc_eid", "mc_cid", "yclid", "twclid", "ttclid", "li_fat_id",
         "igshid", "igsh", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id", "oly_enc_id", "vero_id", "wickedid", "__s", "_openstat", "srsltid", "si",

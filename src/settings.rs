@@ -33,6 +33,8 @@ pub struct Settings {
     /// Block ads (EasyList) and trackers (EasyPrivacy).
     pub block_ads: bool,
     pub block_trackers: bool,
+    /// Hide cookie notices and similar nuisances (EasyList Cookie, uBlock Annoyances).
+    pub block_annoyances: bool,
     /// Warn before opening sites on malware and phishing lists.
     pub safe_browsing: bool,
     /// Sites where ad and tracker blocking is turned off.
@@ -75,6 +77,7 @@ impl Default for Settings {
             reduce_motion: false,
             block_ads: true,
             block_trackers: true,
+            block_annoyances: false,
             safe_browsing: true,
             no_blocking: Vec::new(),
             resist_fingerprinting: true,
@@ -137,6 +140,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "min_font_size" => s.min_font_size = v.trim().parse().unwrap_or(s.min_font_size).min(40),
         "block_ads" => s.block_ads = on(v),
         "block_trackers" => s.block_trackers = on(v),
+        "block_annoyances" => s.block_annoyances = on(v),
         "safe_browsing" => s.safe_browsing = on(v),
         "resist_fingerprinting" => s.resist_fingerprinting = on(v),
         "check_updates" => s.check_updates = on(v),
@@ -214,9 +218,10 @@ fn save(s: &Settings) {
         b(s.reduce_motion)
     );
     body.push_str(&format!(
-        "block_ads\t{}\nblock_trackers\t{}\nsafe_browsing\t{}\nresist_fingerprinting\t{}\ncheck_updates\t{}\nno_blocking\t{}\ncookies_allow\t{}\ncookies_block\t{}\ncookies_session\t{}\n",
+        "block_ads\t{}\nblock_trackers\t{}\nblock_annoyances\t{}\nsafe_browsing\t{}\nresist_fingerprinting\t{}\ncheck_updates\t{}\nno_blocking\t{}\ncookies_allow\t{}\ncookies_block\t{}\ncookies_session\t{}\n",
         b(s.block_ads),
         b(s.block_trackers),
+        b(s.block_annoyances),
         b(s.safe_browsing),
         b(s.resist_fingerprinting),
         b(s.check_updates),
@@ -381,6 +386,7 @@ pub fn page(query: &str) -> String {
         s.reduce_motion = false;
         s.block_ads = false;
         s.block_trackers = false;
+        s.block_annoyances = false;
         s.safe_browsing = false;
         s.resist_fingerprinting = false;
         s.check_updates = false;
@@ -447,6 +453,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <section><h2>@@settings-blocking@@</h2>
 <div class="row"><label><input type="checkbox" name="block_ads" value="1"{blk_ads}> @@settings-block-ads@@</label><p class="hint">@@settings-block-ads-hint@@</p></div>
 <div class="row"><label><input type="checkbox" name="block_trackers" value="1"{blk_trk}> @@settings-block-trackers@@</label><p class="hint">@@settings-block-trackers-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="block_annoyances" value="1"{blk_ann}> @@settings-block-annoyances@@</label><p class="hint">@@settings-block-annoyances-hint@@</p></div>
 <div class="row field"><label>@@settings-no-blocking@@</label><textarea name="no_blocking" rows="2" cols="60" placeholder="example.com">{no_blk}</textarea></div>
 <div class="row"><label><input type="checkbox" name="safe_browsing" value="1"{safe}> @@settings-safe@@</label><p class="hint">@@settings-safe-hint@@</p></div>
 <div class="row"><label><input type="checkbox" name="resist_fingerprinting" value="1"{rfp}> @@settings-rfp@@</label><p class="hint">@@settings-rfp-hint@@</p></div>
@@ -504,6 +511,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         ck_session = esc(&s.cookies_session.join("\n")),
         blk_ads = check(s.block_ads),
         blk_trk = check(s.block_trackers),
+        blk_ann = check(s.block_annoyances),
         no_blk = esc(&s.no_blocking.join("\n")),
         safe = check(s.safe_browsing),
         rfp = check(s.resist_fingerprinting),

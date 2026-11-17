@@ -62,6 +62,11 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
   `X-Frame-Options`, and the sandbox of the frame it's in. `prepare` registers it by page
   URL before fetching anything, and `net::fetch_sub*` checks each request against it (with
   the request's purpose, `security::Dest`) and against the filter lists (`blocklist`).
+- **Content blocking** (`blocklist.rs`): network rules are indexed by host, by a word the
+  URL must contain, and by the page's domain; a blocked request can be answered with a
+  stand-in from `redirects.js`. Before a page's first script, `Js::page_start` runs the
+  scriptlets its filters name (`scriptlets.js`) and the procedural cosmetic filter runner
+  (`cosmetic.js`); plain element hiding goes into the page's style sheets.
 - **Scripts act for their page only.** The script engine holds a `PageCtx` (URL, top-level
   page, sandbox, policy) where scripts can't reach it; the natives for cookies, storage,
   network requests and history use it rather than any URL a script passes. A Boa host hook
@@ -97,7 +102,7 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
 | `settings.tsv` | Settings (`settings.rs`, edited on about:settings) |
 | `session.txt` | Open tabs, for session restore |
 | `crashes/` | Crash reports (`crashlog.rs`) |
-| `filters/` | Filter lists (`easylist.txt`, `easyprivacy.txt`, malware and phishing hosts), your own rules in `custom.txt` / `custom-dangerous.txt` |
+| `filters/` | Filter lists (EasyList, EasyPrivacy, the uBlock lists, Peter Lowe's list, malware and phishing hosts, cookie-notice lists when turned on), your own rules in `custom.txt` / `custom-dangerous.txt` |
 | `permissions.tsv` | Sites' camera, microphone, location and notification permissions |
 | `update/` | A downloaded, verified update waiting to be installed on exit |
 

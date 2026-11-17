@@ -345,6 +345,15 @@ impl Dom {
         }
     }
 
+    /// The names of an element's attributes.
+    pub fn attr_names(&self, id: NodeId) -> impl Iterator<Item = &str> {
+        let attrs = match &self.nodes[id].data {
+            NodeData::Element { attrs, .. } => attrs.as_slice(),
+            _ => &[],
+        };
+        attrs.iter().map(|(k, _)| k.as_str())
+    }
+
     pub fn set_attr(&mut self, id: NodeId, name: &str, value: &str) {
         if let NodeData::Element { attrs, .. } = &mut self.nodes[id].data {
             match attrs.iter_mut().find(|(k, _)| k == name) {

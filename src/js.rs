@@ -986,7 +986,7 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
     // The page making the request is always this page, never what the script says.
     let page = page_ctx(ctx, PageCtx::net_page).unwrap_or_else(|| "about:blank".into());
     let method = arg_str(a, 2, ctx)?;
-    let url = arg_str(a, 3, ctx)?;
+    let url = crate::blocklist::clean_url(&arg_str(a, 3, ctx)?, &page, Some(crate::security::Dest::Connect));
     let flat = arg_str(a, 4, ctx)?;
     let body = match a.get(5) {
         Some(v) => crate::netbody::request_body(v, ctx)?,
@@ -1006,8 +1006,11 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         if !csp_ok {
             return Err(format!("{url}: blocked by the page's Content Security Policy (connect-src)"));
         }
-        if let Some(why) = crate::blocklist::blocked(&url, &page, crate::security::Dest::Connect) {
-            return Err(format!("{url}: {why}"));
+        if let Some(b) = crate::blocklist::decide(&url, &page, crate::security::Dest::Connect) {
+            return match b.stand_in {
+                Some(stand_in) => Ok(net::stand_in_response(&url, stand_in)),
+                None => Err(format!("{url}: {}", b.why)),
+            };
         }
         net::script_request(&page, &method, &url, &headers, body.as_deref(), &credentials)
     };
@@ -1142,7 +1145,8 @@ pub fn take_open_requests() -> Vec<String> {
 fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let url = arg_str(a, 0, ctx)?;
     let sandboxed = page_ctx(ctx, |p| p.sandbox.as_ref().is_some_and(|s| !s.popups)).unwrap_or(false);
-    let allowed = ACTIVATION.with(Cell::get) && !sandboxed;
+    let page = page_url(ctx);
+    let allowed = ACTIVATION.with(Cell::get) && !sandboxed && !crate::blocklist::popup_blocked(&crate::net::resolve(&page, &url), &page);
     if allowed {
         OPEN.with(|o| o.borrow_mut().push(url));
     } else {
@@ -1501,6 +1505,16 @@ impl Js {
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
 
+    /// As a page starts loading, before any of its own scripts: the content blocker's
+    /// scriptlets and procedural cosmetic filters, then extensions' `document_start` scripts.
+    fn page_start(&mut self) {
+        let url = page_url(&self.ctx);
+        if let Some(code) = crate::blocklist::page_script(&url) {
+            self.eval(&code, "content blocking");
+        }
+        crate::extensions::content::start(self);
+    }
+
     fn eval(&mut self, code: &str, label: &str) -> Option<JsValue> {
         // Boa's parser recurses once per nested bracket; a script nested thousands deep would
         // overflow the stack and take the whole browser down, so it's refused like a syntax error.
@@ -1631,7 +1645,7 @@ impl Js {
     /// Run the document's scripts one after another (for documents not parsed here, such
     /// as XHTML), then the load events.
     pub fn run_in_order(&mut self, base_url: &str, prefetched: &HashMap<String, String>) {
-        crate::extensions::content::start(self);
+        self.page_start();
         for id in with_dom(|d| d.find_all("script")) {
             self.run_script(id, base_url, prefetched);
         }
@@ -1786,7 +1800,7 @@ impl Js {
             set_dom(dom);
             if !ext_started {
                 ext_started = true;
-                crate::extensions::content::start(self);
+                self.page_start();
             }
             if (has_src && delayed) || module {
                 later.push(script);
@@ -1801,7 +1815,7 @@ impl Js {
         let tb = PARSER.with(|p| p.borrow_mut().take()).expect("parser");
         set_dom(tb.finish());
         if !ext_started {
-            crate::extensions::content::start(self);
+            self.page_start();
         }
         // Deferred scripts in document order (async ones are run here too).
         for id in later {

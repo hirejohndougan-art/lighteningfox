@@ -28,9 +28,14 @@ entry here, newest first.
   - Web pages can't open, frame or read local files, `about:` pages or `data:` documents.
   - The browser runs under a seccomp system-call filter; cross-site iframes are drawn in
     their own sandboxed process (seccomp, no programs, Landlock: no writes).
-  - Ad and tracker blocking with EasyList and EasyPrivacy (network and element-hiding
-    rules), kept up to date automatically; a warning before sites on malware and phishing
-    lists.
+  - Ad and tracker blocking on a par with uBlock Origin: EasyList, EasyPrivacy, the uBlock
+    filter lists and Peter Lowe's list, kept up to date automatically. Regex rules,
+    `$important`, `$badfilter`, `$redirect` (harmless stand-ins for blocked ad and analytics
+    libraries, so pages keep working), `$removeparam`, `$csp`, `$denyallow`/`$to`, `$popup`,
+    `example.*` domains, `!#if`/`!#include`; procedural cosmetic filters (`:has-text`,
+    `:upward`, `:remove`, `:style`…); and scriptlets (`##+js(…)`) that defuse anti-adblock
+    walls, written from scratch. Optional hiding of cookie notices. A warning before sites on
+    malware and phishing lists or that a filter blocks outright.
   - Embedded sites get partitioned cookies and storage; per-site cookie rules (always
     allow, block, delete on close) and a list of sites with cookies on about:settings.
   - Permission prompts for camera, microphone, location and notifications, remembered per site.

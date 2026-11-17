@@ -763,7 +763,7 @@ fn fetch_page_with(url: &str, post: Option<&forms::PostBody>, preview: &mut dyn 
         blocklist::proceed(&target);
         return fetch_page_with(&target, None, preview);
     } else if blocklist::dangerous(url) {
-        log!("[safe browsing] {url} is on a malware or phishing list");
+        log!("[safe browsing] {url} is on a malware or phishing list, or a filter blocks it");
         (format!("about:blocked?url={}", url), blocklist::warning_page(url))
     } else if let Some(shell) = process::shell_for(url, post) {
         // Site processes on: the page itself loads and runs in its site's process; here it's
@@ -808,12 +808,14 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
     // The page's security policy: CSP from headers and <meta http-equiv>, framing rules, and
     // the sandbox of the frame it's shown in. Registered before anything else is fetched, so
     // every request the page makes is checked against it.
-    let meta_csp: Vec<String> = dom
+    let mut meta_csp: Vec<String> = dom
         .find_all("meta")
         .into_iter()
         .filter(|&m| dom.attr(m, "http-equiv").is_some_and(|v| v.trim().eq_ignore_ascii_case("content-security-policy")))
         .filter_map(|m| dom.attr(m, "content").map(String::from))
         .collect();
+    // Policies filter lists add (`$csp`), enforced like the page's own.
+    meta_csp.extend(blocklist::extra_csp(&final_url, &final_url));
     let mut policy = security::PagePolicy::from_headers(&final_url, headers, &meta_csp);
     if let Some(f) = security::frame_info(&final_url) {
         policy.sandbox = match (f.sandbox, policy.sandbox.take()) {
