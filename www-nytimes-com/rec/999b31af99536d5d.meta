@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/17/opinion/17dixon/17dixon-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "gc2/x/Ifo4T1sij7RHKl9u8qVfA+gtuTTmZLxc87qZw"
+expires: Tue, 17 Nov 2026 10:21:23 GMT
+fastly-io-info: ifsz=23151 idim=252x252 ifmt=jpeg ofsz=14711 odim=252x252 ofmt=jpeg
+fastly-io-served-by: img09-us-east4
+fastly-io-transform-stats: ifsz=23151 ofsz=14711 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: zj1nFw==
+x-goog-generation: 1794909636594877
+x-goog-hash: crc32c=zj1nFw==
+x-goog-hash: md5=hE5t8Ev7pp+pRYc7jcUwsQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 23151
+x-guploader-uploadid: AFy3sg2pNcjy2mv7MKuU0WhjkudEMu9KXZHWCUs_8xjzES3GaIw_fGsta1L-AYFsBA1K9xa4
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:48 GMT
+via: 1.1 varnish
+age: 47245
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 6
+x-timer: S1794958129.569760,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 14711

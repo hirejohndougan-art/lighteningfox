@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/17/multimedia/00hp-dc-iran-intel-tbpk/00hp-dc-iran-intel-tbpk-threeByTwoSmallAt2X.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "U/7CYqJW9RV0QyNZIy8UCTaCSS6aH9HlN0Uz19HIPUs"
+expires: Tue, 17 Nov 2026 22:09:58 GMT
+fastly-io-info: ifsz=59009 idim=600x400 ifmt=jpeg ofsz=34166 odim=600x400 ofmt=jpeg
+fastly-io-served-by: img26-us-east4
+fastly-io-transform-stats: ifsz=59009 ofsz=34166 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: coyk7w==
+x-goog-generation: 1794952481741843
+x-goog-hash: crc32c=coyk7w==
+x-goog-hash: md5=W03j49oiHexXgB+o1AXDZA==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 59009
+x-guploader-uploadid: AFy3sg3hmvaAkYPRaPiPcGnRb1TMF5reisx5RgNXRSIKXlHhoMVGGd6fgaPaMNg7NNbn304eFjAoRpo
+accept-ranges: bytes
+age: 4395
+date: Tue, 17 Nov 2026 23:23:13 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794957793.351378,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 34166

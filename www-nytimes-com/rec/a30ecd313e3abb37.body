@@ -1,0 +1,2 @@
+import{G as s,B as a,H as n}from"./preload-helper-BIDBWX1N.js";const o={key:"composable-layout"};function u(e){const t=a(e);return s(o,t),t}function C(){return n(o)}export{u as s,C as u};
+//# sourceMappingURL=composableLayout-CQsdQ7B5.js.map

@@ -1,0 +1,26 @@
+GET https://static01.nyt.com/vi-assets/static-assets/fides-gpp-532b3abd08f853139eec6cb7880e922f.js
+200 OK
+x-amz-request-id: CPMX8HN7HJ2FHHKA
+x-amz-id-2: oP9QKAFd6+Gq4MTVYF4J+QV6JFfbzis5rXYgcvajc0h8jg4BT9ig+uV6wTUUU3YyL6dO+k2w9Es=
+server: AmazonS3
+last-modified: Fri, 13 Nov 2026 18:22:56 GMT
+etag: "532b3abd08f853139eec6cb7880e922f"
+x-amz-meta-last-modified: 1794594174
+x-amz-meta-origin: fides
+x-amz-version-id: 3zd1yZ_NgeE_ODNjyQZgIGzUbSQbpmWL
+cache-control: public,max-age=31536000
+content-type: text/javascript
+x-amz-server-side-encryption: AES256
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:24:52 GMT
+via: 1.1 varnish
+age: 33541
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 3499
+x-timer: S1794957892.180215,VS0,VE0
+vary: Accept-Encoding
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

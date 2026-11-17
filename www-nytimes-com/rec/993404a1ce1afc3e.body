@@ -1,0 +1,8 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,er as n,nr as r}from"./vendor-u8E3U9GY.js";import{r as i}from"./Button-BgWmFwGc.js";var a=e(t(),1);n();var o=r`
+  color: ${i.suvaGrey};
+  text-decoration-thickness: 1.5px;
+  text-decoration-line: underline;
+  text-underline-offset: -0.3em;
+  text-decoration-skip-ink: none;
+`;function s({oldPrice:e,currentPrice:t}){return a.createElement(`span`,null,a.createElement(`span`,{className:o},e),a.createElement(`span`,null,` `,t))}export{s as t};
+//# sourceMappingURL=SaleStrikethrough-BAdA50DU.js.map

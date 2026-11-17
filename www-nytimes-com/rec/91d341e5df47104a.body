@@ -1,0 +1,35 @@
+import{Tr as e}from"./vendor-u8E3U9GY.js";var t={article:e`
+    fragment CommentsPanel_article on Article {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        uri
+      }
+      uri
+      url
+    }
+  `,interactive:e`
+    fragment CommentsPanel_interactive on Interactive {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        uri
+      }
+      uri
+      url
+    }
+  `,legacyCollection:e`
+    fragment CommentsPanel_legacyCollection on LegacyCollection {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        uri
+      }
+      uri
+      url
+    }
+  `};export{t};
+//# sourceMappingURL=fragments-DqkpJ5nV.js.map

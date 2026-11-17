@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2025/12/04/crosswords/TheMini-2025/TheMini-2025-smallSquare252.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "zOfCWVyFR0P9wTziOla0KwFVer61oF/6RJRQlCBq2nU"
+expires: Mon, 21 Sep 2026 09:52:19 GMT
+fastly-io-info: ifsz=2948 idim=252x252 ifmt=png ofsz=4050 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010211
+fastly-io-transform-stats: ifsz=2948 ofsz=4050 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: iv9GbA==
+x-goog-generation: 1764887466042955
+x-goog-hash: crc32c=iv9GbA==
+x-goog-hash: md5=qA+WWuyuNOmT1LbtJ+wheg==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 2948
+x-guploader-uploadid: AJjja9ZxSea6A1ou5uAhGenhglfyh68Qu1bMdQJ-2GriIXltgTfRHU0mtxg5KPHIBPnxupdL1ygwDj8frS7Arg
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:27:04 GMT
+via: 1.1 varnish
+age: 71987
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 14
+x-timer: S1794958025.580782,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 4050

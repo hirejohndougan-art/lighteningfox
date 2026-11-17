@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{n}from"./DeviceType-BUXPcZTe.js";var r=e(t()),i=()=>(0,r.useContext)(n);export{i as t};
+//# sourceMappingURL=useDeviceType-DBoVo7Eo.js.map

@@ -1,0 +1,2 @@
+var e=`ADA_free_experience`,t=t=>!t?.length||t.some(t=>t.status===`ACTIVE`&&t.bundleType!==e&&t.subscriptionProducts?.length>5)?null:t.find(t=>t.status===`ACTIVE`&&t.bundleType===e)||null,n=e=>{if(!e?.endDate)return null;let t=e.endDate.getTime()-Date.now();return t<=864e5?0:Math.ceil(t/864e5)};export{n,t};
+//# sourceMappingURL=subscription-_hBc3Boq.js.map

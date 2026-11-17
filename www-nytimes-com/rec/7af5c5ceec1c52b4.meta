@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2017/01/29/podcasts/the-daily-album-art/the-daily-album-art-mediumSquare149-v3.jpg?quality=75&auto=webp&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "ODBVNEdSTRI7JZQaD5kxDCs2cSciZTHdto48D2aSp3s"
+expires: Mon, 26 Oct 2026 03:48:02 GMT
+fastly-io-info: ifsz=4394 idim=149x149 ifmt=jpeg ofsz=3178 odim=149x149 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010213
+fastly-io-transform-stats: ifsz=4394 ofsz=3178 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: BerQJg==
+x-amz-meta-goog-reserved-file-mtime: 1508508914
+x-goog-generation: 1688068262914090
+x-goog-hash: crc32c=BerQJg==
+x-goog-hash: md5=eyHUiE9aT4aQVVtBSna3JA==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 4394
+x-guploader-uploadid: AP6rU81u4CzeoCBzlCRWWipK9sMvvFp5c-h4T-kC4zLMIU9dI0Q1g-JI-N_EEXhnpFuushKtb1NidxI
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:53 GMT
+via: 1.1 varnish
+age: 6109
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 9
+x-timer: S1794958134.877886,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 3178

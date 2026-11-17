@@ -1,0 +1,37 @@
+GET https://static01.nytimes.com/newsgraphics/airbase-markets/css/airbase-markets.NxWRH58K.css
+200 OK
+content-type: text/css
+x-guploader-uploadid: AFy3sg0CBAioqm7rPsWeTHVIwB7UFZry6VApsafE3VQYVuW9Tv5jUMNLHt8yjLF-OkeDxC4KxQgo3NI
+cache-control: max-age=31536000, stale-if-error=3600, stale-while-revalidate=60, public, immutable
+expires: Wed, 17 Nov 2027 23:06:07 GMT
+last-modified: Tue, 17 Nov 2026 23:05:54 GMT
+etag: W/"e56f4700b5e9c83d8a8e3670a657a7fd"
+x-goog-generation: 1794956754634656
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 1165
+x-amz-meta-checksum: 104bba49d3e532467e3fa25a07bb8d77
+x-goog-hash: crc32c=pog+Aw==
+x-goog-hash: md5=5W9HALXpyD2KjjZwplen/Q==
+x-amz-checksum-crc32c: pog+Aw==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: range
+access-control-expose-headers: etag
+access-control-expose-headers: if-match
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:10 GMT
+via: 1.1 varnish
+age: 1023
+x-served-by: cache-iad-khef600098-IAD
+x-cache: HIT
+x-cache-hits: 151
+x-timer: S1794957790.056579,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

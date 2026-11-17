@@ -1,0 +1,34 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,er as n,tr as r}from"./vendor-u8E3U9GY.js";import{x as i}from"./lib-Bv-HyjgN.js";import{o as a}from"./ErrorBoundary-CzLnwvXY.js";import{a as o,r as s}from"./Button-BgWmFwGc.js";var c=[`ACTIVE`,`IN_GRACE_PERIOD`,`SOFT_CANCELED`];function l(e){return Array.isArray(e)?e.every(e=>typeof e==`object`&&!!e&&typeof e.SubscriptionID==`number`&&Array.isArray(e.subscriptionProducts)&&e.subscriptionProducts.every(e=>typeof e==`string`)&&typeof e.Status==`string`):!1}var u=e=>l(e)?e:[],d=(e,t)=>!u(e?.content?.subscriptions).some(e=>e.Status===`ACTIVE`&&e.subscriptionProducts.includes(t)),f=e=>{let t=u(e?.content?.subscriptions),n=new Set(t.filter(e=>c.includes(e.Status)).flatMap(e=>e.subscriptionProducts));return n.size===1&&n.has(`GAMES`)},p=e=>(e.content?.upgrade_offer_labels)?.split(`,`)||[],m=e=>(e.content?.aa_fp_upgrade_offer_labels)?.split(`,`)||[],h={productSwitch:`upgrade_offer_id`,allAccessFamilyUpgrade:`aa_fp_upgrade_offer_id`,gamesFamilyUpgrade:`gm_fp_upgrade_offer_id`},g={productSwitch:`upgrade_offer_labels`,allAccessFamilyUpgrade:`aa_fp_upgrade_offer_labels`,gamesFamilyUpgrade:`gm_fp_upgrade_offer_labels`},_=(e,t)=>{let n=h[t],r=n?e.content?.[n]:``,i=e.offer?.[t]?.offerID||``;return r||i},v=(e,t)=>{let n=g[t];return(n?e.content?.[n]:``)?.split(`,`)||[]},y=(e,t)=>{let n=h[t];if(!n)return!1;let r=e.content?.[n],i=typeof r==`string`&&r!==``,a=!!e.offer?.[t];return i&&a},b=(e,t,n)=>{let r=p(e);return t.every(e=>r.includes(e))&&n.every(e=>!r.includes(e))},x=(e,t,n)=>{let r=m(e);return t.every(e=>r.includes(e))&&n.every(e=>!r.includes(e))},S=e=>b(e,[`all-access-upgrade`,`upgrade-sale`,`stay-at-your-rate`],[]),C=e=>b(e,[`all-access-upgrade`,`upgrade-sale`],[`stay-at-your-rate`]),w=e=>f(e)?S(e)||C(e):!1,T=e=>b(e,[`all-access-upgrade`,`annual-slayer`,`stay-at-your-rate`],[]),E=e=>b(e,[`all-access-upgrade`,`stay-at-your-rate`],[`annual-slayer`]),D=e=>x(e,[`all-access-family-plan-upgrade`],[])&&b(e,[],[`all-access-upgrade`]),O=e=>b(e,[`all-access-upgrade`],[])&&x(e,[],[`all-access-family-plan-upgrade`]),k=e=>x(e,[`all-access-family-plan-upgrade`],[])&&b(e,[`all-access-upgrade`],[]),A=e=>p(e).includes(`stay-at-your-rate`),j=e=>p(e).some(e=>e.includes(`upgrade-sale`)),M=j,N=e=>x(e,[`all-access-family-plan-upgrade`,`stay-at-your-rate`],[`annual-slayer`]),P=e=>x(e,[`all-access-family-plan-upgrade`,`stay-at-your-rate`],[`annual-slayer`])&&b(e,[`all-access-upgrade`,`stay-at-your-rate`],[]),F=({isFamilyPlanOffer:e,isAllAccessSlayerOffer:t,isAllAccessFamilySlayerOffer:n})=>n&&!t?e?`NO EXTRA COST`:``:t&&!n?e?``:`NO EXTRA COST`:e?`BEST VALUE`:``,I={WEEKLY:`week`,YEARLY:`year`},L=/[0-9][0-9.,]*/,R=e=>e?.relative_prices?.comparisonsByOffer??{},ee=e=>L.test(e)?e.replace(L,`0.00`):``,z=(e,t,n)=>{let r=R(e)[t];if(!r||!r.comparisonsByPeriod)return``;let i=r.comparisonsByPeriod[n];if(!i||!i.absoluteDiffFormatted)return``;let a=I[n];if(i.direction===`INCREASE`)return`Only ${i.absoluteDiffFormatted} more per ${a}`;if(i.direction===`DECREASE`){let e=ee(i.absoluteDiffFormatted);return e?`${e} more per ${a}`:``}return i.direction===`NO_CHANGE`?`${i.absoluteDiffFormatted} more per ${a}`:``},B=({offerId:e,copy:t,period:n},r)=>{let i=r.comparisonsByPeriod?.[n];return{offer_relative_price_expression_source:r.source,relative_price_expression_copy:t,offer_price_comparison_offer_id:e,offer_price_comparison_direction:i?.direction??``,offer_price_comparison_absolute_diff:i?.absoluteDiffAmount??``,offer_price_comparison_absolute_diff_formatted:i?.absoluteDiffFormatted??``,offer_price_comparison_relative_bps:i?.relativeDiffBps==null?``:String(i.relativeDiffBps),offer_price_comparison_period:i?n:``,offer_price_comparison_user_current_price:i?.userCurrentPriceAmount??``,offer_price_comparison_tier_index:String(i?.tierIndex??0)}},V=(e,t)=>{let n=R(e),r=t.map(e=>{let t=n[e.offerId];return t?B(e,t):null}).filter(e=>!!e);return r.length===0?[]:[{key:`offer_relative_price_expression`,value:r}]},H=(e,t,n)=>{let r=t;e.trackInteraction(t,{extraProps:{eventData:{type:`click`},module:{...e.name&&{name:e.name},context:n?.context||``,region:n?.region||``,element:{name:n?.elementName||a.Upgrade,label:n?.elementLabel||r.currentTarget?.text||``,url:n?.elementUrl||r.currentTarget?.href||``}}},...n?.selectedOffer&&{selectedOffer:n.selectedOffer}})},U=(e,t,n)=>{t.length!==0&&e.trackInteraction(null,{extraProps:{eventData:{type:`impression`},module:{other:t.map(({oesOfferAlias:e,customOfferPriceExpression:t})=>({key:`price_representation:${e}`,value:t?`relative_price`:n}))}}})},W=e=>(e.staticContent?.upgrade_offer_labels)?.split(`,`)||[],G=e=>(e.staticContent?.aa_fp_upgrade_offer_labels)?.split(`,`)||[],K=e=>(e.staticContent?.gm_fp_upgrade_offer_labels)?.split(`,`)||[],q=e=>[{key:`offer_labels:product_switch`,value:W(e)},{key:`offer_labels:allAccessFamilyUpgrade`,value:G(e)},{key:`offer_labels:gamesFamilyUpgrade`,value:K(e)}].filter(e=>e.value.length>0),J=(e,t)=>{let{staticContent:n}=e;return V(n,t.map(e=>{let t=_({content:n},e);return{offerId:t,copy:z(n,t,`WEEKLY`),period:`WEEKLY`}}).filter(e=>e.copy))},Y=e(t(),1);n();var X=r.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`,Z=r.div`
+  display: flex;
+  padding: 12px 14px;
+  justify-content: center;
+  align-items: center;
+  border-radius: 100px;
+  border: ${({color:e})=>e?`1px solid ${e}`:`1px solid ${s.saleRed}`};
+`,Q=r.span`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: ${o.franklin};
+  color: ${e=>e.color||s.saleRed};
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  height: 8px;
+`,$=e=>{let{urgencyText:t,color:n}=e;return Y.createElement(X,null,Y.createElement(Z,{color:n,"data-testid":`upgrade-sale-urgency-pill`},Y.createElement(Q,{color:n},t)))};n();var te=r.div`
+  height: ${e=>i.get(e.space)};
+`,ne=r.span`
+  width: ${e=>i.get(e.space)};
+  display: inline-block;
+`,re=r.span`
+  text-decoration: line-through;
+  color: #8b8b8b;
+  margin: 0;
+`,ie=r.strong`
+  font-weight: 600;
+`,ae={"UpgradeSale=>PHASE_ONE":`Sale Is On`,"UpgradeSale=>PHASE_TWO":`Sale Ends Soon`,"UpgradeSale=>PHASE_THREE":`Last Chance`,"UpgradeSale=>PHASE_FOUR":`Sale Ends Tomorrow`,"UpgradeSale=>PHASE_FIVE":`Sale Ends Today`,"UpgradeSale=>PHASE_SIX":`Sale Final Hours`},oe=e=>{let t=e.content?.upgrade_sale_phase;return t&&ae[t]||``};export{f as A,w as C,N as D,T as E,E as O,j as S,S as T,O as _,te as a,M as b,H as c,z as d,F as f,D as g,k as h,ie as i,d as j,c as k,q as l,v as m,ne as n,$ as o,_ as p,re as r,U as s,oe as t,J as u,P as v,C as w,A as x,y};
+//# sourceMappingURL=saleUrgencyMessages-CboK-mnC.js.map

@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/17/arts/GettyImages-2305452869/GettyImages-2305452869-verticalTwoByThree735.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "BMukQkw0m+uEPdfgJuhe9Spn7hIw0y6fxzi+Too52pM"
+expires: Tue, 17 Nov 2026 18:03:42 GMT
+fastly-io-info: ifsz=144050 idim=735x1102 ifmt=jpeg ofsz=36303 odim=735x1102 ofmt=jpeg
+fastly-io-served-by: img24-us-east4
+fastly-io-transform-stats: ifsz=144050 ofsz=36303 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: h9k/3w==
+x-goog-generation: 1794934711065097
+x-goog-hash: crc32c=h9k/3w==
+x-goog-hash: md5=rEODJ2yIsGYcdCVHaXeMNg==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 144050
+x-guploader-uploadid: AFy3sg2VuW5H55vZIeD1E8xWyK30LAkuwUG4Bt80fqRI0xWcNqiNvMGLlpayQbFQQZGALKpbT1GlI-0
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:32 GMT
+via: 1.1 varnish
+age: 19190
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 7
+x-timer: S1794957813.769238,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 36303

@@ -1,0 +1,40 @@
+GET https://www.nytimes.com/games-assets/v2/bbcae2eb81842d89e3d0.svg
+200 OK
+content-type: image/svg+xml
+x-guploader-uploadid: AOCedOH-XklfOU7LnFw3sk5fs_c9tHQSQ2OpNlCGFOy2Njb0SOQrXZLuI4v2J2h_5pfHlfNYsIatovc
+expires: Wed, 19 Nov 2025 15:38:46 GMT
+last-modified: Thu, 16 Oct 2025 09:20:17 GMT
+etag: "50c1f11195903fd717bd5df07ea26b88"
+x-goog-generation: 1760606417057338
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 944
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-goog-hash: crc32c=fco1EQ==
+x-goog-hash: md5=UMHxEZWQP9cXvV3wfqJriA==
+x-goog-storage-class: MULTI_REGIONAL
+server: UploadServer
+cache-control: public, max-age=86400
+x-origin-time: 2025-11-19 15:33:46 UTC
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:15 GMT
+age: 110
+x-served-by: cache-iad-kiad7000059-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794957795.050305,VS0,VE3
+vary: Accept-Encoding, Fastly-SSL
+set-cookie: nyt-gdpr=0; Expires=Wed, 18 Nov 2026 05:23:15 GMT; Path=/; Domain=.nytimes.com
+set-cookie: datadome=0; Domain=.nytimes.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure
+x-gdpr: 0
+permissions-policy: browsing-topics=()
+x-frame-options: DENY
+x-api-version: F-X
+x-nyt-route: games-phoenix-assets-prd
+content-security-policy: upgrade-insecure-requests; default-src data: 'unsafe-inline' 'unsafe-eval' https: nytresource:; script-src data: 'unsafe-inline' 'unsafe-eval' https: blob: nytresource:; style-src data: 'unsafe-inline' https: nytresource:; img-src data: https: blob: android-webview-video-poster: nytresource:; font-src data: https: nytresource:; connect-src data: https: wss: blob: nytresource:; media-src data: https: blob: nytresource:; object-src https:; child-src https: data: blob: nytresource:; form-action https: nytimes: nytcooking: nytxwd:; report-uri https://csp.nytimes.com/report;
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+access-control-expose-headers: X-Nyt-Mktg-Group
+x-nyt-mktg-group: group1
+x-nyt-edge-cache: HIT
+x-nyt-app-webview: 0
+x-nyt-app-map: webview=false,preloaded=false,service-worker-enabled=false

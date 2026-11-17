@@ -1,0 +1,31 @@
+GET https://static01.nyt.com/video-static/betamax/use-error-y9aSkOme.js
+200 OK
+content-type: text/javascript
+x-guploader-uploadid: AFy3sg2PiqgwCamtHe93Ac_mAe87nB2t8VMTw8WOeh0b1LZ3QXdbJJeWSi4MfEjRgt-3ny2PzsNjGwo
+cache-control: public,max-age=31536000,s-maxage=31536000
+expires: Fri, 12 Nov 2027 14:31:52 GMT
+last-modified: Thu, 12 Nov 2026 14:26:17 GMT
+etag: "3735c321d3f7a63530be23c2ac36601e"
+x-goog-generation: 1794493577760407
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 2031
+x-goog-hash: crc32c=qbWoKA==
+x-goog-hash: md5=NzXDIdP3pjUwviPCrDZgHg==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-allow-origin: *
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:30 GMT
+via: 1.1 varnish
+age: 463898
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 12232
+x-timer: S1794957810.359411,VS0,VE0
+vary: Accept-Encoding
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

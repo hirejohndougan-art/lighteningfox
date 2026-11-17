@@ -1,0 +1,2 @@
+import{as as t,at as p}from"./preload-helper-BIDBWX1N.js";import{B as c}from"./if-fEu18akH.js";function f(n,s,...r){var e=new c(n);t(()=>{const a=s()??null;e.ensure(a,a&&(o=>a(o,...r)))},p)}export{f as s};
+//# sourceMappingURL=snippet-Doe8hAaM.js.map

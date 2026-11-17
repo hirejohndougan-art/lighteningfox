@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2025/12/04/crosswords/TheCrossword-2025/TheCrossword-2025-smallSquare252.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "E0IQFunzS7Hj/3njGZRH5zPo56pkfYopH4l7UKOTjPI"
+expires: Tue, 22 Sep 2026 19:52:56 GMT
+fastly-io-info: ifsz=3690 idim=252x252 ifmt=png ofsz=5335 odim=252x252 ofmt=jpeg
+fastly-io-served-by: img05-us-east4
+fastly-io-transform-stats: ifsz=3690 ofsz=5335 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: ZcrW2w==
+x-goog-generation: 1764887618613060
+x-goog-hash: crc32c=ZcrW2w==
+x-goog-hash: md5=jgS45qZGRFd8TzZSlL2JgA==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 3690
+x-guploader-uploadid: AP6rU82GAXV8D9wITXXz2K9zLmC4lYShjWh4Ve5OPFalzaK9MsIRjmjKkAmVo2a-2Oj11bexzBfbFaY
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:27:04 GMT
+via: 1.1 varnish
+age: 101255
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1794958025.580462,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 5335

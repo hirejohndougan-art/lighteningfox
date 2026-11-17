@@ -1,0 +1,37 @@
+GET https://www.nytimes.com/games-assets/v2/assets/icons/daily.svg
+200 OK
+x-amz-id-2: NzDRgLe+OPYwIFVqx8bPNEtd1Lqp4Bbdv2nQTC6JzMaHbi48w7id6dzSOB7CFo/iKorMDdCoIus=
+x-amz-request-id: MS5RETNAXMKFD178
+server: AmazonS3
+last-modified: Wed, 04 Nov 2026 13:43:53 GMT
+etag: "8866c98380ad45ace20cb4df82403d6c"
+x-amz-server-side-encryption: AES256
+x-amz-meta-surrogate-key: games-assets
+content-type: image/svg+xml
+cache-control: public, max-age=300
+lei-timing: fetch=40049,misspass=92,do_stream=0
+lei-origin: ip=54.231.227.234,port=443,name=F_games_phoenix_assets_prd,status=200,reason=OK,method=GET,path="/v2/assets/icons/daily.svg",host=games-phoenix-assets-prd.s3.amazonaws.com,shield=IAD,src_ip=167.82.233.202,alternate_path=0
+x-origin-time: 2026-11-04 14:53:30 UTC
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:13 GMT
+age: 263
+x-served-by: cache-iad-kiad7000059-IAD
+x-cache: HIT
+x-cache-hits: 9
+x-timer: S1794957793.354975,VS0,VE3
+vary: Accept-Encoding, Fastly-SSL
+set-cookie: nyt-gdpr=0; Expires=Wed, 18 Nov 2026 05:23:13 GMT; Path=/; Domain=.nytimes.com
+set-cookie: datadome=0; Domain=.nytimes.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure
+x-gdpr: 0
+permissions-policy: browsing-topics=()
+x-frame-options: DENY
+x-api-version: F-X
+x-nyt-route: games-phoenix-assets-prd
+content-security-policy: upgrade-insecure-requests; default-src data: 'unsafe-inline' 'unsafe-eval' https: nytresource:; script-src data: 'unsafe-inline' 'unsafe-eval' https: blob: nytresource:; style-src data: 'unsafe-inline' https: nytresource:; img-src data: https: blob: android-webview-video-poster: nytresource:; font-src data: https: nytresource:; connect-src data: https: wss: blob: nytresource:; media-src data: https: blob: nytresource:; object-src https:; child-src https: data: blob: nytresource:; form-action https: nytimes: nytcooking: nytxwd:; report-uri https://csp.nytimes.com/report;
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+access-control-expose-headers: X-Nyt-Mktg-Group
+x-nyt-mktg-group: group1
+x-nyt-edge-cache: HIT
+x-nyt-app-webview: 0
+x-nyt-app-map: webview=false,preloaded=false,service-worker-enabled=false

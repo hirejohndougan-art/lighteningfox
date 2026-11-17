@@ -1,0 +1,33 @@
+GET https://samizdat-graphql.nytimes.com/graphql/v2?extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2279a96127e043d767420d83f37f8d909dd3507bba7bbdd038a657ffed73df5aad%22%7D%7D&operationName=UserQuery&variables=%7B%7D
+200 OK
+tracestate: dd=s:0;p:6e7a21ff3ca8c182
+x-envoy-upstream-service-time: 21
+x-b3-sampled: 0
+access-control-allow-origin: https://www.nytimes.com
+accept-ranges: bytes
+access-control-expose-headers: x-nyt-audience-target-flat, x-nyt-continent, x-nyt-country, x-nyt-region, x-nyt-meridiem, x-nyt-gmt-offset, x-nyt-geoip-map
+x-datadog-parent-id: 7960712671448842626
+cache-control: no-store,private
+x-datadog-sampling-priority: 0
+content-type: application/json
+server: envoy
+access-control-allow-credentials: true
+x-b3-spanid: 6e7a21ff3ca8c182
+x-datadog-trace-id: 372540096335365313
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+via: 1.1 varnish, 1.1 varnish
+traceparent: 00-0000000000000000052b873e6aa8c4c1-6e7a21ff3ca8c182-00
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+date: Tue, 17 Nov 2026 23:23:15 GMT
+x-nyt-geoip-map: meridiem=PM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: b53352233001d2c0
+x-samizdat-query-field-errors: 3
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-kcgs7200089-IAD, cache-iad-kcgs7200089-IAD, cache-iad-kiad7000094-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1794957795.349379,VS0,VE51
+vary: Accept-Encoding, origin
+timing-allow-origin: *
+x-nyt-edge-cache: MISS

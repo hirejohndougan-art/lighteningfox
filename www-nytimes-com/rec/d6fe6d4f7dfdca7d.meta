@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/17/arts/Screenshot-2026-11-16-at-4/Screenshot-2026-11-16-at-4-threeByTwoMediumAt2X.png
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "8FyVgAGoLONnZd6nigM66dAyyCxXwhUzUENcuyr9iYo"
+expires: Tue, 17 Nov 2026 10:04:32 GMT
+fastly-io-info: ifsz=1263845 idim=1500x1000 ifmt=png ofsz=1079423 odim=1500x1000 ofmt=png
+fastly-io-served-by: img08-us-east4
+fastly-io-transform-stats: ifsz=1263845 ofsz=1079423 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: TF5kAA==
+x-goog-generation: 1794876053794128
+x-goog-hash: crc32c=TF5kAA==
+x-goog-hash: md5=Ifgly4Xxd4MjucBIewWGLA==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 1263845
+x-guploader-uploadid: AFy3sg2_9pqKBsQUVr-KvJFYRC8HrPidYsjmHN1vyKQR5fcnz-BqPA4wCxhizAbn9f4uOfEAXfTCCnk
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:48 GMT
+via: 1.1 varnish
+age: 48255
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1794958129.569760,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 1079423

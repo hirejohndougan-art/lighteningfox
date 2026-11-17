@@ -1,0 +1,31 @@
+GET https://static01.nyt.com/elections-assets/pages/data/feeds/0f26ed2f-d8ac-4db4-8d19-44427038fe41/trending-races/2026-11-03.json
+200 OK
+content-type: application/json
+x-guploader-uploadid: AFy3sg0yohd1Y6QC-bofhA9ZqKcDW_g9QnrWUC4j7yZQuuQdgkbwTiL73SKlf56ZVbsH_-FedxhI2Tw
+cache-control: max-age=5, stale-if-error=86400, stale-while-revalidate=5, public
+expires: Tue, 17 Nov 2026 23:28:32 GMT
+last-modified: Tue, 17 Nov 2026 23:28:22 GMT
+etag: "6d7d3988ffd803cad102813ae0ead428"
+x-goog-generation: 1794958102737792
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 130978
+x-goog-hash: crc32c=JiAcTg==
+x-goog-hash: md5=bX05iP/YA8rRAoE64OrUKA==
+x-amz-checksum-crc32c: JiAcTg==
+x-goog-storage-class: STANDARD
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:36 GMT
+via: 1.1 varnish
+age: 3
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1794958116.014958,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

@@ -1,0 +1,1 @@
+{"data":{"user":{"__typename":"User","profile":null,"newsletterSubscriptions":null,"userInfo":{"regiId":null,"entitlements":null},"protectedIds":null,"subscriptionDetails":null}},"errors":[{"message":"[]","extensions":{"code":"ERROR"}},{"message":"Not authenticated.","extensions":{"code":"ERR_UNAUTHENTICATED"}},{"message":"[]","extensions":{"code":"ERROR"}}]}

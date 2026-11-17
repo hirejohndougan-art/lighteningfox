@@ -1,0 +1,2 @@
+import{an as t,ar as i,as as c,bI as f}from"./preload-helper-BIDBWX1N.js";import{B as y}from"./if-fEu18akH.js";const b=Symbol("NaN");function h(r,e,n){t&&i();var s=new y(r),o=!f();c(()=>{var a=e();a!==a&&(a=b),o&&a!==null&&typeof a=="object"&&(a={}),s.ensure(a,n)})}export{h as k};
+//# sourceMappingURL=key-cHv63qYy.js.map

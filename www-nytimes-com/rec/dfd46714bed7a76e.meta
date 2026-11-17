@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/16/arts/Turtles_release/Turtles_release-smallTwoByThree-v3.png?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "XjisxlAV+XaV6YfEXh+HceB4NCXhRffz3PUvPANfzLA"
+expires: Tue, 17 Nov 2026 19:36:28 GMT
+fastly-io-info: ifsz=217134 idim=400x600 ifmt=png ofsz=4377 odim=400x600 ofmt=jpeg
+fastly-io-served-by: img23-us-east4
+fastly-io-transform-stats: ifsz=217134 ofsz=4377 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: rKYGuw==
+x-goog-generation: 1794944186644526
+x-goog-hash: crc32c=rKYGuw==
+x-goog-hash: md5=mGi4GgY9YDnfiMLyfwIOpQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 217134
+x-guploader-uploadid: AFy3sg1rJPnyrtdrP1_GIJFTgpqPy8Srf8fOFIh5xKY87nZaPGjRfPf9uvmo9uO9TPboPMVs
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:32 GMT
+via: 1.1 varnish
+age: 13625
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 4
+x-timer: S1794957813.778456,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 4377

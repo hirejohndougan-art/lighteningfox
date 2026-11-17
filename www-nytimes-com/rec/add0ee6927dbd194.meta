@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/12/arts/cooking-teaser-Copy-01/cooking-teaser-Copy-01-verticalTwoByThree735.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "4SNtjwlMv+i2KAoF5zTtZhG0wy99tRaLRNZsbPhR5uw"
+expires: Mon, 16 Nov 2026 22:51:05 GMT
+fastly-io-info: ifsz=199047 idim=735x1103 ifmt=jpeg ofsz=56838 odim=735x1103 ofmt=jpeg
+fastly-io-served-by: img12-us-east4
+fastly-io-transform-stats: ifsz=199047 ofsz=56838 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: oSqhPQ==
+x-goog-generation: 1794520550878489
+x-goog-hash: crc32c=oSqhPQ==
+x-goog-hash: md5=PM8hydZ1R3MnDSi7BwQ1MQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 199047
+x-guploader-uploadid: AFy3sg1fYrkX--Ub3s9P9ZL42w0m9xxaE_wsr8XTQfpCb3irSlwMmr1yUYsIUryDT8E0sUXFhi8rkA
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:23:32 GMT
+via: 1.1 varnish
+age: 88347
+x-served-by: cache-iad-kiad7000166-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794957813.779683,VS0,VE3
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 56838

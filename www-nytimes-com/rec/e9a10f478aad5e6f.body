@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";var n=e(t());function r(e){(0,n.useEffect)(()=>{window?.Sentry?.onLoad(()=>{let t=window.Sentry.getCurrentScope();for(let n in e)t.setTag(n,e[n])})},[e])}export{r as t};
+//# sourceMappingURL=useSentryScope-D190nDJQ.js.map

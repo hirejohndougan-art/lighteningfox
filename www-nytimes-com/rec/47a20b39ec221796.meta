@@ -1,0 +1,38 @@
+GET https://static01.nyt.com/images/2018/04/02/opinion/thomas-l-friedman/thomas-l-friedman-thumbLarge.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "3YHSoBGe6A0e+xbnIJb8BfFt6vGUdvwSIvmCdIQkFTM"
+expires: Mon, 09 Nov 2026 16:53:53 GMT
+fastly-io-info: ifsz=31903 idim=150x150 ifmt=png ofsz=4696 odim=150x150 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010228
+fastly-io-transform-stats: ifsz=31903 ofsz=4696 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+lei-origin: ip=172.253.63.207,port=443,name=F_gcs_origin,status=200,reason=OK,method=GET,path="/2018/04/02/opinion/thomas-l-friedman/thomas-l-friedman-thumbLarge.png",host=cms-gke-prd-publish-images-storage.storage.googleapis.com,shield=IAD,src_ip=104.156.83.76,alternate_path=0
+lei-timing: fetch=126793,misspass=193,do_stream=0
+server: UploadServer
+x-amz-checksum-crc32c: PF5X1g==
+x-goog-generation: 1522686746948300
+x-goog-hash: crc32c=PF5X1g==
+x-goog-hash: md5=HU+54KNOBT81o/P/S5mx9A==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 31903
+x-guploader-uploadid: AFy3sg16tmtljPxhpV1aGLiBaoswGMaonLj5Nse6iZkLAOtDCP90tn-s-v7164yRmTe3ORj-VJha4Sg
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:53 GMT
+via: 1.1 varnish
+age: 560218
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 16
+x-timer: S1794958134.875569,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 4696

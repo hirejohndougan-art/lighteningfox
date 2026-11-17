@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,vr as n}from"./vendor-u8E3U9GY.js";var r=e(t()),i=e(n()),a={display:`contents`};function o({children:e}){return r.createElement(`div`,{"data-paywall-inert":``,style:a},e)}o.propTypes={children:i.default.node},o.displayName=`PaywallInertBoundary`;export{o as t};
+//# sourceMappingURL=PaywallInertBoundary-Buo1EyIX.js.map

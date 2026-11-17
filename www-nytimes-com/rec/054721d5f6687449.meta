@@ -1,0 +1,35 @@
+GET https://static01.nyt.com/email-images/newsletters/books/Books-REV.png
+200 OK
+cache-control: public, max-age=3600
+content-type: image/png
+etag: "zSnah8rqfR8avL/HAw/ZGPkEUe/+zmdbnGLYNWnQAQo"
+expires: Tue, 17 Nov 2026 23:41:22 GMT
+fastly-io-info: ifsz=45242 idim=2000x2000 ifmt=png ofsz=32996 odim=2000x2000 ofmt=png
+fastly-io-served-by: img26-us-east4
+fastly-io-transform-stats: ifsz=45242 ofsz=32996 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: Ya3iWQ==
+x-goog-generation: 1564775465270201
+x-goog-hash: crc32c=Ya3iWQ==
+x-goog-hash: md5=6niDESBQlx1+WiTqXzcyjg==
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 45242
+x-guploader-uploadid: AFy3sg3SnZ6EcEnMqGPaVlMhaue3E3ipPqNJUxw9wRmJz2g48k5GjyWbaLjXJeWNBUMXi9jltR5SWjw
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 23:28:53 GMT
+via: 1.1 varnish
+age: 2852
+x-served-by: cache-iad-kcgs7200070-IAD
+x-cache: HIT
+x-cache-hits: 4
+x-timer: S1794958134.878575,VS0,VE8
+vary: Accept
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 32996

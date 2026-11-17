@@ -1,0 +1,2 @@
+var e=`Current subscribers and those who have previously accepted a sale/introductory offer from The New York Times may be ineligible for another sale/introductory offer.`,t=`Offer for a New York Times All Access subscription. ${e}`,n=`Offer for The Athletic subscription. ${e}`,r=`Offer for a New York Times Home Delivery subscription. ${e}`;`${e}`;export{r as i,n,e as r,t};
+//# sourceMappingURL=legalTerms-B8pWzC1X.js.map

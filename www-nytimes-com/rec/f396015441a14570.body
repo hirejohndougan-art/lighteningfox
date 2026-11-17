@@ -1,0 +1,2 @@
+import"./disclose-version-DsnmJJEf.js";import"./legacy-O5PKu0gx.js";import{c as m,r as s,j as e,m as f}from"./preload-helper-BIDBWX1N.js";import{s as p}from"./slot-Cg78VlvC.js";var i=f("<tfoot><!></tfoot>");function v(t,r){var o=i(),a=m(o);p(a,r,"default",{}),s(o),e(t,o)}export{v as T};
+//# sourceMappingURL=TableFooter-DzYe0z4C.js.map
