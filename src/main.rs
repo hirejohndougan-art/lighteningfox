@@ -608,6 +608,8 @@ struct WebFont {
     italic: bool,
     url: String,
     data: Option<Vec<u8>>,
+    /// The page that asked for it (to fetch it after all, see `install_fonts`).
+    page_url: String,
 }
 
 /// Font URLs already turned into fonts (shared with the loading threads, so they skip them).
@@ -660,7 +662,7 @@ fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url
                             }
                         }
                     };
-                    Some(WebFont { family: face.family.clone(), weight: face.weight, italic: face.italic, url: url.clone(), data })
+                    Some(WebFont { family: face.family.clone(), weight: face.weight, italic: face.italic, url: url.clone(), data, page_url: page_url.to_string() })
                 })
             })
             .collect();
@@ -687,7 +689,15 @@ fn install_fonts(fonts: Vec<WebFont>) {
                     l.push(f.url.clone());
                 }
             }),
-            (None, None) => None,
+            // Skipped because a page on another thread loaded it, but font ids belong to each
+            // thread's registry (tests style pages on many threads): fetch it here after all.
+            (None, None) => net::fetch_sub_bytes(&f.url, &f.page_url, security::Dest::Font)
+                .ok()
+                .and_then(|(_, b)| decode_font(b))
+                .and_then(|data| registry.add_web_font(data, f.weight.0 >= 600, f.italic))
+                .inspect(|&id| {
+                    FONT_IDS.with(|m| m.borrow_mut().insert(f.url.clone(), id));
+                }),
         };
         match id {
             Some(id) => families.entry(f.family).or_default().push((f.weight.0, f.weight.1, f.italic, id)),
