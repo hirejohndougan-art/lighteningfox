@@ -722,7 +722,7 @@ and argument handling, string interning, cheaper garbage collection. Profile wit
 `docs/boa-speed.md`. No JIT here (that stays "not for chats").
 
 ### O3. Site isolation: close the gaps and turn it on by default
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 16:50
 **After:** —
 **Checklist:** §18 "Sandboxing and site isolation"
 **Files:** `src/process.rs`, `src/sandbox.rs`, `src/main.rs`
