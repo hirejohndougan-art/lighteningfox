@@ -87,7 +87,14 @@ highly generic and procedural cosmetic filters (`#?#`, `:has-text`, `:upward`, `
 the uBlock filter lists and Peter Lowe's list.
 
 ### X1. Fix the broken and crashing sites (now: AP News and MDN)
-**Status:** claimed by chat-opus-x1 2026-11-17 04:52
+**Status:** done
+**Left undone:** AP News loads but slowly (~65 s on replay): its scripts measure and change the
+page in turns, and each answer is a full restyle and relayout (~1 s with `:has()` turning the
+restyle cache off), so it needs T02's incremental relayout. MDN is close to Chrome; still
+different: its hero headline wraps sooner, the search button's styling, and a sliver of the
+language menu shows. `getComputedStyle` doesn't give custom properties' cascaded-only values
+for pseudo-elements. Sort comparators: Boa's own unit test for the new merge sort can't run from
+this workspace (the page test covers it).
 **After:** —
 **Checklist:** none
 **Files:** whatever each fix needs; keep changes small (other chats are editing layout and JS)
