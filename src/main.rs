@@ -29,6 +29,8 @@ mod images;
 mod js;
 mod layout;
 mod library;
+mod cache;
+mod downloads;
 mod conformance;
 mod crashlog;
 mod settings;
@@ -173,6 +175,8 @@ const TAB_MAX_W: f32 = 220.0;
 const NEW_TAB_W: f32 = 32.0;
 /// The bookmark star at the right end of the address field, and the suggestion rows below it.
 const STAR_W: f32 = 30.0;
+/// The downloads chip, left of the star, while something is downloading.
+const DL_W: f32 = 64.0;
 const SUGGEST_H: f32 = 30.0;
 /// Toolbar buttons: (x, label). Each is BTN_W wide.
 const BTN_W: f32 = 30.0;
@@ -393,6 +397,8 @@ struct Prepared {
     images: images::Images,
     scripts: HashMap<String, String>,
     fonts: Vec<WebFont>,
+    /// The navigation turned out to be a download: there is no page to show.
+    download: bool,
 }
 
 /// A downloaded @font-face font. `data` is None when an earlier page already loaded it.
@@ -509,15 +515,19 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         panic!("about:crash was opened (a deliberate test crash)");
     } else if let Some(q) = url.strip_prefix("about:settings") {
         ("about:settings".to_string(), settings::page(q))
+    } else if let Some(q) = url.strip_prefix("about:downloads") {
+        ("about:downloads".to_string(), downloads::page(q))
     } else if let Some(q) = url.strip_prefix("about:bookmarks") {
         ("about:bookmarks".to_string(), library::bookmarks_page(q))
     } else {
-        let got = match post {
-            Some(body) => net::post_form(url, body),
-            None => net::fetch(&net::strip_tracking(url)),
-        };
-        match got {
-            Ok(r) => r,
+        let target = if post.is_some() { url.to_string() } else { net::strip_tracking(url) };
+        match net::navigate(&target, post) {
+            Ok(net::Navigated::Page { url, html }) => (url, html),
+            // A file being saved: the tab stays on the page it was showing.
+            Ok(net::Navigated::Download { name }) => {
+                log!("[download] saving {name}");
+                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), download: true };
+            }
             Err(e) => {
                 log!("[net] couldn't load {url}: {e}");
                 (url.to_string(), error_page(url, &e))
@@ -587,7 +597,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let bg_urls = background_urls(&styles);
     images.load_missing(&dom, &final_url, &bg_urls);
     let fonts = fetch_fonts(&sheets, &styles, &final_url);
-    Prepared { url: final_url, dom, sheets, images, scripts, fonts }
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts, download: false }
 }
 
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
@@ -621,7 +631,7 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts, fonts } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts, .. } = p;
     install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
@@ -700,8 +710,9 @@ fn main() {
             "--fetch" => {
                 // Developer tool: fetch each URL given and print what came back.
                 for u in &args[i + 1..] {
-                    match http::send("GET", u, &[], None) {
-                        Ok(r) => println!("{u}\n  {} {} over {}, {} bytes\n  {}", r.status, r.status_text, r.version, r.body.len(), String::from_utf8_lossy(&r.body[..r.body.len().min(120)]).replace('\n', " ")),
+                    let req = net::Request { method: "GET", url: u, headers: &[], body: None, top: Some(u.as_str()), cookies: true, extra: &[] };
+                    match net::http(&req) {
+                        Ok(r) => println!("{u}\n  {} {}, {} bytes\n  {}", r.status, r.status_text, r.body.len(), String::from_utf8_lossy(&r.body[..r.body.len().min(120)]).replace('\n', " ")),
                         Err(e) => println!("{u}\n  error: {e}"),
                     }
                 }
@@ -1102,6 +1113,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     }
     let mut session_saved: (Vec<(String, String)>, usize) = (Vec::new(), usize::MAX);
     let mut last_housekeeping = Instant::now();
+    let mut last_download_tick = Instant::now();
+    let mut downloads_were_active = false;
     let mut tab_cmd: Option<TabCmd> = None;
     let mut pending_nav: Option<Go> = None;
     let mut closed: Vec<String> = Vec::new();
@@ -1719,6 +1732,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 editing = false;
                 suggestions.clear();
                 dirty = true;
+            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && downloads::active() > 0 && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
+                tab_cmd = Some(TabCmd::Open("about:downloads".into(), false));
             } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W {
                 library::toggle_bookmark(&page.url, &page.title);
                 dirty = true;
@@ -2069,6 +2084,20 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A finished load: build the page here, where JavaScript lives.
         while let Ok((g, prepared)) = rx.try_recv() {
+            if prepared.download {
+                // Nothing to show: stop the loading bar and stay on the current page.
+                if loading.take_if(|l| l.generation == g).is_some() {
+                    if !editing {
+                        address = page.url.clone();
+                    }
+                } else {
+                    if let Some(slot) = tabs.iter_mut().flatten().find(|s| s.loading.as_ref().is_some_and(|l| l.generation == g)) {
+                        slot.loading = None;
+                    }
+                }
+                dirty = true;
+                continue;
+            }
             let Some(l) = loading.take_if(|l| l.generation == g) else {
                 // A page for a background tab: keep it until the tab is shown.
                 if let Some(slot) = tabs.iter_mut().flatten().find(|s| s.loading.as_ref().is_some_and(|l| l.generation == g)) {
@@ -2116,6 +2145,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             address = page.url.clone();
             window.set_title(&format!("{} — Ironswift", page.label()));
             dirty = true;
+        }
+        // While downloads run, keep their progress on screen (the chip, and about:downloads).
+        if (downloads::active() > 0 || downloads_were_active) && last_download_tick.elapsed().as_millis() >= 500 {
+            last_download_tick = Instant::now();
+            downloads_were_active = downloads::active() > 0;
+            dirty = true;
+            if page.url == "about:downloads" && loading.is_none() && pending_nav.is_none() {
+                pending_nav = Some(Go::Reload);
+            }
         }
         // Once a second: put long-unseen background tabs to sleep, and save the session.
         if last_housekeeping.elapsed().as_secs() >= 1 {
@@ -2185,7 +2223,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (downloads::active() > 0).then(|| (downloads::active(), downloads::progress())) };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
             let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty());
@@ -2253,6 +2291,8 @@ struct Toolbar<'a> {
     /// The bookmarks bar (empty when hidden) and the chip under the mouse.
     bookmarks: &'a [library::Bookmark],
     bm_hover: Option<usize>,
+    /// Downloads running: how many, and overall progress when sizes are known.
+    downloads: Option<(usize, Option<f32>)>,
     address: &'a str,
     editing: bool,
     can_back: bool,
@@ -2379,6 +2419,20 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     // Address field
     let field = if ui.editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
     canvas.fill_rect(FIELD_X, top + 5.0, w - FIELD_X - 8.0, TOOL_H - 10.0, field);
+    // Downloads chip: ⬇ and progress, left of the star.
+    if let Some((n, progress)) = ui.downloads {
+        let x = w - 8.0 - STAR_W - DL_W;
+        canvas.fill_rect(x + 2.0, top + 8.0, DL_W - 6.0, TOOL_H - 16.0, Color::rgb(224, 231, 255));
+        if let Some(p) = progress {
+            canvas.fill_rect(x + 2.0, top + TOOL_H - 10.0, (DL_W - 6.0) * p.clamp(0.0, 1.0), 2.0, Color::rgb(79, 70, 229));
+        }
+        let label = match progress {
+            Some(p) => format!("⬇ {:.0}%", p * 100.0),
+            None if n > 1 => format!("⬇ {n}"),
+            None => "⬇".to_string(),
+        };
+        canvas.draw_text(fonts, x + 9.0, top + 23.0, &label, font::REGULAR, 13.0, Color::rgb(55, 48, 163));
+    }
     // Bookmark star
     let (star, star_ink) = if ui.bookmarked { ("★", Color::rgb(234, 179, 8)) } else { ("☆", Color::rgb(110, 110, 120)) };
     canvas.draw_text(fonts, w - 8.0 - STAR_W + 7.0, top + 24.0, star, font::REGULAR, 17.0, star_ink);

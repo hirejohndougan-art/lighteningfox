@@ -33,6 +33,132 @@ pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), Strin
     load(url, None, Some(page)).map(|r| (r.url, r.body))
 }
 
+/// What a navigation turned out to be.
+pub enum Navigated {
+    /// Something to show: the final URL and the HTML for it.
+    Page { url: String, html: String },
+    /// A file being saved to the Downloads folder.
+    Download { name: String },
+}
+
+/// What kind of thing a response is, from its headers and first bytes.
+#[derive(PartialEq, Debug)]
+enum Kind {
+    Html,
+    Text,
+    Image,
+    Download,
+}
+
+fn kind_of(content_type: Option<&str>, disposition: Option<&str>, head: &[u8]) -> Kind {
+    if disposition.is_some_and(|d| d.trim().to_ascii_lowercase().starts_with("attachment")) {
+        return Kind::Download;
+    }
+    let ct = content_type.unwrap_or("").split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    match ct.as_str() {
+        "text/html" | "application/xhtml+xml" => Kind::Html,
+        "text/plain" | "text/css" | "text/javascript" | "application/javascript" | "application/json" | "text/xml" | "application/xml" | "text/csv" | "text/markdown" => {
+            if ct == "text/csv" { Kind::Download } else { Kind::Text }
+        }
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/bmp" | "image/x-icon" | "image/vnd.microsoft.icon" => Kind::Image,
+        "" | "application/octet-stream" | "unknown/unknown" => sniff(head, ct.is_empty()),
+        _ => Kind::Download,
+    }
+}
+
+/// Look at the first bytes when the server didn't say what something is (the HTML standard's
+/// "MIME sniffing", simplified).
+fn sniff(head: &[u8], no_type: bool) -> Kind {
+    let start: Vec<u8> = head.iter().skip_while(|b| b.is_ascii_whitespace()).take(16).map(u8::to_ascii_lowercase).collect();
+    let html_starts: [&[u8]; 8] = [b"<!doctype html", b"<html", b"<head", b"<body", b"<script", b"<!--", b"<title", b"<p"];
+    if html_starts.iter().any(|p| start.starts_with(p)) {
+        return Kind::Html;
+    }
+    if head.starts_with(b"\x89PNG") || head.starts_with(b"\xff\xd8\xff") || head.starts_with(b"GIF8") || (head.starts_with(b"RIFF") && head.get(8..12) == Some(b"WEBP")) {
+        return Kind::Image;
+    }
+    if no_type && !head.contains(&0) && std::str::from_utf8(head).is_ok() && !head.starts_with(b"%PDF") {
+        return Kind::Text;
+    }
+    Kind::Download
+}
+
+/// A page showing text (or code, JSON…) as it is.
+fn text_page(url: &str, text: &str) -> String {
+    let name = url.rsplit('/').next().unwrap_or(url);
+    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    format!("<!DOCTYPE html><html><head><title>{}</title></head><body style=\"margin:12px\"><pre style=\"white-space:pre-wrap;font-size:13px\">{}</pre></body></html>", esc(name), esc(text))
+}
+
+/// A page showing one image, centered on a dark background.
+fn image_page(url: &str, content_type: &str, bytes: &[u8]) -> String {
+    use base64::Engine;
+    let name = url.rsplit('/').next().unwrap_or(url).replace('<', "&lt;");
+    let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+    format!(
+        "<!DOCTYPE html><html><head><title>{name}</title></head><body style=\"margin:0;background:#1f2023;min-height:100vh;display:flex;align-items:center;justify-content:center\">\
+         <img src=\"data:{content_type};base64,{data}\" style=\"max-width:100%\"></body></html>"
+    )
+}
+
+/// Navigate to a URL (a link, the address bar, a form): load it and decide whether to show it
+/// or save it as a download.
+pub fn navigate(url: &str, post: Option<&str>) -> Result<Navigated, String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        // Local files and data: URLs: shown by type, never downloaded.
+        let r = match post {
+            Some(body) if url.starts_with("file://") => http(&Request { method: "GET", url: &format!("{}?{body}", url.split('?').next().unwrap_or(url)), headers: &[], body: None, top: None, cookies: true, extra: &[] })?,
+            _ => http(&Request { method: "GET", url, headers: &[], body: None, top: None, cookies: true, extra: &[] })?,
+        };
+        let ct = r.header("content-type").map(str::to_string);
+        let html = match kind_of(ct.as_deref(), None, &r.body[..r.body.len().min(1024)]) {
+            Kind::Html => decode_html(&r.body, ct.as_deref()),
+            Kind::Image => image_page(&r.url, ct.as_deref().unwrap_or("image/png"), &r.body),
+            Kind::Text => text_page(&r.url, &decode_text(&r.body, ct.as_deref())),
+            Kind::Download => return Err(format!("[type] {}: Ironswift can't show this kind of file", r.url)),
+        };
+        return Ok(Navigated::Page { url: r.url, html });
+    }
+    let headers = match post {
+        Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
+        None => Vec::new(),
+    };
+    let req = Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(str::as_bytes), top: None, cookies: true, extra: &[] };
+    let (final_url, st) = http_stream(&req)?;
+    let ct = st.header("content-type").map(str::to_string);
+    let disposition = st.header("content-disposition").map(str::to_string);
+    let total = st.header("content-length").and_then(|v| v.trim().parse::<u64>().ok());
+    let mut body = st.body;
+    // The first bytes, to tell what it is when the headers don't.
+    let mut head = vec![0u8; 1024];
+    let mut n = 0;
+    use std::io::Read;
+    while n < head.len() {
+        match body.read(&mut head[n..]) {
+            Ok(0) => break,
+            Ok(k) => n += k,
+            Err(e) => return Err(format!("[net] {final_url}: {e}")),
+        }
+    }
+    head.truncate(n);
+    let kind = kind_of(ct.as_deref(), disposition.as_deref(), &head);
+    // Error pages from servers (404…) are shown, not downloaded.
+    let kind = if st.status >= 400 && kind == Kind::Download { Kind::Text } else { kind };
+    if kind == Kind::Download {
+        let name = crate::downloads::file_name(&final_url, disposition.as_deref());
+        crate::downloads::start(&final_url, &name, total, head, body);
+        return Ok(Navigated::Download { name });
+    }
+    let mut bytes = head;
+    body.take(50_000_000).read_to_end(&mut bytes).map_err(|e| format!("[net] {final_url}: {e}"))?;
+    let html = match kind {
+        Kind::Html => decode_html(&bytes, ct.as_deref()),
+        Kind::Image => image_page(&final_url, ct.as_deref().unwrap_or("image/png"), &bytes),
+        _ => text_page(&final_url, &decode_text(&bytes, ct.as_deref())),
+    };
+    Ok(Navigated::Page { url: final_url, html })
+}
+
 /// A response for scripts: status, headers and body.
 #[derive(Debug, Clone, Default)]
 pub struct Response {
@@ -154,11 +280,41 @@ pub fn http(req: &Request) -> Result<Response, String> {
         let ty = guess_type(&abs);
         return Ok(Response { status: 200, status_text: "OK".into(), url: format!("file://{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
     }
+    // GETs may come from the disk cache (fresh), or be checked with the server (stale).
+    let cacheable = req.method.eq_ignore_ascii_case("GET") && req.body.is_none();
+    let lookup = if cacheable { crate::cache::lookup(url) } else { crate::cache::Lookup::Miss };
+    let (lookup, conditional) = match lookup {
+        crate::cache::Lookup::Fresh(e) => {
+            return Ok(Response { status: e.status, status_text: "OK".into(), url: url.into(), headers: e.headers, body: e.body });
+        }
+        crate::cache::Lookup::Revalidate(e, cond) => (Some(e), cond),
+        crate::cache::Lookup::Miss => (None, Vec::new()),
+    };
+    let mut extra: Vec<(String, String)> = req.extra.to_vec();
+    extra.extend(conditional);
+    let r2 = Request { extra: &extra, ..*req };
+    let (final_url, st) = http_stream(&r2)?;
+    let raw = st.read_all(&final_url)?;
+    if raw.status == 304 && lookup.is_some() {
+        if let Some(e) = crate::cache::refreshed(url, &raw.headers) {
+            return Ok(Response { status: e.status, status_text: "OK".into(), url: final_url, headers: e.headers, body: e.body });
+        }
+    }
+    if cacheable && final_url == url {
+        crate::cache::store(url, raw.status, &raw.headers, &raw.body);
+    }
+    Ok(Response { status: raw.status, status_text: raw.status_text, url: final_url, headers: raw.headers, body: raw.body })
+}
+
+/// Make a request over http(s), following redirects and handling cookies, and return the final
+/// URL and the response before its body is read.
+pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), String> {
     // Redirects are followed here rather than by the HTTP library, so cookies set along the way
     // are kept and every hop goes through the same rules.
-    let mut url = url.to_string();
+    let mut url = req.url.to_string();
     let mut method = req.method.to_ascii_uppercase();
     let mut body = req.body.map(<[u8]>::to_vec);
+    let timeout = if req.top.is_none() && req.method.eq_ignore_ascii_case("GET") { 24 * 3600 } else { 30 };
     for _ in 0..20 {
         let first_party = req.top.unwrap_or(&url).to_string();
         let mut headers: Vec<(String, String)> = Vec::new();
@@ -180,7 +336,7 @@ pub fn http(req: &Request) -> Result<Response, String> {
                 headers.push(("Cookie".into(), c));
             }
         }
-        let resp = crate::http::send(&method, &url, &headers, body.as_deref())?;
+        let resp = crate::http::open(&method, &url, &headers, body.as_deref(), std::time::Duration::from_secs(timeout))?;
         if req.cookies {
             let set: Vec<String> = resp.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
             crate::cookies::receive(&url, &first_party, &set);
@@ -197,10 +353,11 @@ pub fn http(req: &Request) -> Result<Response, String> {
                 continue;
             }
         }
-        let headers = resp.headers.into_iter().filter(|(k, _)| k != "set-cookie").collect();
-        return Ok(Response { status, status_text: resp.status_text, url, headers, body: resp.body });
+        let mut resp = resp;
+        resp.headers.retain(|(k, _)| k != "set-cookie");
+        return Ok((url, resp));
     }
-    Err("too many redirects".into())
+    Err("[net] too many redirects".into())
 }
 
 /// Headers pages may not set themselves.
@@ -462,6 +619,21 @@ mod tests {
         assert_eq!(normalize_input("localhost:8080/x"), "http://localhost:8080/x");
         assert_eq!(normalize_input("bücher.de"), "https://xn--bcher-kva.de/");
         assert!(normalize_input("how do browsers work").contains("how+do+browsers+work"));
+    }
+
+    #[test]
+    fn content_kinds() {
+        use super::{kind_of, Kind};
+        assert_eq!(kind_of(Some("text/html; charset=utf-8"), None, b""), Kind::Html);
+        assert_eq!(kind_of(Some("application/pdf"), None, b"%PDF"), Kind::Download);
+        assert_eq!(kind_of(Some("text/html"), Some("attachment; filename=x.html"), b""), Kind::Download);
+        assert_eq!(kind_of(Some("application/json"), None, b"{}"), Kind::Text);
+        assert_eq!(kind_of(Some("image/png"), None, b"\x89PNG"), Kind::Image);
+        assert_eq!(kind_of(None, None, b"  <!DOCTYPE html><p>"), Kind::Html);
+        assert_eq!(kind_of(Some("application/octet-stream"), None, b"\x89PNG\r\n"), Kind::Image);
+        assert_eq!(kind_of(Some("application/octet-stream"), None, b"plain words"), Kind::Download);
+        assert_eq!(kind_of(None, None, b"plain words"), Kind::Text);
+        assert_eq!(kind_of(Some("application/zip"), None, b"PK"), Kind::Download);
     }
 
     #[test]

@@ -225,11 +225,41 @@ fn note_alt_svc(url: &str, alt_svc: &str) {
 
 // ---------------------------------------------------------------- requests
 
-/// Send one request (no redirects followed). Errors start with a tag the error pages read:
-/// `[dns]`, `[timeout]`, `[cert]`, `[refused]`, `[proxy]` or `[net]`.
+/// A response whose body hasn't been read yet (for streaming downloads).
+pub struct Stream {
+    pub status: u16,
+    pub status_text: String,
+    pub version: String,
+    /// Lower-case names; repeated headers (set-cookie) appear once per value.
+    pub headers: Vec<(String, String)>,
+    pub body: reqwest::blocking::Response,
+}
+
+impl Stream {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+    }
+
+    /// Read the whole body (up to 50 MB).
+    pub fn read_all(self, url: &str) -> Result<Raw, String> {
+        let mut bytes = Vec::new();
+        use std::io::Read;
+        self.body.take(MAX_BODY).read_to_end(&mut bytes).map_err(|e| format!("[net] {url}: {e}"))?;
+        Ok(Raw { status: self.status, status_text: self.status_text, headers: self.headers, body: bytes, version: self.version })
+    }
+}
+
+/// Send one request (no redirects followed) and read the whole response. Errors start with a
+/// tag the error pages read: `[dns]`, `[timeout]`, `[cert]`, `[refused]`, `[proxy]` or `[net]`.
 pub fn send(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>) -> Result<Raw, String> {
+    open(method, url, headers, body, Duration::from_secs(30))?.read_all(url)
+}
+
+/// Send one request and return the response before reading its body. `timeout` covers the
+/// whole transfer (long for downloads).
+pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     if h3_known(url) {
-        match client(true).and_then(|c| send_with(c, true, method, url, headers, body)) {
+        match client(true).and_then(|c| start(c, true, method, url, headers, body, timeout)) {
             Ok(r) => return Ok(r),
             Err(e) => {
                 log!("[net] HTTP/3 failed, using HTTP/2: {e}");
@@ -240,16 +270,16 @@ pub fn send(method: &str, url: &str, headers: &[(String, String)], body: Option<
             }
         }
     }
-    let r = send_with(client(false)?, false, method, url, headers, body)?;
+    let r = start(client(false)?, false, method, url, headers, body, timeout)?;
     if let Some(alt) = r.header("alt-svc") {
         note_alt_svc(url, alt);
     }
     Ok(r)
 }
 
-fn send_with(client: reqwest::blocking::Client, http3: bool, method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>) -> Result<Raw, String> {
+fn start(client: reqwest::blocking::Client, http3: bool, method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     let m = reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| format!("[net] bad method {method}"))?;
-    let mut rb = client.request(m, url);
+    let mut rb = client.request(m, url).timeout(timeout);
     if http3 {
         rb = rb.version(reqwest::Version::HTTP_3);
     }
@@ -261,27 +291,18 @@ fn send_with(client: reqwest::blocking::Client, http3: bool, method: &str, url: 
     }
     let resp = rb.send().map_err(|e| classify(&e, url))?;
     let status = resp.status();
-    let version = format!("{:?}", resp.version());
-    let headers: Vec<(String, String)> = resp
+    let headers = resp
         .headers()
         .iter()
         .map(|(k, v)| (k.as_str().to_ascii_lowercase(), String::from_utf8_lossy(v.as_bytes()).into_owned()))
         .collect();
-    let mut bytes = Vec::new();
-    use std::io::Read;
-    resp.take(MAX_BODY).read_to_end(&mut bytes).map_err(|e| format!("[net] {url}: {e}"))?;
-    Ok(Raw { status: status.as_u16(), status_text: status.canonical_reason().unwrap_or("").to_string(), headers, body: bytes, version })
-}
-
-/// Open a response for streaming (downloads): status, headers and the body as a reader.
-pub fn open(url: &str, headers: &[(String, String)]) -> Result<(u16, Vec<(String, String)>, reqwest::blocking::Response), String> {
-    let mut rb = client(false)?.get(url).timeout(Duration::from_secs(24 * 3600));
-    for (k, v) in headers {
-        rb = rb.header(k.as_str(), v.as_str());
-    }
-    let resp = rb.send().map_err(|e| classify(&e, url))?;
-    let headers = resp.headers().iter().map(|(k, v)| (k.as_str().to_ascii_lowercase(), String::from_utf8_lossy(v.as_bytes()).into_owned())).collect();
-    Ok((resp.status().as_u16(), headers, resp))
+    Ok(Stream {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or("").to_string(),
+        version: format!("{:?}", resp.version()),
+        headers,
+        body: resp,
+    })
 }
 
 /// Describe a failure in plain words, tagged for the error page.
