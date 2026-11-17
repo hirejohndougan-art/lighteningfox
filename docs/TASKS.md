@@ -258,9 +258,11 @@ access away from the frame renderer (`sandbox::protect_frame_renderer`, `no_net`
 sockets per process. Test with `tools/ws_echo.py`.
 
 ### X14. One process per site for cross-site iframes
-**Status:** claimed by chat-opus-t12 2026-11-17 12:50
+**Status:** done
 **After:** —
 **Checklist:** none
+**Done:** `frames::isolated` runs one frame process per frame site (`--frame-renderer <site>`, refusing other sites' frames), each with an `Auth` limited to its own frames' top-level sites; at most 6 processes (`IRONSWIFT_FRAME_PROCESS_MAX`), then an idle one is ended or the least busy one is shared (`allow`); `stop_stuck` stops only the process drawing the stuck snapshot. Checked with two cross-site iframes (two processes, cookies right in each) and with the cap at 1.
+**Left undone:** frame processes are separate from the site-process pool in process.rs (two pools, each with its own cap); a frame that navigates to another site keeps running in the first site's process (no process swap on navigation); frame processes still have network access (until X13 moves WebSockets to the browser).
 **Files:** `src/frames.rs` (`isolated`), `src/process.rs` (the pool)
 All cross-site iframes share one frame process today, so a compromised ad frame shares memory with
 every other site's frames. Run iframes in the site process pool (one process per frame site,
