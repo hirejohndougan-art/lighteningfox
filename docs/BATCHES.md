@@ -171,7 +171,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §14 Mark the two ad-blocking items done if the existing EasyList blocking covers them
 
 ## M. Boa engine speed
-**Status:** free
+**Status:** claimed by boa-chat 2026-11-17 02:20
 **Start after:** —
 **Main files:** a fork of Boa (vendored under `vendor/boa` or a git dependency), `tools/`
 
