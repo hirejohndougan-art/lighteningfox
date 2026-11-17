@@ -163,13 +163,26 @@ work. Remove what's truly unused, fix the rest, and make CI fail on new warnings
 (`RUSTFLAGS=-D warnings` in the build step).
 
 ### R4. Review the box tree and incremental relayout
-**Status:** claimed by chat-opus-x5 2026-11-17 11:45
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** `src/boxtree.rs`, `src/layout.rs`
 The largest overnight change. Read it for correctness (stale boxes after DOM edits, relayout
 that misses a change, anonymous boxes, `display: contents`), add tests for each bug found, and
 fix them. Check memory use and speed on a large page against the version before T01.
+Found and fixed (tests in `relayout.rs`): a picked file never showed in a cached
+`<input type=file>` (the files live in the form state, not the DOM); a canvas, video frame or
+live iframe redrawn each frame threw every cached box away (the image stamp hashed identities,
+not sizes); text laid out before a page's web fonts arrived kept the fallback font. A new test
+runs every test page through seven kinds of structural edit (385 checks against fresh layouts,
+all equal). Speed against the version before T01, median of 5 `--png` runs: a generated
+20,000-node page 254 → 277 ms, Bootstrap 141 → 136 ms, React 271 → 282 ms, tables 85 → 90 ms,
+grid 97 → 93 ms (about the same). Peak memory: 148 → 168 MB on the big page (about 11 MB is the
+relayout cache, capped at 6× the page's display items; the rest is the box tree, a copy of the
+DOM per layout), 39 → 41 MB on Bootstrap, 47 → 53 MB on React.
+Left undone: the box tree is rebuilt in full every layout (building it incrementally would save
+the copy); the cache stores nested boxes' items once per level (a shallower budget or shared
+items would use less memory).
 
 ### R5. Security review of the per-site processes
 **Status:** claimed by chat-opus-t12 2026-11-17 12:05
