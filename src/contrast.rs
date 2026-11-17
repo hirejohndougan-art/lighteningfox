@@ -65,6 +65,7 @@ pub fn force_colors(dom: &Dom, styles: &mut [Rc<Style>]) {
         st.color = fg;
         st.deco_color = None;
         st.border_color = fg;
+        st.border_colors = None;
         // Only boxes that had a background keep one (in the canvas color), so text over an
         // image or a colored band still sits on black.
         let had_bg = st.background.a > 0 || st.bg.color.a > 0 || st.bg.image.is_some();

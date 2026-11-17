@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html><head><style>
+body { font-family: sans-serif; }
+div.b { background: #eef; margin-block: 6px; padding-inline: 20px 4px; padding-block: 4px; border: 2px solid #36c; }
+div.b.logical { margin-inline-start: 40px; border-inline-start: 6px solid orange; }
+div.b.rtl { direction: rtl; margin-inline-start: 40px; border-inline-start: 6px solid green; }
+div.b.sides { border-width: 4px; border-style: solid none; border-color: #c00 #0a0; }
+div.b.size { inline-size: 200px; block-size: 40px; }
+.abs-wrap { position: relative; height: 40px; background: #ffe; }
+.abs { position: absolute; inset-inline-end: 10px; inset-block-start: 5px; background: #fc6; padding: 2px 6px; }
+.flexbox { display: flex; height: 50px; background: #efe; place-content: center; }
+</style></head><body>
+<div class="b">padding-inline 20px start / 4px end, margin-block 6px</div>
+<div class="b logical">margin-inline-start 40px, orange start border</div>
+<div class="b rtl">في اتجاه من اليمين — RTL: start is the right side</div>
+<div class="b sides">border-style: solid none (top and bottom only)</div>
+<div class="b size">inline-size 200px</div>
+<div class="abs-wrap"><span class="abs">inset-inline-end: 10px</span></div>
+<div class="flexbox"><span>place-content: center</span></div>
+</body></html>

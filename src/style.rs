@@ -432,6 +432,8 @@ pub struct Style {
     pub container: Option<(u8, Rc<str>)>,
     /// `appearance: none`: form controls drop their built-in decorations.
     pub appearance_none: bool,
+    /// Colors given for single sides (top, right, bottom, left); other sides use `border_color`.
+    pub border_colors: Option<[Option<Color>; 4]>,
 }
 
 /// The pseudo-element styles an element has rules for.
@@ -530,6 +532,7 @@ impl Default for Style {
             pseudo: None,
             container: None,
             appearance_none: false,
+            border_colors: None,
         }
     }
 }
@@ -898,6 +901,11 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             mul(&mut st.bg.color, f);
             if st.border_color_set {
                 mul(&mut st.border_color, f);
+            }
+            if let Some(sides) = st.border_colors.as_mut() {
+                for c in sides.iter_mut().flatten().filter(|c| !(c.a == 0 && c.r == 0 && c.g == 0 && c.b == 1)) {
+                    mul(c, f);
+                }
             }
             if st.deco_color != parent_style.deco_color {
                 if let Some(c) = st.deco_color.as_mut() {
@@ -1999,6 +2007,12 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     if crate::text::apply(&mut st.text, name, &lower, st.font_size) {
         return;
     }
+    if let Some(parts) = crate::shorthand::expand(name, v, st.rtl) {
+        for (n, val) in parts {
+            apply(st, parent, &n, &val);
+        }
+        return;
+    }
     let fs = st.font_size;
     if crate::anim::is_anim_prop(name) {
         crate::anim::apply_prop(&mut st.anim, name, v);
@@ -2599,6 +2613,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         "border" => {
             let (w, c) = border_shorthand(&lower, fs);
             st.border = [w; 4];
+            st.border_colors = None;
             if let Some(c) = c {
                 st.border_color = c;
                 st.border_color_set = true;
@@ -2613,6 +2628,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "border-color" => {
+            st.border_colors = None;
             if let Some(c) = lower.split_whitespace().next().and_then(parse_color) {
                 st.border_color = c;
                 st.border_color_set = true;
@@ -2637,10 +2653,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                         "" => {
                             let (w, c) = border_shorthand(&lower, fs);
                             st.border[i] = w;
-                            if let Some(c) = c {
-                                st.border_color = c;
-                                st.border_color_set = true;
-                            }
+                            st.set_side_color(i, c);
                         }
                         "width" => {
                             if let Some(w) = border_width_word(&lower, fs) {
@@ -2649,10 +2662,19 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                         }
                         "color" => {
                             if let Some(c) = parse_color(&lower) {
-                                st.border_color = c;
-                                st.border_color_set = true;
+                                st.set_side_color(i, Some(c));
+                            } else if lower == "currentcolor" {
+                                st.set_side_color(i, None);
                             }
                         }
+                        // One line style for the whole box: `none` removes just this side.
+                        "style" => match lower.as_str() {
+                            "none" | "hidden" => st.border[i] = 0.0,
+                            "dashed" => st.border_line = 1,
+                            "dotted" => st.border_line = 2,
+                            "double" => st.border_line = 3,
+                            _ => {}
+                        },
                         _ => {}
                     }
                 }
@@ -2707,6 +2729,29 @@ mod tests {
 
 
 impl Style {
+    /// One side's border color (None: the text color, `currentColor`).
+    fn set_side_color(&mut self, side: usize, c: Option<Color>) {
+        let mut sides = self.border_colors.unwrap_or_default();
+        sides[side] = Some(c.unwrap_or(Color { a: 0, r: 0, g: 0, b: 1 }));
+        self.border_colors = Some(sides);
+    }
+
+    /// Each side's border color: top, right, bottom, left.
+    pub fn side_colors(&self) -> [Color; 4] {
+        let mut out = [self.border_color; 4];
+        if let Some(sides) = &self.border_colors {
+            for (o, s) in out.iter_mut().zip(sides) {
+                match s {
+                    // The marker for currentColor.
+                    Some(Color { a: 0, r: 0, g: 0, b: 1 }) => *o = self.color,
+                    Some(c) => *o = *c,
+                    None => {}
+                }
+            }
+        }
+        out
+    }
+
     /// text-align after start/end are resolved against the writing direction.
     pub fn effective_align(&self) -> Align {
         match (self.align_logical, self.rtl) {

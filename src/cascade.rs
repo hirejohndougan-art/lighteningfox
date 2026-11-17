@@ -132,6 +132,7 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
             if n != "border-width" && n != "border-style" {
                 dst.border_color = src.border_color;
                 dst.border_color_set = src.border_color_set;
+                dst.border_colors = src.border_colors;
             }
         }
         n if n.starts_with("border") && n.ends_with("radius") => dst.radius = src.radius,
@@ -156,8 +157,9 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
                 dst.border[i] = src.border[i];
             }
             if part != "width" && part != "style" {
-                dst.border_color = src.border_color;
-                dst.border_color_set = src.border_color_set;
+                let mut sides = dst.border_colors.unwrap_or_default();
+                sides[i] = src.border_colors.and_then(|c| c[i]).or(Some(src.side_colors()[i]));
+                dst.border_colors = Some(sides);
             }
         }
         _ => return false,

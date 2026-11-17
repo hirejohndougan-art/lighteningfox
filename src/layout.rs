@@ -929,16 +929,17 @@ impl<'a> Ctx<'a> {
         } else {
             placeholder(&mut self.items[clip_slot]);
         }
-        let c = st.border_color;
-        let uniform = bt == br && bt == bb && bt == bl;
+        let [ct, cr, cbm, cl] = st.side_colors();
+        let c = ct;
+        let uniform = bt == br && bt == bb && bt == bl && ct == cr && ct == cbm && ct == cl;
         if !st.hidden && radius > 0.0 && uniform && bt > 0.0 {
             self.items.push(Item::Ring { x: bx, y: top, w: box_w, h: box_h, radius, width: bt, color: c });
         } else if !st.hidden {
-            for (rx, ry, rw, rh) in [
-                (bx, top, box_w, bt),
-                (bx, top + box_h - bb, box_w, bb),
-                (bx, top, bl, box_h),
-                (bx + box_w - br, top, br, box_h),
+            for (rx, ry, rw, rh, c) in [
+                (bx, top, box_w, bt, ct),
+                (bx, top + box_h - bb, box_w, bb, cbm),
+                (bx, top, bl, box_h, cl),
+                (bx + box_w - br, top, br, box_h, cr),
             ] {
                 if rw > 0.0 && rh > 0.0 {
                     border_side(&mut self.items, st.border_line, rx, ry, rw, rh, c);
@@ -2773,12 +2774,12 @@ impl<'a> Ctx<'a> {
         if st.bg.visible() {
             out.push(Item::Box { x: x0, y: top, w, h, radius, bg: Box::new(st.bg.clone()) });
         }
-        let c = st.border_color;
-        if radius > 0.0 && bt == br && bt == bb && bt == bl && bt > 0.0 {
-            out.push(Item::Ring { x: x0, y: top, w, h, radius, width: bt, color: c });
+        let [ct, cr, cbm, cl] = st.side_colors();
+        if radius > 0.0 && bt == br && bt == bb && bt == bl && bt > 0.0 && ct == cr && ct == cbm && ct == cl {
+            out.push(Item::Ring { x: x0, y: top, w, h, radius, width: bt, color: ct });
             return;
         }
-        for (rx, ry, rw, rh) in [(x0, top, w, bt), (x0, top + h - bb, w, bb), (x0, top, bl, h), (x1 - br, top, br, h)] {
+        for (rx, ry, rw, rh, c) in [(x0, top, w, bt, ct), (x0, top + h - bb, w, bb, cbm), (x0, top, bl, h, cl), (x1 - br, top, br, h, cr)] {
             if rw > 0.0 && rh > 0.0 {
                 out.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, color: c });
             }
