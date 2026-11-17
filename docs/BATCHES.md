@@ -178,7 +178,7 @@ Left undone in G:
 - §5 Exact `height` on boxes whose content overflows
 
 ## L. Performance (our code)
-**Status:** free
+**Status:** claimed by jsapi-chat 2026-11-17 03:35
 **Start after:** C, G (they change the same DOM and image paths)
 **Main files:** `src/js.rs`, `src/dom.rs`, `src/main.rs`, CI
 
