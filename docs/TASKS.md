@@ -366,7 +366,7 @@ fields such as `antialias` and `webgl2`, an unused `POINTS` constant, the `Fma` 
 two needless `mut`s). No behavior changes; WebGL tests and WPT scores stay the same.
 
 ### X11. Lay boxes out on several cores
-**Status:** free
+**Status:** claimed by chat-mseX17 2026-11-17 16:07
 **After:** —
 **Checklist:** none (the checklist item was ticked with T04/T04b)
 **Files:** `src/font.rs`, `src/layout.rs`, `src/preshape.rs`, new files for the parallel parts
