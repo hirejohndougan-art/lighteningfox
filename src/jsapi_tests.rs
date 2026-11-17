@@ -494,6 +494,8 @@ fn abspos_children_do_not_widen_shrink_to_fit() {
     let _page = open("tests/sites/abs-shrink.html");
 }
 
+/// WordPress.org: script.text and navigation timing entries.
+#[test]
 fn script_text_and_navigation_timing() {
     let _serial = serial();
     let _page = open("tests/sites/wp-bits.html");

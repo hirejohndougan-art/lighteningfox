@@ -412,12 +412,6 @@ impl Fonts {
         Some(id)
     }
 
-    /// The font for a `font-family` list: the page's web fonts first, then fonts installed on
-    /// the computer (by name, or a free look-alike for Arial, Times New Roman…), then the
-    /// generic families; DejaVu Sans when nothing matches.
-    pub fn resolve(&self, family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {
-        self.resolve_weight(family, if bold { 700 } else { 400 }, italic, mono)
-    }
 
     /// `resolve` for a numeric font-weight (web fonts with several weights pick the closest).
     pub fn resolve_weight(&self, family: Option<&str>, weight: u16, italic: bool, mono: bool) -> u8 {

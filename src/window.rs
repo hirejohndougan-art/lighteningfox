@@ -115,13 +115,21 @@ fn key_from_code(c: KeyCode) -> Key {
         KeyCode::Escape => Escape, KeyCode::Home => Home, KeyCode::Insert => Insert, KeyCode::ContextMenu => Menu,
         KeyCode::PageDown => PageDown, KeyCode::PageUp => PageUp, KeyCode::Pause => Pause, KeyCode::Space => Space, KeyCode::Tab => Tab,
         KeyCode::NumLock => NumLock, KeyCode::CapsLock => CapsLock, KeyCode::ScrollLock => ScrollLock,
-        KeyCode::ShiftLeft => LeftShift, KeyCode::ShiftRight => RightShift, KeyCode::ControlLeft => LeftCtrl, KeyCode::ControlRight => RightCtrl,
+        KeyCode::ShiftLeft => LeftShift, KeyCode::ShiftRight => RightShift,
+        KeyCode::ControlLeft if cfg!(target_os = "macos") => LeftSuper,
+        KeyCode::ControlRight if cfg!(target_os = "macos") => RightSuper,
+        KeyCode::ControlLeft => LeftCtrl, KeyCode::ControlRight => RightCtrl,
         KeyCode::Numpad0 => NumPad0, KeyCode::Numpad1 => NumPad1, KeyCode::Numpad2 => NumPad2, KeyCode::Numpad3 => NumPad3,
         KeyCode::Numpad4 => NumPad4, KeyCode::Numpad5 => NumPad5, KeyCode::Numpad6 => NumPad6, KeyCode::Numpad7 => NumPad7,
         KeyCode::Numpad8 => NumPad8, KeyCode::Numpad9 => NumPad9, KeyCode::NumpadDecimal => NumPadDot, KeyCode::NumpadDivide => NumPadSlash,
         KeyCode::NumpadMultiply => NumPadAsterisk, KeyCode::NumpadSubtract => NumPadMinus, KeyCode::NumpadAdd => NumPadPlus,
         KeyCode::NumpadEnter => NumPadEnter,
-        KeyCode::AltLeft => LeftAlt, KeyCode::AltRight => RightAlt, KeyCode::SuperLeft => LeftSuper, KeyCode::SuperRight => RightSuper,
+        KeyCode::AltLeft => LeftAlt, KeyCode::AltRight => RightAlt,
+        // On a Mac, Command does what Ctrl does elsewhere (Cmd+C, Cmd+T, Cmd+L…), and Control
+        // takes the Command key's place.
+        KeyCode::SuperLeft if cfg!(target_os = "macos") => LeftCtrl,
+        KeyCode::SuperRight if cfg!(target_os = "macos") => RightCtrl,
+        KeyCode::SuperLeft => LeftSuper, KeyCode::SuperRight => RightSuper,
         _ => Unknown,
     }
 }
@@ -242,8 +250,17 @@ impl ApplicationHandler for State {
                     }
                 }
                 let down = event.state == ElementState::Pressed;
-                if matches!(key, Key::LeftCtrl | Key::RightCtrl | Key::LeftAlt | Key::RightAlt) {
-                    self.ctrl_or_alt = down || self.down.iter().any(|k| *k != key && matches!(k, Key::LeftCtrl | Key::RightCtrl | Key::LeftAlt | Key::RightAlt));
+                // Keys whose chords are shortcuts, not typing. On a Mac, Option types letters
+                // (Option+E, U → ü), so only Command and Control count.
+                let shortcut_key = |k: &Key| {
+                    if cfg!(target_os = "macos") {
+                        matches!(k, Key::LeftCtrl | Key::RightCtrl | Key::LeftSuper | Key::RightSuper)
+                    } else {
+                        matches!(k, Key::LeftCtrl | Key::RightCtrl | Key::LeftAlt | Key::RightAlt)
+                    }
+                };
+                if shortcut_key(&key) {
+                    self.ctrl_or_alt = down || self.down.iter().any(|k| *k != key && shortcut_key(k));
                 }
                 if key != Key::Unknown {
                     self.key(key, down, event.repeat);
@@ -260,7 +277,7 @@ impl ApplicationHandler for State {
             WindowEvent::Ime(Ime::Commit(t)) => self.text(&t),
             WindowEvent::ModifiersChanged(m) => {
                 let s = m.state();
-                self.ctrl_or_alt = s.control_key() || s.alt_key();
+                self.ctrl_or_alt = if cfg!(target_os = "macos") { s.super_key() || s.control_key() } else { s.control_key() || s.alt_key() };
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let p = (position.x as f32, position.y as f32);
