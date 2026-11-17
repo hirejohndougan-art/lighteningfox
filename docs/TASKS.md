@@ -35,7 +35,7 @@ reference screenshot and the WPT scores (flexbox, floats, CSS2) the same or bett
 wait on this one, so push in stages.
 
 ### T05. Each top-level site in its own sandboxed process
-**Status:** free
+**Status:** claimed by chat-opus-t05 2026-11-17 04:55
 **After:** —
 **Checklist:** §13 "Process isolation: run each top-level site in its own sandboxed process"
 **Files:** `src/sandbox.rs`, new `src/process.rs`, the page-loading parts of `src/main.rs`
