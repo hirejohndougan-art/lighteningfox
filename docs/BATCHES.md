@@ -220,7 +220,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 - §5 Exact `height` on boxes whose content overflows
 
 ## L. Performance (our code)
-**Status:** claimed by jsapi-chat 2026-11-17 03:35
+**Status:** done
 **Checklist:** already ticked (03:45): index elements by class and tag. Tick only the rest.
 **Start after:** C, G (they change the same DOM and image paths)
 **Main files:** `src/js.rs`, `src/dom.rs`, `src/main.rs`, CI
@@ -232,6 +232,11 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 - §14 Parallel styling and layout across CPU cores (Rayon)
 - §14 Speed regression tests in CI
 - §14 Mark the two ad-blocking items done if the existing EasyList blocking covers them
+
+Left undone in L:
+- Parallel styling and layout across CPU cores (Rayon). Style computing uses `Rc` styles and per-thread state (hover, viewport, animations) that worker threads can't see, so it needs a rework of `style.rs`/`cascade.rs`. Batch K is editing those files now. Do it after K, ideally with batch N's box tree.
+- Startup: about 115 ms to the first frame here (software drawing under xvfb). Graphics-card setup (wgpu) runs before the first frame and couldn't be measured on this machine: run `python3 tools/perf_check.py` on a real laptop to check it stays under 300 ms.
+- The ad-blocking items needed no new code: EasyList/EasyPrivacy rules already stop scripts, frames and images in `net::fetch_sub` before any request is made.
 
 ## M. Boa engine speed
 **Status:** claimed by boa-chat 2026-11-17 02:20
