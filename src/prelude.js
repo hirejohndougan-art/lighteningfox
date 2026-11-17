@@ -541,6 +541,12 @@
 
   // ------------------------------------------------------------ window
   Object.setPrototypeOf(g, EventTarget.prototype);
+  // Bare calls (`addEventListener(...)` with no `window.`) have no `this` in strict code:
+  // bind the window's own event methods to the window.
+  for (const m of ["addEventListener", "removeEventListener", "dispatchEvent"]) {
+    const f = EventTarget.prototype[m];
+    Object.defineProperty(g, m, { value: function (...a) { return f.apply(this == null ? g : this, a); }, writable: true, configurable: true });
+  }
   // location reflects the current URL, which pushState and in-page links change.
   const parts = () => {
     const m = /^([a-z][a-z0-9+.-]*:)(?:\/\/([^/?#]*))?([^?#]*)(\?[^#]*)?(#.*)?$/i.exec(__url) || [];

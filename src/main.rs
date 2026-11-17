@@ -6,6 +6,15 @@
 //!   lighteningfox [URL or file]                  open a window
 //!   lighteningfox URL --png out.png [--width N]  render to an image (no window needed)
 
+/// Print a message to the terminal and keep it in the debug log (about:log).
+macro_rules! log {
+    ($($t:tt)*) => {{
+        let line = format!($($t)*);
+        eprintln!("{line}");
+        crate::crashlog::record(line);
+    }};
+}
+
 mod cookies;
 mod css;
 mod dom;
@@ -18,6 +27,8 @@ mod images;
 mod js;
 mod layout;
 mod library;
+mod conformance;
+mod crashlog;
 mod settings;
 mod tiles;
 #[cfg(feature = "gpu")]
@@ -429,7 +440,7 @@ fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url
                         match net::fetch_sub_bytes(url, page_url) {
                             Ok((_, b)) => decode_font(b),
                             Err(e) => {
-                                eprintln!("[font] {url}: {e}");
+                                log!("[font] {url}: {e}");
                                 return None;
                             }
                         }
@@ -465,7 +476,7 @@ fn install_fonts(fonts: Vec<WebFont>) {
         };
         match id {
             Some(id) => families.entry(f.family).or_default().push((f.weight.0, f.weight.1, f.italic, id)),
-            None => eprintln!("[font] {}: not a usable font", f.url),
+            None => log!("[font] {}: not a usable font", f.url),
         }
     }
     font::set_web_families(families);
@@ -480,6 +491,13 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         ("about:blank".to_string(), String::new())
     } else if let Some(q) = url.strip_prefix("about:history") {
         ("about:history".to_string(), library::history_page(q))
+    } else if let Some(q) = url.strip_prefix("about:log") {
+        ("about:log".to_string(), crashlog::log_page(q))
+    } else if let Some(q) = url.strip_prefix("about:crashes") {
+        ("about:crashes".to_string(), crashlog::crashes_page(q))
+    } else if url == "about:crash" {
+        // Deliberately crash, to test crash reporting (like chrome://crash).
+        panic!("about:crash was opened (a deliberate test crash)");
     } else if let Some(q) = url.strip_prefix("about:settings") {
         ("about:settings".to_string(), settings::page(q))
     } else if let Some(q) = url.strip_prefix("about:bookmarks") {
@@ -657,6 +675,7 @@ fn error_page(url: &str, err: &str) -> String {
 }
 
 fn main() {
+    crashlog::install_panic_hook();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
     // Whether a page was named on the command line (else: restore the last session or go home).
@@ -666,6 +685,10 @@ fn main() {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "--conformance-html5lib" => {
+                let dir = args.get(i + 1).cloned().unwrap_or_else(|| ".".into());
+                std::process::exit(conformance::html5lib(&dir));
+            }
             "--png" => {
                 png = args.get(i + 1).cloned();
                 i += 1;
@@ -684,25 +707,25 @@ fn main() {
     let rss = || std::fs::read_to_string("/proc/self/statm").ok().and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0) * 4 / 1024;
     let probe = std::env::var("LF_MEM_PROBE").is_ok();
     if probe {
-        eprintln!("[mem] start: {} MB", rss());
+        log!("[mem] start: {} MB", rss());
     }
     let fonts: &'static Fonts = match Fonts::load() {
         Ok(f) => Box::leak(Box::new(f)),
         Err(e) => {
-            eprintln!("{e}");
+            log!("{e}");
             std::process::exit(1);
         }
     };
     FONTS.with(|c| c.set(Some(fonts)));
     if probe {
-        eprintln!("[mem] fonts loaded: {} MB", rss());
+        log!("[mem] fonts loaded: {} MB", rss());
         let js = js::Js::new("about:blank");
-        eprintln!("[mem] + one JS engine: {} MB", rss());
+        log!("[mem] + one JS engine: {} MB", rss());
         drop(js);
         let page = load(&url);
-        eprintln!("[mem] + page loaded: {} MB", rss());
+        log!("[mem] + page loaded: {} MB", rss());
         let lay = page.layout(fonts, width as f32, 768.0);
-        eprintln!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
+        log!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
         return;
     }
     match png {
@@ -746,7 +769,7 @@ fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     save_png(&canvas, out).expect("write png");
     let st = page.js.as_ref().map(|j| j.stats.clone()).unwrap_or_default();
     let st = &st;
-    eprintln!(
+    log!(
         "{}: {} nodes, {} display items, {}x{} px, {:?} total | JS: {} scripts, {} errors, {:?}",
         page.url,
         js::with_dom(|d| d.nodes.len()),
@@ -982,7 +1005,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     };
     let mut window = Window::new("LighteningFox", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
-            eprintln!("Could not open a window: {e}");
+            log!("Could not open a window: {e}");
             std::process::exit(1);
         });
     window.set_target_fps(60);
@@ -992,8 +1015,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let (gw, gh) = window.get_size();
         let g = gpu::Gpu::new(&window, gw as u32, gh as u32);
         match &g {
-            Some(g) => eprintln!("[gpu] drawing with {}", g.name),
-            None => eprintln!("[gpu] no graphics adapter; drawing in software"),
+            Some(g) => log!("[gpu] drawing with {}", g.name),
+            None => log!("[gpu] no graphics adapter; drawing in software"),
         }
         g
     };
@@ -1024,6 +1047,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let (mut w, mut h) = window.get_size();
     geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
     let mut page = load(start);
+    crashlog::set_url(&page.url);
     library::visit(&page.url, &page.title);
     let mut lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
     // Bumped whenever the layout is replaced: the stored page tiles are then out of date.
@@ -1932,6 +1956,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     back.push(current.clone());
                     forward.clear();
                     current = Entry { url: url.clone(), doc: page.doc, state };
+                    crashlog::set_url(&url);
                     library::visit(&url, &page.title);
                     page.url = url;
                 }
@@ -2054,6 +2079,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Go::Reload => state = current.state.clone(),
             }
             page = build_page(prepared);
+            crashlog::set_url(&page.url);
             library::visit(&page.url, &page.title);
             current = Entry { url: page.url.clone(), doc: page.doc, state };
             focused = None;
@@ -2086,7 +2112,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                 }
                 if freed {
-                    eprintln!("[tabs] put background tabs to sleep");
+                    log!("[tabs] put background tabs to sleep");
                     release_free_memory();
                     dirty = true;
                 }
@@ -2160,7 +2186,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if draw_times.len() == 60 {
                     let mut v = std::mem::take(&mut draw_times);
                     v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                    eprintln!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused);
+                    log!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused);
                 }
             }
             if let Some(menu) = &folder_menu {
@@ -2459,7 +2485,7 @@ mod screenshot_tests {
             let (_, _, canvas) = render_page(fonts, url, *width);
             if update || !std::path::Path::new(&reference).exists() {
                 save_png(&canvas, &reference).unwrap();
-                eprintln!("approved {reference}");
+                log!("approved {reference}");
                 continue;
             }
             let actual = format!("target/screenshot-diffs/{name}.png");

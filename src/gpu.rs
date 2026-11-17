@@ -80,7 +80,7 @@ impl Gpu {
         match Self::setup(window, w, h) {
             Ok(g) => Some(g),
             Err(why) => {
-                eprintln!("[gpu] {why}");
+                log!("[gpu] {why}");
                 None
             }
         }

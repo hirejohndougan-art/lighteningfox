@@ -476,7 +476,7 @@ fn valid_in(d: &Dom, id: i64) -> Option<NodeId> {
 fn n_log(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let level = arg_str(a, 0, ctx)?;
     let msg = arg_str(a, 1, ctx)?;
-    eprintln!("[js {level}] {msg}");
+    log!("[js {level}] {msg}");
     Ok(JsValue::undefined())
 }
 
@@ -710,7 +710,7 @@ fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     if allowed {
         OPEN.with(|o| o.borrow_mut().push(url));
     } else {
-        eprintln!("[popup blocked] {url}");
+        log!("[popup blocked] {url}");
     }
     Ok(JsValue::from(allowed))
 }
@@ -838,7 +838,7 @@ impl Js {
         );
         ctx.eval(Source::from_bytes(globals.as_bytes())).expect("globals");
         if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
-            eprintln!("[lighteningfox] prelude failed: {e}");
+            log!("[lighteningfox] prelude failed: {e}");
         }
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch }
     }
@@ -852,7 +852,7 @@ impl Js {
             Ok(v) => Some(v),
             Err(e) => {
                 self.stats.errors += 1;
-                eprintln!("[js error] {label}: {e}");
+                log!("[js error] {label}: {e}");
                 None
             }
         }
@@ -884,7 +884,7 @@ impl Js {
                     match fetched {
                         Ok((_, body)) => (body, url),
                         Err(e) => {
-                            eprintln!("[js] couldn't load {url}: {e}");
+                            log!("[js] couldn't load {url}: {e}");
                             continue;
                         }
                     }
