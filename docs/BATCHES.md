@@ -211,6 +211,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 
 ## J. Windowing and platforms
 **Status:** claimed by effects-chat 2026-11-17 03:20
+**Checklist:** already ticked (04:40): move to winit, native Wayland, and §10 typing in other languages (IME). Tick only the rest.
 **Start after:** A, E (both touch the window loop and builds)
 **Main files:** `src/main.rs` window setup, `src/gpu.rs`, `Cargo.toml`, CI
 
@@ -220,7 +221,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 
 ## K. CSS (§4)
 **Status:** claimed by css-chat 2026-11-17 02:40 (the old section 4 chat switched to batch A work and finished)
-**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10). Tick only the rest.
+**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10); selector matching speed (04:40). Tick only the rest.
 **Start after:** —
 **Main files:** `src/css.rs`, `src/style.rs`, `src/grid.rs` (grid extras)
 
