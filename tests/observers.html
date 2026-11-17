@@ -1,0 +1,18 @@
+<!doctype html><html><body style="margin:0">
+<div id=top style="height:100px;background:#cde">top</div>
+<div id=box style="width:200px;height:50px;padding:5px;background:#fc9">box</div>
+<div style="height:2000px"></div>
+<div id=far style="height:40px;background:#9c9">far</div>
+<div id=io></div><div id=ro></div><div id=ev></div>
+<script>
+const io = new IntersectionObserver((es) => {
+  for (const e of es) document.getElementById('io').textContent += e.target.id + ':' + e.isIntersecting + ':' + e.intersectionRatio.toFixed(2) + ';';
+}, { threshold: [0, 1] });
+io.observe(document.getElementById('top'));
+io.observe(document.getElementById('far'));
+const ro = new ResizeObserver((es) => {
+  for (const e of es) document.getElementById('ro').textContent += e.target.id + ':' + e.contentRect.width + 'x' + e.contentRect.height + '/' + e.borderBoxSize[0].inlineSize + ';';
+});
+ro.observe(document.getElementById('box'));
+addEventListener('scroll', () => { document.getElementById('ev').textContent += 'scroll' + Math.round(scrollY) + ';'; });
+</script></body></html>

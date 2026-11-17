@@ -75,8 +75,18 @@ pub fn take_provider() -> Option<Provider> {
     PROVIDER.with(|c| c.borrow_mut().take())
 }
 
+/// Counts layouts recorded with `publish`, so scripts can tell when boxes may have moved.
+static PUBLISHED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A number that changes whenever a new layout is recorded (brought up to date first).
+pub fn layout_stamp() -> u64 {
+    ensure_fresh();
+    PUBLISHED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Record a finished layout (the window calls this whenever it lays out).
 pub fn publish(lay: &Layout, view_w: f32, view_h: f32) {
+    PUBLISHED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let version = GEN.with(Cell::get);
     GEOM.with(|g| {
         let mut g = g.borrow_mut();

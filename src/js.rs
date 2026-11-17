@@ -762,6 +762,16 @@ fn n_fp_seed(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::from(seed as f64))
 }
 
+/// __geomGen(): changes whenever boxes may have moved (a new layout).
+fn n_geom_gen(_: &JsValue, _a: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(crate::geometry::layout_stamp() as f64))
+}
+
+/// __elScrollGen(): changes whenever a scrollable box scrolls.
+fn n_el_scroll_gen(_: &JsValue, _a: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(crate::layout::element_scroll_stamp()))
+}
+
 /// The document's URL (for the module loader).
 pub fn page_url(ctx: &Context) -> String {
     page_ctx(ctx, |p| p.url.clone()).unwrap_or_default()
@@ -1107,7 +1117,11 @@ const INDEXEDDB: &str = include_str!("indexeddb.js");
 const FORMS: &str = include_str!("forms.js");
 const INTL: &str = include_str!("intl.js");
 /// Extra web APIs, each in its own file: (file, code).
-const EXTRA_APIS: &[(&str, &str)] = &[("customelements.js", include_str!("customelements.js"))];
+const EXTRA_APIS: &[(&str, &str)] = &[
+    ("customelements.js", include_str!("customelements.js")),
+    ("userevents.js", include_str!("userevents.js")),
+    ("observers.js", include_str!("observers.js")),
+];
 
 impl Js {
     pub fn new(url: &str) -> Js {
@@ -1188,6 +1202,8 @@ impl Js {
             ("__permRequest", 2, n_perm_request),
             ("__notify", 2, n_notify),
             ("__fpSeed", 0, n_fp_seed),
+            ("__geomGen", 0, n_geom_gen),
+            ("__elScrollGen", 0, n_el_scroll_gen),
         ];
         for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES) {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
@@ -1261,6 +1277,42 @@ impl Js {
                 Ok(text.unwrap_or_else(|| v.display().to_string()))
             }
             Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// After a layout: fire scroll/resize events and run IntersectionObserver and
+    /// ResizeObserver checks. Call once per drawn frame, after laying out.
+    pub fn after_layout(&mut self) {
+        self.call_global("__afterLayout", &[]);
+    }
+
+    /// An event from the user at `node` (-1 = the focused element). `init` is a JavaScript
+    /// object literal with the event's fields. Returns false if the page cancelled it.
+    pub fn user_event(&mut self, node: i64, kind: &str, init: &str) -> bool {
+        self.eval(&format!("__userEvent({node}, '{kind}', {init})"), kind).map_or(true, |v| v.to_boolean())
+    }
+
+    /// The mouse moved over the page: `node` is under it (or none), at client (x, y).
+    pub fn pointer_move(&mut self, node: Option<NodeId>, x: f32, y: f32, init: &str) {
+        let id = node.map_or(-1, |n| n as i64);
+        self.eval(&format!("__pointerMove({id}, {x}, {y}, {init})"), "mousemove");
+    }
+
+    /// Call a global function by name without parsing any code.
+    fn call_global(&mut self, name: &str, args: &[JsValue]) -> Option<JsValue> {
+        let t = Instant::now();
+        let f = self.ctx.global_object().get(JsString::from(name), &mut self.ctx).ok()?;
+        let f = f.as_callable()?;
+        let r = f.call(&JsValue::undefined(), args, &mut self.ctx);
+        let _ = self.ctx.run_jobs();
+        self.stats.script_time += t.elapsed();
+        match r {
+            Ok(v) => Some(v),
+            Err(e) => {
+                self.stats.errors += 1;
+                log!("[js error] {name}: {e}");
+                None
+            }
         }
     }
 
@@ -1404,18 +1456,24 @@ impl Js {
     /// loads its content with fetch() has it before a headless screenshot.
     pub fn settle(&mut self, max: std::time::Duration) {
         let t = Instant::now();
+        // A few animation frames in a row are allowed too (pages that wait a frame or two
+        // before acting), but not an endless animation loop.
+        let mut frames = 0;
         loop {
             self.tick();
             if self.wants_frame() {
                 self.run_frame();
+                frames += 1;
             }
+            self.after_layout();
             // Also wait for one-off timers due within half a second (pages that fill in
             // content "a moment later").
             let soon = self
                 .eval("__nextTimer()", "timers")
                 .and_then(|v| v.to_number(&mut self.ctx).ok())
                 .is_some_and(|ms| (0.0..=500.0).contains(&ms));
-            if !network_busy() && !soon || t.elapsed() >= max {
+            let more_frames = frames < 30 && self.wants_frame();
+            if !network_busy() && !soon && !more_frames || t.elapsed() >= max {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
