@@ -435,7 +435,9 @@ passing and measure with `cargo test --release relayout_timing -- --ignored --no
 peak RSS of `--png` runs before and after.
 
 ### X20. Let WPT media tests play under `tools/wpt.py`
-**Status:** claimed by chat-nsX16 2026-11-17 16:00
+**Status:** done
+**Done:** `IRONSWIFT_WAIT_FOR=<script expression>` makes `--png` run the page in real time (media and animations not frozen) until the expression is true, up to `IRONSWIFT_WAIT_SECS` (default 25), then runs `IRONSWIFT_WAIT_EXPIRED` and waits two more seconds (`Js::wait_for`). `tools/wpt.py` sets them for script tests (wait for the reporter's `__wptDone`, timeout − 5 s, then the harness's `timeout()` so finished subtests still count); reference tests stay frozen. `media-source`: 232/292 with 29 files giving no result → 282/424 and 284/424 in two runs, every file with a result. `html/semantics/embedded-content/media-elements`: 180/228 with 19 files giving no result → 224/285, every file with a result. No subtest worse in either (one `mediasource-sourcebuffer-mode` subtest failed once under load and passed in the rerun and alone).
+**Left undone:** files that never finish now use most of the timeout (a `media-source` run takes about 2 minutes instead of 1¼); the media tests that time out (25 subtests in `media-source`) are failures in the media code, not in the runner.
 **After:** —
 **Checklist:** none
 **Files:** `tools/wpt.py`, the `--png` path in `src/main.rs` (small)
