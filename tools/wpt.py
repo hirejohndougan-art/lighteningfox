@@ -10,6 +10,10 @@ localhost.
 
 WPT_TIMEOUT=60 gives each page 60 seconds instead of 30; WPT_DETAILS=out.json writes every
 subtest's result.
+
+Script tests run with media and animations playing in real time (IRONSWIFT_WAIT_FOR): the
+browser ends the run as soon as the harness reports, so tests that wait for `timeupdate`,
+`ended` or a seek while playing finish. Reference tests are drawn frozen, as screenshots are.
 """
 import concurrent.futures, functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading
 
@@ -28,17 +32,24 @@ def serve(root):
     return srv.server_address[1]
 
 
-def render(url, png, profile):
+def render(url, png, profile, wait=False):
     env = dict(os.environ, IRONSWIFT_PROFILE=profile, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
+    timeout = int(os.environ.get("WPT_TIMEOUT", "30"))
+    if wait:
+        # Script tests: media and animations play in real time and the run ends when the
+        # harness reports; near the timeout the harness is told to time out, so the tests
+        # that finished still count.
+        env.update(IRONSWIFT_WAIT_FOR="globalThis.__wptDone === true", IRONSWIFT_WAIT_SECS=str(max(1, timeout - 5)),
+                   IRONSWIFT_WAIT_EXPIRED="typeof timeout === 'function' && timeout()")
     try:
-        p = subprocess.run([BROWSER, "--width", "800", "--png", png, url], capture_output=True, text=True, timeout=int(os.environ.get("WPT_TIMEOUT","30")), env=env)
+        p = subprocess.run([BROWSER, "--width", "800", "--png", png, url], capture_output=True, text=True, timeout=timeout, env=env)
         return p.stdout + p.stderr, p.returncode
     except subprocess.TimeoutExpired:
         return "", "timeout"
 
 
 def script_test(base, rel, tmp):
-    log, rc = render(f"{base}/{rel}", os.path.join(tmp, "x.png"), os.path.join(tmp, "prof"))
+    log, rc = render(f"{base}/{rel}", os.path.join(tmp, "x.png"), os.path.join(tmp, "prof"), wait=True)
     m = re.search(r"WPT-RESULT (\{.*\})", log)
     if not m:
         return rel, None, "no result" if rc == 0 else f"exit {rc}"

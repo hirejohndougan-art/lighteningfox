@@ -1428,13 +1428,27 @@ fn browser_main() {
 
 /// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
-    images::freeze_animations();
+    // IRONSWIFT_WAIT_FOR="<script expression>" (tools/wpt.py sets it for script tests): media
+    // and animations play in real time, and the snapshot waits until the expression is true
+    // (the test harness reported), up to IRONSWIFT_WAIT_SECS (default 25); then
+    // IRONSWIFT_WAIT_EXPIRED (a script, e.g. the harness's `timeout()`) runs.
+    let wait_for = std::env::var("IRONSWIFT_WAIT_FOR").ok().filter(|w| !w.trim().is_empty());
+    if wait_for.is_none() {
+        images::freeze_animations();
+    }
     geometry::set_viewport(width as f32, 768.0);
     css::set_viewport(width as f32, 768.0); // vw/vh and @media while scripts run at load
     let mut page = load(url);
     // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
     if let Some(js) = page.js.as_mut() {
-        js.settle(std::time::Duration::from_secs(5));
+        match &wait_for {
+            Some(expr) => {
+                let secs = std::env::var("IRONSWIFT_WAIT_SECS").ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(25.0);
+                let expired = std::env::var("IRONSWIFT_WAIT_EXPIRED").ok();
+                js.wait_for(expr, std::time::Duration::from_secs_f64(secs.max(0.0)), expired.as_deref());
+            }
+            None => js.settle(std::time::Duration::from_secs(5)),
+        }
         if js::take_dirty() {
             page.restyle();
         }

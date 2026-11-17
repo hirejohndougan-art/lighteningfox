@@ -1853,6 +1853,40 @@ impl Js {
         self.tick();
     }
 
+    /// Keep the page running in real time (timers, requests, animation frames) until the
+    /// script expression `done` is true or `max` has passed: for test pages that finish when
+    /// media has played (`tools/wpt.py`). True if it finished.
+    /// If it hasn't by then, `on_expiry` runs (say, the harness's `timeout()`) and the page
+    /// gets two more seconds.
+    pub fn wait_for(&mut self, done: &str, max: std::time::Duration, on_expiry: Option<&str>) -> bool {
+        if self.wait_until(done, max) {
+            return true;
+        }
+        match on_expiry {
+            Some(code) => {
+                self.eval(code, "wait expired");
+                self.wait_until(done, std::time::Duration::from_secs(2))
+            }
+            None => false,
+        }
+    }
+
+    fn wait_until(&mut self, done: &str, max: std::time::Duration) -> bool {
+        let t = Instant::now();
+        while t.elapsed() < max {
+            self.tick();
+            if self.wants_frame() {
+                self.run_frame();
+            }
+            self.after_layout();
+            if self.eval(done, "wait").is_some_and(|v| v.to_boolean()) {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(4));
+        }
+        false
+    }
+
     /// Advance timers to "now" and deliver finished requests. Returns true if anything ran.
     pub fn tick(&mut self) -> bool {
         let ran_scripts = self.run_inserted_scripts();

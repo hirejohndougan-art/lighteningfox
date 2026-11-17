@@ -7,4 +7,6 @@ add_completion_callback(function (tests, status) {
     out.tests.push({ name: tests[i].name, status: tests[i].status, message: tests[i].message || "" });
   }
   console.log("WPT-RESULT " + JSON.stringify(out));
+  // The browser's waiting mode (tools/wpt.py) ends the run once this is set.
+  globalThis.__wptDone = true;
 });
