@@ -1876,6 +1876,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut bubble: Option<formui::Bubble> = None;
     // An open file chooser for an <input type=file>.
     let mut file_pick: Option<filepicker::Pending> = None;
+    // An open date, time or color picker.
+    let mut picker: Option<formui::Picker> = None;
     window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
@@ -1968,6 +1970,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 let _ = tx.send((g, p));
             }
             dropdown = None;
+            picker = None;
             editing = false;
             fedit = None;
             hovered = None;
@@ -2439,6 +2442,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                 }
                             }
                             dropdown = None;
+                            picker = None;
                             form_changed = true;
                             true
                         }
@@ -2457,6 +2461,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             fire(&mut page, f, "blur");
                             focused = None;
                             dropdown = None;
+                            picker = None;
                             form_changed = true;
                             true
                         }
@@ -2814,6 +2819,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             // Highlight the option under the mouse in an open list.
+            if let Some(p) = picker.as_mut() {
+                if p.hover != Some((mx, my)) {
+                    p.hover = Some((mx, my));
+                    dirty = true;
+                }
+            }
             if let Some(dd) = dropdown.as_mut() {
                 let row = dd.row_at(mx, my - bar_h() as f32 + scroll);
                 if row != dd.hover {
@@ -2860,7 +2871,34 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
                 dirty = true;
             }
-            if down && !was_down && dropdown.is_some() {
+            // A click in an open date/time/color picker; a click elsewhere closes it and goes on.
+            let mut picked = false;
+            if down && !was_down {
+                if let Some(p) = picker.as_mut() {
+                    let top = p.y - scroll + bar_h() as f32;
+                    match p.click(mx, my, top) {
+                        formui::Pick::Outside => picker = None,
+                        formui::Pick::Nothing => picked = true,
+                        formui::Pick::Set { value, close } => {
+                            let node = p.node;
+                            js::with_dom_mut(|d| forms::set_value(d, node, &value));
+                            if focused == Some(node) {
+                                fedit = Some(textedit::TextEdit::new(&value));
+                            }
+                            fire(&mut page, node, "input");
+                            fire(&mut page, node, "change");
+                            if close {
+                                picker = None;
+                            }
+                            form_changed = true;
+                            picked = true;
+                        }
+                    }
+                    dirty = true;
+                }
+            }
+            if picked {
+            } else if down && !was_down && dropdown.is_some() {
                 // A click while a list is open picks an option or closes the list.
                 let dd = dropdown.take().unwrap();
                 if let Some(i) = dd.row_at(mx, my - bar_h() as f32 + scroll) {
@@ -3089,7 +3127,17 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                     }
                                 }
                             }
-                            _ => {}
+                            // Dates, times and colors: a picker under the field (a second click closes it).
+                            _ => {
+                                let kind = js::with_dom(|d| formui::PickerKind::of(d, c));
+                                let rect = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r);
+                                if let (Some(kind), Some(r)) = (kind, rect) {
+                                    let mut p = js::with_dom(|d| formui::Picker::new(d, c, page.doc, kind, r.x, r.y + r.h));
+                                    p.x = p.left(w as f32);
+                                    picker = Some(p);
+                                    dirty = true;
+                                }
+                            }
                         }
                     }
                     if let (true, None, Some(href)) = (allowed, ctrl, &hit) {
@@ -3382,6 +3430,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     page = build_page(prepared);
                     focused = None;
                     dropdown = None;
+                    picker = None;
                     layout::set_focus(None);
                     lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
                     page_version += 1;
@@ -3446,6 +3495,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             current = Entry { url: page.url.clone(), doc: page.doc, state };
             focused = None;
             dropdown = None;
+            picker = None;
             layout::set_focus(None);
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
@@ -3553,7 +3603,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
-            let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
+            let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || picker.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
             #[cfg(feature = "gpu")]
             let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay, &page.images);
             #[cfg(not(feature = "gpu"))]
@@ -3587,6 +3637,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
                     keynav::draw_ring(&mut canvas, r, fixed, bar_h() as f32, scroll.round(), h as f32, settings::get().high_contrast);
                 }
+            }
+            if let Some(p) = &picker {
+                p.draw(&mut canvas, fonts, p.y - scroll + bar_h() as f32);
             }
             if let Some(b) = &bubble {
                 if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == b.node).map(|(r, _)| *r) {
