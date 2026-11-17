@@ -10,7 +10,7 @@ use crate::style::Color;
 // ---------------------------------------------------------------- page text
 
 /// One run of text on the page, where it's drawn (page coordinates, before scrolling).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextRun {
     pub x: f32,
     /// Baseline.

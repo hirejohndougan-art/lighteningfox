@@ -156,6 +156,18 @@ const BOOK_H: f32 = 28.0;
 static BOOKMARKS_BAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Where the page starts: below the toolbar and the bookmarks bar, if it's showing.
+/// The page's text runs for find in page and selection: from its site process when it runs in
+/// one (placed where the window shows it), else from the window's own layout.
+fn page_runs(doc: u64, lay: &layout::Layout) -> Vec<chrome::TextRun> {
+    frames::site_runs(doc, lay).unwrap_or_else(|| chrome::text_runs(lay))
+}
+
+/// When to take the page's text runs again: the page changed, or (in a site process) its text
+/// or scroll position did.
+fn runs_key(page_version: u64, doc: u64) -> u64 {
+    page_version ^ frames::runs_version(doc).rotate_left(17)
+}
+
 fn bar_h() -> usize {
     TOOL_BOTTOM + if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { BOOK_H as usize } else { 0 }
 }
@@ -2698,8 +2710,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let ctrl_down = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
         let shift_down = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
         let edit_keys_now: Vec<KeyPress> = if typing || editing || finding { presses.clone() } else { Vec::new() };
-        if runs_cache.0 != page_version && (find.is_some() || selection.is_some()) {
-            runs_cache = (page_version, chrome::text_runs(&lay));
+        if runs_cache.0 != runs_key(page_version, page.doc) && (find.is_some() || selection.is_some()) {
+            runs_cache = (runs_key(page_version, page.doc), page_runs(page.doc, &lay));
             if let Some(f) = find.as_mut() {
                 f.search(&runs_cache.1);
             }
@@ -2723,7 +2735,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if jump {
                 if let Some((y, false)) = f.current_y(&runs_cache.1) {
                     let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
-                    if y < scroll + 20.0 || y > scroll + view - 40.0 {
+                    if !frames::site_reveal(page.doc, &lay, y, view) && (y < scroll + 20.0 || y > scroll + view - 40.0) {
                         scroll = (y - view / 3.0).max(0.0);
                     }
                 }
@@ -3575,6 +3587,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         fire(&mut page, old, "blur");
                         form_changed = true;
                     }
+                    // A page in a site process: dragging selects its text here, from the text
+                    // it sends (the press still went to the page).
+                    if frames::site_frame(page.doc).as_ref() == Some(k) {
+                        sel_press = Some((mx, view_y + scroll));
+                        if selection.take().is_some() {
+                            dirty = true;
+                        }
+                    }
                 } else if (my as usize) >= bar_h() {
                     if let Some(k) = frame_focus.take() {
                         frames::blur(page.doc, &k);
@@ -3891,8 +3911,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Ctx::CopySelection => {
                     if let Some((doc, sel)) = selection.filter(|s| s.0 == page.doc) {
                         let _ = doc;
-                        if runs_cache.0 != page_version {
-                            runs_cache = (page_version, chrome::text_runs(&lay));
+                        if runs_cache.0 != runs_key(page_version, page.doc) {
+                            runs_cache = (runs_key(page_version, page.doc), page_runs(page.doc, &lay));
                         }
                         let text = sel.text(fonts, &runs_cache.1);
                         if let (false, Some(c)) = (text.is_empty(), clipboard.as_mut()) {
@@ -3915,7 +3935,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         f.next(matches!(a, Ctx::FindPrev));
                         if let Some((y, false)) = f.current_y(&runs_cache.1) {
                             let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
-                            if y < scroll + 20.0 || y > scroll + view - 40.0 {
+                            if !frames::site_reveal(page.doc, &lay, y, view) && (y < scroll + 20.0 || y > scroll + view - 40.0) {
                                 scroll = (y - view / 3.0).max(0.0);
                             }
                         }
@@ -4398,8 +4418,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 rtl::end(&mut canvas);
             }
             // Browser UI over the page.
-            if (find.is_some() || selection.is_some()) && runs_cache.0 != page_version {
-                runs_cache = (page_version, chrome::text_runs(&lay));
+            if (find.is_some() || selection.is_some()) && runs_cache.0 != runs_key(page_version, page.doc) {
+                runs_cache = (runs_key(page_version, page.doc), page_runs(page.doc, &lay));
                 if let Some(f) = find.as_mut() {
                     f.search(&runs_cache.1);
                 }

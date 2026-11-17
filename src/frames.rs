@@ -35,6 +35,8 @@ pub enum Event {
     Blur,
     /// The frame's box changed size (a top-level page in a site process follows the window).
     Resize { w: u32, h: u32 },
+    /// Scroll the page to this y (find in page jumping to a match).
+    ScrollTo(f32),
 }
 
 /// What a frame tells the window.
@@ -52,6 +54,9 @@ pub enum Update {
     NavigatePost(String, String, Vec<u8>),
     /// The page's title changed (a top-level page in a site process).
     Title(String),
+    /// The text on the page and where it's drawn (page coordinates), for find in page and
+    /// text selection in the window (a top-level page in a site process).
+    Text(Vec<crate::chrome::TextRun>),
 }
 
 /// Keys a frame may receive, by name (so they cross the process boundary).
@@ -129,6 +134,10 @@ impl Event {
                 put(&mut m, b"resize");
                 put(&mut m, &f32s(&[*w as f32, *h as f32]));
             }
+            Event::ScrollTo(y) => {
+                put(&mut m, b"scrollto");
+                put(&mut m, &f32s(&[*y]));
+            }
         }
         m
     }
@@ -172,6 +181,10 @@ impl Event {
                 }
                 Event::Resize { w: (v[0] as u32).clamp(1, 8000), h: (v[1] as u32).clamp(1, 8000) }
             }
+            b"scrollto" => match read_f32s(&get(r)?)[..] {
+                [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
+                _ => return Err(std::io::Error::other("bad scroll")),
+            },
             _ => return Err(std::io::Error::other("unknown event")),
         })
     }
@@ -204,6 +217,14 @@ impl Update {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
             }
+            Update::Text(runs) => {
+                put(&mut m, b"text");
+                put(&mut m, &f32s(&[runs.len() as f32]));
+                for r in runs {
+                    put(&mut m, &f32s(&[r.x, r.y, r.size, r.font as f32, r.fixed as u8 as f32]));
+                    put(&mut m, r.text.as_bytes());
+                }
+            }
         }
         m
     }
@@ -228,6 +249,20 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"text" => {
+                let n = match read_f32s(&get(r)?)[..] {
+                    [n] if (0.0..=200_000.0).contains(&n) => n as usize,
+                    _ => return Err(std::io::Error::other("bad text")),
+                };
+                let mut runs = Vec::with_capacity(n.min(4096));
+                for _ in 0..n {
+                    let v = read_f32s(&get(r)?);
+                    let text = String::from_utf8_lossy(&get(r)?).to_string();
+                    let [x, y, size, font, fixed] = v[..] else { return Err(std::io::Error::other("bad text run")) };
+                    runs.push(crate::chrome::TextRun { x, y, text, font: font as u8, size, fixed: fixed > 0.5 });
+                }
+                Update::Text(runs)
+            }
             _ => return Err(std::io::Error::other("unknown update")),
         })
     }
@@ -256,6 +291,8 @@ struct Host {
     outbox: Vec<Update>,
     /// The title last reported (top-level pages).
     title: String,
+    /// The page text last sent to the window (a top-level page in a site process).
+    sent_runs: Vec<crate::chrome::TextRun>,
 }
 
 impl Drop for Host {
@@ -331,6 +368,14 @@ impl Host {
             layout::set_edit(e.caret, e.anchor);
         }
         self.lay = self.page.layout(self.fonts, self.w as f32, self.h as f32);
+        // A top-level page tells the window its text (find in page, selection), when it changes.
+        if self.job.top_level {
+            let runs = crate::chrome::text_runs(&self.lay);
+            if runs != self.sent_runs {
+                self.sent_runs = runs.clone();
+                self.outbox.push(Update::Text(runs));
+            }
+        }
     }
 
     /// Open another document in the frame (a link, a form, a script setting location).
@@ -656,6 +701,7 @@ impl Host {
                     self.relayout();
                 }
             }
+            Event::ScrollTo(y) => self.scroll = y,
         }
     }
 }
@@ -692,6 +738,7 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         last_down: false,
         outbox: Vec::new(),
         title: String::new(),
+        sent_runs: Vec::new(),
     };
     host.settle();
     host.relayout();
@@ -796,6 +843,9 @@ struct Live {
     /// frame process can't be trusted to apply it.
     sandbox: Option<security::Sandbox>,
     top_level: bool,
+    /// The page's text (a top-level page in a site process) and how often it changed.
+    runs: Vec<crate::chrome::TextRun>,
+    runs_version: u64,
 }
 
 impl Drop for Live {
@@ -841,7 +891,7 @@ pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option
             .ok()?;
         Sink::Thread(etx)
     };
-    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level };
+    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level, runs: Vec::new(), runs_version: 0 };
     let first = loop {
         match live.updates.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
             Ok(Update::Picture { img, scroll, max, inner }) => {
@@ -904,6 +954,12 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 Update::NavigatePost(u, content_type, bytes) if may_navigate_top(f) => out.post = Some((u, forms::PostBody { content_type, bytes })),
                 Update::NavigateTop(_) | Update::OpenTab(_) | Update::NavigatePost(..) => log!("[frames] {}: blocked by its sandbox", f.key),
                 Update::Title(t) => out.title = Some(t),
+                Update::Text(runs) if f.top_level => {
+                    f.runs = runs;
+                    f.runs_version += 1;
+                    out.repaint = true;
+                }
+                Update::Text(_) => {}
             }
         }
         if let Some(img) = latest {
@@ -950,6 +1006,52 @@ fn send(doc: u64, key: &str, ev: Event) {
 pub fn site_frame(doc: u64) -> Option<String> {
     let live = LIVE.lock().ok()?;
     live.iter().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_))).map(|f| f.key.clone())
+}
+
+/// Where the site-process page of `doc` is drawn in the window's layout, with its frame.
+fn site_box<'a>(live: &'a [Live], doc: u64, lay: &layout::Layout) -> Option<(&'a Live, f32, f32)> {
+    let f = live.iter().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))?;
+    let (x, y) = lay.items.iter().find_map(|it| match it {
+        crate::paint::Item::Image { x, y, src, .. } if *src == f.key => Some((*x, *y)),
+        _ => None,
+    })?;
+    Some((f, x, y))
+}
+
+/// The text of the site-process page shown for `doc`, placed where the window draws it (its
+/// own scrolling applied): find in page and selection work on it like on a local page.
+pub fn site_runs(doc: u64, lay: &layout::Layout) -> Option<Vec<crate::chrome::TextRun>> {
+    let live = LIVE.lock().ok()?;
+    let (f, x0, y0) = site_box(&live, doc, lay)?;
+    Some(
+        f.runs
+            .iter()
+            .map(|r| crate::chrome::TextRun { x: r.x + x0, y: r.y + y0 - if r.fixed { 0.0 } else { f.scroll }, fixed: false, ..r.clone() })
+            .collect(),
+    )
+}
+
+/// Changes whenever site_runs would give something else (new text, or scrolled).
+pub fn runs_version(doc: u64) -> u64 {
+    let Ok(live) = LIVE.lock() else { return 0 };
+    live.iter()
+        .find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))
+        .map(|f| f.runs_version.wrapping_mul(0x1_0000_0001) ^ f.scroll.to_bits() as u64)
+        .unwrap_or(0)
+}
+
+/// Scroll the site-process page shown for `doc` so the window y `y` (from site_runs) comes into
+/// a `view` px tall view. False if the page isn't in a site process.
+pub fn site_reveal(doc: u64, lay: &layout::Layout, y: f32, view: f32) -> bool {
+    let Ok(live) = LIVE.lock() else { return false };
+    let Some((f, _, y0)) = site_box(&live, doc, lay) else { return false };
+    let Sink::Site(id) = f.sink else { return false };
+    let shown = y - y0;
+    if shown < 20.0 || shown > view - 40.0 {
+        let page_y = shown + f.scroll;
+        crate::process::event(id, &Event::ScrollTo((page_y - view / 3.0).max(0.0)));
+    }
+    true
 }
 
 /// Keep site-process pages the size of their box (the window, less the toolbar).
@@ -1414,6 +1516,7 @@ mod tests {
             Event::Wheel { x: 3.0, y: 4.0, dy: -45.0 },
             Event::Keys { keys: vec![(Key::A, true, false, false), (Key::Backspace, false, true, false)], text: "héllo".into() },
             Event::Blur,
+            Event::ScrollTo(120.0),
         ];
         for e in evs {
             let b = e.encode();
@@ -1427,8 +1530,39 @@ mod tests {
         }
         let b = Update::NavigateTop("https://x.org/".into()).encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::NavigateTop(u) if u == "https://x.org/"));
+        let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];
+        let b = Update::Text(runs.clone()).encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Text(r) if r == runs));
         // Garbage is refused, not misread.
         assert!(Event::decode(&mut &b"\x03\0\0\0zzz"[..]).is_err());
+    }
+
+    #[test]
+    fn a_site_process_page_sends_its_text_and_scrolls_on_request() {
+        // The window finds and selects text on pages in site processes from what they send.
+        let (etx, erx) = channel();
+        let (utx, urx) = channel();
+        let html = format!("<body style='margin:0'><div style='height:2000px'>Top line</div><p>Far down</p></body>");
+        let job = FrameJob { src: FrameSrc::Doc { html, base: "about:blank".into() }, w: 400, h: 300, parent: "about:blank".into(), top: "about:blank".into(), sandbox: None, reply: channel().0, top_level: true };
+        std::thread::spawn(move || run_host(job, erx, move |u| utx.send(u).is_ok()));
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut runs = None;
+        while runs.is_none() && Instant::now() < deadline {
+            if let Ok(Update::Text(r)) = urx.recv_timeout(Duration::from_millis(200)) {
+                runs = Some(r);
+            }
+        }
+        let runs = runs.expect("no text from the page");
+        let far = runs.iter().find(|r| r.text.contains("Far down")).expect("the far line");
+        assert!(far.y > 2000.0, "page coordinates: {}", far.y);
+        etx.send(Event::ScrollTo(1900.0)).unwrap();
+        let mut scrolled = false;
+        while !scrolled && Instant::now() < deadline {
+            if let Ok(Update::Picture { scroll, .. }) = urx.recv_timeout(Duration::from_millis(200)) {
+                scrolled = scroll > 1000.0;
+            }
+        }
+        assert!(scrolled, "the page scrolled to the match");
     }
 
     #[test]
@@ -1448,6 +1582,8 @@ mod tests {
             inner: false,
             sandbox,
             top_level,
+            runs: Vec::new(),
+            runs_version: 0,
         };
         let locked = security::Sandbox { scripts: true, same_origin: false, forms: false, popups: false, top_navigation: false, modals: false };
         assert!(!may_navigate_top(&live(Some(locked.clone()), false)), "a sandboxed frame can't move the tab");
