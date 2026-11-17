@@ -2640,7 +2640,7 @@ impl Array {
     {
         // 1. Let items be a new empty List.
         // doesn't matter if it clamps since it's just a best-effort optimization
-        let mut items = Vec::with_capacity(len as usize);
+        let mut items: Vec<JsValue> = Vec::with_capacity(len as usize);
 
         // 2. Let k be 0.
         // 3. Repeat, while k < len,
@@ -2668,7 +2668,10 @@ impl Array {
         }
         // 4. Sort items using an implementation-defined sequence of calls to SortCompare. If any such call returns an abrupt completion, stop before performing any further calls to SortCompare and return that Completion Record.
         let mut sort_err = Ok(());
-        items.sort_by(|x, y| {
+        // A page's comparator may be inconsistent (`() => Math.random() - 0.5` is a common
+        // shuffle). The spec then leaves the order up to the implementation, but the standard
+        // library's sort panics on such comparators, so a merge sort that tolerates them is used.
+        let items = tolerant_merge_sort(items, |x, y| {
             if sort_err.is_ok() {
                 sort_compare(x, y, context).unwrap_or_else(|err| {
                     sort_err = Err(err);
@@ -3699,4 +3702,76 @@ fn array_set_length(
 
     // 19. Return true.
     Ok(true)
+}
+
+/// A stable merge sort that gives some order, and never panics, whatever `cmp` answers
+/// (insertion sort for short runs, then bottom-up merging).
+fn tolerant_merge_sort<T: Clone>(mut v: Vec<T>, mut cmp: impl FnMut(&T, &T) -> Ordering) -> Vec<T> {
+    const RUN: usize = 16;
+    let n = v.len();
+    if n < 2 {
+        return v;
+    }
+    for start in (0..n).step_by(RUN) {
+        let end = (start + RUN).min(n);
+        for i in start + 1..end {
+            let mut j = i;
+            while j > start && cmp(&v[j - 1], &v[j]) == Ordering::Greater {
+                v.swap(j - 1, j);
+                j -= 1;
+            }
+        }
+    }
+    let mut width = RUN;
+    let mut buf: Vec<T> = Vec::with_capacity(n);
+    while width < n {
+        buf.clear();
+        let mut start = 0;
+        while start < n {
+            let mid = (start + width).min(n);
+            let end = (start + 2 * width).min(n);
+            let (mut i, mut j) = (start, mid);
+            while i < mid && j < end {
+                // Take from the right only when it's strictly smaller: keeps the sort stable.
+                if cmp(&v[j], &v[i]) == Ordering::Less {
+                    buf.push(v[j].clone());
+                    j += 1;
+                } else {
+                    buf.push(v[i].clone());
+                    i += 1;
+                }
+            }
+            buf.extend_from_slice(&v[i..mid]);
+            buf.extend_from_slice(&v[j..end]);
+            start = end;
+        }
+        std::mem::swap(&mut v, &mut buf);
+        width *= 2;
+    }
+    v
+}
+
+#[cfg(test)]
+mod tolerant_sort_tests {
+    use super::tolerant_merge_sort;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn sorts_and_survives_inconsistent_comparators() {
+        let v: Vec<i32> = (0..200).rev().collect();
+        assert_eq!(tolerant_merge_sort(v, |a, b| a.cmp(b)), (0..200).collect::<Vec<_>>());
+        // Stable: equal keys keep their order.
+        let pairs: Vec<(i32, i32)> = (0..100).map(|i| (i % 3, i)).collect();
+        let sorted = tolerant_merge_sort(pairs, |a, b| a.0.cmp(&b.0));
+        assert!(sorted.windows(2).all(|w| w[0].0 < w[1].0 || (w[0].0 == w[1].0 && w[0].1 < w[1].1)));
+        // A comparator that contradicts itself still gives back every element.
+        let mut flip = false;
+        let out = tolerant_merge_sort((0..500).collect::<Vec<i32>>(), |_, _| {
+            flip = !flip;
+            if flip { Ordering::Less } else { Ordering::Greater }
+        });
+        let mut back = out.clone();
+        back.sort();
+        assert_eq!(back, (0..500).collect::<Vec<_>>());
+    }
 }

@@ -350,3 +350,10 @@ fn styles_scripts_add_or_change_apply() {
     let g = "rgb(0, 128, 0)";
     assert_eq!(text_of("out"), format!("{g};{g};{g};{g};true;\"\""));
 }
+
+#[test]
+fn inconsistent_sort_comparators_dont_crash() {
+    let _serial = serial();
+    let _page = open("tests/sites/random-sort.html");
+    assert_eq!(text_of("out"), "true 300 bdac");
+}
