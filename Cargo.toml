@@ -9,7 +9,7 @@ repository = "https://github.com/hirejohndougan-art/lighteningfox"
 [dependencies]
 minifb = "0.27"
 png = "0.17"
-boa_engine = "0.22"
+boa_engine = { version = "0.22", features = ["intl_bundled"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 base64 = "0.22"
 wuff = "0.2"
@@ -32,6 +32,8 @@ zenavif = "0.1.6"
 rgb = "0.8.53"
 zenpixels = "0.2"
 regress = "0.12"
+fluent-bundle = "0.16"
+unic-langid = "0.9"
 
 [profile.release]
 opt-level = 3

@@ -1105,6 +1105,7 @@ const PRELUDE: &str = include_str!("prelude.js");
 const BLOB: &str = include_str!("blob.js");
 const INDEXEDDB: &str = include_str!("indexeddb.js");
 const FORMS: &str = include_str!("forms.js");
+const INTL: &str = include_str!("intl.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
@@ -1193,9 +1194,10 @@ impl Js {
         let esc = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"");
         let globals = format!(
             "var __nowMs = 0, __readyState = \"loading\", __url = \"{}\", __cookie = \"\", \
-             __userAgent = \"{}\", __currentScript = -1;",
+             __userAgent = \"{}\", __currentScript = -1, __lang = \"{}\";",
             esc(url),
-            esc(net::USER_AGENT)
+            esc(net::USER_AGENT),
+            esc(&crate::i18n::locale())
         );
         ctx.eval(Source::from_bytes(globals.as_bytes())).expect("globals");
         if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
@@ -1209,6 +1211,9 @@ impl Js {
         }
         if let Err(e) = ctx.eval(Source::from_bytes(FORMS.as_bytes())) {
             log!("[ironswift] form validation setup failed: {e}");
+        }
+        if let Err(e) = ctx.eval(Source::from_bytes(INTL.as_bytes())) {
+            log!("[ironswift] Intl setup failed: {e}");
         }
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }

@@ -47,6 +47,10 @@ pub struct Settings {
     pub cookies_session: Vec<String>,
     /// Check for a new version of Ironswift once a day.
     pub check_updates: bool,
+    /// The browser's language: "auto" (the desktop's) or a code from i18n::LANGUAGES.
+    pub language: String,
+    /// Draw pages and the browser in high-contrast colors.
+    pub high_contrast: bool,
 }
 
 impl Default for Settings {
@@ -75,6 +79,8 @@ impl Default for Settings {
             cookies_block: Vec::new(),
             cookies_session: Vec::new(),
             check_updates: true,
+            language: "auto".into(),
+            high_contrast: false,
         }
     }
 }
@@ -130,6 +136,8 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "safe_browsing" => s.safe_browsing = on(v),
         "resist_fingerprinting" => s.resist_fingerprinting = on(v),
         "check_updates" => s.check_updates = on(v),
+        "language" if v == "auto" || crate::i18n::LANGUAGES.iter().any(|l| l.0 == v) => s.language = v.to_string(),
+        "high_contrast" => s.high_contrast = on(v),
         "no_blocking" => s.no_blocking = site_list(v),
         "cookies_allow" => s.cookies_allow = site_list(v),
         "cookies_block" => s.cookies_block = site_list(v),
@@ -213,6 +221,7 @@ fn save(s: &Settings) {
         s.cookies_block.join(" "),
         s.cookies_session.join(" ")
     ));
+    body.push_str(&format!("language\t{}\nhigh_contrast\t{}\n", s.language, b(s.high_contrast)));
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
         let _ = std::fs::rename(&tmp, &p);
@@ -369,6 +378,7 @@ pub fn page(query: &str) -> String {
         s.safe_browsing = false;
         s.resist_fingerprinting = false;
         s.check_updates = false;
+        s.high_contrast = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -380,6 +390,7 @@ pub fn page(query: &str) -> String {
         }
         save(&s);
         crate::blocklist::reload();
+        crate::i18n::set_language(&s.language);
         saved = true;
     }
     let s = get();
@@ -443,6 +454,8 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row field"><label>Minimum font size (px, 0 = none)</label><input type="number" name="min_font_size" value="{min_font}" min="0" max="40"></div>
 <p class="hint" style="margin-left:0">Makes small print on pages larger. Ctrl + and Ctrl − zoom a whole site.</p>
 <div class="row"><label><input type="checkbox" name="reduce_motion" value="1"{reduce}> Reduce motion</label><p class="hint">Asks sites to keep animations to a minimum.</p></div>
+<div class="row"><label><input type="checkbox" name="high_contrast" value="1"{hc}> {hc_label}</label><p class="hint">{hc_hint}</p></div>
+<div class="row field"><label>{lang_label}</label><select name="language">{lang_opts}</select><p class="hint" style="margin-left:0">{lang_hint}</p></div>
 </section>
 <section><h2>Default browser</h2>
 <div class="row"><a href="about:settings?default_browser">Make Ironswift my default browser</a></div>
@@ -490,5 +503,14 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         perms = crate::permissions::settings_html(),
         chk_upd = check(s.check_updates),
         upd_status = esc(&crate::updates::status()),
+        hc = check(s.high_contrast),
+        hc_label = esc(&crate::i18n::t("set-high-contrast")),
+        hc_hint = esc(&crate::i18n::t("set-high-contrast-hint")),
+        lang_label = esc(&crate::i18n::t("set-language")),
+        lang_hint = esc(&crate::i18n::t("set-language-hint")),
+        lang_opts = std::iter::once(("auto".to_string(), crate::i18n::t("set-language-auto")))
+            .chain(crate::i18n::LANGUAGES.iter().map(|l| (l.0.to_string(), l.1.to_string())))
+            .map(|(k, n)| format!("<option value=\"{k}\"{}>{}</option>", if k == s.language { " selected" } else { "" }, esc(&n)))
+            .collect::<String>(),
     )
 }

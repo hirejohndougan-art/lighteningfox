@@ -326,13 +326,13 @@ impl Find {
         let status = if self.query.is_empty() {
             String::new()
         } else if self.matches.is_empty() {
-            "No matches".to_string()
+            crate::i18n::t("find-none")
         } else {
-            format!("{} of {}", self.current + 1, self.matches.len())
+            crate::i18n::tf("find-count", &[("current", &(self.current + 1).to_string()), ("total", &self.matches.len().to_string())])
         };
         let sx = fx + fw + 12.0;
         canvas.draw_text(fonts, sx, y + 25.0, &status, font::REGULAR, 13.0, Color::rgb(70, 70, 80));
-        let hint = "Enter: next  ·  Shift+Enter: previous  ·  Esc: close";
+        let hint = &crate::i18n::t("find-hint");
         let hw = fonts.width(font::REGULAR, hint, 12.0);
         if sx + 110.0 + hw < w {
             canvas.draw_text(fonts, w - hw - 12.0, y + 25.0, hint, font::REGULAR, 12.0, Color::rgb(120, 120, 130));

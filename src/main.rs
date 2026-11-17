@@ -29,6 +29,7 @@ mod hsts;
 mod icon;
 mod tokenizer;
 mod a11y;
+mod i18n;
 mod chrome;
 mod favicon;
 mod devtools;
@@ -1261,40 +1262,32 @@ fn error_page(url: &str, err: &str) -> String {
     let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
     let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_else(|| url.to_string());
     let tag = err.strip_prefix('[').and_then(|r| r.split_once(']')).map_or("net", |(t, _)| t);
-    let (title, explain, tips): (String, String, &[&str]) = match tag {
-        "dns" => (
-            "This site can't be found".into(),
-            format!("No address was found for <b>{}</b>.", esc(&host)),
-            &["Check the spelling of the address.", "Check that you're connected to the internet.", "The site may no longer exist."],
-        ),
-        "timeout" => (
-            "The site took too long to answer".into(),
-            format!("<b>{}</b> didn't respond in time.", esc(&host)),
-            &["Try again in a moment; the site may be busy.", "Check your internet connection."],
-        ),
-        "cert" => (
-            "This connection isn't secure".into(),
-            format!("<b>{}</b> sent a security certificate Ironswift can't trust, so the page wasn't loaded. Someone could be trying to read or change what you send.", esc(&host)),
-            &["If this is your own or your company's site, its certificate may have expired or not be installed.", "Don't enter passwords or payment details on this site."],
-        ),
-        "refused" => (
-            "The site refused to connect".into(),
-            format!("<b>{}</b> isn't accepting connections.", esc(&host)),
-            &["The site may be down or not running on this port.", "Try again later."],
-        ),
-        "proxy" => ("Couldn't connect through the proxy".into(), "The proxy server didn't let the request through.".into(), &["Check the proxy in Settings (Network)."]),
-        "type" => ("Ironswift can't show this file".into(), "This kind of file can't be shown in a tab.".into(), &[]),
-        _ => ("Couldn't load this page".into(), format!("Something went wrong loading <b>{}</b>.", esc(&host)), &["Check your internet connection.", "Try again with ↻."]),
+    // Translated strings; the host is escaped and set in bold.
+    let t = |id: &str| esc(&i18n::t(id));
+    let with_host = |id: &str| esc(&i18n::tf(id, &[("host", "\u{1}")])).replace('\u{1}', &format!("<b>{}</b>", esc(&host)));
+    let (title, explain, tips): (String, String, Vec<String>) = match tag {
+        "dns" => (t("err-dns-title"), with_host("err-dns-detail"), vec![t("err-dns-tip1"), t("err-dns-tip2"), t("err-dns-tip3")]),
+        "timeout" => (t("err-timeout-title"), with_host("err-timeout-detail"), vec![t("err-timeout-tip1"), t("err-net-tip")]),
+        "cert" => (t("err-cert-title"), with_host("err-cert-detail"), vec![t("err-cert-tip1"), t("err-cert-tip2")]),
+        "refused" => (t("err-refused-title"), with_host("err-refused-detail"), vec![t("err-refused-tip1"), t("err-refused-tip2")]),
+        "proxy" => (t("err-proxy-title"), t("err-proxy-detail"), vec![t("err-proxy-tip")]),
+        "type" => (t("err-type-title"), t("err-type-detail"), vec![]),
+        _ => (t("err-other-title"), with_host("err-other-detail"), vec![t("err-net-tip"), t("err-other-tip")]),
     };
     let tips: String = tips.iter().map(|t| format!("<li>{t}</li>")).collect();
     // The technical detail, without the tag.
     let detail = err.split_once("] ").map_or(err, |(_, d)| d);
+    let lang = i18n::locale();
+    let dir = if i18n::rtl() { "rtl" } else { "ltr" };
     format!(
-        "<!DOCTYPE html><html><head><title>{title}</title></head><body style='font-family:sans-serif;margin:60px auto;max-width:640px;padding:0 24px;color:#334155'>\
+        "<!DOCTYPE html><html lang=\"{lang}\" dir=\"{dir}\"><head><title>{title}</title></head><body style='font-family:sans-serif;margin:60px auto;max-width:640px;padding:0 24px;color:#334155'>\
          <h1 style='color:#1f2937'>{title}</h1><p style='font-size:17px'>{explain}</p><ul style='line-height:1.7'>{tips}</ul>\
-         <p><a href=\"{}\">Try again</a> · <a href=\"about:settings\">Settings</a></p>\
-         <details><summary style='color:#64748b'>Details</summary><p style='color:#64748b;font-size:13px'>{}</p></details></body></html>",
+         <p><a href=\"{}\">{}</a> · <a href=\"about:settings\">{}</a></p>\
+         <details><summary style='color:#64748b'>{}</summary><p style='color:#64748b;font-size:13px'>{}</p></details></body></html>",
         esc(url),
+        t("err-try-again"),
+        t("err-settings"),
+        t("err-details"),
         esc(detail)
     )
 }
@@ -1319,6 +1312,8 @@ fn browser_main() {
     prefer_x11();
     // A private window keeps nothing: its own empty profile folder, deleted when it closes.
     let private_profile = start_private_profile();
+    // The browser's language becomes the default for pages' Intl too (before threads start).
+    i18n::apply_to_process();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
     // Whether a page was named on the command line (else: restore the last session or go home).
@@ -2411,7 +2406,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             zoom::set(&page.url, nz);
                             selection = None;
                             reflow = true;
-                            toast = Some((format!("Zoom {:.0}%  ·  Ctrl+0 resets", nz * 100.0), Instant::now()));
+                            toast = Some((i18n::tf("toast-zoom", &[("pct", &format!("{:.0}", nz * 100.0))]), Instant::now()));
                         }
                     }
                     Key::A if ctrl && !typing => {
@@ -2447,7 +2442,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     zoom::set(&page.url, nz);
                             selection = None;
                     reflow = true;
-                    toast = Some((format!("Zoom {:.0}%  ·  Ctrl+0 resets", nz * 100.0), Instant::now()));
+                    toast = Some((i18n::tf("toast-zoom", &[("pct", &format!("{:.0}", nz * 100.0))]), Instant::now()));
                 }
             }
         } else if let Some((_, dy)) = window.get_scroll_wheel() {
@@ -3031,17 +3026,17 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         pdf::write(&tmp, &sheets).is_ok() && std::process::Command::new("lp").arg(&tmp).output().is_ok_and(|o| o.status.success())
                     };
                     if printed {
-                        toast = Some((if sheets.len() == 1 { "Sent 1 page to the printer".to_string() } else { format!("Sent {} pages to the printer", sheets.len()) }, Instant::now()));
+                        toast = Some((i18n::tf("toast-printed", &[("n", &sheets.len().to_string())]), Instant::now()));
                     } else {
                         let path = downloads::free_path(&format!("{}.pdf", name.trim()));
                         match pdf::write(&path, &sheets) {
                             Ok(size) => {
                                 downloads::add_done(&page.url, &path, size);
-                                let why = if matches!(a, Ctx::Print) { "No printer answered; saved" } else { "Saved" };
-                                let pages = if sheets.len() == 1 { "1 page".to_string() } else { format!("{} pages", sheets.len()) };
-                                toast = Some((format!("{why} {} ({pages}) to Downloads", path.file_name().unwrap_or_default().to_string_lossy()), Instant::now()));
+                                let id = if matches!(a, Ctx::Print) { "toast-pdf-no-printer" } else { "toast-pdf-saved" };
+                                let file = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                                toast = Some((i18n::tf(id, &[("file", &file), ("n", &sheets.len().to_string())]), Instant::now()));
                             }
-                            Err(e) => toast = Some((format!("Couldn't save the PDF: {e}"), Instant::now())),
+                            Err(e) => toast = Some((i18n::tf("toast-pdf-failed", &[("error", &e.to_string())]), Instant::now())),
                         }
                     }
                 }
@@ -3157,7 +3152,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     let _ = ptx.send((g, p));
                 })));
             });
-            window.set_title(&format!("Loading {target} — Ironswift"));
+            window.set_title(&i18n::tf("window-loading", &[("target", &target.to_string())]));
             address = target;
             editing = false;
             loading = Some(Loading { generation, kind, started: Instant::now() });
@@ -3469,8 +3464,8 @@ fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fon
     if let Some(href) = lay.link_at(mx, view_y, scroll) {
         let url = net::resolve(&page.url, href);
         if !url.starts_with("javascript:") {
-            rows.push(R::item("Open link in new tab", Ctx::OpenNewTab(url.clone())));
-            rows.push(R::item("Copy link address", Ctx::Copy(url)));
+            rows.push(R::item(&i18n::t("menu-open-link-new-tab"), Ctx::OpenNewTab(url.clone())));
+            rows.push(R::item(&i18n::t("menu-copy-link"), Ctx::Copy(url)));
             rows.push(R::separator());
         }
     }
@@ -3481,29 +3476,29 @@ fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fon
     });
     if let Some(src) = image {
         let url = net::resolve(&page.url, &src);
-        rows.push(R::item("Open image in new tab", Ctx::OpenNewTab(url.clone())));
-        rows.push(R::item("Copy image address", Ctx::Copy(url)));
+        rows.push(R::item(&i18n::t("menu-open-image-new-tab"), Ctx::OpenNewTab(url.clone())));
+        rows.push(R::item(&i18n::t("menu-copy-image"), Ctx::Copy(url)));
         rows.push(R::separator());
     }
     if let Some(s) = sel {
         if !s.text(fonts, runs).is_empty() {
-            rows.push(R::item("Copy", Ctx::CopySelection));
+            rows.push(R::item(&i18n::t("menu-copy"), Ctx::CopySelection));
             rows.push(R::separator());
         }
     }
-    rows.push(if can_back { R::item("Back", Ctx::Back) } else { R::disabled("Back") });
-    rows.push(if can_forward { R::item("Forward", Ctx::Forward) } else { R::disabled("Forward") });
-    rows.push(R::item("Reload", Ctx::Reload));
+    rows.push(if can_back { R::item(&i18n::t("menu-back"), Ctx::Back) } else { R::disabled(&i18n::t("menu-back")) });
+    rows.push(if can_forward { R::item(&i18n::t("menu-forward"), Ctx::Forward) } else { R::disabled(&i18n::t("menu-forward")) });
+    rows.push(R::item(&i18n::t("menu-reload"), Ctx::Reload));
     rows.push(R::separator());
-    rows.push(R::item("Select all", Ctx::SelectAll));
-    rows.push(R::item("Find in page…   Ctrl+F", Ctx::Find));
+    rows.push(R::item(&i18n::t("menu-select-all"), Ctx::SelectAll));
+    rows.push(R::item(&format!("{}   Ctrl+F", i18n::t("menu-find")), Ctx::Find));
     rows.push(R::separator());
-    rows.push(R::item("Save as PDF…   Ctrl+S", Ctx::SavePdf));
-    rows.push(R::item("Print…   Ctrl+P", Ctx::Print));
+    rows.push(R::item(&format!("{}   Ctrl+S", i18n::t("menu-save-pdf")), Ctx::SavePdf));
+    rows.push(R::item(&format!("{}   Ctrl+P", i18n::t("menu-print")), Ctx::Print));
     if page.url.starts_with("http") || page.url.starts_with("file:") {
-        rows.push(R::item("View page source   Ctrl+U", Ctx::ViewSource));
+        rows.push(R::item(&format!("{}   Ctrl+U", i18n::t("menu-view-source")), Ctx::ViewSource));
     }
-    rows.push(R::item("Inspect   F12", Ctx::Inspect));
+    rows.push(R::item(&format!("{}   F12", i18n::t("menu-inspect")), Ctx::Inspect));
     chrome::Menu::new(mx, my, 240.0, rows, win_w, win_h)
 }
 
@@ -3517,20 +3512,20 @@ fn downloads_panel(x: f32, y: f32, win_w: f32, win_h: f32) -> chrome::Menu<DlAct
         let (detail, action) = match &d.state {
             downloads::State::Active => (
                 match d.total {
-                    Some(t) => format!("{:.0}% · {} of {}", d.received as f64 * 100.0 / t.max(1) as f64, human(d.received), human(t)),
-                    None => format!("{} so far", human(d.received)),
+                    Some(t) => i18n::tf("dl-progress", &[("pct", &format!("{:.0}", d.received as f64 * 100.0 / t.max(1) as f64)), ("got", &human(d.received)), ("total", &human(t))]),
+                    None => i18n::tf("dl-so-far", &[("got", &human(d.received))]),
                 },
                 None,
             ),
-            downloads::State::Done => (format!("Done · {} · click to open", human(d.received)), Some(DlAct::Open(d.id))),
-            downloads::State::Failed(e) => (format!("Failed: {e}"), None),
-            downloads::State::Cancelled => ("Cancelled".to_string(), None),
+            downloads::State::Done => (i18n::tf("dl-done", &[("size", &human(d.received))]), Some(DlAct::Open(d.id))),
+            downloads::State::Failed(e) => (i18n::tf("dl-failed", &[("error", &e.to_string())]), None),
+            downloads::State::Cancelled => (i18n::t("dl-cancelled"), None),
         };
         rows.push(R { label: name, detail: Some(detail), action, separator: false });
     }
     rows.push(R::separator());
-    rows.push(R::item("Show all downloads", DlAct::ShowAll));
-    rows.push(R::item("Open Downloads folder", DlAct::Folder));
+    rows.push(R::item(&i18n::t("dl-show-all"), DlAct::ShowAll));
+    rows.push(R::item(&i18n::t("dl-open-folder"), DlAct::Folder));
     chrome::Menu::new(x, y, 330.0, rows, win_w, win_h)
 }
 
@@ -3667,7 +3662,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     }
     canvas.draw_text(fonts, end + 4.0 + (NEW_TAB_W - fonts.width(font::REGULAR, "+", 18.0)) / 2.0, 26.0, "+", font::REGULAR, 18.0, if private { Color::rgb(255, 255, 255) } else { Color::rgb(60, 60, 70) });
     if private {
-        let label = "Private";
+        let label = &i18n::t("private-badge");
         let lw = fonts.width(font::BOLD, label, 12.0);
         canvas.draw_text(fonts, w - lw - 12.0, 22.0, label, font::BOLD, 12.0, Color::rgb(255, 255, 255));
     }

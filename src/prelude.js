@@ -1487,7 +1487,7 @@
     document, location, Node, Element, HTMLElement, Text, Comment, Document, DocumentFragment,
     CharacterData, Event, CustomEvent, EventTarget,
     DOMParser,
-    navigator: { userAgent: __userAgent, language: "en-US", languages: ["en-US", "en"], platform: "Linux x86_64",
+    navigator: { userAgent: __userAgent, language: __lang, languages: __lang.indexOf("-") > 0 ? [__lang, __lang.split("-")[0]] : [__lang], platform: "Linux x86_64",
                  onLine: true, cookieEnabled: true, globalPrivacyControl: true, doNotTrack: "1", hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
     screen: { width: 1366, height: 768, availWidth: 1366, availHeight: 768, colorDepth: 24 },
     devicePixelRatio: 1, scrollX: 0, pageXOffset: 0,
