@@ -326,7 +326,9 @@ measured on their own) at the same time. Painting also shapes whole lines again
 tests/real-world pages before and after; keep every reference screenshot identical.
 
 ### X16. `createElementNS` for any namespace, with prefixes and name checks
-**Status:** claimed by chat-nsX16 2026-11-17 12:50
+**Status:** done
+**Done:** elements keep any namespace (or none) and their prefix (`Ns::Other` + `Dom::ns_names`); `createElementNS` and `createElement` check names with the current "validate and extract" rules (`src/qname.rs`); `tagName`/`nodeName` give the qualified name (uppercased only for HTML elements); `instanceof HTMLElement`/`HTMLSpanElement`/`HTMLUnknownElement`/`SVGElement` go by namespace (an HTML `<title>` was an `SVGElement`). Also: `setAttributeNS`/`getAttributeNS`/`hasAttributeNS`/`removeAttributeNS` keep attribute namespaces (`Dom::attr_ns`, `src/ns.js`); attribute names are lowercased on HTML elements only (script-set SVG `viewBox` now works); `getElementsByTagName` matches qualified names; `getElementsByTagNameNS`, `lookupNamespaceURI`, `lookupPrefix`, `isDefaultNamespace`. WPT `dom/nodes`: 1543 → 2166 of 5629, no subtest worse; `Document-createElementNS.html` passes every HTML-document case (206/596).
+**Left undone:** the XML/XHTML-document variants (390 of the createElementNS subtests, about 98 in `Document-createElement.html`) need XML documents (`document.implementation.createDocument`, XML iframes); there are no `Attr` nodes, so `createAttributeNS`/`setAttributeNodeNS` and most of `attributes.html` still fail; the HTML parser doesn't put `xlink:`/`xml:` attributes on SVG into their namespaces; two attributes with the same qualified name in different namespaces share one slot.
 **After:** —
 **Checklist:** none
 **Files:** `src/dom.rs` (the `Ns` namespace map), `src/js.rs` (`n_create`), `src/prelude.js`
