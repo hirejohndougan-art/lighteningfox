@@ -153,6 +153,42 @@ The `<svg>` replaced-element entry in the box tree, `createElementNS` marking SV
 elements, the `document.body` setter, `font::web_families_generation`, and `WPT_TIMEOUT`:
 check each against the spec and other browsers, add tests where missing.
 
+### X9. Geolocation in Flatpak and with site isolation
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/geo.rs`, the location parts of `src/process.rs`, `packaging/flatpak/`
+Leftovers from X6. GeoClue is on the system bus, which the Flatpak sandbox blocks: when the
+system bus can't be reached (or inside Flatpak), ask the XDG Location portal
+(`org.freedesktop.portal.Location` on the session bus) instead, and add its permission to the
+Flatpak manifest. With site isolation on, pages run in sandboxed processes that can't reach
+D-Bus: keep `geo.rs` in the browser process and send positions to the page's process.
+Test the portal path the way `geo::tests::talks_to_geoclue` tests GeoClue (a pretend service
+over a socket pair).
+
+### X10. Take WebGL off the warning exemption
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/webgl.rs`, `src/webgl_raster.rs`, `src/webgl_tex.rs`, `src/glsl.rs`, `src/glsl_gen.rs`, `src/glsl_vm.rs`, the six `mod` lines in `src/main.rs`
+R3 exempted these modules with `#[allow(dead_code, unused_mut)]` in main.rs while T12 was still
+building WebGL. T12 is done: remove the six allows and fix the ~15 warnings they hide (unread
+fields such as `antialias` and `webgl2`, an unused `POINTS` constant, the `Fma` variant, `NoTex`,
+two needless `mut`s). No behavior changes; WebGL tests and WPT scores stay the same.
+
+### X11. Lay boxes out on several cores
+**Status:** free
+**After:** —
+**Checklist:** none (the checklist item was ticked with T04/T04b)
+**Files:** `src/font.rs`, `src/layout.rs`, `src/preshape.rs`, new files for the parallel parts
+Leftover from T04b: words are shaped across cores before layout, but boxes are still laid out
+on one thread. `Fonts` keeps faces and caches in `Rc`/`RefCell`, shared with painting, so make
+shaping and measuring thread-safe first (or give each thread its own shaping state), then lay
+out independent blocks (for example a long page's top-level sections, or flex and grid items
+measured on their own) at the same time. Painting also shapes whole lines again
+(`paint.rs`), which could move to the same threads. Measure on a text-heavy page and on
+tests/real-world pages before and after; keep every reference screenshot identical.
+
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
