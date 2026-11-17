@@ -836,6 +836,7 @@ and argument handling, string interning, cheaper garbage collection. Profile wit
 
 ### O3. Site isolation: close the gaps and turn it on by default
 **Status:** claimed by chat-opus-t12 2026-11-17 16:50
+**Progress:** done on pages in site processes: find in page, text selection and copy (the process sends its text runs; `frames::site_runs`), pushState / replaceState / `#fragment` links / Back-Forward within the page (`Update::History`, `Event::HistoryMoved`). Next: `<select>` dropdowns, then the context menu, devtools, autofill, printing, accessibility tree, shared-memory pictures, streamed/cached responses, then X15.
 **After:** —
 **Checklist:** §18 "Sandboxing and site isolation"
 **Files:** `src/process.rs`, `src/sandbox.rs`, `src/main.rs`
