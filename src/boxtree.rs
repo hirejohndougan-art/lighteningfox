@@ -112,7 +112,7 @@ struct Builder<'a> {
 
 /// Elements whose content is replaced: `display: contents` on them means no box at all.
 fn replaced(tag: &str) -> bool {
-    matches!(tag, "img" | "input" | "textarea" | "select" | "iframe" | "video" | "audio" | "canvas" | "embed" | "object" | "br" | "hr" | "meter" | "progress" | "button")
+    matches!(tag, "img" | "input" | "textarea" | "select" | "iframe" | "video" | "audio" | "canvas" | "embed" | "object" | "br" | "hr" | "meter" | "progress" | "button" | "svg")
 }
 
 impl Builder<'_> {
