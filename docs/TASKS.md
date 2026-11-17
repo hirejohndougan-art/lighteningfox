@@ -898,7 +898,16 @@ UI, then iOS (only allowed in the EU with a different engine, so check Apple's t
 ## Not for the chats
 
 ### X21. Windows and macOS builds (from batch J)
-**Status:** claimed by main-chat 2026-11-17 14:00
+**Status:** claimed by main-chat 2026-11-17 14:00. **Progress (15:45):** builds on Windows
+and macOS; CI draws four test pages on each (they match Linux, with the systems' own Arial) and
+runs the unit tests there. Done: `src/platform.rs` (profile in %APPDATA% / Application Support,
+font folders, file chooser via PowerShell / AppleScript, opening downloads, Mac notifications,
+memory readings), DejaVu-or-system fonts and background font scanning, Windows `file:` URLs,
+Cmd shortcuts on macOS, release zips (`ironswift.exe` + fonts; unsigned `Ironswift.app`), no
+self-update outside Linux. **Still to do:** try the real window on a Windows and a Mac computer
+(only headless drawing is tested); screen readers (needs accesskit_winit), location, and an OS
+sandbox for page processes on Windows/macOS; Apple signing and notarization (needs a paid
+Apple developer account, John's decision); Intel-Mac build.
 **After:** —
 **Checklist:** §16 Windows and macOS builds
 **Files:** `Cargo.toml`, `#[cfg]` gates on Linux-only modules, `.github/workflows/`, `packaging/`
