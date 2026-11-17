@@ -25,6 +25,12 @@ thread_local! {
 
 pub fn set_web_families(map: HashMap<String, Vec<(u16, u16, bool, u8)>>) {
     FAMILIES.with(|f| *f.borrow_mut() = map);
+    FAMILIES_GEN.with(|g| g.set(g.get().wrapping_add(1)));
+}
+
+thread_local! {
+    /// Bumped when the page's web fonts change, so cached family choices are made again.
+    static FAMILIES_GEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 pub fn take_web_families() -> HashMap<String, Vec<(u16, u16, bool, u8)>> {
@@ -161,12 +167,12 @@ fn find_fallbacks() -> Vec<std::path::PathBuf> {
 
 /// rustybuzz faces borrow the font bytes; the fonts they come from are never dropped
 /// (the Fonts value lives for the whole program), so the borrow is extended to 'static.
-fn buzz_face(font: &Rc<FontVec>) -> Option<rustybuzz::Face<'static>> {
+fn buzz_face(font: &Rc<FontVec>, index: u32) -> Option<rustybuzz::Face<'static>> {
     let data: &[u8] = font.as_slice();
     // SAFETY: `font` is kept in Fonts (files, web or fallbacks) for the life of the program and
     // its byte buffer is never moved or freed, so the slice stays valid.
     let data: &'static [u8] = unsafe { std::mem::transmute::<&[u8], &'static [u8]>(data) };
-    rustybuzz::Face::from_slice(data, 0)
+    rustybuzz::Face::from_slice(data, index)
 }
 
 pub struct Fonts {
@@ -176,6 +182,12 @@ pub struct Fonts {
     /// Web fonts added while browsing (ids 6 and up), each with the system style to use
     /// for characters it doesn't have.
     web: RefCell<Vec<(Rc<FontVec>, u8)>>,
+    /// Face index inside the file for each `web` entry (font collections hold several).
+    web_index: RefCell<Vec<u32>>,
+    /// Installed fonts already loaded: (file, index) -> font id.
+    system: RefCell<HashMap<(String, u32), u8>>,
+    /// font-family list (+ bold, italic, mono) -> font id, for the current web fonts.
+    resolved: RefCell<(u64, HashMap<(String, bool, bool, bool), u8>)>,
     advances: RefCell<HashMap<Key, f32>>,
     /// Fallback font files found on the system, loaded the first time they're needed.
     fallback_paths: Vec<std::path::PathBuf>,
@@ -219,6 +231,9 @@ impl Fonts {
             slots,
             files,
             web: RefCell::default(),
+            web_index: RefCell::default(),
+            system: RefCell::default(),
+            resolved: RefCell::default(),
             advances: RefCell::default(),
             fallbacks: RefCell::new(vec![None; fallback_paths.len()]),
             fallback_paths,
@@ -260,7 +275,77 @@ impl Fonts {
             return None;
         }
         web.push((Rc::new(font), Self::pick(bold, italic, false)));
+        self.web_index.borrow_mut().push(0);
         Some(FIRST_WEB + web.len() as u8 - 1)
+    }
+
+    /// An installed font file (face `index` of a collection), loaded once.
+    fn system_face(&self, face: &crate::sysfonts::Face, mono: bool) -> Option<u8> {
+        let key = (face.path.clone(), face.index);
+        if let Some(&id) = self.system.borrow().get(&key) {
+            return Some(id);
+        }
+        let data = std::fs::read(&face.path).ok()?;
+        let font = FontVec::try_from_vec_and_index(data, face.index).ok()?;
+        let mut web = self.web.borrow_mut();
+        if web.len() >= (255 - FIRST_WEB) as usize {
+            return None;
+        }
+        web.push((Rc::new(font), Self::pick(face.weight >= 600, face.italic, mono)));
+        self.web_index.borrow_mut().push(face.index);
+        let id = FIRST_WEB + web.len() as u8 - 1;
+        self.system.borrow_mut().insert(key, id);
+        Some(id)
+    }
+
+    /// The font for a `font-family` list: the page's web fonts first, then fonts installed on
+    /// the computer (by name, or a free look-alike for Arial, Times New Roman…), then the
+    /// generic families; DejaVu Sans when nothing matches.
+    pub fn resolve(&self, family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {
+        let fallback = Self::pick(bold, italic, mono);
+        let Some(list) = family else { return fallback };
+        let generation = FAMILIES_GEN.with(|g| g.get());
+        let key = (list.to_string(), bold, italic, mono);
+        {
+            let r = self.resolved.borrow();
+            if r.0 == generation {
+                if let Some(&id) = r.1.get(&key) {
+                    return id;
+                }
+            }
+        }
+        let id = self.resolve_uncached(list, bold, italic, mono);
+        let mut r = self.resolved.borrow_mut();
+        if r.0 != generation || r.1.len() > 4096 {
+            *r = (generation, HashMap::new());
+        }
+        r.1.insert(key, id);
+        id
+    }
+
+    fn resolve_uncached(&self, list: &str, bold: bool, italic: bool, mono: bool) -> u8 {
+        let idx = crate::sysfonts::index();
+        let strict = crate::settings::get().resist_fingerprinting;
+        for name in list.split(',') {
+            let name = name.trim().trim_matches(|c| c == '"' || c == '\'').trim();
+            if FAMILIES.with(|f| f.borrow().contains_key(name)) {
+                return resolve(Some(name), bold, italic, mono);
+            }
+            match name {
+                // The built-in faces: the default sans-serif and monospace.
+                "monospace" | "ui-monospace" => return Self::pick(bold, italic, true),
+                "sans-serif" | "system-ui" | "ui-sans-serif" | "-apple-system" | "blinkmacsystemfont" | "dejavu sans" => return Self::pick(bold, italic, false),
+                "dejavu sans mono" => return Self::pick(bold, italic, true),
+                _ => {}
+            }
+            if let Some(fam) = crate::sysfonts::family(idx, name, strict) {
+                let face = idx.families.get(&fam).and_then(|faces| crate::sysfonts::best_face(faces, bold, italic));
+                if let Some(id) = face.and_then(|f| self.system_face(f, mono)) {
+                    return id;
+                }
+            }
+        }
+        Self::pick(bold, italic, mono)
     }
 
     pub fn pick(bold: bool, italic: bool, mono: bool) -> u8 {
@@ -370,7 +455,8 @@ impl Fonts {
             return Some(f.clone());
         }
         let file = self.face_file(face)?;
-        let f = Rc::new(buzz_face(&file)?);
+        let index = if (WEB_BASE..FALLBACK_BASE).contains(&face) { self.web_index.borrow().get((face - WEB_BASE) as usize).copied().unwrap_or(0) } else { 0 };
+        let f = Rc::new(buzz_face(&file, index)?);
         self.buzz.borrow_mut().insert(face, f.clone());
         Some(f)
     }

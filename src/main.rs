@@ -45,6 +45,7 @@ mod conformance;
 mod crashlog;
 mod settings;
 mod security;
+mod sysfonts;
 mod blocklist;
 mod permissions;
 mod updates;
@@ -2752,7 +2753,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     if let Some(c) = ctrl.filter(|&c| js::with_dom(|d| forms::is_editable(d, c) && d.tag(c) == Some("input"))) {
                         if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r) {
                             let st = page.styles[c].clone();
-                            let fnt = font::resolve(st.family.as_deref(), st.bold, st.italic, st.mono);
+                            let fnt = fonts.resolve(st.family.as_deref(), st.bold, st.italic, st.mono);
                             let value = js::with_dom(|d| forms::value(d, c));
                             let shown = if js::with_dom(|d| d.attr(c, "type").is_some_and(|t| t.eq_ignore_ascii_case("password"))) { "•".repeat(value.chars().count()) } else { value.clone() };
                             let cx = r.x + st.border[3] + st.padding[3].resolve(r.w);

@@ -2733,7 +2733,7 @@ impl<'a> Ctx<'a> {
 
     fn font_of(&self, node: NodeId) -> (u8, f32) {
         let s = &self.styles[node];
-        (crate::font::resolve(s.family.as_deref(), s.bold, s.italic, s.mono), s.font_size)
+        (self.fonts.resolve(s.family.as_deref(), s.bold, s.italic, s.mono), s.font_size)
     }
 
     fn tok_size(&self, t: &Tok) -> (f32, f32, f32) {
