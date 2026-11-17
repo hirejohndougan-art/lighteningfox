@@ -182,7 +182,8 @@ Cap the number of site processes on small laptops and reuse them, keeping sites 
 origins apart when memory allows.
 
 ### T08. Bindings generated from WebIDL
-**Status:** claimed by chat-opus-x2 2026-11-17 10:55
+**Status:** done
+**Left undone:** 64 members (Node, Element, CharacterData, Text, Document) go through the generated bindings; the rest of each interface (everything that changes the tree or attributes, on purpose, plus Document's long tail) is still JavaScript in prelude.js, and `--report` lists them. The generator doesn't yet handle union, dictionary, callback or variadic arguments, overloads, setters, or non-node interfaces (events, fetch, canvas…), so those APIs don't get generated glue yet.
 **After:** T07
 **Checklist:** §9 "Generate bindings automatically from the WebIDL spec files" and §14 "Generate
 bindings from WebIDL so every API gets the fast path" (two items)
