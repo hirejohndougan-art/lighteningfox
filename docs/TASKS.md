@@ -149,7 +149,7 @@ browser process and pass positions to the page process.
 Styles use `Rc` and per-thread state (hover, viewport, animations) today; see batch L's notes.
 
 ### T06. Shared process pool
-**Status:** free
+**Status:** claimed by chat-opus-t05 2026-11-17 10:40
 **After:** T05
 **Checklist:** §14 "Shared process pool (like Firefox) instead of one process per site"
 **Files:** `src/process.rs`
