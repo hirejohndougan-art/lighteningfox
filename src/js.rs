@@ -303,9 +303,7 @@ fn parse_fragment(markup: &str) -> Dom {
 
 fn clone_node(dom: &mut Dom, id: NodeId, deep: bool) -> NodeId {
     let new = dom.create(dom.nodes[id].data.clone());
-    if let Some(&ns) = dom.ns.get(&id) {
-        dom.ns.insert(new, ns);
-    }
+    dom.copy_ns(None, id, new);
     if deep {
         for c in dom.nodes[id].children.clone() {
             let k = clone_node(dom, c, true);
@@ -705,20 +703,45 @@ fn n_by_id(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 
 fn n_create(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let tag = arg_str(a, 0, ctx)?;
-    // createElementNS passes the namespace: SVG and MathML elements are marked as such.
-    let ns = match a.get(1).filter(|v| v.is_string()).map(|v| v.to_string(ctx)).transpose()?.map(|s| s.to_std_string_escaped()).as_deref() {
-        Some("http://www.w3.org/2000/svg") => Some(crate::dom::Ns::Svg),
-        Some("http://www.w3.org/1998/Math/MathML") => Some(crate::dom::Ns::MathMl),
+    let id = with_dom_mut(|d| d.create(NodeData::Element { tag, attrs: Vec::new() }));
+    Ok(JsValue::from(id as f64))
+}
+
+/// `__createNS(namespace or null, qualifiedName)`: the element's id, or the name of the
+/// DOMException to throw ("validate and extract" failed).
+fn n_create_ns(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let ns = match a.first() {
+        Some(v) if !v.is_null_or_undefined() => Some(v.to_string(ctx)?.to_std_string_escaped()),
         _ => None,
     };
+    let qualified = arg_str(a, 1, ctx)?;
+    let q = match crate::qname::validate_and_extract(ns.as_deref(), &qualified, false) {
+        Ok(q) => q,
+        Err(e) => return Ok(JsValue::from(JsString::from(e))),
+    };
+    use crate::dom::{Ns, NsName};
+    let kind = match q.ns.as_deref() {
+        Some("http://www.w3.org/1999/xhtml") => Ns::Html,
+        Some("http://www.w3.org/2000/svg") => Ns::Svg,
+        Some("http://www.w3.org/1998/Math/MathML") => Ns::MathMl,
+        _ => Ns::Other,
+    };
     let id = with_dom_mut(|d| {
-        let id = d.create(NodeData::Element { tag, attrs: Vec::new() });
-        if let Some(ns) = ns {
-            d.ns.insert(id, ns);
+        let id = d.create(NodeData::Element { tag: q.local, attrs: Vec::new() });
+        if kind != Ns::Html {
+            d.ns.insert(id, kind);
+        }
+        if kind == Ns::Other || q.prefix.is_some() {
+            d.ns_names.insert(id, NsName { uri: if kind == Ns::Other { q.ns } else { None }, prefix: q.prefix });
         }
         id
     });
     Ok(JsValue::from(id as f64))
+}
+
+/// `__validName(name)`: whether `createElement` accepts it as an element's local name.
+fn n_valid_name(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(crate::qname::valid_element_local_name(&arg_str(a, 0, ctx)?)))
 }
 
 fn n_create_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -1401,6 +1424,8 @@ impl Js {
             ("__byId", 1, n_by_id),
             ("__wrapList", 1, n_wrap_list),
             ("__create", 1, n_create),
+            ("__createNS", 2, n_create_ns),
+            ("__validName", 1, n_valid_name),
             ("__createText", 1, n_create_text),
             ("__write", 1, n_write),
             ("__log", 2, n_log),

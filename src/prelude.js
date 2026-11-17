@@ -704,11 +704,18 @@
     get images() { return this.querySelectorAll("img"); }
     get scripts() { return this.querySelectorAll("script"); }
     get currentScript() { return wrap(__currentScript); }
-    createElement(t) { return wrap(__create(String(t).toLowerCase())); }
+    createElement(t) {
+      t = String(t);
+      if (!__validName(t)) throw new DOMException("'" + t + "' is not a valid element name.", "InvalidCharacterError");
+      return wrap(__create(t.replace(/[A-Z]+/g, (c) => c.toLowerCase())));
+    }
     createElementNS(ns, t) {
-      ns = ns == null ? "" : String(ns);
-      if (ns === "http://www.w3.org/2000/svg" || ns === "http://www.w3.org/1998/Math/MathML") return wrap(__create(String(t), ns));
-      return this.createElement(t);
+      t = String(t);
+      // HTML custom element names go through createElement, which upgrades them.
+      if (ns === "http://www.w3.org/1999/xhtml" && t.includes("-") && !/[:A-Z]/.test(t) && __validName(t)) return this.createElement(t);
+      const r = __createNS(ns, t);
+      if (typeof r === "string") throw new DOMException("createElementNS: '" + t + "' is not a valid qualified name here.", r);
+      return wrap(r);
     }
     createTextNode(s) { return wrap(__createText(String(s))); }
     createComment() { return wrap(__createText("")); }
@@ -717,7 +724,7 @@
     getElementById(id) { return wrap(__byId(String(id))); }
     querySelector(s) { return wrap(__query(0, String(s), false)[0]); }
     querySelectorAll(s) { return __wrapList(__query(0, String(s), true)); }
-    getElementsByTagName(t) { return this.querySelectorAll(t); }
+    getElementsByTagName(t) { return Element.prototype.getElementsByTagName.call(this, t); }
     getElementsByClassName(c) { return Element.prototype.getElementsByClassName.call(this, c); }
     getElementsByName(n) { return this.querySelectorAll('[name="' + n + '"]'); }
     write(...html) { __write(html.join("")); }
@@ -1305,7 +1312,6 @@
 
   // The standard element interfaces (HTMLInputElement, SVGElement…). Each matches only its
   // own tags with instanceof, so checks like `x instanceof HTMLIFrameElement` are honest.
-  const SVG_TAGS = "svg g path circle ellipse line polyline polygon rect text tspan textpath defs use symbol clippath mask pattern image marker lineargradient radialgradient stop filter fegaussianblur feoffset feblend fecolormatrix foreignobject title desc switch view".split(" ");
   const interfaces = {
     HTMLAnchorElement: "a", HTMLAreaElement: "area", HTMLAudioElement: "audio", HTMLBRElement: "br", HTMLBaseElement: "base",
     HTMLBodyElement: "body", HTMLButtonElement: "button", HTMLCanvasElement: "canvas", HTMLDListElement: "dl",
@@ -1324,9 +1330,14 @@
     HTMLUListElement: "ul", HTMLVideoElement: "video", HTMLMediaElement: "audio video",
   };
   const isEl = (x) => x != null && typeof x === "object" && x.nodeType === 1;
+  const isHtml = (x) => isEl(x) && x.namespaceURI === "http://www.w3.org/1999/xhtml";
+  g.__isHtmlElement = isHtml;
+  // Every element the HTML spec defines (others in the HTML namespace are HTMLUnknownElement,
+  // unless their name is a valid custom element name).
+  const KNOWN_HTML = new Set((Object.values(interfaces).join(" ") + " abbr acronym address article aside b basefont bdi bdo big center cite code dd dfn dir dt em figcaption figure font footer frame frameset header hgroup i ins del kbd main mark marquee menu nav noembed noframes nobr noscript param plaintext rb rp rt rtc ruby s samp search section small strike strong sub summary sup tt u var wbr xmp search slot").split(" "));
   for (const [name, tags] of Object.entries(interfaces)) {
     const set = new Set(tags.split(" "));
-    const C = class extends HTMLElement { static [Symbol.hasInstance](x) { return isEl(x) && set.has(x.localName || x.tagName.toLowerCase()); } };
+    const C = class extends HTMLElement { static [Symbol.hasInstance](x) { return isHtml(x) && set.has(x.localName); } };
     Object.defineProperty(C, "name", { value: name });
     g[name] = C;
   }
@@ -1351,8 +1362,7 @@
     };
     g.Option.prototype = g.HTMLOptionElement.prototype;
   }
-  const svgSet = new Set(SVG_TAGS);
-  const isSvg = (x) => isEl(x) && svgSet.has((x.localName || x.tagName).toLowerCase());
+  const isSvg = (x) => isEl(x) && x.namespaceURI === "http://www.w3.org/2000/svg";
   // The hot read-only DOM members as native functions (dom_classes.rs), replacing the
   // JavaScript ones above; setters and everything that changes the tree stay JavaScript.
   try {
@@ -1566,11 +1576,13 @@
       });
     }
   };
-  g.HTMLSlotElement = class HTMLSlotElement extends HTMLElement { static [Symbol.hasInstance](x) { return isEl(x) && x.localName === "slot"; } };
+  g.HTMLSlotElement = class HTMLSlotElement extends HTMLElement { static [Symbol.hasInstance](x) { return isHtml(x) && x.localName === "slot"; } };
   g.SVGElement = class SVGElement extends Element { static [Symbol.hasInstance](x) { return isSvg(x); } };
   g.SVGGraphicsElement = class SVGGraphicsElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isSvg(x); } };
-  g.SVGSVGElement = class SVGSVGElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isEl(x) && x.tagName.toLowerCase() === "svg"; } };
-  g.HTMLUnknownElement = class HTMLUnknownElement extends HTMLElement { static [Symbol.hasInstance]() { return false; } };
+  g.SVGSVGElement = class SVGSVGElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isSvg(x) && x.localName === "svg"; } };
+  g.HTMLUnknownElement = class HTMLUnknownElement extends HTMLElement {
+    static [Symbol.hasInstance](x) { return isHtml(x) && !KNOWN_HTML.has(x.localName) && !/^[a-z][^A-Z]*-/.test(x.localName); }
+  };
   g.ShadowRoot = class ShadowRoot extends DocumentFragment {};
   g.HTMLDocument = Document;
   g.NodeList = Array;

@@ -366,6 +366,7 @@ impl TreeBuilder {
             Ns::Html => SPECIAL_HTML.contains(&self.name(id)),
             Ns::MathMl => matches!(self.name(id), "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"),
             Ns::Svg => matches!(self.name(id), "foreignObject" | "desc" | "title"),
+            Ns::Other => false,
         }
     }
 
@@ -380,7 +381,7 @@ impl TreeBuilder {
                     && self.dom.attr(id, "encoding").is_some_and(|e| e.eq_ignore_ascii_case("text/html") || e.eq_ignore_ascii_case("application/xhtml+xml"))
             }
             Ns::Svg => matches!(self.name(id), "foreignObject" | "desc" | "title"),
-            Ns::Html => false,
+            Ns::Html | Ns::Other => false,
         }
     }
 
@@ -400,6 +401,7 @@ impl TreeBuilder {
                     Ns::Html => matches!(name, "applet" | "caption" | "html" | "table" | "td" | "th" | "marquee" | "object" | "template") || extra.contains(&name),
                     Ns::MathMl => matches!(name, "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"),
                     Ns::Svg => matches!(name, "foreignObject" | "desc" | "title"),
+                    Ns::Other => false,
                 }
             };
             if boundary {
@@ -679,6 +681,7 @@ impl TreeBuilder {
                     Ns::Html => matches!(name, "applet" | "caption" | "html" | "table" | "td" | "th" | "marquee" | "object" | "template" | "select"),
                     Ns::MathMl => matches!(name, "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"),
                     Ns::Svg => matches!(name, "foreignObject" | "desc" | "title"),
+                    Ns::Other => false,
                 };
                 if boundary {
                     break;
@@ -2006,6 +2009,7 @@ pub fn dump(dom: &Dom) -> String {
                         Ns::Html => "",
                         Ns::Svg => "svg ",
                         Ns::MathMl => "math ",
+                        Ns::Other => "other ",
                     };
                     out.push_str(&format!("| {pad}<{prefix}{tag}>\n"));
                     let mut a: Vec<(String, &String)> = attrs

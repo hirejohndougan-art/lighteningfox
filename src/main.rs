@@ -26,6 +26,7 @@ mod selmatch;
 mod shorthand;
 mod cascade;
 mod dom;
+mod qname;
 mod editing;
 mod font;
 mod filepicker;

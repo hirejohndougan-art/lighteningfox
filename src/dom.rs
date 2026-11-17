@@ -13,6 +13,17 @@ pub enum Ns {
     Html,
     Svg,
     MathMl,
+    /// Any other namespace, or none (`createElementNS(null, …)`): the URI is in `Dom::ns_names`.
+    Other,
+}
+
+/// The namespace URI and prefix of an element made by `createElementNS` with a prefix or a
+/// namespace other than HTML, SVG and MathML. The parser never makes these.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NsName {
+    /// The namespace URI when the element's `Ns` is `Other` (`None` = no namespace).
+    pub uri: Option<String>,
+    pub prefix: Option<String>,
 }
 
 /// The document's compatibility mode, decided by its doctype.
@@ -49,6 +60,8 @@ pub struct Dom {
     pub nodes: Vec<Node>,
     /// Elements that aren't HTML (SVG and MathML); everything else is HTML.
     pub ns: std::collections::HashMap<NodeId, Ns>,
+    /// Namespace URIs and prefixes that `Ns` alone can't hold (see `NsName`).
+    pub ns_names: std::collections::HashMap<NodeId, NsName>,
     /// Each `<template>`'s contents fragment.
     pub template_contents: std::collections::HashMap<NodeId, NodeId>,
     pub quirks: Quirks,
@@ -115,9 +128,7 @@ impl Dom {
     pub fn graft(&mut self, other: &Dom, from: NodeId, to: NodeId) {
         for &c in &other.nodes[from].children {
             let id = self.create(other.nodes[c].data.clone());
-            if let Some(&ns) = other.ns.get(&c) {
-                self.ns.insert(id, ns);
-            }
+            self.copy_ns(Some(other), c, id);
             self.insert(to, id, None);
             self.graft(other, c, id);
         }
@@ -278,6 +289,38 @@ impl Dom {
             return Ns::Html;
         }
         self.ns.get(&id).copied().unwrap_or_default()
+    }
+
+    /// The element's namespace URI (`None` for no namespace).
+    pub fn namespace_uri(&self, id: NodeId) -> Option<String> {
+        match self.ns_of(id) {
+            Ns::Html => Some("http://www.w3.org/1999/xhtml".into()),
+            Ns::Svg => Some("http://www.w3.org/2000/svg".into()),
+            Ns::MathMl => Some("http://www.w3.org/1998/Math/MathML".into()),
+            Ns::Other => self.ns_names.get(&id).and_then(|n| n.uri.clone()),
+        }
+    }
+
+    /// The element's namespace prefix, if it was created with one.
+    pub fn prefix(&self, id: NodeId) -> Option<&str> {
+        self.ns_names.get(&id).and_then(|n| n.prefix.as_deref())
+    }
+
+    /// Give `dst` the namespace (and URI/prefix) `src` has in `from`, for copies of nodes.
+    pub fn copy_ns(&mut self, from: Option<&Dom>, src: NodeId, dst: NodeId) {
+        let (ns, name) = {
+            let from: &Dom = match from {
+                Some(o) => o,
+                None => self,
+            };
+            (from.ns.get(&src).copied(), from.ns_names.get(&src).cloned())
+        };
+        if let Some(ns) = ns {
+            self.ns.insert(dst, ns);
+        }
+        if let Some(name) = name {
+            self.ns_names.insert(dst, name);
+        }
     }
 
     pub fn tag(&self, id: NodeId) -> Option<&str> {

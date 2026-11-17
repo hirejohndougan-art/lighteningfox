@@ -357,3 +357,36 @@ fn inconsistent_sort_comparators_dont_crash() {
     let _page = open("tests/sites/random-sort.html");
     assert_eq!(text_of("out"), "true 300 bdac");
 }
+
+/// createElementNS keeps any namespace (or none) and the prefix, and checks the name (X16).
+#[test]
+fn create_element_ns_any_namespace() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r#"(() => {
+            const out = [];
+            const a = document.createElementNS(null, "foo");
+            out.push(a.namespaceURI, a.tagName, a.prefix, a instanceof HTMLElement);
+            const b = document.createElementNS("test", "html:SPAN");
+            out.push(b.namespaceURI, b.prefix, b.localName, b.tagName, b.nodeName);
+            const c = document.createElementNS("http://www.w3.org/1999/xhtml", "html:span");
+            out.push(c.tagName, c instanceof HTMLSpanElement, document.createElementNS("http://www.w3.org/1999/xhtml", "SPAN") instanceof HTMLUnknownElement);
+            for (const [ns, q] of [[null, "1foo"], [null, "f:oo"], ["", "foo:"], ["x", "xmlns"]]) {
+                try { document.createElementNS(ns, q); out.push("ok"); } catch (e) { out.push(e.name); }
+            }
+            try { document.createElement("<p>"); } catch (e) { out.push(e.name); }
+            const k = b.cloneNode(); out.push(k.prefix, k.namespaceURI, k.isEqualNode(b));
+            document.body.appendChild(b);
+            out.push(document.getElementsByTagName("html:SPAN").length, document.getElementsByTagName("SPAN").length);
+            out.push(document.createElement("title") instanceof SVGElement);
+            return out.join(",");
+        })()"#,
+    );
+    assert_eq!(
+        r.trim_matches('"'),
+        ",foo,,false,test,html,SPAN,html:SPAN,html:SPAN,HTML:SPAN,true,true,\
+         InvalidCharacterError,NamespaceError,InvalidCharacterError,NamespaceError,InvalidCharacterError,html,test,true,1,0,false"
+    );
+}

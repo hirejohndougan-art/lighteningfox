@@ -181,6 +181,7 @@ fn equal(d: &Dom, a: NodeId, b: NodeId) -> bool {
         (NodeData::Element { tag: ta, attrs: aa }, NodeData::Element { tag: tb, attrs: ab }) => {
             ta == tb
                 && d.ns.get(&a) == d.ns.get(&b)
+                && d.ns_names.get(&a) == d.ns_names.get(&b)
                 && aa.len() == ab.len()
                 && aa.iter().all(|(k, v)| ab.iter().any(|(k2, v2)| k == k2 && v == v2))
         }
@@ -205,9 +206,14 @@ pub fn is_equal_node(this: Option<NodeId>, other: Option<NodeId>) -> bool {
 
 /// DOM: the qualified name, uppercased only for HTML elements (SVG's `linearGradient` and
 /// MathML names keep their case).
+/// The qualified name (`prefix:local`), upper-cased for HTML elements (in an HTML document).
 pub fn tag_name(this: Option<NodeId>) -> String {
-    let html = this.is_none_or(|id| with_dom(|d| d.ns_of(id) == Ns::Html));
-    if html { tag(this).to_uppercase() } else { tag(this) }
+    let (html, prefix) = this.map_or((true, None), |id| with_dom(|d| (d.ns_of(id) == Ns::Html, d.prefix(id).map(str::to_string))));
+    let name = match prefix {
+        Some(p) => format!("{p}:{}", tag(this)),
+        None => tag(this),
+    };
+    if html { name.to_ascii_uppercase() } else { name }
 }
 
 pub fn local_name(this: Option<NodeId>) -> String {
@@ -298,8 +304,31 @@ pub fn closest(this: Option<NodeId>, selectors: String) -> Option<NodeId> {
     None
 }
 
+/// getElementsByTagName: descendants whose qualified name is the argument (ASCII-lowercased
+/// for HTML elements), or all of them for "*".
 pub fn elements_by_tag_name(this: Option<NodeId>, qualified_name: String) -> Vec<NodeId> {
-    this.map(|id| query(id, &qualified_name, true)).unwrap_or_default()
+    let Some(root) = this else { return vec![] };
+    let lower = qualified_name.to_ascii_lowercase();
+    with_dom(|d| {
+        let mut out = Vec::new();
+        let mut stack: Vec<NodeId> = d.nodes[root].children.iter().rev().copied().collect();
+        while let Some(n) = stack.pop() {
+            if let NodeData::Element { tag, .. } = &d.nodes[n].data {
+                let hit = qualified_name == "*" || {
+                    let want = if d.ns_of(n) == Ns::Html { &lower } else { &qualified_name };
+                    match d.prefix(n) {
+                        Some(p) => want.len() == p.len() + 1 + tag.len() && want.starts_with(p) && want[p.len()..].starts_with(':') && want.ends_with(tag.as_str()),
+                        None => want == tag,
+                    }
+                };
+                if hit {
+                    out.push(n);
+                }
+            }
+            stack.extend(d.nodes[n].children.iter().rev());
+        }
+        out
+    })
 }
 
 pub fn elements_by_class_name(this: Option<NodeId>, class_names: String) -> Vec<NodeId> {
@@ -312,17 +341,12 @@ pub fn elements_by_class_name(this: Option<NodeId>, class_names: String) -> Vec<
 
 pub fn namespace_uri(this: Option<NodeId>) -> Option<String> {
     let id = this?;
-    let ns = with_dom(|d| d.ns.get(&id).copied().unwrap_or_default());
-    Some(match ns {
-        Ns::Html => "http://www.w3.org/1999/xhtml",
-        Ns::Svg => "http://www.w3.org/2000/svg",
-        Ns::MathMl => "http://www.w3.org/1998/Math/MathML",
-    }.to_string())
+    with_dom(|d| d.namespace_uri(id))
 }
 
-/// The parser keeps no namespace prefixes, so elements never have one.
-pub fn prefix(_: Option<NodeId>) -> Option<String> {
-    None
+pub fn prefix(this: Option<NodeId>) -> Option<String> {
+    let id = this?;
+    with_dom(|d| d.prefix(id).map(str::to_string))
 }
 
 // ------------------------------------------------------------ CharacterData

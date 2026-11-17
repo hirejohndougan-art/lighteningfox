@@ -48,6 +48,12 @@
     };
     return this.__internals;
   };
+  // `x instanceof HTMLElement`: any element in the HTML namespace (node objects all share
+  // Element.prototype). Page subclasses keep the ordinary prototype check.
+  Object.defineProperty(HTMLElement, Symbol.hasInstance, {
+    value(x) { return this === HTMLElement ? g.__isHtmlElement(x) || Function.prototype[Symbol.hasInstance].call(this, x) : Function.prototype[Symbol.hasInstance].call(this, x); },
+    configurable: true,
+  });
   g.HTMLElement = HTMLElement;
 
   // Namespaced attribute methods (attributes here have no namespaces; HTML pages rarely
