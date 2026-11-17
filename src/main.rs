@@ -28,6 +28,7 @@ mod hsts;
 mod icon;
 mod tokenizer;
 mod chrome;
+mod favicon;
 mod devtools;
 mod pdf;
 mod treebuilder;
@@ -334,6 +335,7 @@ impl Page {
     fn empty() -> Page {
         Page {
             url: "about:blank".into(),
+            icon: None,
             title: String::new(),
             sheets: Vec::new(),
             styles: Vec::new(),
@@ -381,6 +383,8 @@ fn start_page() -> String {
 
 struct Page {
     url: String,
+    /// Where the site's icon is (favicon.rs), for the tab strip.
+    icon: Option<String>,
     title: String,
     sheets: Vec<css::Stylesheet>,
     styles: Vec<Rc<style::Style>>,
@@ -850,6 +854,7 @@ fn build_page(p: Prepared) -> Page {
         dom::NodeData::Element { tag, attrs } => tag == "script" || attrs.iter().any(|(k, _)| k.starts_with("on")),
         _ => false,
     });
+    let icon = favicon::icon_url(&dom, &url);
     js::set_dom(dom);
     layout::reset_element_scrolls();
     // Scripts that ask where elements are get a fresh layout of the page as it is then.
@@ -893,7 +898,7 @@ fn build_page(p: Prepared) -> Page {
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0) };
+    let mut page = Page { url, icon, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0) };
     page.restyle();
     release_free_memory();
     page
@@ -1525,6 +1530,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     }
 
     while window.is_open() {
+        // A site icon arrived: redraw the tab strip.
+        if favicon::arrived() {
+            dirty = true;
+        }
         // Tab strip and shortcut actions from the last frame.
         if let Some(cmd) = tab_cmd.take() {
             match cmd {
@@ -2840,7 +2849,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
+            let icons: Vec<Option<favicon::Icon>> = tabs
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let p = match s {
+                        None if i == active => &page,
+                        Some(Slot { saved: Some(sv), .. }) => &sv.page,
+                        _ => return None,
+                    };
+                    p.icon.as_deref().and_then(|u| favicon::get(u, &p.url))
+                })
+                .collect();
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
             let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some();
@@ -3052,6 +3073,8 @@ fn print_pages(page: &Page, fonts: &Fonts) -> Vec<image::RgbImage> {
 
 struct Toolbar<'a> {
     tabs: &'a [(String, bool)],
+    /// Each tab's site icon, once loaded.
+    icons: &'a [Option<favicon::Icon>],
     active: usize,
     tab_hover: Option<TabHit>,
     /// While editing the address: (caret, selection anchor).
@@ -3123,11 +3146,14 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         if !is_active && i + 1 != ui.active && i + 1 < ui.tabs.len() {
             canvas.fill_rect(tx + tw - 2.0, 11.0, 1.0, top - 18.0, Color::rgb(190, 190, 198));
         }
-        // A small orange dot while the tab loads.
+        // A small orange dot while the tab loads, else the site's icon.
         let mut text_x = tx + 10.0;
         if *loading {
             canvas.fill_rect(tx + 9.0, 17.0, 6.0, 6.0, Color::rgb(249, 115, 22));
             text_x += 12.0;
+        } else if let (Some(Some(icon)), true) = (ui.icons.get(i), tw > 70.0) {
+            canvas.draw_argb((tx + 9.0) as i32, 12, favicon::SIZE, icon);
+            text_x += 22.0;
         }
         // Fit the title, leaving room for the ×.
         let room = (tw - (text_x - tx) - 30.0).max(0.0);

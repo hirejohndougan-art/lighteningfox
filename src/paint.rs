@@ -185,6 +185,14 @@ impl Canvas {
         self.buf[i] = (r << 16) | (g << 8) | b;
     }
 
+    /// Draw a small ARGB image (an icon) with its alpha, top-left at (x, y).
+    pub fn draw_argb(&mut self, x: i32, y: i32, w: usize, px: &[u32]) {
+        for (i, &p) in px.iter().enumerate() {
+            let c = Color { r: (p >> 16) as u8, g: (p >> 8) as u8, b: p as u8, a: (p >> 24) as u8 };
+            self.blend(x + (i % w) as i32, y + (i / w) as i32, c, 1.0);
+        }
+    }
+
     pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, c: Color) {
         if c.a == 0 || w <= 0.0 || h <= 0.0 {
             return;
