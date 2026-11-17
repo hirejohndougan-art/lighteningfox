@@ -141,3 +141,4 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
    then profile Boa itself and work on its interpreter
 3. **Tabs and bookmarks**
 4. **GPU painting** and incremental layout for speed
+5. *Optional, after everything else:* a JIT compiler for Boa
