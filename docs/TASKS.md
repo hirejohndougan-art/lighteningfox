@@ -149,13 +149,18 @@ tests pass; WPT dom/nodes 1535/5629, dom/events 239/526, shadow-dom 245/402, Ind
 259 → 255–256 (about 1%; Crypto about 6% slower, the rest within noise).
 
 ### X8. Review the small changes X5 and T10 made outside their files
-**Status:** claimed by chat-opus-x5 2026-11-17 12:05
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** `src/boxtree.rs`, `src/js.rs`, `src/prelude.js`, `src/font.rs`, `tools/wpt.py`
 The `<svg>` replaced-element entry in the box tree, `createElementNS` marking SVG/MathML
 elements, the `document.body` setter, `font::web_families_generation`, and `WPT_TIMEOUT`:
 check each against the spec and other browsers, add tests where missing.
+Reviewed: the `<svg>` entry in `boxtree.rs` and `font::web_families_generation` are covered by
+the relayout tests; the `document.body` setter follows the HTML steps and now has a test
+(`jsapi_tests.rs`); `WPT_TIMEOUT` is documented in `tools/wpt.py`. Found and fixed: `tagName`
+uppercased SVG and MathML elements (`LINEARGRADIENT`). `createElementNS` is right for SVG and
+MathML; other namespaces and name checks are X16.
 
 ### X12. Images made with `new Image()` load without being in the page
 **Status:** claimed by chat-opus-t12 2026-11-17 12:35
@@ -236,6 +241,80 @@ out independent blocks (for example a long page's top-level sections, or flex an
 measured on their own) at the same time. Painting also shapes whole lines again
 (`paint.rs`), which could move to the same threads. Measure on a text-heavy page and on
 tests/real-world pages before and after; keep every reference screenshot identical.
+
+### X16. `createElementNS` for any namespace, with prefixes and name checks
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/dom.rs` (the `Ns` namespace map), `src/js.rs` (`n_create`), `src/prelude.js`
+(`createElementNS`), `src/bindings/dom.rs` (`namespace_uri`, `prefix`, `tag_name`, `local_name`)
+WPT `dom/nodes/Document-createElementNS.html` fails 596 subtests. Elements can only be in the
+HTML, SVG or MathML namespace, so `createElementNS(null, "foo")` or a custom namespace makes an
+HTML element (`tagName` "FOO", `namespaceURI` the XHTML one). Prefixes (`svg:rect`) aren't kept
+(`prefix` is always null), and names aren't validated (`1foo` must throw InvalidCharacterError;
+follow the current DOM "validate and extract" rules, which the test expects). Store any
+namespace per element (null included) and its prefix; `tagName` uppercases only HTML elements in
+HTML documents (already so for SVG/MathML). Also look at `createAttributeNS`/`setAttributeNS`
+and `Document-createElement-namespace.html`. Run `tools/wpt.py <wpt> dom/nodes` before and after
+(1535/5629 at the start); the XML/XHTML-document variants need `document.implementation`
+`createDocument`, which can be left undone if it grows large.
+
+### X17. Media Source Extensions: frame-level edits, sequence mode, tracks
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/mse.rs`, `src/mse.js`, `src/media.js` (MSE hooks only)
+T10 handles coded frames per segment. Make `remove(start, end)` and `appendWindowStart/End`
+drop the frames outside the range rather than whole segments (split a segment by rewriting its
+`trun`/blocks, or keep a per-segment start/end trim the feed applies with ffmpeg's `-ss`/`-t`);
+regenerate timestamps in `mode = "sequence"` (update `timestampOffset` after each append as the
+spec says); fill `SourceBuffer.audioTracks`/`videoTracks` and `HTMLMediaElement`
+`audioTracks`/`videoTracks` from the init segments; accept `srcObject = mediaSource`; support
+`audio/mpeg` and `audio/aac` byte streams if cheap. Run `tools/wpt.py <wpt> media-source`
+before and after (215/339 at the start; `mediasource-remove`, `-appendwindow`,
+`-sequencemode-*`, `-avtracks`, `-timestamp-offset` are the files this should move).
+
+### X18. Inline SVG: shape hit testing, SVG property animation, foreignObject
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/svg_inline.rs`, new code in new files; small hooks in `src/layout.rs`
+(hit list) and `src/anim.rs`
+Inline `<svg>` (X5) draws as one replaced box. (1) Clicks, hover and `:hover` target the whole
+`<svg>`: give layout a hit for each shape (resvg/usvg can give node bounding boxes and test a
+point against a path) so `event.target` is the `<path>`/`<circle>` under the pointer and hover
+styles on shapes work. (2) CSS transitions and animations of `fill`, `stroke`, `opacity`,
+`transform` on SVG elements don't run (`svg_decls` only takes the cascaded value); feed the
+animated values in. (3) `<foreignObject>` content isn't drawn (resvg ignores it); lay its HTML
+out as a box positioned over the SVG. Check with `tests/inline-svg.html` and new pages; keep the
+screenshot tests the same unless more correct.
+
+### X19. Layout memory: incremental box tree, shared cached items
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/boxtree.rs`, `src/relayout.rs`, `src/layout.rs` (the parts that call them)
+R4 measured peak memory against the version before T01: 148 → 168 MB on a generated
+20,000-node page (about 11 MB is the relayout cache, the rest the box tree), 47 → 53 MB on
+`tests/real-world/react.html`. (1) The box tree copies the whole DOM on every layout: update it
+in place when only some subtrees changed (the restyle pass knows which). (2) The relayout cache
+stores a box's display items again in every enclosing box's entry: share them (e.g. store an
+entry's children as references to their own entries) or lower the budget. Keep the relayout
+tests (`cargo test --release relayout`, including `structural_edits_match_fresh_layouts`)
+passing and measure with `cargo test --release relayout_timing -- --ignored --nocapture` and
+peak RSS of `--png` runs before and after.
+
+### X20. Let WPT media tests play under `tools/wpt.py`
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `tools/wpt.py`, the `--png` path in `src/main.rs` (small)
+`--png` freezes animations and media so screenshots are stable, so WPT files that wait for
+playback (`timeupdate`, `ended`, seeking while playing) never finish: about 29 `media-source`
+files and many in `media`/`html/semantics/embedded-content/media-elements` give no result. Add a
+mode (a flag or environment variable that `tools/wpt.py` sets for script tests) where media
+plays in real time and the run ends when the test harness reports, with the usual timeout. Then
+report the new numbers for `media-source` and `html/semantics/embedded-content/media-elements`.
 
 ## Review and cleanup of the overnight work
 
