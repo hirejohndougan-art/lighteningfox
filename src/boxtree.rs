@@ -99,6 +99,7 @@ pub fn build(dom: &Dom, styles: &[Rc<Style>]) -> BoxTree {
     let mut b = Builder { dom: &mut tree, styles: &mut st, origin: &mut origin, kinds: &mut kinds };
     b.unwrap_contents();
     let markers = b.list_markers(real);
+    b.blocks_in_inlines();
     b.anonymous_blocks();
     BoxTree { dom: tree, styles: st, origin, kinds, real, markers }
 }
@@ -108,6 +109,26 @@ struct Builder<'a> {
     styles: &'a mut Vec<Rc<Style>>,
     origin: &'a mut Vec<NodeId>,
     kinds: &'a mut Vec<BoxKind>,
+}
+
+thread_local! {
+    /// Block versions of inline styles (blocks_in_inlines), kept so each build gives the same
+    /// style object: relayout.rs recognises unchanged boxes by their style's identity. The
+    /// original is held too, so its address isn't reused while the entry exists.
+    static AS_BLOCK: std::cell::RefCell<HashMap<usize, (Rc<Style>, Rc<Style>)>> = std::cell::RefCell::new(HashMap::new());
+}
+
+fn as_block(st: &Rc<Style>) -> Rc<Style> {
+    AS_BLOCK.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.len() > 4096 {
+            m.clear();
+        }
+        m.entry(Rc::as_ptr(st) as usize)
+            .or_insert_with(|| (st.clone(), Rc::new(Style { display: Display::Block, ..(**st).clone() })))
+            .1
+            .clone()
+    })
 }
 
 /// Elements whose content is replaced: `display: contents` on them means no box at all.
@@ -307,6 +328,23 @@ impl Builder<'_> {
         self.dom.insert(el, t, None);
     }
 
+    /// An inline element holding a block (`<a><div>card</div></a>`, a custom element wrapping
+    /// a section) is laid out as a block box, innermost first, so the block inside keeps its own
+    /// width, padding and background. CSS 2 §9.2.1.1 splits the inline around the block
+    /// instead; for an inline whose only content is blocks (the usual case) the result is the
+    /// same, and inline text beside the block goes on lines of its own either way.
+    fn blocks_in_inlines(&mut self) {
+        for id in self.elements_in_order().into_iter().rev() {
+            if self.styles[id].display != Display::Inline || replaced(self.dom.tag(id).unwrap_or("")) || self.dom.nodes[id].parent.is_none() {
+                continue;
+            }
+            let holds_block = self.dom.nodes[id].children.iter().any(|&c| self.styles[c].display != Display::None && self.block_level(c) && !self.out_of_flow(c) && !self.float(c));
+            if holds_block {
+                self.styles[id] = as_block(&self.styles[id]);
+            }
+        }
+    }
+
     fn block_level(&self, id: NodeId) -> bool {
         self.is_element(id) && matches!(self.styles[id].display, Display::Block | Display::ListItem)
     }
@@ -455,6 +493,15 @@ mod tests {
         assert_eq!(t.origin(anon), a);
         assert_eq!(kids(&t, anon), vec!["#one", "b", "#"]);
         assert_eq!(t.styles[anon].display, Display::Block);
+    }
+
+    #[test]
+    fn inlines_holding_blocks_become_blocks() {
+        let (_, t) = tree("<body><span id=s><b id=b><div>card</div></b></span><span id=t>text</span></body>");
+        let id = |name: &str| (0..t.dom.nodes.len()).find(|&n| t.dom.attr(n, "id") == Some(name)).unwrap();
+        assert_eq!(t.styles[id("b")].display, Display::Block);
+        assert_eq!(t.styles[id("s")].display, Display::Block, "promoted from the inside out");
+        assert_eq!(t.styles[id("t")].display, Display::Inline, "an inline holding only text stays inline");
     }
 
     #[test]

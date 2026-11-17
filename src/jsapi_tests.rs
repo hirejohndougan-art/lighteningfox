@@ -140,7 +140,8 @@ fn webidl_generated_bindings() {
     assert_eq!(lines[2], "4,2,20,10,0,2,33", "compareDocumentPosition");
     assert_eq!(lines[3], "true,false,true,false,true,false,true,true,id|class|data-k");
     assert_eq!(lines[4], "TypeError,TypeError,TypeError,TypeError,1,1,get parentNode,TypeError", "WebIDL checks");
-    assert_eq!(lines[5], "one,3,c,,nodoctype,two three");
+    // document.doctype exists (the page has one) and its textContent is null.
+    assert_eq!(lines[5], "one,3,c,,,two three");
     assert_eq!(
         lines[6],
         "http://www.w3.org/1999/xhtml,http://www.w3.org/2000/svg,,true,B,,wo,o ,IndexSizeError true,abcd,ef"
@@ -448,3 +449,33 @@ fn anchors_work_as_urls() {
          u p site.test:8080 8080 https://u:p@site.test:8080/z?k=v#h \"\" \":\" \"\" undefined"
     );
 }
+
+/// DocumentType and document.doctype (The Guardian's consent script used DocumentType).
+#[test]
+fn document_type() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r#"(() => {
+            const dt = document.doctype;
+            return [typeof DocumentType, dt instanceof DocumentType, dt instanceof Node, dt.nodeType, dt.name, dt.publicId, dt.systemId,
+                    dt.nodeName, document.firstChild === dt, Object.prototype.toString.call(dt), document.body instanceof DocumentType].join(",");
+        })()"#,
+    );
+    assert_eq!(r.trim_matches('"'), "function,true,true,10,html,,,html,true,[object DocumentType],false");
+}
+
+#[test]
+fn a_block_inside_an_inline_keeps_its_own_box() {
+    let _serial = serial();
+    let mut page = open("tests/sites/block-in-inline.html");
+    let size = |page: &mut crate::Page, id: &str| eval(page, &format!("(() => {{ const r = document.getElementById('{id}').getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }})()"));
+    // 98px wide, not the whole page (its height follows the picture once that has loaded).
+    assert!(size(&mut page, "pic").starts_with("\"98x"), "{}", size(&mut page, "pic"));
+    // width 120px + 2 × 10px padding, inside a link inside a span.
+    assert!(size(&mut page, "boxed").starts_with("\"140x"), "{}", size(&mut page, "boxed"));
+    // An inline holding only text is still an inline: it sits on the line with the words around it.
+    assert_eq!(eval(&mut page, "document.getElementById('plain').getBoundingClientRect().left > 0"), "true");
+}
+

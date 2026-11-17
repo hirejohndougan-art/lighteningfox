@@ -360,6 +360,21 @@ fn n_template_content(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
 
 // ------------------------------------------------------------ natives
 
+/// `__doctype(id)`: `[name, publicId, systemId]` of a doctype node, else null.
+fn n_doctype(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let info = valid(id).and_then(|id| {
+        with_dom(|d| match &d.nodes[id].data {
+            NodeData::Doctype { name, public_id, system_id } => Some([name.clone(), public_id.clone().unwrap_or_default(), system_id.clone().unwrap_or_default()]),
+            _ => None,
+        })
+    });
+    Ok(match info {
+        Some(v) => boa_engine::object::builtins::JsArray::from_iter(v.into_iter().map(|s| JsValue::from(JsString::from(s))), ctx).into(),
+        None => JsValue::null(),
+    })
+}
+
 fn n_type(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     Ok(JsValue::from(valid(id).map_or(0, |id| {
@@ -1283,6 +1298,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("cssom.js", include_str!("cssom.js")),
     ("docprops.js", include_str!("docprops.js")),
     ("hyperlink.js", include_str!("hyperlink.js")),
+    ("doctype.js", include_str!("doctype.js")),
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 
@@ -1380,6 +1396,7 @@ impl Js {
         ctx.runtime_limits_mut().set_recursion_limit(2_000);
         let natives: &[(&str, usize, fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>)] = &[
             ("__type", 1, n_type),
+            ("__doctype", 1, n_doctype),
             ("__attachShadow", 2, n_attach_shadow),
             ("__templateContent", 1, n_template_content),
             ("__idList", 0, n_id_list),

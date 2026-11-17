@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- The Guardian, 2026-11: every section sits in a <gu-island> custom element (display: inline),
+     and links wrap whole cards. A block inside an inline kept none of its own box: its width was
+     ignored and it shrank to its content (a 98px picture box grew to the whole page). -->
+<html><head><title>Block in inline</title>
+<style>
+  body { margin: 0; font: 16px sans-serif }
+  .card { display: flex; width: 300px; background: #eee }
+  .pic { width: 98px; flex-shrink: 0; align-self: flex-end }
+  .pic img { display: block; width: 100%; height: 100% }
+  .boxed { width: 120px; padding: 10px; background: #cde }
+</style></head>
+<body>
+<x-island><div class="card"><div class="pic" id="pic"><img src="../img/size160.png" alt=""></div><p>Headline</p></div></x-island>
+<span><a href="#"><div class="boxed" id="boxed">card link</div></a></span>
+<p>before <span id="plain">plain words</span> after</p>
+<script></script>
+</body></html>
