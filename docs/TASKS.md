@@ -435,7 +435,7 @@ passing and measure with `cargo test --release relayout_timing -- --ignored --no
 peak RSS of `--png` runs before and after.
 
 ### X20. Let WPT media tests play under `tools/wpt.py`
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 16:00
 **After:** —
 **Checklist:** none
 **Files:** `tools/wpt.py`, the `--png` path in `src/main.rs` (small)
