@@ -135,6 +135,24 @@ blocks); it needs the XDG Location portal instead. `altitudeAccuracy` is always 
 doesn't report it). When T05 moves pages into sandboxed processes, `src/geo.rs` must stay in the
 browser process and pass positions to the page process.
 
+### X7. Turn on Boa's Annex B (legacy web JavaScript)
+**Status:** claimed by chat-opus-x5 2026-11-17 12:05
+**After:** —
+**Checklist:** none
+**Files:** `Cargo.toml` (the `annex-b` feature of `boa_engine`)
+`"abc".substr()`, `escape()`, `trimLeft()`, `<!--` comments in scripts and other web-required
+legacy JavaScript are missing because Boa is built without `annex-b`. Turn it on; compare the
+test suite, test262 and the media-source WPT before and after; fix or report regressions.
+
+### X8. Review the small changes X5 and T10 made outside their files
+**Status:** claimed by chat-opus-x5 2026-11-17 12:05
+**After:** —
+**Checklist:** none
+**Files:** `src/boxtree.rs`, `src/js.rs`, `src/prelude.js`, `src/font.rs`, `tools/wpt.py`
+The `<svg>` replaced-element entry in the box tree, `createElementNS` marking SVG/MathML
+elements, the `document.body` setter, `font::web_families_generation`, and `WPT_TIMEOUT`:
+check each against the spec and other browsers, add tests where missing.
+
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
