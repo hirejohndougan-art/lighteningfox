@@ -84,3 +84,24 @@ RayTrace −6%, Splay −8%, EarleyBoyer −8%, RegExp −1%, NavierStokes +1%, 
 Boa's own tests need its workspace: clone `boa-dev/boa` at tag `v0.22`, copy a changed crate's
 `src/` over `core/<crate>/src`, and run `cargo test --release -p boa_engine --lib` there.
 `tools/test262.sh` runs the official conformance suite.
+
+### boa_engine: compiled-script cache (`src/script_cache.rs`)
+
+`Context::eval_cached` / `Script::parse_cached` keep the compiled code of scripts of 2 KB or
+more, per thread, and reuse it when the same source is evaluated again in any context: the
+browser's own prelude on every page, a site's bundle on each of its pages, repeat visits.
+Ironswift's `js.rs` uses it for the prelude files and page scripts.
+
+Reuse is only safe when the new realm's global scope matches what it was before the original
+compile, so each entry stores a snapshot of the global scope's bindings before and after
+(`Scope::snapshot` / `Scope::restore`, new in `boa_ast/src/scope.rs`); a hit restores the
+"after" snapshot, exactly what compiling again would produce. Scripts containing `eval(` are
+never cached. Budget: about 24 MB of compiled code (estimated as 3× source), least recently used
+dropped first; `script_cache::clear()` empties it.
+
+Per page, parse + compile on a hit (ms): prelude.js 23.6 → 0.07, indexeddb.js 11.7 → 0.04,
+react-dom 53.9 → 0.11, lodash 34.4 → 0.06.
+
+Not done: a cache on disk (so the first page after starting the browser also skips parsing).
+Boa's compiled code holds scope graphs and garbage-collected pointers and has no serialized
+form; writing one is a larger job.

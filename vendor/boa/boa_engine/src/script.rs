@@ -115,6 +115,47 @@ impl Script {
         })
     }
 
+    /// Ironswift change: like [`Script::parse`] for UTF-8 source, but reuses compiled code from
+    /// an earlier compile of the same source on this thread when that is safe (see
+    /// [`crate::script_cache`]). The returned script is already compiled.
+    ///
+    /// # Errors
+    /// Returns a syntax error if the source cannot be parsed.
+    pub fn parse_cached(code: &[u8], context: &mut Context) -> JsResult<Self> {
+        if !crate::script_cache::cacheable(code) {
+            return Self::parse(Source::from_bytes(code), None, context);
+        }
+        let flags = u32::from(context.is_strict()) | (u32::from(context.optimizer_options().bits()) << 1);
+        let scope = context.realm().scope().clone();
+        let before = scope.snapshot();
+        if let Some(hit) = crate::script_cache::lookup(code, flags, &before) {
+            // Keep parser identifiers unique, as a fresh parse would.
+            let _ = context.next_parser_identifier();
+            scope.restore(&hit.after);
+            return Ok(Self {
+                inner: Gc::new(Inner {
+                    realm: context.realm().clone(),
+                    phase: GcRefCell::new(ScriptPhase::Codeblock(hit.codeblock)),
+                    source_text: hit.source_text,
+                    loaded_modules: GcRefCell::default(),
+                    host_defined: HostDefined::default(),
+                    path: None,
+                }),
+            });
+        }
+        let script = Self::parse(Source::from_bytes(code), None, context)?;
+        let codeblock = script.codeblock(context)?;
+        crate::script_cache::insert(
+            code,
+            flags,
+            before,
+            scope.snapshot(),
+            codeblock,
+            script.inner.source_text.clone(),
+        );
+        Ok(script)
+    }
+
     /// Compiles the codeblock of this script.
     ///
     /// This is a no-op if this has been called previously.

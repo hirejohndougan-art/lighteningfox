@@ -1205,7 +1205,7 @@ impl Js {
 
     /// Run a script; an uncaught exception comes back as its message.
     pub(crate) fn run_code(&mut self, code: &str, label: &str) -> Result<(), String> {
-        let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
+        let r = self.ctx.eval_cached(code.as_bytes());
         let _ = self.ctx.run_jobs();
         r.map(|_| ()).map_err(|e| {
             self.stats.errors += 1;
@@ -1328,23 +1328,23 @@ impl Js {
             esc(&crate::i18n::locale())
         );
         ctx.eval(Source::from_bytes(globals.as_bytes())).expect("globals");
-        if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(PRELUDE.as_bytes()) {
             log!("[ironswift] prelude failed: {e}");
         }
-        if let Err(e) = ctx.eval(Source::from_bytes(BLOB.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(BLOB.as_bytes()) {
             log!("[ironswift] Blob setup failed: {e}");
         }
-        if let Err(e) = ctx.eval(Source::from_bytes(INDEXEDDB.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(INDEXEDDB.as_bytes()) {
             log!("[ironswift] IndexedDB setup failed: {e}");
         }
-        if let Err(e) = ctx.eval(Source::from_bytes(FORMS.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(FORMS.as_bytes()) {
             log!("[ironswift] form validation setup failed: {e}");
         }
-        if let Err(e) = ctx.eval(Source::from_bytes(INTL.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(INTL.as_bytes()) {
             log!("[ironswift] Intl setup failed: {e}");
         }
         for (file, code) in EXTRA_APIS {
-            if let Err(e) = ctx.eval(Source::from_bytes(code.as_bytes())) {
+            if let Err(e) = ctx.eval_cached(code.as_bytes()) {
                 log!("[ironswift] {file} failed: {e}");
             }
         }
@@ -1361,7 +1361,7 @@ impl Js {
             return None;
         }
         let t = Instant::now();
-        let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
+        let r = self.ctx.eval_cached(code.as_bytes());
         let _ = self.ctx.run_jobs();
         self.report_rejections();
         self.stats.script_time += t.elapsed();
@@ -1709,3 +1709,20 @@ impl Js {
 
 /// Brackets a script may nest before it's refused (V8 gives up at a similar depth).
 pub const MAX_SCRIPT_NESTING: usize = 1000;
+
+#[cfg(test)]
+mod script_cache_tests {
+    /// The browser's own scripts are compiled once per thread; later pages reuse the compiled
+    /// code (batch M) and still work.
+    #[test]
+    fn second_page_reuses_compiled_prelude() {
+        let _first = super::Js::new("https://a.example/");
+        let (hits_before, _, _) = boa_engine::script_cache::stats();
+        let mut second = super::Js::new("https://b.example/");
+        let (hits_after, _, entries) = boa_engine::script_cache::stats();
+        assert!(entries > 0, "nothing was cached");
+        assert!(hits_after > hits_before, "second page did not reuse compiled scripts");
+        let v = second.eval("typeof document.createElement + typeof fetch", "test").expect("runs");
+        assert_eq!(v.as_string().map(|s| s.to_std_string_escaped()).as_deref(), Some("functionfunction"));
+    }
+}

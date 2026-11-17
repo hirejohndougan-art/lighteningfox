@@ -46,6 +46,23 @@ struct Binding {
     flags: BindingFlags,
 }
 
+/// Ironswift change: a copy of a scope's bindings (see [`Scope::snapshot`]).
+///
+/// Two snapshots are equal when they hold the same bindings with the same flags; the scope ID
+/// counter is not compared.
+#[derive(Clone, Debug)]
+pub struct ScopeSnapshot {
+    bindings: Vec<Binding>,
+    this_escaped: bool,
+    unique_id_ctr: u32,
+}
+
+impl PartialEq for ScopeSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.bindings == other.bindings && self.this_escaped == other.this_escaped
+    }
+}
+
 /// The bindings of one scope, in declaration order.
 ///
 /// Ironswift change: large scopes (a minified bundle can declare a thousand functions at its
@@ -270,6 +287,33 @@ impl Scope {
         } else {
             IdentifierReference::new(BindingLocator::global(name), false, true)
         }
+    }
+
+    /// Ironswift change: records this scope's bindings, for the compiled-script cache.
+    ///
+    /// A script compiled against a global scope adds its top-level bindings to it. To reuse the
+    /// compiled script in another realm, the cache checks that the realm's global scope matches
+    /// the snapshot taken before the original compile, then [`Scope::restore`]s the snapshot
+    /// taken after it.
+    #[must_use]
+    pub fn snapshot(&self) -> ScopeSnapshot {
+        ScopeSnapshot {
+            bindings: self.inner.bindings.borrow().to_vec(),
+            this_escaped: self.inner.this_escaped.get(),
+            unique_id_ctr: self.inner.context.unique_id_ctr.get(),
+        }
+    }
+
+    /// Ironswift change: makes this scope's bindings equal to `snapshot`.
+    pub fn restore(&self, snapshot: &ScopeSnapshot) {
+        let mut list = BindingList::default();
+        for b in &snapshot.bindings {
+            list.push(b.clone());
+        }
+        *self.inner.bindings.borrow_mut() = list;
+        self.inner.this_escaped.set(snapshot.this_escaped);
+        let ctr = &self.inner.context.unique_id_ctr;
+        ctr.set(ctr.get().max(snapshot.unique_id_ctr));
     }
 
     /// Returns the number of bindings in this scope.

@@ -206,6 +206,16 @@ impl Context {
         Script::parse(src, None, self)?.evaluate(self)
     }
 
+    /// Ironswift change: evaluates UTF-8 source like [`Context::eval`], reusing compiled code
+    /// from an earlier evaluation of the same source on this thread when that is safe (see
+    /// [`crate::script_cache`]).
+    ///
+    /// # Errors
+    /// Returns the script's syntax error or uncaught exception.
+    pub fn eval_cached(&mut self, code: &[u8]) -> JsResult<JsValue> {
+        Script::parse_cached(code, self)?.evaluate(self)
+    }
+
     /// Applies optimizations to the [`StatementList`] inplace.
     pub fn optimize_statement_list(
         &mut self,

@@ -99,6 +99,7 @@ pub mod optimizer;
 pub mod property;
 pub mod realm;
 pub mod script;
+pub mod script_cache;
 pub mod string;
 pub mod symbol;
 pub mod value;
