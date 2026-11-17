@@ -87,7 +87,7 @@ and other binary files (most of the canvas `drawImage`-from-`fetch` WPT failures
 bytes; `text()` and `json()` decode them.
 
 ### X3. Import maps
-**Status:** free
+**Status:** claimed by chat-opus-x3 2026-11-17 05:01
 **After:** —
 **Checklist:** none
 **Files:** the ES-module loader in `src/js.rs` / its JS file
