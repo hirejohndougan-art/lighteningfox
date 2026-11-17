@@ -18,6 +18,7 @@ mod images;
 mod js;
 mod layout;
 mod library;
+mod settings;
 mod net;
 mod paint;
 mod style;
@@ -119,6 +120,63 @@ struct Slot {
     pending: Option<(Loading, Prepared)>,
     title: String,
     url: String,
+    /// A sleeping tab keeps its Back/Forward lists while its page is freed.
+    back: Vec<Entry>,
+    forward: Vec<Entry>,
+    /// When it was last the visible tab (for putting it to sleep).
+    last_seen: Instant,
+}
+
+impl Slot {
+    fn new(url: String, title: String) -> Slot {
+        Slot { saved: None, loading: None, pending: None, title, url, back: Vec::new(), forward: Vec::new(), last_seen: Instant::now() }
+    }
+
+    /// Asleep: no page kept and nothing loading; showing it loads its URL again.
+    fn asleep(&self) -> bool {
+        self.saved.is_none() && self.loading.is_none() && self.pending.is_none() && self.url != "about:blank"
+    }
+}
+
+/// The open tabs, saved so the next start can reopen them: first line is the active index.
+fn save_session(tabs: &[(String, String)], active: usize) {
+    let Some(dir) = cookies::profile_dir() else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    let mut body = format!("{active}\n");
+    for (u, t) in tabs {
+        body.push_str(&format!("{}\t{}\n", u.replace(['\t', '\n'], " "), t.replace(['\t', '\n'], " ")));
+    }
+    let path = dir.join("session.txt");
+    let tmp = path.with_extension("tmp");
+    if std::fs::write(&tmp, body).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
+}
+
+fn load_session() -> Option<(Vec<(String, String)>, usize)> {
+    let text = std::fs::read_to_string(cookies::profile_dir()?.join("session.txt")).ok()?;
+    let mut lines = text.lines();
+    let active: usize = lines.next()?.trim().parse().ok()?;
+    let urls: Vec<(String, String)> = lines
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| match l.split_once('\t') {
+            Some((u, t)) => (u.to_string(), if t.is_empty() { u.to_string() } else { t.to_string() }),
+            None => (l.to_string(), l.to_string()),
+        })
+        .collect();
+    (!urls.is_empty()).then(|| {
+        let a = active.min(urls.len() - 1);
+        (urls, a)
+    })
+}
+
+/// How long a background tab may go unseen before it sleeps (LF_TAB_SLEEP_SECONDS overrides).
+fn sleep_after() -> Option<std::time::Duration> {
+    if let Some(secs) = std::env::var("LF_TAB_SLEEP_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()) {
+        return Some(std::time::Duration::from_secs(secs));
+    }
+    let m = settings::get().sleep_minutes;
+    (m > 0).then(|| std::time::Duration::from_secs(m as u64 * 60))
 }
 
 /// What the tab strip and shortcuts asked for; carried out at the top of the next frame.
@@ -305,6 +363,8 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         ("about:blank".to_string(), String::new())
     } else if let Some(q) = url.strip_prefix("about:history") {
         ("about:history".to_string(), library::history_page(q))
+    } else if let Some(q) = url.strip_prefix("about:settings") {
+        ("about:settings".to_string(), settings::page(q))
     } else if let Some(q) = url.strip_prefix("about:bookmarks") {
         ("about:bookmarks".to_string(), library::bookmarks_page(q))
     } else {
@@ -482,6 +542,8 @@ fn error_page(url: &str, err: &str) -> String {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
+    // Whether a page was named on the command line (else: restore the last session or go home).
+    let mut explicit = false;
     let mut png: Option<String> = None;
     let mut width = 1024usize;
     let mut i = 0;
@@ -495,7 +557,10 @@ fn main() {
                 width = args.get(i + 1).and_then(|w| w.parse().ok()).unwrap_or(width);
                 i += 1;
             }
-            other => url = net::normalize_input(other),
+            other => {
+                url = net::normalize_input(other);
+                explicit = true;
+            }
         }
         i += 1;
     }
@@ -525,7 +590,7 @@ fn main() {
     }
     match png {
         Some(out) => render_png(fonts, &url, width, &out),
-        None => run_window(fonts, &url, width),
+        None => run_window(fonts, &url, width, explicit),
     }
 }
 
@@ -788,7 +853,16 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
     })
 }
 
-fn run_window(fonts: &Fonts, start: &str, width: usize) {
+fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
+    // Without a page on the command line, reopen last session's tabs (if that's the setting),
+    // else open the home page.
+    let session = if explicit || !settings::get().restore_tabs { None } else { load_session() };
+    let home = settings::get().home;
+    let start: &str = match &session {
+        Some((urls, a)) => &urls[*a].0.clone(),
+        None if explicit => start,
+        None => &home,
+    };
     let mut window = Window::new("LighteningFox", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
             eprintln!("Could not open a window: {e}");
@@ -833,6 +907,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     // (its own slot holds None).
     let mut tabs: Vec<Option<Slot>> = vec![None];
     let mut active = 0usize;
+    // The other tabs of a restored session start asleep: they load when first shown.
+    if let Some((urls, a)) = &session {
+        tabs = urls.iter().enumerate().map(|(i, (u, t))| (i != *a).then(|| Slot::new(u.clone(), t.clone()))).collect();
+        active = *a;
+    }
+    let mut session_saved: (Vec<(String, String)>, usize) = (Vec::new(), usize::MAX);
+    let mut last_housekeeping = Instant::now();
     let mut tab_cmd: Option<TabCmd> = None;
     let mut pending_nav: Option<Go> = None;
     let mut closed: Vec<String> = Vec::new();
@@ -870,6 +951,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     macro_rules! restore {
         ($slot:expr) => {{
             let slot: Slot = $slot;
+            let asleep = slot.asleep();
             loading = slot.loading;
             match slot.saved {
                 Some(sv) => {
@@ -890,9 +972,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 }
                 None => {
                     page = load("about:blank");
-                    back.clear();
-                    forward.clear();
+                    back = slot.back;
+                    forward = slot.forward;
                     current = Entry { url: slot.url.clone(), doc: page.doc, state: "null".into() };
+                    // A sleeping tab wakes up by loading its page again.
+                    if asleep {
+                        pending_nav = Some(Go::To(slot.url.clone()));
+                    }
                     focused = None;
                     address = slot.url.clone();
                     scroll = 0.0;
@@ -923,8 +1009,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             match cmd {
                 TabCmd::Switch(i) if i != active && i < tabs.len() => {
                     let (title, url) = (page.label(), page.url.clone());
+                    let (back_list, fwd_list) = (back.clone(), forward.clone());
                     let saved = stash!();
-                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), pending: None, title, url });
+                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), back: back_list, forward: fwd_list, ..Slot::new(url, title) });
                     let slot = tabs[i].take().expect("tab slot");
                     active = i;
                     restore!(slot);
@@ -937,19 +1024,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         let _ = tx.send((g, fetch_page(&t, None)));
                     });
                     let l = Loading { generation, kind: Go::To(url.clone()), started: Instant::now() };
-                    tabs.insert(active + 1, Some(Slot { saved: None, loading: Some(l), pending: None, title: url.clone(), url }));
+                    tabs.insert(active + 1, Some(Slot { loading: Some(l), ..Slot::new(url.clone(), url) }));
                     dirty = true;
                 }
                 TabCmd::Open(url, false) => {
                     let (title, old_url) = (page.label(), page.url.clone());
                     let saved = stash!();
-                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), pending: None, title, url: old_url });
+                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), ..Slot::new(old_url, title) });
                     // A new empty tab goes at the end; one opened from a page sits beside it.
                     let blank = url == "about:blank";
                     let at = if blank { tabs.len() } else { active + 1 };
                     tabs.insert(at, None);
                     active = at;
-                    restore!(Slot { saved: None, loading: None, pending: None, title: url.clone(), url: url.clone() });
+                    restore!(Slot::new("about:blank".into(), url.clone()));
                     if blank {
                         // A new empty tab: start typing an address.
                         editing = true;
@@ -1724,6 +1811,41 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             address = page.url.clone();
             window.set_title(&format!("{} — LighteningFox", page.label()));
             dirty = true;
+        }
+        // Once a second: put long-unseen background tabs to sleep, and save the session.
+        if last_housekeeping.elapsed().as_secs() >= 1 {
+            last_housekeeping = Instant::now();
+            if let Some(after) = sleep_after() {
+                let mut freed = false;
+                for slot in tabs.iter_mut().flatten() {
+                    if slot.saved.is_some() && slot.loading.is_none() && slot.pending.is_none() && slot.last_seen.elapsed() >= after {
+                        let sv = slot.saved.take().expect("saved");
+                        if let Some(j) = sv.page.js.as_ref() {
+                            js::forget(j);
+                        }
+                        slot.url = sv.current.url.clone();
+                        slot.back = sv.back;
+                        slot.forward = sv.forward;
+                        freed = true;
+                    }
+                }
+                if freed {
+                    eprintln!("[tabs] put background tabs to sleep");
+                    release_free_memory();
+                    dirty = true;
+                }
+            }
+            let urls: Vec<(String, String)> = tabs
+                .iter()
+                .map(|s| match s {
+                    None => (current.url.clone(), page.label()),
+                    Some(s) => (s.saved.as_ref().map_or(s.url.clone(), |sv| sv.current.url.clone()), s.title.clone()),
+                })
+                .collect();
+            if (urls.clone(), active) != session_saved {
+                save_session(&urls, active);
+                session_saved = (urls, active);
+            }
         }
         // Animate the loading bar about ten times a second.
         let any_loading = loading.is_some() || tabs.iter().flatten().any(|s| s.loading.is_some());

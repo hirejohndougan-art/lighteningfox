@@ -85,7 +85,7 @@ fn site_of_url(url: &str) -> Option<String> {
 
 /// Whether cookies may flow for a request to `url` made by a page at `top`.
 pub fn allowed(url: &str, top: &str) -> bool {
-    if std::env::var("LF_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") {
+    if std::env::var("LF_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") || crate::settings::get().third_party_cookies {
         return true;
     }
     match (site_of_url(url), site_of_url(top)) {

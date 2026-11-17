@@ -108,7 +108,9 @@ pub fn http(req: &Request) -> Result<Response, String> {
         let accept = if req.top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" };
         r = r.set("Accept", accept);
         // Global Privacy Control: "do not sell or share my data" (honored by law in some US states).
-        r = r.set("Sec-GPC", "1");
+        if crate::settings::get().send_gpc {
+            r = r.set("Sec-GPC", "1");
+        }
         for (k, v) in req.headers {
             if !FORBIDDEN_HEADERS.contains(&k.to_ascii_lowercase().as_str()) {
                 r = r.set(k, v);
@@ -315,7 +317,7 @@ pub fn strip_tracking(url: &str) -> String {
         "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "mc_eid", "mc_cid", "yclid", "twclid", "ttclid", "li_fat_id",
         "igshid", "igsh", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id", "oly_enc_id", "vero_id", "wickedid", "__s", "_openstat", "srsltid", "si",
     ];
-    if std::env::var("LF_KEEP_TRACKING_PARAMS").is_ok_and(|v| v == "1") || !(url.starts_with("http://") || url.starts_with("https://")) {
+    if std::env::var("LF_KEEP_TRACKING_PARAMS").is_ok_and(|v| v == "1") || !crate::settings::get().strip_tracking || !(url.starts_with("http://") || url.starts_with("https://")) {
         return url.to_string();
     }
     let (before_frag, frag) = match url.split_once('#') {
@@ -365,7 +367,7 @@ pub fn normalize_input(input: &str) -> String {
             _ => format!("%{b:02X}"),
         })
         .collect();
-    format!("https://html.duckduckgo.com/html/?q={q}")
+    crate::settings::search_url(&q)
 }
 
 /// Resolve `href` relative to `base`.
