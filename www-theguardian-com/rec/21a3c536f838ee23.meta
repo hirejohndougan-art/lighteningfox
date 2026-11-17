@@ -1,0 +1,16 @@
+GET https://cdn.confiant-integrations.net/7oDgiTsq88US4rrBG0_Nxpafkrg/gpt_and_prebid/config.js
+200 OK
+date: Tue, 17 Nov 2026 22:20:44 GMT
+content-type: text/javascript
+x-amz-id-2: GjT8WykKSWcz6GhrOQvcmVhrfya6Uy8pS3G0UKOVCq45D83J4kMkkssAuOOic3Xf/YRQMG5jYPtorQQMZaJSl3tY/tLdM6H3
+x-amz-request-id: 0JCSNVAYYTWCK2X1
+server: cloudflare
+last-modified: Tue, 17 Nov 2026 21:53:21 GMT
+strict-transport-security: max-age=2592000
+x-amz-server-side-encryption: AES256
+cache-control: public, max-age=900, stale-while-revalidate=3600
+etag: W/"d72518f89687ddd76af54a409007959b"
+age: 261
+cf-cache-status: HIT
+alt-svc: h3=":443"; ma=86400
+cf-ray: a5c21fdc4b94adf1-IAD

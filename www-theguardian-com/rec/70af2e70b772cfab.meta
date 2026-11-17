@@ -1,0 +1,26 @@
+GET https://assets.guim.co.uk/commercial/41579f66891d5a58eb8b/graun.980.commercial.js
+200 OK
+x-gu-debug-url: /PROD/frontend-static/commercial/41579f66891d5a58eb8b/graun.980.commercial.js
+x-amz-request-id: 6SDJJ5MHVZK4EQN1
+x-amz-id-2: paJsZaKQnrX4t5ShKddqWXp1Jf+tP/dcrJrRON1UxOViuuCNkC7JbMZjlokZkJsLmvroIeeccajneAqlfKGEyq0j91AUIQlb
+server: AmazonS3
+last-modified: Thu, 29 Oct 2026 15:49:34 GMT
+etag: "50399a7de704b46a1f05464104c610c6"
+x-amz-version-id: RuKTSHEl6Z1lVO6R9AcDM60BNqji56pE
+cache-control: public, max-age=315360000, immutable
+content-type: application/javascript
+x-amz-server-side-encryption: AES256
+fastly-restarts: 1
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:43 GMT
+via: 1.1 varnish
+age: 537121
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: HIT
+x-cache-hits: 4023
+x-timer: S1794954043.412626,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000

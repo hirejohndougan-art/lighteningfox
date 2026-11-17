@@ -1,0 +1,27 @@
+GET https://assets.guim.co.uk/static/frontend/fonts/guardian-headline/noalts-not-hinted/GHGuardianHeadline-BoldItalic.woff2
+200 OK
+content-length: 19000
+x-amz-id-2: nZyjEZUh1dx0I0/t3V2gmBV3/jY8+wD72O909UhGdlImO6UW0tK4oQXNNNlllhpK9LdOOGf0Gfk9ScLn31DctYWJhzSSGSt3
+x-amz-request-id: 9CCQPCXBVJCY4WE2
+server: AmazonS3
+last-modified: Wed, 28 Oct 2026 17:13:06 GMT
+etag: "a8118447d09eaf4f96d0f2c4da2a206e"
+x-amz-server-side-encryption: AES256
+cache-control: max-age=315360000, immutable
+x-amz-version-id: yzMKTpvkBMqXOqPl73Bx.TOu16_rwHYV
+content-type: font/woff2
+fastly-restarts: 1
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:38 GMT
+via: 1.1 varnish
+age: 533862
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: HIT
+x-cache-hits: 89
+x-timer: S1794954039.679288,VS0,VE1
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000
+x-gu-debug-url: /PROD/frontend-static/static/frontend/fonts/guardian-headline/noalts-not-hinted/GHGuardianHeadline-BoldItalic.woff2
+x-fonts-legal-notice: The displayed fonts and associated software are the exclusive property of Schwartzco Inc (trading as Commercial Type). Reproduction or further transmission of all or part of the fonts, or use of the associated software, without written permission of Commercial Type is prohibited. By displaying the fonts, no permission or sub-licence is granted by Guardian News & Media Limited for use of the fonts by third parties.
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400

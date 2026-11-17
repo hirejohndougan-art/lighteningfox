@@ -1,0 +1,26 @@
+OPTIONS https://sourcepoint.theguardian.com/wrapper/v2/pv-data?hasCsp=true&env=prod&ch=532510468915d&scriptVersion=4.41.0&scriptType=unified
+200 OK
+content-length: 4
+content-type: text/html; charset=utf-8
+x-powered-by: Express
+access-control-allow-origin: https://www.theguardian.com
+access-control-allow-credentials: true
+access-control-allow-headers: Origin,X-Requested-With,Content-Type,Accept,Authorization,SP_SCRIPT_VERSION
+access-control-allow-methods: GET, PUT, POST, DELETE
+cache-control: no-cache, no-store
+allow: POST
+via: 1.1 9b9d51d09843a8fb67e0230c8b540698.cloudfront.net (CloudFront), 1.1 varnish
+x-amz-cf-pop: IAD61-P9
+x-amz-cf-id: fshmeY97UT8ZYeLOxwgWnjbdfPF4TCsJCaQ1aFK_E5yYwvetX0XQrQ==
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:43 GMT
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: Miss from cloudfront, MISS
+x-cache-hits: 0
+x-timer: S1794954043.001106,VS0,VE16
+vary: Accept-Encoding
+strict-transport-security: max-age=300
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400

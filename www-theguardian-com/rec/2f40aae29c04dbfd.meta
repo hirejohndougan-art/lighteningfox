@@ -1,0 +1,26 @@
+GET https://assets.guim.co.uk/assets/ScrollableHighlights-island.client.web.b1212cbd4ee3695b151f.js
+200 OK
+x-gu-debug-url: /PROD/frontend-static/assets/ScrollableHighlights-island.client.web.b1212cbd4ee3695b151f.js
+x-amz-request-id: J7JFX9NZ1J5WRCMN
+x-amz-id-2: Q6IsuItozj9VKkt3EIoSKPQ1M4UWPMR1HMLkwEy2YNxeTd3XLx+wU2mmtNFiZYpFOTXMnWOn1DC/L/M3/RaUuO7aqZwN2Idr
+server: AmazonS3
+last-modified: Tue, 17 Nov 2026 11:21:57 GMT
+etag: "0d76c01b59492b58256fbb11e8d88a5f"
+x-amz-version-id: QagAIqqlv_xACOr_uV.ivQ6ECRBSL74o
+cache-control: public, max-age=315360000, immutable
+content-type: application/javascript
+x-amz-server-side-encryption: AES256
+fastly-restarts: 1
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:42 GMT
+via: 1.1 varnish
+age: 38982
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: HIT
+x-cache-hits: 93
+x-timer: S1794954043.500142,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000

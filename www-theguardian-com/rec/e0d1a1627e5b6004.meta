@@ -1,0 +1,24 @@
+GET https://sourcepoint.theguardian.com/unified/4.41.0/usnat-gpp.1af7b0a971740919848e.bundle.js
+200 OK
+content-type: text/javascript
+server: AmazonS3
+last-modified: Wed, 28 Oct 2026 14:07:00 GMT
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+x-amz-server-side-encryption: AES256
+cache-control: max-age=31536000
+etag: W/"38aecc19b80ca950f7c8aca67cb00c37"
+via: 1.1 efd018339fb933da4091a352324c115e.cloudfront.net (CloudFront), 1.1 varnish
+x-amz-cf-pop: IAD61-P9
+x-amz-cf-id: J-HNyBvH2EukcWXqMddpOXiAAAOyZcVmEhZAmiQ6gT0eTIHsEOD0jA==
+age: 1757451
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:42 GMT
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: Hit from cloudfront, MISS
+x-cache-hits: 0
+x-timer: S1794954042.182722,VS0,VE3
+vary: Accept-Encoding
+strict-transport-security: max-age=300

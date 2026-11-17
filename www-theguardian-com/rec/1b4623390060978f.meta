@@ -1,0 +1,25 @@
+GET https://sourcepoint.theguardian.com/wrapper/v2/messages?hasCsp=true&env=prod&body=%7B%22accountId%22%3A1257%2C%22campaignEnv%22%3A%22prod%22%2C%22campaigns%22%3A%7B%22usnat%22%3A%7B%22consentStatus%22%3A%7B%7D%2C%22hasLocalData%22%3Afalse%2C%22targetingParams%22%3A%7B%22framework%22%3A%22usnat%22%7D%7D%7D%2C%22clientMMSOrigin%22%3A%22https%3A%2F%2Fsourcepoint.theguardian.com%22%2C%22hasCSP%22%3Atrue%2C%22includeData%22%3A%7B%22localState%22%3A%7B%22type%22%3A%22string%22%7D%2C%22actions%22%3A%7B%22type%22%3A%22RecordString%22%7D%2C%22cookies%22%3A%7B%22type%22%3A%22RecordString%22%7D%7D%2C%22propertyHref%22%3A%22https%3A%2F%2Fwww.theguardian.com%2Fus%22%2C%22propertyId%22%3A7417%7D&localState=null&metadata=%7B%22usnat%22%3A%7B%22applies%22%3Atrue%7D%7D&nonKeyedLocalState=null&ch=532510468915d&scriptVersion=4.41.0&scriptType=unified
+200 OK
+content-type: application/json; charset=utf-8
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+x-powered-by: Express
+access-control-allow-origin: *
+access-control-allow-credentials: true
+access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, SP_SCRIPT_VERSION
+access-control-allow-methods: GET, PUT, POST, DELETE
+cache-control: max-age=0, s-maxage=1200
+x-sp-geo-usp: US-VA
+via: 1.1 d523203a31c7b4002ffae54ebed3c56e.cloudfront.net (CloudFront), 1.1 varnish
+x-amz-cf-pop: IAD61-P9
+x-amz-cf-id: bAr_mcUdDuSBy3_7iQpMzmouPYpZWUbJ_fqEwe8gVFTzkNYGtM1z-A==
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:42 GMT
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: Miss from cloudfront, MISS
+x-cache-hits: 0
+x-timer: S1794954043.643770,VS0,VE18
+vary: Accept-Encoding
+strict-transport-security: max-age=300

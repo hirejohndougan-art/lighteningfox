@@ -1,0 +1,17 @@
+POST https://contributions.guardianapis.com/header
+200 OK
+content-length: 682
+content-type: application/json; charset=utf-8
+x-powered-by: Express
+access-control-allow-origin: https://www.theguardian.com
+etag: W/"2aa-9hzUPuUaJ+3Jl/YQJ17lSAuW67A"
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:45 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-khef600075-IAD
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1794954045.243016,VS0,VE351
+vary: Origin, Accept-Encoding
+strict-transport-security: max-age=300
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400

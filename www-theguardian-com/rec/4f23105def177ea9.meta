@@ -1,0 +1,22 @@
+GET https://cdn.privacy-mgmt.com/wrapper/v2/meta-data?accountId=1257&env=prod&metadata={%22gdpr%22:{},%22usnat%22:{},%22globalcmp%22:{}}&propertyId=9398
+200 OK
+content-type: application/json; charset=utf-8
+content-length: 707
+date: Tue, 17 Nov 2026 21:33:28 GMT
+x-powered-by: Express
+access-control-allow-origin: *
+access-control-allow-credentials: true
+access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, SP_SCRIPT_VERSION
+access-control-allow-methods: GET, PUT, POST, DELETE
+cache-control: max-age=3600, s-maxage=3600
+strict-transport-security: max-age=15552000; includeSubDomains
+x-sp-geo-usp: US-VA
+vary: Accept-Encoding
+x-cache: Hit from cloudfront
+via: 1.1 b116c81094ffed72adb1e3039bf29020.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P4
+x-amz-cf-id: yEY7cV4tDgEB0F0o-uTm-4VziMkps73hAJSIkDJG7-gRCwGyN1N-Sg==
+age: 2835
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff

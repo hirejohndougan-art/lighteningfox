@@ -1,0 +1,26 @@
+GET https://assets.guim.co.uk/assets/TopBar-island.client.web.1f74774511dc4146e559.js
+200 OK
+x-gu-debug-url: /PROD/frontend-static/assets/TopBar-island.client.web.1f74774511dc4146e559.js
+x-amz-request-id: 1MKZH5VG481GC6A0
+x-amz-id-2: y8ZuJ3tjvjtA4+5g1oz5Xljp1/QgdkjKCFnBgJnwcRlolgnNupjRFg65DNQXyXlGh4fjKTzXaQ6XZY6cSo5ARL1cilOaA1Kd
+server: AmazonS3
+last-modified: Thu, 12 Nov 2026 09:54:33 GMT
+etag: "ecf190b168b8e50f63659a815f2e537b"
+x-amz-version-id: 33mjJg5y4SQYtSeguFitJsUn.9NfuBT5
+cache-control: public, max-age=315360000, immutable
+content-type: application/javascript
+x-amz-server-side-encryption: AES256
+fastly-restarts: 1
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:41 GMT
+via: 1.1 varnish
+age: 476573
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: HIT
+x-cache-hits: 4084
+x-timer: S1794954042.604465,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000

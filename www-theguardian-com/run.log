@@ -1,0 +1,68 @@
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&performance=%7B%22dns%22%3A0%2C%22connection%22%3A0%2C%22firstByte%22%3A0%2C%22lastByte%22%3A0%2C%22domContentLoadedEvent%22%3A-1794954038756%2C%22loadEvent%22%3A0%2C%22navType%22%3A0%2C%22redirectCount%22%3A0%7D: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/1?v=17&platform=next-gen&url=https%3A%2F%2Fwww.theguardian.com%2Fus&ref=&visibilityState=visible&tz=0&navigationType=navigate&contentType=network%20front&frontsTestExposure=%7B%22variant%22%3A%22b%22%2C%22dt%22%3A1794954041185%2C%22path%22%3A%22%2Fus%22%7D&viewId=mwl9agas1vel42d1qn9v: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&inPrivateBrowsingMode=false: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&experiences=adapted%2Cdotcom-rendering: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&edition=US: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js log] Messaging without detection successfully executed.
+[js log] interaction complete
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&attentionMs=0: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&consentJurisdiction=USNAT&consentUUID=8196b5bf-2a10-4751-9d9a-18491878cd75&consent=false: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[blocked] https://www3.doubleclick.net/ (||doubleclick.net^)
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||securepubads.g.doubleclick.net/tag/js/gpt.js$script,redirect=googletagservices_gpt.js,important, answered with googletagservices_gpt.js)
+[js warn] fetch failed: https://www3.doubleclick.net/: blocked by filter rule ||doubleclick.net^
+[js log] AdBlocker detected: true
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&abTestRegister=%7B%22growth-auxia-banner%22%3A%7B%22variantName%22%3A%22variant%22%2C%22complete%22%3Afalse%7D%2C%22fronts-and-curation-editorial-test%22%3A%7B%22variantName%22%3A%22b%22%2C%22complete%22%3Afalse%7D%7D: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&componentEvent=%7B%22component%22%3A%7B%22componentType%22%3A%22CUSTOM_SUBNAV%22%2C%22id%22%3A%22US%22%7D%2C%22action%22%3A%22VIEW%22%2C%22value%22%3A%222d4234de-0925-4a53-82fa-9f6b427cbc7d%22%7D: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwl9agas1vel42d1qn9v&adUnitWasHidden=true: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+    at <main> (unknown at :1216:80)
+    at <main> (unknown at :1188:15)
+    at <main> (unknown at :1:10)
+https://www.theguardian.com/us: 6435 nodes, 15500 display items, 1280x16000 px, 10.018911227s total | JS: 50 scripts, 12 errors, 4.140375033s
+exit 0

@@ -1,0 +1,23 @@
+GET https://i.guim.co.uk/img/uploads/2023/08/03/Soccer-v7_TREAT.png?width=130&dpr=1&s=none&crop=none
+200 OK
+content-type: image/png
+etag: "tBXT04tBNWpwsWqTOLvX1ArLpsxcmqhDAkSlWdtc7c0"
+fastly-io-info: ifsz=1386321 idim=834x834 ifmt=png ofsz=10285 odim=130x130 ofmt=png
+fastly-io-served-by: img06-europe-west3
+fastly-io-transform-stats: ifsz=1386321 ofsz=10285 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+x-amz-server-side-encryption: AES256
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:38 GMT
+age: 1095161
+x-served-by: cache-lcy-egml8630030-LCY, cache-iad-kcgs7200156-IAD
+x-cache: HIT, HIT
+x-cache-hits: 39, 342
+x-timer: S1794954038.374056,VS0,VE2
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 10285

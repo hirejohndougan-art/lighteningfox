@@ -1,0 +1,27 @@
+GET https://assets.guim.co.uk/static/frontend/fonts/guardian-textsans/noalts-not-hinted/GuardianTextSans-RegularItalic.woff2
+200 OK
+content-length: 16536
+x-amz-id-2: HvMHCPolglNe0W31FSpWEjeLQ8AS86ZhxJkZ2TvAhBwF4eiduVyLrysA6OnbEessnQmYN1wpec34MTcgJAtEHA==
+x-amz-request-id: Z3M6HFKE8A8TMBSV
+last-modified: Wed, 05 Feb 2025 09:57:34 GMT
+etag: "f5d1e0d3fc44184592d712ee953a8f50"
+x-amz-server-side-encryption: AES256
+cache-control: max-age=315360000, immutable
+x-amz-version-id: Am8tapquBaqYiLfusZlS4xkDhWCZTvdL
+content-type: font/woff2
+server: AmazonS3
+fastly-restarts: 1
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:38 GMT
+via: 1.1 varnish
+age: 60466
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: HIT
+x-cache-hits: 45
+x-timer: S1794954039.680148,VS0,VE0
+access-control-allow-credentials: true
+access-control-allow-origin: *
+strict-transport-security: max-age=31536000
+x-gu-debug-url: /PROD/frontend-static/static/frontend/fonts/guardian-textsans/noalts-not-hinted/GuardianTextSans-RegularItalic.woff2
+x-fonts-legal-notice: The displayed fonts and associated software are the exclusive property of Schwartzco Inc (trading as Commercial Type). Reproduction or further transmission of all or part of the fonts, or use of the associated software, without written permission of Commercial Type is prohibited. By displaying the fonts, no permission or sub-licence is granted by Guardian News & Media Limited for use of the fonts by third parties.
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400

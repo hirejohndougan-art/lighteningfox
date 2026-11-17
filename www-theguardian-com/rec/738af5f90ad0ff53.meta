@@ -1,0 +1,22 @@
+GET https://i.guim.co.uk/img/uploads/2017/10/06/Arwa_Mahdawi,_L.png?width=98&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "EafBG/pIQadoZ2hgwt6N9XZzvYxW3R6djpma27S1ps0"
+fastly-io-info: ifsz=606928 idim=720x600 ifmt=png ofsz=4077 odim=98x98 ofmt=png
+fastly-io-served-by: vpop-etou8240194
+fastly-io-transform-stats: ifsz=606928 ofsz=4077 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 1304
+date: Tue, 17 Nov 2026 22:20:37 GMT
+x-served-by: cache-lcy-eglc8600071-LCY, cache-iad-kcgs7200156-IAD
+x-cache: HIT, HIT
+x-cache-hits: 2, 0
+x-timer: S1794954037.491937,VS0,VE8
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 4077

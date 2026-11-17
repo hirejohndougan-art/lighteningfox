@@ -1,0 +1,27 @@
+GET https://sourcepoint.theguardian.com/wrapper/v2/meta-data?hasCsp=true&accountId=1257&env=prod&metadata=%7B%22usnat%22%3A%7B%7D%7D&propertyId=7417&scriptVersion=4.41.0&scriptType=unified
+200 OK
+content-length: 263
+content-type: application/json; charset=utf-8
+x-powered-by: Express
+access-control-allow-origin: *
+access-control-allow-credentials: true
+access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, SP_SCRIPT_VERSION
+access-control-allow-methods: GET, PUT, POST, DELETE
+cache-control: max-age=3600, s-maxage=3600
+x-sp-geo-usp: US-VA
+via: 1.1 efd018339fb933da4091a352324c115e.cloudfront.net (CloudFront), 1.1 varnish
+x-amz-cf-pop: IAD61-P9
+x-amz-cf-id: xBO-HvgHKisyHsRjGLmXwGl4870fMZ2VecOz9a5bPfuU6KO1V6HPyg==
+age: 2155
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 22:20:42 GMT
+x-served-by: cache-iad-kiad7000211-IAD
+x-cache: Hit from cloudfront, MISS
+x-cache-hits: 0
+x-timer: S1794954042.107368,VS0,VE3
+vary: Accept-Encoding
+strict-transport-security: max-age=300
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
