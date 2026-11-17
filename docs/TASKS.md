@@ -153,6 +153,50 @@ The `<svg>` replaced-element entry in the box tree, `createElementNS` marking SV
 elements, the `document.body` setter, `font::web_families_generation`, and `WPT_TIMEOUT`:
 check each against the spec and other browsers, add tests where missing.
 
+### X12. Images made with `new Image()` load without being in the page
+**Status:** claimed by chat-opus-t12 2026-11-17 12:35
+**After:** —
+**Checklist:** none
+**Files:** the image-loading code (`src/page_images.rs`, `src/images.rs`), `src/prelude.js` (the `Image` factory only)
+An `<img>` created by script (`new Image()`, `document.createElement("img")`) and never added to
+the document never loads: `complete` is undefined and `load`/`error` never fire. three.js's
+`TextureLoader` and most WebGL texture code rely on this, so WebGL pages show no textures.
+Load such images when their `src` is set, fire `load`/`error`, and give `complete`,
+`naturalWidth`/`naturalHeight` and `decode()`. WPT `webgl/texImage2D-image-not-loaded.html` and
+the `html/semantics/embedded-content/the-img-element` tests that apply.
+
+### X13. WebSockets in site processes
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/websocket.rs`, the request parts of `src/process.rs`
+Site processes have no network, so `new WebSocket()` fails in them (chat widgets, live
+dashboards). Have the browser process open the socket for the page's process and relay frames
+both ways over the existing request channel, with cookies attached in the browser (as `http`
+requests do since R5: see `COOKIE_TOKEN`). Also use it from the frame process, then take network
+access away from the frame renderer (`sandbox::protect_frame_renderer`, `no_net`). Cap open
+sockets per process. Test with `tools/ws_echo.py`.
+
+### X14. One process per site for cross-site iframes
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `src/frames.rs` (`isolated`), `src/process.rs` (the pool)
+All cross-site iframes share one frame process today, so a compromised ad frame shares memory with
+every other site's frames. Run iframes in the site process pool (one process per frame site,
+`process.rs` `ensure`), with the frame process's `Auth` (storage off, tops = the frames'
+top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`. Keep the
+"stuck frame" stop working per process.
+
+### X15. Turn site processes on by default
+**Status:** free
+**After:** X13, X14
+**Checklist:** none
+**Files:** `src/settings.rs` (the `site_processes` default), `docs/`
+Make `site_processes` default to on once WebSockets and per-site frames work in them. Run the
+screenshot tests and `tools/site_check.py --tracker` with it on and fix what got worse; note the
+memory cost in the docs. John runs the live-site check on his computer afterwards.
+
 ### X9. Geolocation in Flatpak and with site isolation
 **Status:** free
 **After:** —
