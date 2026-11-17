@@ -9,6 +9,8 @@ use std::rc::Rc;
 thread_local! {
     /// The element under the mouse, for :hover.
     static HOVER: Cell<Option<NodeId>> = const { Cell::new(None) };
+    /// Styles reused from the previous pass (for measuring; see restyle.rs).
+    pub static REUSED: Cell<usize> = const { Cell::new(0) };
     /// The element the mouse button is held down on, for :active.
     static ACTIVE: Cell<Option<NodeId>> = const { Cell::new(None) };
     /// Whether the last styled page has :active rules.
@@ -27,14 +29,17 @@ pub fn uses_active() -> bool {
 
 /// The page :visited links are resolved against, and the addresses in history.
 pub fn set_visited(base: &str, urls: std::collections::HashSet<String>) {
+    crate::restyle::visited_changed();
     VISITED.with(|v| *v.borrow_mut() = (base.to_string(), urls));
 }
 
 /// Run `f` as if no link had been visited (for styles that scripts can read).
 pub fn without_visited<T>(f: impl FnOnce() -> T) -> T {
     let saved = VISITED.with(|v| std::mem::take(&mut *v.borrow_mut()));
+    crate::restyle::visited_changed();
     let out = f();
     VISITED.with(|v| *v.borrow_mut() = saved);
+    crate::restyle::visited_changed();
     out
 }
 
@@ -735,7 +740,16 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let min_font = crate::settings::get().min_font_size as f32;
     let hidden = Rc::new(Style { display: Display::None, ..Style::default() });
     let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
-    styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
+    // Restyle only what changed since the last pass (see restyle.rs).
+    let feats = crate::restyle::features(sheets.iter());
+    let reuse = crate::restyle::enabled() && !feats.full && dom.render_scope.is_empty();
+    let mut cache = if reuse { crate::restyle::take(crate::restyle::global_key(sheets, crate::restyle::visited_gen())) } else { crate::restyle::Cache::default() };
+    let states = crate::restyle::States::new(dom, HOVER.with(|h| h.get()), ACTIVE.with(|h| h.get()), crate::layout::focus());
+    let mut next: Vec<Option<crate::restyle::Entry>> = Vec::new();
+    if reuse {
+        next.resize_with(dom.nodes.len(), || None);
+    }
+    styles[0] = cache.root.clone().unwrap_or_else(|| Rc::new(Style { display: Display::Block, ..Style::default() }));
     let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
     // Rules whose selectors end in a pseudo-element, per stylesheet.
     let mut pseudo_index: HashMap<*const Stylesheet, Vec<PseudoRule>> = HashMap::new();
@@ -763,6 +777,17 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             styles[id] = parent_style;
             continue;
         };
+        let sig = if reuse { crate::restyle::signature(dom, id, &feats, &states) } else { 0 };
+        if reuse {
+            if let Some(Some(old)) = cache.nodes.get_mut(id) {
+                if old.sig == sig && Rc::ptr_eq(&old.parent, &parent_style) && old.style.anim.is_none() && !crate::anim::has_state(id) {
+                    styles[id] = old.style.clone();
+                    next[id] = cache.nodes[id].take();
+                    REUSED.with(|r| r.set(r.get() + 1));
+                    continue;
+                }
+            }
+        }
         let mut matched: Vec<Matched> = Vec::new();
         let mut order = 0;
         // The page's stylesheets style the document; a shadow tree is styled only by its
@@ -845,6 +870,9 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         // Animated elements each move on their own clock: never share their style.
         let animated = crate::anim::has_state(id) || matched.iter().any(|m| crate::anim::is_anim_prop(&m.decl.name)) || dom.attr(id, "style").is_some_and(|s| s.contains("animation") || s.contains("transition"));
         if let Some(s) = shared.get(&key).filter(|_| !animated) {
+            if reuse {
+                next[id] = Some(crate::restyle::Entry { sig, parent: parent_style.clone(), style: s.clone() });
+            }
             styles[id] = s.clone();
             continue;
         }
@@ -954,9 +982,17 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         if !animated {
             shared.insert(key, st.clone());
         }
+        if reuse {
+            next[id] = Some(crate::restyle::Entry { sig, parent: parent_style.clone(), style: st.clone() });
+        }
         styles[id] = st;
     }
     crate::anim::end_pass();
+    if reuse {
+        cache.root = Some(styles[0].clone());
+        cache.nodes = next;
+        crate::restyle::store(cache);
+    }
     if crate::settings::get().high_contrast {
         crate::contrast::force_colors(dom, &mut styles);
     }

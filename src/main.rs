@@ -18,6 +18,7 @@ macro_rules! log {
 mod cookies;
 mod css;
 mod csssyntax;
+mod restyle;
 mod selmatch;
 mod shorthand;
 mod cascade;

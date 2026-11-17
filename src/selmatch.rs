@@ -174,8 +174,22 @@ mod bench {
         let dom = crate::html::parse(&format!("<div class=container>{rows}</div>"));
         let t = std::time::Instant::now();
         for _ in 0..5 {
+            crate::restyle::clear();
             crate::style::compute(&dom, std::slice::from_ref(&sheet));
         }
-        eprintln!("style_speed: {} nodes, {} rules: {:?} per restyle", dom.nodes.len(), sheet.rules.len(), t.elapsed() / 5);
+        eprintln!("style_speed: {} nodes, {} rules: {:?} per full restyle", dom.nodes.len(), sheet.rules.len(), t.elapsed() / 5);
+        // After one small change, only that element's subtree is styled again.
+        let mut dom = dom;
+        crate::style::compute(&dom, std::slice::from_ref(&sheet));
+        crate::style::REUSED.with(|r| r.set(0));
+        crate::style::compute(&dom, std::slice::from_ref(&sheet));
+        eprintln!("style_speed: unchanged pass reused {} of {} nodes", crate::style::REUSED.with(|r| r.get()), dom.nodes.len());
+        let li = dom.find_all("li")[7];
+        let t = std::time::Instant::now();
+        for i in 0..5 {
+            dom.set_attr(li, "class", if i % 2 == 0 { "list-group-item disabled" } else { "list-group-item" });
+            crate::style::compute(&dom, std::slice::from_ref(&sheet));
+        }
+        eprintln!("style_speed: restyle after one class change: {:?}", t.elapsed() / 5);
     }
 }
