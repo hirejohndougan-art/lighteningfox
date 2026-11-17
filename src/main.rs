@@ -2091,6 +2091,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         let mut navigate: Option<Go> = pending_nav.take();
         let mut reflow = false;
+        // Styles to recompute before this frame's layout (all changes in a frame share one restyle).
+        let mut restyle = false;
         let mut stop_key = false;
 
         // Bookmarks bar: shown when there are bookmarks (and the setting is on); showing or
@@ -2788,7 +2790,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if over != hovered {
                     hovered = over;
                     style::set_hover(over);
-                    page.restyle();
+                    restyle = true;
                     reflow = true;
                 }
             }
@@ -3064,7 +3066,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         form_changed = true;
                     }
                     if js::take_dirty() {
-                        page.restyle();
+                        restyle = true;
                         reflow = true;
                     }
                     if let Some(t) = js::take_navigation() {
@@ -3214,11 +3216,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
             // Scripts may have changed more than the value, and :focus rules may apply; restyle if so.
             if focus_moved || js::take_dirty() || js::with_dom(|d| d.nodes.len()) != page.styles.len() {
-                page.restyle();
+                restyle = true;
             }
             reflow = true;
         }
         if reflow && navigate.is_none() {
+            if restyle || js::take_dirty() {
+                page.restyle();
+            }
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
             dirty = true;
