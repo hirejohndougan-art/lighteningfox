@@ -159,7 +159,14 @@ first screenful and has no script errors of its own (ads and trackers missing is
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
 
 ### X1e. Make WordPress.org render like Chrome
-**Status:** claimed by chat-opus-x1 2026-11-17 14:35
+**Status:** done
+**Left undone:** close to Chrome now (header, fonts, layout, no script errors of its own).
+Still different: the menu's dropdown arrows draw as black squares (CSS `mask-image` isn't
+supported), headings set in Inter at weight 600 come out regular (one weight per variable web
+font), menu items sit closer together so "Swag ↗" wraps, and the emoji check's worker fails
+(`OffscreenCanvas` in workers needs canvas drawing without a document; WordPress just skips its
+emoji fallback). Faces split by `unicode-range` use their basic-Latin subset; choosing a face per
+character (for pages in other scripts) is still to do. Recording branch `rec-x1e` can be deleted.
 **After:** —
 **Checklist:** none
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
