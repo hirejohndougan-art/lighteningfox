@@ -246,7 +246,7 @@ Load such images when their `src` is set, fire `load`/`error`, and give `complet
 the `html/semantics/embedded-content/the-img-element` tests that apply.
 
 ### X13. WebSockets in site processes
-**Status:** claimed by chat-opus-x5 2026-11-17 12:48
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** `src/websocket.rs`, the request parts of `src/process.rs`
@@ -256,6 +256,16 @@ both ways over the existing request channel, with cookies attached in the browse
 requests do since R5: see `COOKIE_TOKEN`). Also use it from the frame process, then take network
 access away from the frame renderer (`sandbox::protect_frame_renderer`, `no_net`). Cap open
 sockets per process. Test with `tools/ws_echo.py`.
+Done in `src/ws_relay.rs`: renderers ask the browser to open sockets (`ws_open`), send in order
+(`ws_send`) and get events through `ws_poll`, which the browser answers as soon as something
+happens. Cookies, HSTS and the blocklist are applied in the browser; sockets are bound to a
+random per-renderer token tied to its sites, capped at 64 per renderer, and closed when their
+renderer stops polling for 90 s. The frame renderer's filter now refuses internet sockets
+(`protect_frame_renderer` passes `no_net`). Tests: token ownership, and end to end the real
+`--frame-renderer` with no network echoing through a local WebSocket server.
+Left undone: `bufferedAmount` reads 0 in renderers (the browser holds the queue); the
+end-to-end test covers the frame renderer, and site processes use the same code but aren't
+started by a test (they need the window).
 
 ### X14. One process per site for cross-site iframes
 **Status:** done
