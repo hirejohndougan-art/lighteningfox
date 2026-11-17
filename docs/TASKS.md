@@ -87,6 +87,19 @@ highly generic and procedural cosmetic filters (`#?#`, `:has-text`, `:upward`, `
 `:style()`), and `##+js(...)` scriptlets written from scratch (MIT, not uBO's GPL code). Add
 the uBlock filter lists and Peter Lowe's list.
 
+### AB2. The last two uBlock Origin filter features
+**Status:** free
+**After:** AB1
+**Checklist:** none (follow-up to AB1)
+**Files:** `src/scriptlets.js`, `src/blocklist.rs`, `src/main.rs` (`prepare`, response headers)
+- `trusted-edit-inbound-object`: edit an object a function is called with, using uBlock
+  Origin's JSONPath-style syntax (`[?.attestationRequest][?.context.client.userAgent*="channel"]
+  .context.client+={"clientScreen":"CHANNEL"}`: filters `[?.a.b==x]`, `*=`, `^=`, `$=`, `=/re/`,
+  `+=` merge, `=repl({...})`). Only YouTube's rules in `ublock-filters.txt` use it today.
+- `##^responseheader(name)`: drop a response header from a page before it's used (uBlock
+  Origin only allows a short list of names, e.g. `refresh`, `location`, `report-to`).
+Test both like `content_blocking_more_scriptlets` and `trusted_scriptlets_and_script_filters`.
+
 ### X1. Fix the broken and crashing sites (now: AP News and MDN)
 **Status:** done
 **Left undone:** AP News loads but slowly (~65 s on replay): its scripts measure and change the
