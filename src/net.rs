@@ -79,6 +79,14 @@ fn text_page(url: &str, text: &str) -> String {
     format!("<!DOCTYPE html><html><head><title>{}</title></head><body style=\"margin:12px\"><pre style=\"white-space:pre-wrap;font-size:13px\">{}</pre></body></html>", esc(name), esc(text))
 }
 
+/// view-source: the page's HTML as text.
+pub fn source_page(url: &str) -> String {
+    match fetch_sub(url, url) {
+        Ok((_, text)) => text_page(&format!("view-source:{url}"), &text),
+        Err(e) => text_page(&format!("view-source:{url}"), &format!("Couldn't load {url}: {e}")),
+    }
+}
+
 /// A page showing one image, centered on a dark background.
 fn image_page(url: &str, content_type: &str, bytes: &[u8]) -> String {
     use base64::Engine;

@@ -26,7 +26,11 @@ mod html;
 mod http;
 mod icon;
 mod tokenizer;
+mod chrome;
+mod devtools;
+mod pdf;
 mod treebuilder;
+mod zoom;
 mod images;
 mod js;
 mod layout;
@@ -337,6 +341,7 @@ impl Page {
             hover_rules: false,
             doc: 0,
             form_defaults: Vec::new(),
+            loaded_at: Instant::now(),
         }
     }
 
@@ -386,6 +391,8 @@ struct Page {
     doc: u64,
     /// Each form control's value as the page loaded, for form.reset().
     form_defaults: Vec<(dom::NodeId, Option<String>, bool)>,
+    /// When it loaded (developer tools show what happened since).
+    loaded_at: Instant,
 }
 
 impl Page {
@@ -401,13 +408,22 @@ impl Page {
         self.title = js::with_dom(|d| d.find_all("title").first().map(|&t| d.text_content(t).trim().to_string()).unwrap_or_default());
     }
 
+    /// Lay the page out for a window `width`×`viewport_h` device pixels. At a zoom other than
+    /// 100% the page is laid out narrower (in CSS pixels) and drawn scaled up, so it reflows
+    /// like in other browsers; scripts see CSS pixels.
     fn layout(&self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
+        let z = zoom::get(&self.url);
+        let (cw, ch) = (width / z, viewport_h / z);
         let lay = js::with_dom(|d| match d.composed() {
-            Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, width, viewport_h),
-            None => layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h),
+            Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
+            None => layout::layout(d, &self.styles, fonts, &self.images, cw, ch),
         });
-        geometry::publish(&lay, width, viewport_h);
-        lay
+        geometry::publish(&lay, cw, ch);
+        if (z - 1.0).abs() < 1e-4 { lay } else { lay.scaled(z) }
+    }
+
+    fn zoom(&self) -> f32 {
+        zoom::get(&self.url)
     }
 }
 
@@ -551,6 +567,10 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
         ("about:settings".to_string(), settings::page(q))
     } else if let Some(q) = url.strip_prefix("about:downloads") {
         ("about:downloads".to_string(), downloads::page(q))
+    } else if url.starts_with("about:devtools") {
+        ("about:devtools".to_string(), devtools::page())
+    } else if let Some(t) = url.strip_prefix("view-source:") {
+        (url.to_string(), net::source_page(t))
     } else if let Some(q) = url.strip_prefix("about:bookmarks") {
         ("about:bookmarks".to_string(), library::bookmarks_page(q))
     } else {
@@ -849,7 +869,7 @@ fn build_page(p: Prepared) -> Page {
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults };
+    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now() };
     page.restyle();
     release_free_memory();
     page
@@ -1301,6 +1321,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut loading: Option<Loading> = None;
     // The load whose first part is on screen already.
     let mut preview_of: Option<u64> = None;
+    // Browser UI over the page (chrome.rs): find bar, selection, menus, status, notes.
+    let mut find: Option<chrome::Find> = None;
+    let mut find_edit = textedit::TextEdit::new("");
+    let mut selection: Option<(u64, chrome::Selection)> = None;
+    let mut sel_press: Option<(f32, f32)> = None;
+    let mut ctx_menu: Option<chrome::Menu<Ctx>> = None;
+    let mut dl_panel: Option<chrome::Menu<DlAct>> = None;
+    let mut status_link: Option<String> = None;
+    let mut toast: Option<(String, Instant)> = None;
+    let mut ui_action: Option<Ctx> = None;
+    let mut runs_cache: (u64, Vec<chrome::TextRun>) = (u64::MAX, Vec::new());
+    let mut was_right = false;
     let mut last_spin = Instant::now();
     let (mut w, mut h) = window.get_size();
     geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
@@ -1597,6 +1629,27 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             dirty = true;
         }
         // Tab shortcuts: Ctrl+T new, Ctrl+W close, Ctrl+(Shift+)Tab next/previous,
+        // Find, print, save as PDF, view source, developer tools.
+        for p in &presses {
+            match p.key {
+                Key::F if p.ctrl => {
+                    let q = find.as_ref().map(|f| f.query.clone()).unwrap_or_default();
+                    find = Some(chrome::Find { query: q.clone(), ..Default::default() });
+                    find_edit = textedit::TextEdit::select_all(&q);
+                    runs_cache.0 = u64::MAX;
+                    editing = false;
+                    dirty = true;
+                }
+                Key::P if p.ctrl => ui_action = Some(Ctx::Print),
+                Key::S if p.ctrl => ui_action = Some(Ctx::SavePdf),
+                Key::U if p.ctrl => ui_action = Some(Ctx::ViewSource),
+                Key::I if p.ctrl && p.shift => ui_action = Some(Ctx::Inspect),
+                Key::F12 => ui_action = Some(Ctx::Inspect),
+                Key::F3 if find.is_some() => ui_action = Some(if p.shift { Ctx::FindPrev } else { Ctx::FindNext }),
+                Key::F3 => ui_action = Some(Ctx::Find),
+                _ => {}
+            }
+        }
         // Ctrl+1…8 / Ctrl+9 (last), Ctrl+Shift+T reopen the last closed tab.
         {
             for p in presses.iter().filter(|p| p.ctrl) {
@@ -1625,10 +1678,49 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // Typing in the address bar.
         let chars: Vec<char> = typed.borrow_mut().drain(..).collect();
-        let typing = !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
+        let finding = find.is_some() && !editing;
+        let typing = !finding && !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
         let ctrl_down = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
         let shift_down = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
-        let edit_keys_now: Vec<KeyPress> = if typing || editing { presses.clone() } else { Vec::new() };
+        let edit_keys_now: Vec<KeyPress> = if typing || editing || finding { presses.clone() } else { Vec::new() };
+        if runs_cache.0 != page_version && (find.is_some() || selection.is_some()) {
+            runs_cache = (page_version, chrome::text_runs(&lay));
+            if let Some(f) = find.as_mut() {
+                f.search(&runs_cache.1);
+            }
+        }
+        if finding {
+            // Typing goes into the find bar; Enter finds the next match, Esc closes it.
+            find_edit.sync(&find.as_ref().unwrap().query);
+            let r = edit_keys(&mut find_edit, &edit_keys_now, &chars, ctrl_down, false, &mut clipboard);
+            let f = find.as_mut().unwrap();
+            let mut jump = false;
+            if r.changed {
+                f.query = find_edit.text.clone();
+                f.current = 0;
+                f.search(&runs_cache.1);
+                jump = true;
+            }
+            if r.enter {
+                f.next(shift_down);
+                jump = true;
+            }
+            if jump {
+                if let Some((y, false)) = f.current_y(&runs_cache.1) {
+                    let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
+                    if y < scroll + 20.0 || y > scroll + view - 40.0 {
+                        scroll = (y - view / 3.0).max(0.0);
+                    }
+                }
+            }
+            if r.changed || r.moved || r.enter {
+                dirty = true;
+            }
+            if escape {
+                find = None;
+                dirty = true;
+            }
+        }
         if typing {
             let f = focused.unwrap();
             let multiline = js::with_dom(|d| d.tag(f) == Some("textarea"));
@@ -1702,7 +1794,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 suggestions.clear();
                 dirty = true;
             }
-        } else {
+        } else if !finding {
             stop_key = escape;
             for p in &presses {
                 let (key, ctrl, alt) = (p.key, p.ctrl, p.alt);
@@ -1776,6 +1868,35 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         dirty = true;
                     }
                     Key::F5 | Key::R if key == Key::F5 || ctrl => navigate = Some(Go::Reload),
+                    // Zoom: Ctrl + / Ctrl − / Ctrl 0, remembered for the site.
+                    Key::Equal | Key::NumPadPlus | Key::Minus | Key::NumPadMinus | Key::Key0 | Key::NumPad0 if ctrl => {
+                        let z = page.zoom();
+                        let nz = match key {
+                            Key::Equal | Key::NumPadPlus => zoom::step(z, true),
+                            Key::Minus | Key::NumPadMinus => zoom::step(z, false),
+                            _ => 1.0,
+                        };
+                        if (nz - z).abs() > 1e-4 {
+                            // Keep the same part of the page in view.
+                            scroll = scroll / z * nz;
+                            zoom::set(&page.url, nz);
+                            selection = None;
+                            reflow = true;
+                            toast = Some((format!("Zoom {:.0}%  ·  Ctrl+0 resets", nz * 100.0), Instant::now()));
+                        }
+                    }
+                    Key::A if ctrl && !typing => {
+                        selection = Some((page.doc, chrome::Selection { all: true, ..Default::default() }));
+                        runs_cache.0 = u64::MAX;
+                        dirty = true;
+                    }
+                    Key::C if ctrl && !typing => ui_action = Some(Ctx::CopySelection),
+                    Key::Escape if selection.is_some() || ctx_menu.is_some() || dl_panel.is_some() => {
+                        selection = None;
+                        ctx_menu = None;
+                        dl_panel = None;
+                        dirty = true;
+                    }
                     Key::Backspace => navigate = Some(Go::Back),
                     Key::Left if alt => navigate = Some(Go::Back),
                     Key::Right if alt => navigate = Some(Go::Forward),
@@ -1786,7 +1907,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
         }
-        if let Some((_, dy)) = window.get_scroll_wheel() {
+        let ctrl_held = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+        if let Some((_, dy)) = window.get_scroll_wheel().filter(|_| ctrl_held) {
+            // Ctrl+wheel zooms.
+            if dy != 0.0 {
+                let z = page.zoom();
+                let nz = zoom::step(z, dy > 0.0);
+                if (nz - z).abs() > 1e-4 {
+                    scroll = scroll / z * nz;
+                    zoom::set(&page.url, nz);
+                            selection = None;
+                    reflow = true;
+                    toast = Some((format!("Zoom {:.0}%  ·  Ctrl+0 resets", nz * 100.0), Instant::now()));
+                }
+            }
+        } else if let Some((_, dy)) = window.get_scroll_wheel() {
             // About 45px per wheel click (minifb reports roughly 2 per click on X11).
             let delta = -dy * 22.0;
             // The wheel scrolls the innermost scrollable box under the mouse, else the page.
@@ -1806,15 +1941,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         if let Some(y) = geometry::take_scroll_request() {
-            scroll = y;
+            scroll = y * page.zoom();
             dirty = true;
         }
         scroll = scroll.clamp(0.0, max_scroll);
-        geometry::set_scroll(scroll);
+        geometry::set_scroll(scroll / page.zoom());
 
         // Mouse: hover cursor and clicks.
         let down = window.get_mouse_down(MouseButton::Left);
         let mid = window.get_mouse_down(MouseButton::Middle);
+        let right = window.get_mouse_down(MouseButton::Right);
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
             let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
@@ -1885,6 +2021,42 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let view_y = my - bar_h() as f32;
             let hit = if my >= bar_h() as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
+            // The status bar shows where a link goes.
+            let status = hit.as_ref().map(|h| net::resolve(&page.url, h)).filter(|h| !h.starts_with("javascript:"));
+            if status != status_link {
+                status_link = status;
+                dirty = true;
+            }
+            // Dragging over the page selects text.
+            if down && was_down {
+                if let Some(p0) = sel_press {
+                    let p1 = (mx, view_y + scroll);
+                    if (p1.0 - p0.0).abs() > 4.0 || (p1.1 - p0.1).abs() > 4.0 || selection.is_some() {
+                        selection = Some((page.doc, chrome::Selection { from: p0, to: p1, all: false }));
+                        runs_cache.0 = runs_cache.0.min(u64::MAX - 1);
+                        dirty = true;
+                    }
+                }
+            } else if !down {
+                sel_press = None;
+            }
+            // Right click: the context menu for what's under the mouse.
+            if right && !was_right && my >= bar_h() as f32 {
+                ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, view_y, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32));
+                dl_panel = None;
+                dirty = true;
+            }
+            for (open, m) in [(ctx_menu.is_some(), 0), (dl_panel.is_some(), 1)] {
+                if !open {
+                    continue;
+                }
+                let row = if m == 0 { ctx_menu.as_ref().unwrap().row_at(mx, my) } else { dl_panel.as_ref().unwrap().row_at(mx, my) };
+                let cur = if m == 0 { &mut ctx_menu.as_mut().unwrap().hover } else { &mut dl_panel.as_mut().unwrap().hover };
+                if row != *cur {
+                    *cur = row;
+                    dirty = true;
+                }
+            }
             let btn = button_at(mx, my);
             // :hover — restyle when the element under the mouse changes.
             if page.hover_rules {
@@ -1940,6 +2112,28 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     dirty = true;
                 }
             }
+            // A click with a menu open: do the item, or just close the menu.
+            if down && !was_down && (ctx_menu.is_some() || dl_panel.is_some()) {
+                let on_chip = my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W;
+                if let Some(m) = ctx_menu.take() {
+                    if let Some(a) = m.row_at(mx, my).and_then(|r| m.action(r)) {
+                        ui_action = Some(a);
+                    }
+                    was_down = down;
+                } else if let Some(m) = dl_panel.take() {
+                    if let Some(a) = m.row_at(mx, my).and_then(|r| m.action(r)) {
+                        match a {
+                            DlAct::Open(id) => drop(downloads::page(&format!("open={id}"))),
+                            DlAct::Folder => drop(downloads::page("folder")),
+                            DlAct::ShowAll => tab_cmd = Some(TabCmd::Open("about:downloads".into(), false)),
+                        }
+                    }
+                    if m.contains(mx, my) || on_chip {
+                        was_down = down;
+                    }
+                }
+                dirty = true;
+            }
             if down && !was_down && dropdown.is_some() {
                 // A click while a list is open picks an option or closes the list.
                 let dd = dropdown.take().unwrap();
@@ -1959,8 +2153,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 editing = false;
                 suggestions.clear();
                 dirty = true;
-            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && downloads::active() > 0 && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
-                tab_cmd = Some(TabCmd::Open("about:downloads".into(), false));
+            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && !downloads::list().is_empty() && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
+                dl_panel = Some(downloads_panel(w as f32 - 8.0 - STAR_W - 330.0, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
+                dirty = true;
             } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W {
                 library::toggle_bookmark(&page.url, &page.title);
                 dirty = true;
@@ -2022,6 +2217,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         None => {}
                     }
                 } else if (my as usize) >= bar_h() {
+                    // A press on the page may start a text selection (and clears the old one).
+                    sel_press = Some((mx, view_y + scroll));
+                    if selection.take().is_some() {
+                        dirty = true;
+                    }
                     if editing {
                         editing = false;
                         address = page.url.clone();
@@ -2204,6 +2404,94 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         was_down = down;
         was_mid = mid;
+        was_right = right;
+        // Menu items and shortcuts.
+        if let Some(a) = ui_action.take() {
+            match a {
+                Ctx::Back => navigate = Some(Go::Back),
+                Ctx::Forward => navigate = Some(Go::Forward),
+                Ctx::Reload => navigate = Some(Go::Reload),
+                Ctx::OpenNewTab(u) => tab_cmd = Some(TabCmd::Open(u, true)),
+                Ctx::Copy(text) => {
+                    if let Some(c) = clipboard.as_mut() {
+                        let _ = c.set_text(text);
+                    }
+                }
+                Ctx::CopySelection => {
+                    if let Some((doc, sel)) = selection.filter(|s| s.0 == page.doc) {
+                        let _ = doc;
+                        if runs_cache.0 != page_version {
+                            runs_cache = (page_version, chrome::text_runs(&lay));
+                        }
+                        let text = sel.text(fonts, &runs_cache.1);
+                        if let (false, Some(c)) = (text.is_empty(), clipboard.as_mut()) {
+                            let _ = c.set_text(text);
+                        }
+                    }
+                }
+                Ctx::SelectAll => {
+                    selection = Some((page.doc, chrome::Selection { all: true, ..Default::default() }));
+                    runs_cache.0 = u64::MAX;
+                }
+                Ctx::Find => {
+                    let q = find.as_ref().map(|f| f.query.clone()).unwrap_or_default();
+                    find = Some(chrome::Find { query: q.clone(), ..Default::default() });
+                    find_edit = textedit::TextEdit::select_all(&q);
+                    runs_cache.0 = u64::MAX;
+                }
+                Ctx::FindNext | Ctx::FindPrev => {
+                    if let Some(f) = find.as_mut() {
+                        f.next(matches!(a, Ctx::FindPrev));
+                        if let Some((y, false)) = f.current_y(&runs_cache.1) {
+                            let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
+                            if y < scroll + 20.0 || y > scroll + view - 40.0 {
+                                scroll = (y - view / 3.0).max(0.0);
+                            }
+                        }
+                    }
+                }
+                Ctx::ViewSource => {
+                    if page.url.starts_with("http") || page.url.starts_with("file:") {
+                        tab_cmd = Some(TabCmd::Open(format!("view-source:{}", page.url), false));
+                    }
+                }
+                Ctx::Inspect => {
+                    let (scripts, errors) = page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
+                    js::with_dom(|d| devtools::capture(d, &page.url, &page.title, page.loaded_at, scripts, errors));
+                    tab_cmd = Some(TabCmd::Open("about:devtools".into(), false));
+                }
+                Ctx::SavePdf | Ctx::Print => {
+                    let sheets = print_pages(&page, fonts);
+                    let name: String = page.label().chars().map(|c| if c.is_alphanumeric() || " -_.".contains(c) { c } else { '_' }).take(80).collect();
+                    let printed = matches!(a, Ctx::Print) && {
+                        let tmp = std::env::temp_dir().join(format!("ironswift-print-{}.pdf", std::process::id()));
+                        pdf::write(&tmp, &sheets).is_ok() && std::process::Command::new("lp").arg(&tmp).output().is_ok_and(|o| o.status.success())
+                    };
+                    if printed {
+                        toast = Some((if sheets.len() == 1 { "Sent 1 page to the printer".to_string() } else { format!("Sent {} pages to the printer", sheets.len()) }, Instant::now()));
+                    } else {
+                        let path = downloads::free_path(&format!("{}.pdf", name.trim()));
+                        match pdf::write(&path, &sheets) {
+                            Ok(size) => {
+                                downloads::add_done(&page.url, &path, size);
+                                let why = if matches!(a, Ctx::Print) { "No printer answered; saved" } else { "Saved" };
+                                let pages = if sheets.len() == 1 { "1 page".to_string() } else { format!("{} pages", sheets.len()) };
+                                toast = Some((format!("{why} {} ({pages}) to Downloads", path.file_name().unwrap_or_default().to_string_lossy()), Instant::now()));
+                            }
+                            Err(e) => toast = Some((format!("Couldn't save the PDF: {e}"), Instant::now())),
+                        }
+                    }
+                }
+            }
+            dirty = true;
+        }
+        if toast.as_ref().is_some_and(|t| t.1.elapsed().as_secs_f32() > 3.0) {
+            toast = None;
+            dirty = true;
+        }
+        if selection.is_some_and(|s| s.0 != page.doc) {
+            selection = None;
+        }
 
         // The reload button (and Esc) stop a load in progress.
         if matches!(navigate, Some(Go::Reload)) && loading.is_some() || (stop_key && loading.is_some()) {
@@ -2477,10 +2765,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (downloads::active() > 0).then(|| (downloads::active(), downloads::progress())) };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
-            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty());
+            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some();
             #[cfg(feature = "gpu")]
             let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay);
             #[cfg(not(feature = "gpu"))]
@@ -2513,6 +2801,33 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if editing && !suggestions.is_empty() {
                 draw_suggestions(&mut canvas, fonts, &suggestions, sugg_sel.or(sugg_hover));
             }
+            // Browser UI over the page.
+            if (find.is_some() || selection.is_some()) && runs_cache.0 != page_version {
+                runs_cache = (page_version, chrome::text_runs(&lay));
+                if let Some(f) = find.as_mut() {
+                    f.search(&runs_cache.1);
+                }
+            }
+            let view_bottom = h as f32 - if find.is_some() { chrome::FIND_H } else { 0.0 };
+            if let Some((_, sel)) = &selection {
+                sel.draw(&mut canvas, fonts, &runs_cache.1, bar_h() as f32, scroll.round(), view_bottom);
+            }
+            if let Some(f) = &find {
+                f.draw_highlights(&mut canvas, fonts, &runs_cache.1, bar_h() as f32, scroll.round(), view_bottom);
+                f.draw_bar(&mut canvas, fonts, Some(find_edit.caret));
+            } else if let Some(s) = &status_link {
+                chrome::draw_status(&mut canvas, fonts, s);
+            }
+            if let Some((t, _)) = &toast {
+                chrome::draw_toast(&mut canvas, fonts, TOOL_BOTTOM as f32, t);
+            }
+            if let Some(m) = dl_panel.as_mut() {
+                m.rows = downloads_panel(0.0, 0.0, w as f32, h as f32).rows;
+                m.draw(&mut canvas, fonts);
+            }
+            if let Some(m) = &ctx_menu {
+                m.draw(&mut canvas, fonts);
+            }
             #[cfg(feature = "gpu")]
             let presented = match gpu.as_mut() {
                 Some(g) => {
@@ -2535,6 +2850,131 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     }
 }
 
+/// What a right-click menu item or a shortcut asks for.
+#[derive(Clone, Debug)]
+enum Ctx {
+    Back,
+    Forward,
+    Reload,
+    OpenNewTab(String),
+    Copy(String),
+    CopySelection,
+    SelectAll,
+    Find,
+    FindNext,
+    FindPrev,
+    SavePdf,
+    Print,
+    ViewSource,
+    Inspect,
+}
+
+/// The downloads panel's actions.
+#[derive(Clone, Debug)]
+enum DlAct {
+    Open(u32),
+    Folder,
+    ShowAll,
+}
+
+/// The right-click menu: link and image items when the mouse is on one, Copy when text is
+/// selected, then page items.
+#[allow(clippy::too_many_arguments)]
+fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fonts: &Fonts, sel: Option<chrome::Selection>, mx: f32, my: f32, view_y: f32, scroll: f32, can_back: bool, can_forward: bool, win_w: f32, win_h: f32) -> chrome::Menu<Ctx> {
+    use chrome::MenuRow as R;
+    let mut rows: Vec<R<Ctx>> = Vec::new();
+    if let Some(href) = lay.link_at(mx, view_y, scroll) {
+        let url = net::resolve(&page.url, href);
+        if !url.starts_with("javascript:") {
+            rows.push(R::item("Open link in new tab", Ctx::OpenNewTab(url.clone())));
+            rows.push(R::item("Copy link address", Ctx::Copy(url)));
+            rows.push(R::separator());
+        }
+    }
+    let y = view_y + scroll;
+    let image = lay.items.iter().rev().find_map(|it| match it {
+        paint::Item::Image { x, y: iy, w, h, src } if mx >= *x && mx < x + w && y >= *iy && y < iy + h && !src.starts_with("iframe:") => Some(src.clone()),
+        _ => None,
+    });
+    if let Some(src) = image {
+        let url = net::resolve(&page.url, &src);
+        rows.push(R::item("Open image in new tab", Ctx::OpenNewTab(url.clone())));
+        rows.push(R::item("Copy image address", Ctx::Copy(url)));
+        rows.push(R::separator());
+    }
+    if let Some(s) = sel {
+        if !s.text(fonts, runs).is_empty() {
+            rows.push(R::item("Copy", Ctx::CopySelection));
+            rows.push(R::separator());
+        }
+    }
+    rows.push(if can_back { R::item("Back", Ctx::Back) } else { R::disabled("Back") });
+    rows.push(if can_forward { R::item("Forward", Ctx::Forward) } else { R::disabled("Forward") });
+    rows.push(R::item("Reload", Ctx::Reload));
+    rows.push(R::separator());
+    rows.push(R::item("Select all", Ctx::SelectAll));
+    rows.push(R::item("Find in page…   Ctrl+F", Ctx::Find));
+    rows.push(R::separator());
+    rows.push(R::item("Save as PDF…   Ctrl+S", Ctx::SavePdf));
+    rows.push(R::item("Print…   Ctrl+P", Ctx::Print));
+    if page.url.starts_with("http") || page.url.starts_with("file:") {
+        rows.push(R::item("View page source   Ctrl+U", Ctx::ViewSource));
+    }
+    rows.push(R::item("Inspect   F12", Ctx::Inspect));
+    chrome::Menu::new(mx, my, 240.0, rows, win_w, win_h)
+}
+
+/// The downloads panel under the toolbar's ⬇ chip: the latest downloads, then links.
+fn downloads_panel(x: f32, y: f32, win_w: f32, win_h: f32) -> chrome::Menu<DlAct> {
+    use chrome::MenuRow as R;
+    let human = |b: u64| if b >= 1 << 20 { format!("{:.1} MB", b as f64 / 1048576.0) } else { format!("{:.0} KB", (b as f64 / 1024.0).ceil()) };
+    let mut rows: Vec<R<DlAct>> = Vec::new();
+    for d in downloads::list().iter().rev().take(6) {
+        let name = d.path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let (detail, action) = match &d.state {
+            downloads::State::Active => (
+                match d.total {
+                    Some(t) => format!("{:.0}% · {} of {}", d.received as f64 * 100.0 / t.max(1) as f64, human(d.received), human(t)),
+                    None => format!("{} so far", human(d.received)),
+                },
+                None,
+            ),
+            downloads::State::Done => (format!("Done · {} · click to open", human(d.received)), Some(DlAct::Open(d.id))),
+            downloads::State::Failed(e) => (format!("Failed: {e}"), None),
+            downloads::State::Cancelled => ("Cancelled".to_string(), None),
+        };
+        rows.push(R { label: name, detail: Some(detail), action, separator: false });
+    }
+    rows.push(R::separator());
+    rows.push(R::item("Show all downloads", DlAct::ShowAll));
+    rows.push(R::item("Open Downloads folder", DlAct::Folder));
+    chrome::Menu::new(x, y, 330.0, rows, win_w, win_h)
+}
+
+/// Lay the page out for paper (7.5 × 10 inch printable area, drawn at twice the resolution)
+/// and draw it sheet by sheet.
+fn print_pages(page: &Page, fonts: &Fonts) -> Vec<image::RgbImage> {
+    let (cw, ch) = (pdf::CONTENT_W_PX, pdf::CONTENT_H_PX);
+    let lay = js::with_dom(|d| match d.composed() {
+        Some(c) => layout::layout(&c, &page.styles, fonts, &page.images, cw, ch),
+        None => layout::layout(d, &page.styles, fonts, &page.images, cw, ch),
+    })
+    .scaled(2.0);
+    let (w, h) = ((cw * 2.0) as usize, (ch * 2.0) as usize);
+    let sheets = ((lay.height / h as f32).ceil() as usize).clamp(1, 60);
+    (0..sheets)
+        .map(|i| {
+            let mut canvas = Canvas::new(w, h);
+            canvas.clear(lay.page_bg);
+            canvas.paint(fonts, &page.images, &lay.items, 0.0, (i * h) as f32);
+            image::RgbImage::from_fn(w as u32, h as u32, |x, y| {
+                let p = canvas.buf[y as usize * w + x as usize];
+                image::Rgb([(p >> 16) as u8, (p >> 8) as u8, p as u8])
+            })
+        })
+        .collect()
+}
+
 struct Toolbar<'a> {
     tabs: &'a [(String, bool)],
     active: usize,
@@ -2554,6 +2994,8 @@ struct Toolbar<'a> {
     hover: Option<usize>,
     /// Seconds since the current load started, if a page is loading.
     loading: Option<f32>,
+    /// The page's zoom (a "125%" note in the address field when it isn't 100%).
+    zoom: f32,
 }
 
 struct Loading {
@@ -2700,6 +3142,13 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         canvas.fill_rect((tx + upto(caret)).round(), top + 9.0, 1.0, TOOL_H - 18.0, Color::rgb(30, 30, 40));
     }
     canvas.draw_text(fonts, tx, top + 23.0, ui.address, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
+    if (ui.zoom - 1.0).abs() > 1e-3 && !ui.editing {
+        let label = format!("{:.0}%", ui.zoom * 100.0);
+        let right = w - 8.0 - STAR_W - if ui.downloads.is_some() { DL_W } else { 0.0 };
+        let lw = fonts.width(font::REGULAR, &label, 12.5) + 12.0;
+        canvas.fill_rect(right - lw - 4.0, top + 9.0, lw, TOOL_H - 18.0, Color::rgb(230, 230, 236));
+        canvas.draw_text(fonts, right - lw + 2.0, top + 22.0, &label, font::REGULAR, 12.5, Color::rgb(60, 60, 70));
+    }
     // Loading bar: a segment sliding along the bottom of the toolbar.
     if let Some(t) = ui.loading {
         let span = w * 0.25;

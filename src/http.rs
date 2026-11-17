@@ -240,10 +240,53 @@ impl Stream {
     }
 }
 
+/// One request, for the developer tools' network panel.
+#[derive(Clone, Debug)]
+pub struct Logged {
+    pub at: Instant,
+    pub method: String,
+    pub url: String,
+    /// The status code, or the error.
+    pub result: Result<u16, String>,
+    /// Time until the response headers arrived.
+    pub took: Duration,
+    pub content_type: String,
+}
+
+static REQUEST_LOG: std::sync::Mutex<std::collections::VecDeque<Logged>> = std::sync::Mutex::new(std::collections::VecDeque::new());
+
+fn log_request(method: &str, url: &str, started: Instant, r: &Result<Stream, String>) {
+    if let Ok(mut l) = REQUEST_LOG.lock() {
+        if l.len() >= 500 {
+            l.pop_front();
+        }
+        l.push_back(Logged {
+            at: started,
+            method: method.to_string(),
+            url: url.to_string(),
+            result: r.as_ref().map(|s| s.status).map_err(|e| e.clone()),
+            took: started.elapsed(),
+            content_type: r.as_ref().ok().and_then(|s| s.header("content-type")).unwrap_or("").to_string(),
+        });
+    }
+}
+
+/// Requests made since `since` (all kept ones if None), oldest first.
+pub fn requests_since(since: Option<Instant>) -> Vec<Logged> {
+    REQUEST_LOG.lock().map(|l| l.iter().filter(|r| since.is_none_or(|t| r.at >= t)).cloned().collect()).unwrap_or_default()
+}
+
 /// Send one request (no redirects followed) and return the response before reading its body.
 /// Errors start with a tag the error pages read: `[dns]`, `[timeout]`, `[cert]`, `[refused]`,
 /// `[proxy]` or `[net]`. `timeout` covers the whole transfer (long for downloads).
 pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
+    let started = Instant::now();
+    let r = open_inner(method, url, headers, body, timeout);
+    log_request(method, url, started, &r);
+    r
+}
+
+fn open_inner(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     if h3_known(url) {
         match client(true).and_then(|c| start(c, true, method, url, headers, body, timeout)) {
             Ok(r) => return Ok(r),

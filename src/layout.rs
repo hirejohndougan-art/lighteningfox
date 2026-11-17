@@ -73,6 +73,56 @@ pub struct Rect {
 }
 
 impl Layout {
+    /// The layout drawn at `z` times its size (page zoom). Scripts keep the unscaled layout;
+    /// this copy is what's drawn and what clicks are matched against.
+    pub fn scaled(&self, z: f32) -> Layout {
+        if (z - 1.0).abs() < 1e-4 {
+            return self.clone();
+        }
+        let r = |r: &Rect| Rect { x: r.x * z, y: r.y * z, w: r.w * z, h: r.h * z };
+        let len = |l: Len| match l {
+            Len::Px(v) => Len::Px(v * z),
+            Len::Mix(px, pct) => Len::Mix(px * z, pct),
+            other => other,
+        };
+        let items = self
+            .items
+            .iter()
+            .map(|it| match it {
+                Item::Rect { x, y, w, h, color } => Item::Rect { x: x * z, y: y * z, w: w * z, h: h * z, color: *color },
+                Item::Text { x, y, text, font, size, color } => Item::Text { x: x * z, y: y * z, text: text.clone(), font: *font, size: size * z, color: *color },
+                Item::Image { x, y, w, h, src } => Item::Image { x: x * z, y: y * z, w: w * z, h: h * z, src: src.clone() },
+                Item::Box { x, y, w, h, radius, bg } => {
+                    let mut bg = bg.clone();
+                    bg.pos = (len(bg.pos.0), len(bg.pos.1));
+                    if let crate::style::BgSize::Size(a, b) = bg.size {
+                        bg.size = crate::style::BgSize::Size(len(a), len(b));
+                    }
+                    Item::Box { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z, bg }
+                }
+                Item::Ring { x, y, w, h, radius, width, color } => Item::Ring { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z, width: width * z, color: *color },
+                Item::Shadow { x, y, w, h, radius, blur, color } => Item::Shadow { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z, blur: blur * z, color: *color },
+                Item::ClipPush { x, y, w, h, radius } => Item::ClipPush { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z },
+                Item::Mark { id, x, y, w, h } => Item::Mark { id: *id, x: x * z, y: y * z, w: w * z, h: h * z },
+                Item::StickyPush { id, y, h, top, limit } => Item::StickyPush { id: *id, y: y * z, h: h * z, top: top * z, limit: limit * z },
+                Item::ScrollArea { id, x, y, w, h, max } => Item::ScrollArea { id: *id, x: x * z, y: y * z, w: w * z, h: h * z, max: max * z },
+                Item::TransformPush { m, x, y, w, h } => Item::TransformPush { m: [m[0], m[1], m[2], m[3], m[4] * z, m[5] * z], x: x * z, y: y * z, w: w * z, h: h * z },
+                other => other.clone(),
+            })
+            .collect();
+        Layout {
+            items,
+            links: self.links.iter().map(|(rc, s)| (r(rc), s.clone())).collect(),
+            hits: self.hits.iter().map(|(rc, n)| (r(rc), *n)).collect(),
+            fixed: self.fixed.clone(),
+            height: self.height * z,
+            page_bg: self.page_bg,
+            boxes: self.boxes.iter().map(|(k, (rc, f))| (*k, (r(rc), *f))).collect(),
+            sticky: self.sticky.iter().map(|(rc, a, b)| (r(rc), a * z, b * z)).collect(),
+            scrollers: self.scrollers.iter().map(|(n, rc, m)| (*n, r(rc), m * z)).collect(),
+        }
+    }
+
     /// Is link/hit `i` part of a fixed box (which doesn't scroll)?
     fn is_fixed(&self, i: usize, links: bool) -> bool {
         self.fixed.iter().any(|(l, h)| if links { l.contains(&i) } else { h.contains(&i) })
@@ -136,7 +186,7 @@ impl Rect {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Layout {
     pub items: Vec<Item>,
     pub links: Vec<(Rect, String)>,

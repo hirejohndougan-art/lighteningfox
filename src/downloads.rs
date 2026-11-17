@@ -145,6 +145,21 @@ fn update(id: u32, f: impl FnOnce(&mut Download)) {
     }
 }
 
+/// Add a file the browser saved itself (a page saved as PDF) to the list, as done.
+pub fn add_done(url: &str, path: &Path, size: u64) {
+    if let Ok(mut l) = LIST.lock() {
+        let id = l.iter().map(|d| d.id).max().unwrap_or(0) + 1;
+        l.push(Download { id, url: url.to_string(), path: path.to_path_buf(), total: Some(size), received: size, state: State::Done, started: Instant::now(), cancel: Arc::new(AtomicBool::new(false)) });
+    }
+}
+
+/// A free file name in the Downloads folder for `name`.
+pub fn free_path(name: &str) -> PathBuf {
+    let dir = folder();
+    let _ = std::fs::create_dir_all(&dir);
+    unique(&dir, name)
+}
+
 pub fn list() -> Vec<Download> {
     LIST.lock().map(|l| l.clone()).unwrap_or_default()
 }

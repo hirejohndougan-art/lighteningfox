@@ -26,6 +26,11 @@ pub fn record(line: String) {
     }
 }
 
+/// The log lines kept in memory, oldest first (for the developer tools' console).
+pub fn lines() -> Vec<(u64, String)> {
+    LOG.lock().map(|l| l.iter().cloned().collect()).unwrap_or_default()
+}
+
 /// The page being shown, for crash reports.
 pub fn set_url(url: &str) {
     if let Ok(mut u) = CURRENT_URL.lock() {
