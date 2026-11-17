@@ -225,6 +225,12 @@ tabs, menus and panels. a11y-chat marks the batch done and updates the checklist
 parsing, compiling and bytecode caching (`vendor/boa/boa_parser`, `vendor/boa/boa_ast`,
 `vendor/boa/boa_engine/src/bytecompiler`); the chat that added the V8 harness takes the runtime
 items (strings, inline caches, shapes, GC: `boa_string`, `boa_gc`, `boa_engine/src/vm`, `object`).
+**boa-chat's half (03:50):** done: scope-name index, no AST cloning in parser/compiler, ASCII
+identifier fast path (react-dom parse 73 → 38 ms, compile 26 → 10 ms), in-memory compiled-script
+cache (`Context::eval_cached`; prelude parse+compile 24 → 0.07 ms per page). Left: (1) bytecode
+compiler optimizations that emit fewer instructions (only compile *speed* was done); (2) a
+bytecode cache on disk so the first page after launch also skips parsing (Boa's compiled code has
+no serialized form yet). Details in `vendor/boa/IRONSWIFT.md`.
 **Start after:** —
 **Main files:** a fork of Boa (vendored under `vendor/boa` or a git dependency), `tools/`
 
