@@ -286,6 +286,21 @@ fn flex_end_menu_shrinks_to_its_items() {
 }
 
 #[test]
+fn fit_content_search_box_is_centered() {
+    let _serial = serial();
+    let mut page = open("tests/sites/bing-searchbox.html");
+    // width: fit-content sizes the fixed bar to its 500px form, and auto margins center it.
+    assert_eq!(eval(&mut page, "document.getElementById('sbox').getBoundingClientRect().width"), "500");
+    assert_eq!(eval(&mut page, "(() => { const r = document.getElementById('sbox').getBoundingClientRect(); return Math.abs(r.left - (innerWidth - r.width) / 2) < 1 })()"), "true");
+    // An in-flow max-content block shrinks to its text and centers too.
+    assert_eq!(eval(&mut page, "(() => { const r = document.getElementById('pill').getBoundingClientRect(); return r.width < 300 && Math.abs(r.left - (innerWidth - r.width) / 2) < 1 })()"), "true");
+    // font: inherit replaces the textarea's monospace default.
+    assert_eq!(eval(&mut page, "getComputedStyle(document.getElementById('q')).fontFamily.includes('arial')"), "true");
+    // The load handler could read the navigation timing.
+    assert_eq!(text_of("out"), "true 0 true");
+}
+
+#[test]
 fn tree_walker_and_node_iterator() {
     let _serial = serial();
     let _page = open("tests/sites/tree-walker.html");

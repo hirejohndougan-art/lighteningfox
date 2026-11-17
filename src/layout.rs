@@ -301,6 +301,8 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         subgrid: HashMap::new(),
         vertical_avail: Vec::new(),
         widths_memo: HashMap::new(),
+        fitting: std::collections::HashSet::new(),
+        fit_between: std::collections::HashSet::new(),
         measured: HashMap::new(),
         fitting: Vec::new(),
         placed: Vec::new(),
@@ -413,6 +415,12 @@ struct Ctx<'a> {
     /// subtree out twice, and nested flex items and table cells measure again inside that,
     /// so without this the work doubles with every level of nesting.
     widths_memo: HashMap<(NodeId, Option<u32>, Option<u32>), (f32, f32)>,
+    /// Boxes whose fit-content / min-content / max-content width is being measured (their
+    /// own measuring pass lays them out at an auto width).
+    fitting: std::collections::HashSet<NodeId>,
+    /// Absolute boxes with a content-keyword width placed between `left` and `right`: the
+    /// forced width is the space to fit in, not the box's own width.
+    fit_between: std::collections::HashSet<NodeId>,
     /// Boxes laid out while measuring, by (element, outer width, outer height, containing
     /// block height). Nested flex items are measured several times at each level (basis,
     /// minimum, final size), which otherwise multiplies with every level.
@@ -908,6 +916,24 @@ impl<'a> Ctx<'a> {
             l => pct(l) - sizing,
         };
         let mut constrained = st.width != Len::Auto;
+        // width: fit-content / max-content / min-content: from the content's own widths.
+        let kw = st.width_kw;
+        let between = kw != 0 && self.fit_between.contains(&id) && forced.0.is_some();
+        let avail = if between { forced.0.unwrap_or(avail) } else { avail };
+        let forced = if between { (None, forced.1) } else { forced };
+        if kw != 0 && forced.0.is_none() && !self.fitting.contains(&id) {
+            self.fitting.insert(id);
+            let (mn, mx) = self.content_widths(id);
+            self.fitting.remove(&id);
+            let outer = match kw {
+                2 => mx,
+                3 => mn,
+                _ => mx.min(avail.max(mn)),
+            };
+            w = outer - ml - mr - extra;
+            constrained = true;
+        }
+        let st = &self.styles[id];
         // A block-level <img> takes the image's size instead of its children's.
         let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio")) || crate::svg_inline::is_root(self.dom, id) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
         if let Some((rw, _)) = replaced {
@@ -964,7 +990,8 @@ impl<'a> Ctx<'a> {
             constrained = false;
         }
         w = w.max(0.0);
-        if constrained {
+        // A box being measured for its own fit-content width stays at the left.
+        if constrained && !self.fitting.contains(&id) {
             let free = avail - w - extra;
             match (st.margin[3] == Len::Auto, st.margin[1] == Len::Auto) {
                 (true, true) => {
@@ -1538,6 +1565,9 @@ impl<'a> Ctx<'a> {
             // Both sides set and no width: stretch between them.
             if st.width == Len::Auto && left != Len::Auto && right != Len::Auto {
                 self.forced.insert(id, (Some((cb.w - horiz(left) - horiz(right)).max(0.0)), None));
+                if st.width_kw != 0 {
+                    self.fit_between.insert(id);
+                }
             }
             if st.height == Len::Auto && top != Len::Auto && bottom != Len::Auto {
                 let e = self.forced.entry(id).or_insert((None, None));
@@ -1550,6 +1580,7 @@ impl<'a> Ctx<'a> {
             };
             self.cb_heights.pop();
             self.forced.remove(&id);
+            self.fit_between.remove(&id);
             let fixed = self.styles[id].position == Position::Fixed;
             let x = match (left, right) {
                 (Len::Auto, Len::Auto) => sx,
@@ -1656,6 +1687,9 @@ impl<'a> Ctx<'a> {
     fn content_right(&self, items: &[Item], skip_first_boxes: bool) -> f32 {
         let mut right = 0.0f32;
         let mut sideways = false;
+        // The measured element's own background and border come first: they span whatever
+        // width it was given, so they aren't content. A child's box drawn among them is.
+        let own = items.iter().find_map(|it| if let Item::Box { x, w, .. } = it { Some((*x, *w)) } else { None });
         for (i, it) in items.iter().enumerate() {
             // Sideways text in vertical writing (vertical.rs) counts where it's drawn.
             match it {
@@ -1675,7 +1709,7 @@ impl<'a> Ctx<'a> {
             let r = match it {
                 Item::Text { x, text, font, size, .. } => x + self.fonts.width(*font, text, *size),
                 Item::Image { x, w, .. } | Item::Mark { id: HIDDEN_INK, x, w, .. } => x + w,
-                Item::Box { x, w, .. } if !(skip_first_boxes && i < 3) => x + w,
+                Item::Box { x, w, .. } if !(skip_first_boxes && ((i < 3 && own == Some((*x, *w))) || x + w >= 50_000.0)) => x + w,
                 _ => 0.0,
             };
             right = right.max(r);
@@ -2205,7 +2239,7 @@ impl<'a> Ctx<'a> {
         let attr_n = |name: &str, d: f32| self.dom.attr(id, name).and_then(|v| v.trim().parse::<f32>().ok()).filter(|&n| n > 0.0).unwrap_or(d);
         match self.control_kind(id) {
             Some(Control::Text { .. }) => (attr_n("size", 20.0) * ch).round(),
-            Some(Control::TextArea) => (attr_n("cols", 20.0) * self.fonts.width(Fonts::pick(false, false, true), "0", size)).round(),
+            Some(Control::TextArea) => (attr_n("cols", 20.0) * ch).round(),
             Some(Control::Checkbox | Control::Radio) => 13.0,
             Some(c @ Control::Button { .. }) => self.fonts.width(font, &self.input_label(id, c), size).ceil(),
             Some(Control::Select) => {
@@ -2283,7 +2317,8 @@ impl<'a> Ctx<'a> {
                 lh
             }
             Control::TextArea => {
-                let mono = Fonts::pick(st.bold, st.italic, true);
+                // The element's own font: monospace by default (the UA sheet), but pages restyle it.
+                let mono = font;
                 let rows = self.dom.attr(id, "rows").and_then(|r| r.trim().parse::<f32>().ok()).filter(|&r| r > 0.0).unwrap_or(2.0);
                 let value = forms::value(self.dom, id);
                 let (src, color) = if value.is_empty() {

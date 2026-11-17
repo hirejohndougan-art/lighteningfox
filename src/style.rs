@@ -484,6 +484,9 @@ pub struct Style {
     pub border_color_set: bool,
     pub width: Len,
     pub max_width: Len,
+    /// `width` as a content keyword: 0 none, 1 fit-content, 2 max-content, 3 min-content
+    /// (`width` itself is then auto).
+    pub width_kw: u8,
     pub height: Len,
     /// `content` as written (for ::before, ::after and ::marker boxes).
     pub content: Option<Rc<str>>,
@@ -597,6 +600,7 @@ impl Default for Style {
             border_color_set: false,
             width: Len::Auto,
             max_width: Len::Auto,
+            width_kw: 0,
             height: Len::Auto,
             content: None,
             counters: None,
@@ -713,6 +717,7 @@ input[type=radio] { border-radius: 50%; }
 input[type=submit], input[type=reset], input[type=button], input[type=image], select { padding: 2px 8px; background-color: #e9e9ed; border-radius: 4px; }
 input[type=range], input[type=color] { border: none; background-color: transparent; padding: 0; }
 option, optgroup, datalist { display: none; }
+textarea { font-family: monospace; }
 input:disabled, select:disabled, textarea:disabled, button:disabled { color: #8f8f9d; }
 button { display: inline-block; font-size: 13.33px; padding: 2px 8px; border: 1px solid #8f8f9d; background-color: #e9e9ed; border-radius: 4px; text-align: center; }
 "#;
@@ -2415,7 +2420,32 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     let v = value.trim();
     let lower = v.to_ascii_lowercase();
     if lower == "inherit" {
-        return; // inherited props already inherited; good enough for now
+        // Inherited properties already carry the parent's value, unless a UA rule (a form
+        // control's font, say) replaced it: copy the parent's back for those.
+        let font = |st: &mut Style| {
+            st.font_size = parent.font_size;
+            st.bold = parent.bold;
+            st.italic = parent.italic;
+            st.mono = parent.mono;
+            st.family = parent.family.clone();
+        };
+        match name {
+            "font" => {
+                font(st);
+                st.line_height = parent.line_height;
+            }
+            "font-family" => {
+                st.mono = parent.mono;
+                st.family = parent.family.clone();
+            }
+            "font-size" => st.font_size = parent.font_size,
+            "font-weight" => st.bold = parent.bold,
+            "font-style" => st.italic = parent.italic,
+            "line-height" => st.line_height = parent.line_height,
+            "color" => st.color = parent.color,
+            _ => {}
+        }
+        return;
     }
     if crate::text::apply(&mut st.text, name, &lower, st.font_size) {
         return;
@@ -3074,8 +3104,18 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "width" => {
-            if let Some(l) = parse_len(&lower, fs) {
-                st.width = l
+            let kw = match lower.as_str() {
+                "fit-content" | "-moz-fit-content" | "-webkit-fit-content" => 1,
+                "max-content" | "-moz-max-content" | "-webkit-max-content" => 2,
+                "min-content" | "-moz-min-content" | "-webkit-min-content" => 3,
+                _ => 0,
+            };
+            if kw != 0 {
+                st.width = Len::Auto;
+                st.width_kw = kw;
+            } else if let Some(l) = parse_len(&lower, fs) {
+                st.width = l;
+                st.width_kw = 0;
             }
         }
         "max-width" => {

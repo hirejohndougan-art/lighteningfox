@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- bing.com (2026-11): the search bar is position:fixed with left:0; right:0; margin:0 auto and
+     width:fit-content, around a fixed-width form; the <textarea> uses font:inherit; and the load
+     handler reads performance.timing and performance.navigation.type. -->
+<html><head><title>Bing search box</title>
+<style>
+body { margin: 0; height: 600px; font-family: Arial, sans-serif }
+.sbox { position: fixed; top: 20%; left: 0; right: 0; margin: 0 auto; width: 62.4%; max-width: 760px; min-width: 343px }
+.sbox { width: fit-content }
+.sbox.wide { max-width: 975px }
+.form { width: 500px; height: 52px; background: #fff; border-radius: 24px; font: normal 1rem var(--lfd) }
+:root { --lfd: arial, helvetica, sans-serif }
+.q { font: inherit; border: 0 }
+.pill { width: max-content; margin: 0 auto; background: #ddd }
+</style></head>
+<body>
+<div class="pill" id="pill">Shrinks to this text</div>
+<div class="sbox wide" id="sbox"><form class="form"><textarea class="q" id="q" placeholder="Search the web"></textarea></form></div>
+<p id="out"></p>
+<script>
+onload = function () {
+  var t = performance.timing, n = 0;
+  for (var k in t) n++;
+  document.getElementById("out").textContent = (t.navigationStart > 0) + " " + performance.navigation.type + " " + (n > 10);
+};
+</script>
+</body></html>
