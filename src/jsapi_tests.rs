@@ -785,7 +785,7 @@ fn dates_parse_and_format_like_browsers() {
 fn navigation_and_paint_entries() {
     let _serial = serial();
     let mut page = open("tests/observers.html");
-    let mut ctx_layout = |page: &mut crate::Page| {
+    let ctx_layout = |page: &mut crate::Page| {
         let fonts = crate::load_fonts().expect("fonts");
         let _ = page.layout(fonts, 800.0, 600.0);
         if let Some(j) = page.js.as_mut() {
