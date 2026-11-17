@@ -15,6 +15,7 @@ macro_rules! log {
     }};
 }
 
+mod clicks;
 mod cookies;
 mod css;
 mod csssyntax;
@@ -1931,6 +1932,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut sugg_hover: Option<usize> = None;
     // For double-click detection: when and where the last click was.
     let mut last_click = (Instant::now() - std::time::Duration::from_secs(5), 0.0f32, 0.0f32);
+    // A press on the page waiting for its release (the click), and the last click, for dblclick.
+    let mut page_press: Option<clicks::Press> = None;
+    let mut last_page_click = clicks::Last::default();
 
     // Pack the visible tab away (into a Saved) / show a packed tab.
     macro_rules! stash {
@@ -2142,6 +2146,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
             dirty = true;
+        }
+        // animationstart, transitionend… from this frame's style passes (anim.rs).
+        let key = page.anim_key();
+        for e in anim::take_events() {
+            if let (true, Some(js)) = (e.key == key, page.js.as_mut()) {
+                js.user_event(e.node as i64, e.kind, &e.init());
+            }
         }
         // Scroll and resize events, IntersectionObserver and ResizeObserver.
         if let Some(js) = page.js.as_mut() {
@@ -2980,13 +2991,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let hit = if my >= bar_h() as f32 && over_frame.is_none() { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             // Mouse events for the page's scripts (moves, hover changes, button presses).
+            let mut mousedown_cancelled = false;
             if pointer.changed(mx, my, [down, mid, right]) {
                 let z = page.zoom();
                 if let Some(js) = page.js.as_mut() {
                     if my >= bar_h() as f32 && ctx_menu.is_none() {
                         let node = lay.hit_at(mx, view_y, scroll);
                         let mods = userinput::Mods { ctrl: ctrl_down, shift: shift_down, alt: false };
-                        pointer.update(js, node, mx / z, view_y / z, [down, mid, right], mods);
+                        mousedown_cancelled = pointer.update(js, node, mx / z, view_y / z, [down, mid, right], mods);
                     } else {
                         pointer.left(js);
                     }
@@ -3012,7 +3024,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 sel_press = None;
             }
             // Right click: the context menu for what's under the mouse.
-            if right && !was_right && my >= bar_h() as f32 {
+            let page_menu = right && !was_right && my >= bar_h() as f32 && {
+                // The page's scripts see contextmenu first and may show their own menu instead.
+                let z = page.zoom();
+                match (lay.hit_at(mx, view_y, scroll), page.js.as_mut()) {
+                    (Some(n), Some(js)) => clicks::contextmenu(js, n, mx / z, view_y / z),
+                    _ => true,
+                }
+            };
+            if page_menu {
                 ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, view_y, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32));
                 dl_panel = None;
                 dirty = true;
@@ -3329,7 +3349,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         suggestions.clear();
                         dirty = true;
                     }
-                    // Let the page's JavaScript see the click first.
+                    // The press focuses and places the caret; the click itself (the page's click
+                    // handlers, then following a link, checking a box, submitting…) comes on release.
                     let node = lay.hit_at(mx, view_y, scroll);
                     // The focusable element clicked (a link, a tabindex element) takes focus, so
                     // keyboard users keep their place after activating it. Found before the
@@ -3348,52 +3369,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             })
                         })
                     };
-                    // Checkboxes and radio buttons change before the click event, so handlers
-                    // (React's onChange, for one) see the new state; a cancelled click undoes it.
-                    let toggled = node
-                        .and_then(|n| js::with_dom(|d| control_for(d, n)))
-                        .filter(|&c| js::with_dom(|d| matches!(forms::control(d, c), Some(forms::Control::Checkbox | forms::Control::Radio)) && !forms::is_disabled(d, c)));
-                    let before: Vec<(dom::NodeId, bool)> = match toggled {
-                        Some(_) => js::with_dom(|d| {
-                            d.find_all("input").into_iter().map(|i| (i, d.attr(i, "checked").is_some())).collect()
-                        }),
-                        None => Vec::new(),
-                    };
-                    if let Some(c) = toggled {
-                        js::with_dom_mut(|d| forms::toggle(d, c));
-                    }
-                    let allowed = match (node, page.js.as_mut()) {
-                        (Some(n), Some(js)) => js.click(n),
-                        _ => true,
-                    };
-                    if let Some(c) = toggled {
-                        if allowed {
-                            fire(&mut page, c, "input");
-                            fire(&mut page, c, "change");
-                        } else {
-                            js::with_dom_mut(|d| {
-                                for &(i, was) in &before {
-                                    if was { d.set_attr(i, "checked", "") } else { d.remove_attr(i, "checked") }
-                                }
-                            });
-                        }
-                        form_changed = true;
-                    }
-                    if js::take_dirty() {
-                        restyle = true;
-                        reflow = true;
-                    }
-                    if let Some(t) = js::take_navigation() {
-                        let t = net::resolve(&page.url, &t);
-                        if security::page_may_navigate(&page.url, &t) {
-                            navigate = Some(Go::To(t));
-                        }
-                    }
                     // Form controls: focus, check, open a list, submit or reset.
                     let ctrl = node.and_then(|n| js::with_dom(|d| control_for(d, n)));
                     let ctrl = ctrl.filter(|&c| !js::with_dom(|d| forms::is_disabled(d, c)));
                     let focus_to = ctrl.or(clicked_focusable);
-                    if focus_to != focused {
+                    if focus_to != focused && !mousedown_cancelled {
                         if let Some(old) = focused {
                             fire(&mut page, old, "change");
                             fire(&mut page, old, "blur");
@@ -3416,7 +3396,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             })
                         })
                     });
-                    let host = host.filter(|_| ctrl.is_none() && allowed);
+                    let host = host.filter(|_| ctrl.is_none() && !mousedown_cancelled);
                     match host {
                         Some(hst) => {
                             if ce.map(|c| c.host) != Some(hst) {
@@ -3461,8 +3441,70 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             form_changed = true;
                         }
                     }
-                    if let (true, Some(c)) = (allowed, ctrl) {
+                    if let (false, Some(c)) = (mousedown_cancelled, ctrl) {
                         suggest = open_suggest(&page, &lay, c);
+                    }
+                    page_press = Some(clicks::Press { node, mx, my, view_y, hit: hit.clone(), synthetic: synthetic.is_some(), doc: page.doc });
+                }
+            } else if !down && was_down && page_press.is_some() {
+                // The release after a press on the page: a click at the element both were over.
+                let press = page_press.take().unwrap();
+                let up = if press.synthetic { press.node } else if my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                let node = js::with_dom(|d| clicks::target(d, press.node, up));
+                if press.doc == page.doc && (press.node.is_none() || node.is_some()) {
+                    let hit = if node == press.node { press.hit.clone() } else { None };
+                    let (mx, my, view_y) = (press.mx, press.my, press.view_y);
+                    // Let the page's JavaScript see the click first.
+                    // Checkboxes and radio buttons change before the click event, so handlers
+                    // (React's onChange, for one) see the new state; a cancelled click undoes it.
+                    let toggled = node
+                        .and_then(|n| js::with_dom(|d| control_for(d, n)))
+                        .filter(|&c| js::with_dom(|d| matches!(forms::control(d, c), Some(forms::Control::Checkbox | forms::Control::Radio)) && !forms::is_disabled(d, c)));
+                    let before: Vec<(dom::NodeId, bool)> = match toggled {
+                        Some(_) => js::with_dom(|d| {
+                            d.find_all("input").into_iter().map(|i| (i, d.attr(i, "checked").is_some())).collect()
+                        }),
+                        None => Vec::new(),
+                    };
+                    if let Some(c) = toggled {
+                        js::with_dom_mut(|d| forms::toggle(d, c));
+                    }
+                    let allowed = match (node, page.js.as_mut()) {
+                        (Some(n), Some(js)) => js.click(n),
+                        _ => true,
+                    };
+                    if let Some(c) = toggled {
+                        if allowed {
+                            fire(&mut page, c, "input");
+                            fire(&mut page, c, "change");
+                        } else {
+                            js::with_dom_mut(|d| {
+                                for &(i, was) in &before {
+                                    if was { d.set_attr(i, "checked", "") } else { d.remove_attr(i, "checked") }
+                                }
+                            });
+                        }
+                        form_changed = true;
+                    }
+                    if js::take_dirty() {
+                        restyle = true;
+                        reflow = true;
+                    }
+                    if let Some(t) = js::take_navigation() {
+                        let t = net::resolve(&page.url, &t);
+                        if security::page_may_navigate(&page.url, &t) {
+                            navigate = Some(Go::To(t));
+                        }
+                    }
+                    // Form controls: check, open a list, submit or reset.
+                    let ctrl = node.and_then(|n| js::with_dom(|d| control_for(d, n)));
+                    let ctrl = ctrl.filter(|&c| !js::with_dom(|d| forms::is_disabled(d, c)));
+                    // A second click in the same place is a double click.
+                    if last_page_click.record(mx, my) {
+                        let z = page.zoom();
+                        if let (Some(n), Some(js)) = (node, page.js.as_mut()) {
+                            clicks::dblclick(js, n, mx / z, view_y / z);
+                        }
                     }
                     if let (true, Some(c)) = (allowed, ctrl) {
                         // A click on a <label> is a click on its control.

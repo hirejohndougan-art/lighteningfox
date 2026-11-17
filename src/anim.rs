@@ -489,6 +489,8 @@ struct Running {
     delay: f32,
     dur: f32,
     easing: Easing,
+    /// Has transitionstart fired (the delay is over)?
+    begun: bool,
 }
 
 impl Running {
@@ -512,6 +514,9 @@ struct Timeline {
     /// The last value each transitioned property was given.
     last: HashMap<(NodeId, String), String>,
     running: HashMap<(NodeId, String), Running>,
+    /// Each animation's phase (0 before, 1 active, 2 after) and iteration at the last pass,
+    /// for animationstart/iteration/end.
+    phases: HashMap<(NodeId, String), (u8, f32)>,
     /// Elements that had any state, for the next pass.
     nodes: HashSet<NodeId>,
 }
@@ -521,6 +526,34 @@ thread_local! {
     static CURRENT: Cell<Option<u64>> = const { Cell::new(None) };
     static PASS: RefCell<Option<Pass>> = const { RefCell::new(None) };
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
+    static EVENTS: RefCell<Vec<AnimEvent>> = const { RefCell::new(Vec::new()) };
+}
+
+/// An animation or transition event for the page's scripts (animationstart, transitionend…).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnimEvent {
+    /// The page whose timeline it came from (see `set_current`).
+    pub key: u64,
+    pub node: NodeId,
+    pub kind: &'static str,
+    /// The animation name, or the transitioned property.
+    pub name: String,
+    /// Seconds into the animation or transition (`elapsedTime`).
+    pub elapsed: f32,
+}
+
+impl AnimEvent {
+    /// The event's fields as a JavaScript object literal.
+    pub fn init(&self) -> String {
+        let field = if self.kind.starts_with("transition") { "propertyName" } else { "animationName" };
+        let name: String = self.name.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_')).collect();
+        format!("{{{field}:\"{name}\",elapsedTime:{},pseudoElement:\"\"}}", self.elapsed)
+    }
+}
+
+/// The events style passes produced since the last call, oldest first.
+pub fn take_events() -> Vec<AnimEvent> {
+    EVENTS.with(|e| std::mem::take(&mut *e.borrow_mut()))
 }
 
 struct Pass {
@@ -532,6 +565,8 @@ struct Pass {
     seen_nodes: HashSet<NodeId>,
     active: bool,
     timeline: Timeline,
+    /// (node, kind, name, elapsed) for events this pass.
+    events: Vec<(NodeId, &'static str, String, f32)>,
 }
 
 /// Use page `key`'s timeline for the next style pass (pages keep separate timelines).
@@ -567,7 +602,7 @@ pub fn begin_pass(sheets: &[crate::css::Stylesheet]) {
         }
     }
     PASS.with(|p| {
-        *p.borrow_mut() = Some(Pass { key, now: Instant::now(), fixed: fixed_time(), keyframes, seen_anims: HashSet::new(), seen_nodes: HashSet::new(), active: false, timeline })
+        *p.borrow_mut() = Some(Pass { key, now: Instant::now(), fixed: fixed_time(), keyframes, seen_anims: HashSet::new(), seen_nodes: HashSet::new(), active: false, timeline, events: Vec::new() })
     });
 }
 
@@ -575,9 +610,14 @@ pub fn end_pass() {
     let Some(mut pass) = PASS.with(|p| p.borrow_mut().take()) else { return };
     let tl = &mut pass.timeline;
     tl.started.retain(|k, _| pass.seen_anims.contains(k));
+    tl.phases.retain(|k, _| pass.seen_anims.contains(k));
     tl.last.retain(|(n, _), _| pass.seen_nodes.contains(n));
     tl.running.retain(|(n, _), _| pass.seen_nodes.contains(n));
     tl.nodes = pass.seen_nodes;
+    if let Some(key) = pass.key {
+        let evs = std::mem::take(&mut pass.events);
+        EVENTS.with(|e| e.borrow_mut().extend(evs.into_iter().map(|(node, kind, name, elapsed)| AnimEvent { key, node, kind, name, elapsed })));
+    }
     let Some(key) = pass.key else {
         // A one-off pass: it can start the clock (active) but never stops it.
         if pass.active {
@@ -623,22 +663,36 @@ pub fn animate(id: NodeId, spec: Option<&AnimSpec>, decls: &[(String, String)]) 
                 let key = (id, prop.clone());
                 let Some(target) = underlying(&prop) else { continue };
                 if dur <= 0.0 && delay <= 0.0 {
-                    pass.timeline.running.remove(&key);
+                    if pass.timeline.running.remove(&key).is_some() {
+                        pass.events.push((id, "transitioncancel", prop.clone(), 0.0));
+                    }
                     pass.timeline.last.insert(key, target);
                     continue;
                 }
                 if let Some(prev) = pass.timeline.last.get(&key).filter(|v| **v != target).cloned() {
                     let from = match pass.timeline.running.get(&key) {
-                        Some(r) => r.value(pass.now).0,
+                        Some(r) => {
+                            let el = pass.now.saturating_duration_since(r.start).as_secs_f32() - r.delay;
+                            pass.events.push((id, "transitioncancel", prop.clone(), el.clamp(0.0, r.dur)));
+                            r.value(pass.now).0
+                        }
                         None => prev,
                     };
-                    pass.timeline.running.insert(key.clone(), Running { from, to: target.clone(), start: pass.now, delay, dur, easing: nth(&s.t_timings, i, Easing::Linear) });
+                    pass.timeline.running.insert(key.clone(), Running { from, to: target.clone(), start: pass.now, delay, dur, easing: nth(&s.t_timings, i, Easing::Linear), begun: false });
+                    pass.events.push((id, "transitionrun", prop.clone(), 0.0));
                 }
                 pass.timeline.last.insert(key.clone(), target);
-                if let Some(r) = pass.timeline.running.get(&key) {
+                if let Some(r) = pass.timeline.running.get_mut(&key) {
                     let (v, done) = r.value(pass.now);
+                    let el = pass.now.saturating_duration_since(r.start).as_secs_f32() - r.delay;
+                    if !r.begun && el >= 0.0 {
+                        r.begun = true;
+                        pass.events.push((id, "transitionstart", prop.clone(), 0.0));
+                    }
                     if done {
+                        let d = r.dur;
                         pass.timeline.running.remove(&key);
+                        pass.events.push((id, "transitionend", prop.clone(), d));
                     } else {
                         pass.active = true;
                         out.push((prop, v));
@@ -646,6 +700,11 @@ pub fn animate(id: NodeId, spec: Option<&AnimSpec>, decls: &[(String, String)]) 
                 }
             }
         } else {
+            for ((n, prop), _) in pass.timeline.running.iter() {
+                if *n == id {
+                    pass.events.push((id, "transitioncancel", prop.clone(), 0.0));
+                }
+            }
             pass.timeline.running.retain(|(n, _), _| *n != id);
             pass.timeline.last.retain(|(n, _), _| *n != id);
         }
@@ -679,6 +738,23 @@ pub fn animate(id: NodeId, spec: Option<&AnimSpec>, decls: &[(String, String)]) 
             let fillm = nth(&s.fills, i, 0);
             let dir = nth(&s.directions, i, 0);
             let total = dur * iters;
+            // animationstart, animationiteration and animationend as the phase changes.
+            let phase: u8 = if el < 0.0 { 0 } else if el >= total || dur <= 0.0 { 2 } else { 1 };
+            let it_now = if phase == 1 { (el / dur).floor() } else { 0.0 };
+            let pkey = (id, name.clone());
+            let prev = pass.timeline.phases.get(&pkey).copied();
+            if phase >= 1 && prev.is_none_or(|p| p.0 == 0) {
+                pass.events.push((id, "animationstart", name.clone(), 0.0));
+            }
+            if let (1, Some((1, pi))) = (phase, prev) {
+                if it_now > pi {
+                    pass.events.push((id, "animationiteration", name.clone(), it_now * dur));
+                }
+            }
+            if phase == 2 && prev.is_none_or(|p| p.0 < 2) {
+                pass.events.push((id, "animationend", name.clone(), if total.is_finite() { total.max(0.0) } else { 0.0 }));
+            }
+            pass.timeline.phases.insert(pkey, (phase, it_now));
             let (iter, p) = if el < 0.0 {
                 if !paused && pass.fixed.is_none() {
                     pass.active = true;
@@ -820,5 +896,46 @@ mod tests {
         assert_eq!(v.len(), 1);
         assert!(v[0].1.parse::<f32>().unwrap() > 0.99);
         assert!(active());
+    }
+
+    #[test]
+    fn animation_and_transition_events() {
+        let _ = take_events();
+        let src = "@keyframes pop { from { opacity: 0 } to { opacity: 1 } }";
+        let mut sheet = crate::css::parse(src);
+        sheet.keyframes = find_keyframes(src);
+        let mut spec = None;
+        apply_prop(&mut spec, "animation", "pop 0.1s linear 2");
+        let pass = |spec: &Option<Rc<AnimSpec>>| {
+            set_current(9_997);
+            begin_pass(std::slice::from_ref(&sheet));
+            animate(7, spec.as_deref(), &[]);
+            end_pass();
+            take_events().into_iter().map(|e| e.kind).collect::<Vec<_>>()
+        };
+        assert_eq!(pass(&spec), vec!["animationstart"]);
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        assert_eq!(pass(&spec), vec!["animationiteration"]);
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        assert_eq!(pass(&spec), vec!["animationend"]);
+        assert!(pass(&spec).is_empty());
+
+        let mut t = None;
+        apply_prop(&mut t, "transition", "opacity 0.01s linear");
+        let d = |v: &str| vec![("opacity".to_string(), v.to_string())];
+        let tpass = |v: &str| {
+            set_current(9_996);
+            begin_pass(&[]);
+            animate(4, t.as_deref(), &d(v));
+            end_pass();
+            take_events()
+        };
+        assert!(tpass("1").is_empty());
+        let started: Vec<_> = tpass("0").into_iter().map(|e| e.kind).collect();
+        assert_eq!(started, vec!["transitionrun", "transitionstart"]);
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        let end = tpass("0");
+        assert_eq!(end.iter().map(|e| e.kind).collect::<Vec<_>>(), vec!["transitionend"]);
+        assert_eq!(end[0].init(), "{propertyName:\"opacity\",elapsedTime:0.01,pseudoElement:\"\"}");
     }
 }

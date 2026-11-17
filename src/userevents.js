@@ -21,6 +21,34 @@
   if (!g.SubmitEvent) g.SubmitEvent = class SubmitEvent extends Event { constructor(type, init = {}) { super(type, init); this.submitter = init.submitter ?? null; } };
   if (!g.CompositionEvent) g.CompositionEvent = class CompositionEvent extends UIEvent { constructor(type, init = {}) { super(type, init); this.data = init.data ?? ""; } };
 
+  // AnimationEvent and TransitionEvent: read-only fields, a finite elapsedTime.
+  function timedEvent(name, field) {
+    const fields = new WeakMap();
+    const C = class extends Event {
+      constructor(type, init) {
+        if (arguments.length < 1) throw new TypeError(`Failed to construct '${name}': 1 argument required, but only 0 present.`);
+        init = init ?? {};
+        const t = init.elapsedTime === undefined ? 0 : Number(init.elapsedTime);
+        if (!Number.isFinite(t)) throw new TypeError(`Failed to construct '${name}': elapsedTime is not a finite number.`);
+        super(type, init);
+        fields.set(this, {
+          name: init[field] === undefined ? "" : String(init[field]),
+          elapsedTime: t,
+          pseudoElement: init.pseudoElement === undefined ? "" : String(init.pseudoElement),
+          animation: init.animation ?? null,
+        });
+      }
+      get [field]() { return fields.get(this)?.name ?? ""; }
+      get elapsedTime() { return fields.get(this)?.elapsedTime ?? 0; }
+      get pseudoElement() { return fields.get(this)?.pseudoElement ?? ""; }
+    };
+    if (field === "animationName") Object.defineProperty(C.prototype, "animation", { configurable: true, enumerable: true, get() { return fields.get(this)?.animation ?? null; } });
+    Object.defineProperty(C, "name", { value: name });
+    return C;
+  }
+  if (!g.AnimationEvent) g.AnimationEvent = timedEvent("AnimationEvent", "animationName");
+  if (!g.TransitionEvent) g.TransitionEvent = timedEvent("TransitionEvent", "propertyName");
+
   // type -> [class, bubbles, cancelable]
   const M = MouseEvent, P = PointerEvent, K = KeyboardEvent, F = FocusEvent;
   const KINDS = {
@@ -36,6 +64,8 @@
     change: [Event, true, false], submit: [g.SubmitEvent, true, true], reset: [Event, true, true],
     select: [Event, true, false], invalid: [Event, false, true], toggle: [Event, false, false],
     scroll: [Event, false, false], scrollend: [Event, false, false],
+    animationstart: [g.AnimationEvent, true, false], animationend: [g.AnimationEvent, true, false], animationiteration: [g.AnimationEvent, true, false], animationcancel: [g.AnimationEvent, true, false],
+    transitionrun: [g.TransitionEvent, true, false], transitionstart: [g.TransitionEvent, true, false], transitionend: [g.TransitionEvent, true, false], transitioncancel: [g.TransitionEvent, true, false],
     compositionstart: [g.CompositionEvent, true, true], compositionupdate: [g.CompositionEvent, true, false], compositionend: [g.CompositionEvent, true, false],
   };
 
@@ -56,7 +86,7 @@
 
   function make(type, init) {
     const k = KINDS[type] || [Event, true, true];
-    const opts = Object.assign({ bubbles: k[1], cancelable: k[2], composed: k[0] !== Event, view: g }, init);
+    const opts = Object.assign({ bubbles: k[1], cancelable: k[2], composed: k[0] !== Event && k[0] !== g.AnimationEvent && k[0] !== g.TransitionEvent, view: g }, init);
     if (k[0] === M || k[0] === P || k[0] === WheelEvent) {
       for (const key of ["clientX", "clientY", "screenX", "screenY"]) if (opts[key] === undefined) opts[key] = mouse[key];
       if (opts.buttons === undefined) opts.buttons = buttons;
