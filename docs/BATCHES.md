@@ -120,7 +120,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §9 Clipboard, notifications and geolocation, with permission prompts (prompts already exist from §13)
 
 ## I. Accessibility and languages (all of §15)
-**Status:** free
+**Status:** claimed by a11y-chat 2026-11-17 02:30
 **Start after:** —
 **Main files:** new `src/a11y.rs`, `src/chrome.rs`, UI strings in `src/main.rs` and `src/settings.rs`
 
