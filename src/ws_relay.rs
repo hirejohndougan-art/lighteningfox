@@ -318,7 +318,7 @@ mod tests {
         assert!(text.iter().any(|e| e.starts_with("__wsEvent(1,\"close\",1006")), "{text:?}");
     }
 
-    /// The real thing: the sandboxed frame renderer (`ironswift --frame-renderer`, with no
+    /// The real thing: the sandboxed frame renderer (`ironswift --frame-renderer <site>`, with no
     /// network) loads a page that opens a WebSocket, sends "ping" and reports the echo with
     /// fetch(). This test plays the browser: it answers the renderer's requests as the window
     /// does. Needs the release binary (`cargo build --release`); skipped without it.
@@ -375,7 +375,7 @@ mod tests {
         });
         let profile = std::env::temp_dir().join(format!("ironswift-ws-relay-{}", std::process::id()));
         let mut child = std::process::Command::new(&bin)
-            .arg("--frame-renderer")
+            .args(["--frame-renderer", "127.0.0.1"])
             .env("IRONSWIFT_PROFILE", &profile)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
