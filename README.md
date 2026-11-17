@@ -88,6 +88,8 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Transforms**: `translate`, `scale`, `rotate`, `skew`, `matrix`, `transform-origin`, and the separate `translate`/`rotate`/`scale` properties; rotated and scaled elements are drawn off-screen and mapped with smooth sampling, and clicks follow them
+- **Stacking contexts**: z-index layers nest inside their parent's stacking context, as in other browsers
 - **Scrollable boxes**: `overflow: auto/scroll` boxes scroll with the mouse wheel (the innermost one under the pointer), show a scrollbar, hide and ignore clicks on content scrolled out of view, and expose `scrollTop`/`scrollHeight` to scripts; `min-height` and `max-height`
 - **position: sticky**: headers, sidebars and section titles that stick while scrolling, stopping at the end of their parent
 - **Layout data for scripts**: `getBoundingClientRect`, `offsetWidth/Height/Top`, `clientWidth`, `scrollHeight`, live `innerWidth`/`scrollY`, `scrollTo`/`scrollBy`/`scrollIntoView`, and `matchMedia` width queries; if a script changed the page, it's laid out again before answering
@@ -139,7 +141,7 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **Nested stacking contexts** and transforms
+1. **Vertical-align**, percentage heights and multi-column layout
 2. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
    then profile Boa itself and work on its interpreter
 3. **Tabs and bookmarks**

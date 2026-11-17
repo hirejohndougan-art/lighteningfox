@@ -110,7 +110,7 @@ fn ids(list: impl IntoIterator<Item = NodeId>, ctx: &mut Context) -> JsValue {
 
 fn parse_fragment(markup: &str) -> Dom {
     // Parse as a fragment by wrapping so the parser doesn't need a context node.
-    html::parse(markup)
+    html::parse_fragment(markup)
 }
 
 fn clone_node(dom: &mut Dom, id: NodeId, deep: bool) -> NodeId {

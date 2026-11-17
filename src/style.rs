@@ -272,6 +272,9 @@ pub struct Style {
     pub min_width: Len,
     pub min_height: Len,
     pub max_height: Len,
+    /// `transform`, with the individual `translate`/`rotate`/`scale` properties folded in front.
+    pub transform: Option<Rc<str>>,
+    pub transform_origin: Option<Rc<str>>,
     /// box-sizing: border-box — width/height include padding and border.
     pub border_box: bool,
     /// float: Some(true) = left, Some(false) = right.
@@ -328,6 +331,8 @@ impl Default for Style {
             min_width: Len::Auto,
             min_height: Len::Auto,
             max_height: Len::Auto,
+            transform: None,
+            transform_origin: None,
             border_box: false,
             float: None,
             clear: (false, false),
@@ -1499,6 +1504,19 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 st.scrolls = matches!(v, "auto" | "scroll" | "overlay");
             }
             st.clip = st.clip && name == "overflow-y" || matches!(v, "hidden" | "clip" | "auto" | "scroll" | "overlay");
+        }
+        "transform" => {
+            st.transform = (lower != "none").then(|| Rc::from(lower.as_str()));
+        }
+        "transform-origin" => st.transform_origin = Some(Rc::from(lower.as_str())),
+        // Individual transform properties apply before `transform`, in this order.
+        "translate" | "rotate" | "scale" if lower != "none" => {
+            let args = if name == "rotate" { lower.clone() } else { lower.split_whitespace().collect::<Vec<_>>().join(", ") };
+            let f = format!("{name}({args})");
+            st.transform = Some(Rc::from(match &st.transform {
+                Some(t) => format!("{f} {t}"),
+                None => f,
+            }));
         }
         "min-height" => {
             if let Some(l) = parse_len(&lower, fs) {

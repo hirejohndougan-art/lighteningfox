@@ -20,6 +20,7 @@ mod layout;
 mod net;
 mod paint;
 mod style;
+mod transform;
 
 use font::Fonts;
 use minifb::{CursorStyle, Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
@@ -1062,6 +1063,7 @@ mod screenshot_tests {
         ("tests/geometry.html", 700),
         ("tests/sticky.html", 1024),
         ("tests/scroll-box.html", 900),
+        ("tests/transforms.html", 900),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

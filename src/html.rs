@@ -15,6 +15,13 @@ const CLOSES_P: &[&str] = &[
 ];
 
 pub fn parse(src: &str) -> Dom {
+    let mut dom = parse_fragment(src);
+    ensure_skeleton(&mut dom);
+    dom
+}
+
+/// Parse markup as-is, without adding <html>/<head>/<body> (for innerHTML and friends).
+pub fn parse_fragment(src: &str) -> Dom {
     let mut dom = Dom::new();
     let mut stack: Vec<NodeId> = vec![Dom::ROOT];
     let chars: Vec<char> = src.chars().collect();
@@ -85,6 +92,70 @@ pub fn parse(src: &str) -> Dom {
     }
     flush(&mut dom, &stack, &mut text);
     dom
+}
+
+/// Every page has <html>, <head> and <body>, as in real browsers, even when the
+/// source leaves them out: metadata goes in the head, everything else in the body.
+fn ensure_skeleton(dom: &mut Dom) {
+    use crate::dom::NodeData;
+    let is_ws = |dom: &Dom, n: NodeId| matches!(&dom.nodes[n].data, NodeData::Text(t) if t.trim().is_empty());
+    let el = |tag: &str| NodeData::Element { tag: tag.to_string(), attrs: Vec::new() };
+    let root_kids = dom.nodes[Dom::ROOT].children.clone();
+    let html = match root_kids.iter().copied().find(|&n| dom.tag(n) == Some("html")) {
+        Some(h) => h,
+        None => {
+            // Wrap everything except a leading doctype/comment in a new <html>.
+            let h = dom.create(el("html"));
+            for n in root_kids {
+                if matches!(dom.nodes[n].data, NodeData::Element { .. } | NodeData::Text(_)) {
+                    dom.detach(n);
+                    dom.insert(h, n, None);
+                }
+            }
+            dom.insert(Dom::ROOT, h, None);
+            h
+        }
+    };
+    let kids = dom.nodes[html].children.clone();
+    let has_head = kids.iter().any(|&n| dom.tag(n) == Some("head"));
+    let body = kids.iter().copied().find(|&n| matches!(dom.tag(n), Some("body" | "frameset")));
+    if has_head && body.is_some() {
+        return;
+    }
+    let head = match kids.iter().copied().find(|&n| dom.tag(n) == Some("head")) {
+        Some(h) => h,
+        None => {
+            let h = dom.create(el("head"));
+            dom.insert(html, h, kids.first().copied());
+            h
+        }
+    };
+    let body = match body {
+        Some(b) => b,
+        None => {
+            let b = dom.create(el("body"));
+            dom.insert(html, b, None);
+            b
+        }
+    };
+    // Leading metadata belongs in the head; from the first real content on, the body.
+    let mut in_body = false;
+    for n in kids {
+        if n == head || n == body {
+            continue;
+        }
+        let meta = matches!(dom.tag(n), Some("title" | "meta" | "link" | "style" | "script" | "base" | "noscript" | "template"));
+        if !in_body && (meta || is_ws(dom, n)) {
+            if !is_ws(dom, n) {
+                dom.detach(n);
+                dom.insert(head, n, None);
+            }
+            continue;
+        }
+        in_body = true;
+        dom.detach(n);
+        dom.insert(body, n, None);
+    }
 }
 
 fn implied_closes(dom: &Dom, stack: &mut Vec<NodeId>, tag: &str) {
@@ -240,3 +311,4 @@ fn named_entity(name: &str) -> Option<char> {
         _ => return None,
     })
 }
+

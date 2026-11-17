@@ -350,6 +350,12 @@ fn shift_item(it: &mut Item, dx: f32, dy: f32) {
             *y += dy;
         }
         Item::StickyPush { y, .. } => *y += dy,
+        Item::TransformPush { m, x, y, .. } => {
+            *x += dx;
+            *y += dy;
+            *m = crate::transform::mul(crate::transform::translate(dx, dy), crate::transform::mul(*m, crate::transform::translate(-dx, -dy)));
+        }
+        Item::TransformPop => {}
         Item::ClipPop | Item::FixedPush | Item::FixedPop | Item::StickyPop => {}
     }
 }
@@ -472,6 +478,7 @@ impl<'a> Ctx<'a> {
         let top = y + mt_eff;
         // Remember where this box's output starts (for position: relative).
         let start = (self.items.len(), self.links.len(), self.hits.len());
+        let layers_start = self.layers.len();
         let positioned = st.position != Position::Static;
         if positioned {
             self.abs.push(Vec::new());
@@ -662,6 +669,39 @@ impl<'a> Ctx<'a> {
             self.items.insert(start.0, Item::StickyPush { id, y: top, h: box_h, top: top_inset, limit: 0.0 });
             self.items.push(Item::StickyPop);
         }
+        // A stacking context (a transform, or a positioned box with a z-index) keeps the
+        // z-index layers of its descendants inside itself, ordered among its own content.
+        let forms_context = self.styles[id].transform.is_some() || positioned && self.styles[id].z_index != 0;
+        if forms_context && self.layers.len() > layers_start && !self.measuring {
+            let inner: Vec<(i32, Vec<Item>)> = self.layers.drain(layers_start..).collect();
+            let own: Vec<Item> = self.items.drain(start.0..).collect();
+            let merged = merge_layers(own, inner);
+            self.items.extend(merged);
+        }
+        // CSS transforms. A pure translation just moves everything; anything else is drawn
+        // off-screen and mapped through the matrix at paint time.
+        let mut transformed = false;
+        if let (Some(spec), false) = (self.styles[id].transform.clone(), self.measuring) {
+            let origin = self.styles[id].transform_origin.clone();
+            let fs = self.styles[id].font_size;
+            if let Some(local) = crate::transform::matrix(&spec, origin.as_deref().unwrap_or(""), box_w, box_h, fs) {
+                let m = crate::transform::mul(crate::transform::translate(bx, top), crate::transform::mul(local, crate::transform::translate(-bx, -top)));
+                transformed = true;
+                if crate::transform::is_translation(&m) {
+                    self.shift_since(start, m[4], m[5]);
+                } else {
+                    let (ax, ay, aw, ah) = self.items_bounds(start.0, (bx, top, box_w, box_h));
+                    self.items.insert(start.0, Item::TransformPush { m, x: ax, y: ay, w: aw, h: ah });
+                    self.items.push(Item::TransformPop);
+                    let map = |r: &mut Rect| {
+                        let (x, y, w, h) = crate::transform::bounds(&m, r.x, r.y, r.w, r.h);
+                        *r = Rect { x, y, w, h };
+                    };
+                    self.links[start.1..].iter_mut().for_each(|(r, _)| map(r));
+                    self.hits[start.2..].iter_mut().for_each(|(r, _)| map(r));
+                }
+            }
+        }
         // position: relative shifts the box after layout.
         let st = &self.styles[id];
         if st.position == Position::Relative {
@@ -678,11 +718,36 @@ impl<'a> Ctx<'a> {
         }
         // A positioned box with a z-index paints in its own layer.
         let z = self.styles[id].z_index;
+        let _ = transformed;
         if positioned && (z != 0 || sticky_top.is_some()) && !matches!(self.styles[id].position, Position::Absolute | Position::Fixed) {
             let lifted: Vec<Item> = self.items.drain(start.0..).collect();
             self.layers.push((z, lifted));
         }
         (mt_eff + box_h + mb, mb)
+    }
+
+    /// Page-area bounding box of the paint items from index `from` on, at least `base`.
+    fn items_bounds(&self, from: usize, base: (f32, f32, f32, f32)) -> (f32, f32, f32, f32) {
+        let (mut x0, mut y0, mut x1, mut y1) = (base.0, base.1, base.0 + base.2, base.1 + base.3);
+        let mut grow = |x: f32, y: f32, w: f32, h: f32| {
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x + w);
+            y1 = y1.max(y + h);
+        };
+        for it in &self.items[from..] {
+            match it {
+                Item::Rect { x, y, w, h, .. } | Item::Image { x, y, w, h, .. } | Item::Box { x, y, w, h, .. } | Item::Ring { x, y, w, h, .. } => grow(*x, *y, *w, *h),
+                Item::Shadow { x, y, w, h, blur, .. } => grow(x - blur, y - blur, w + 2.0 * blur, h + 2.0 * blur),
+                Item::Text { x, y, text, font, size, .. } => grow(*x, y - size, self.fonts.width(*font, text, *size), size * 1.4),
+                Item::TransformPush { m, x, y, w, h } => {
+                    let (bx, by, bw, bh) = crate::transform::bounds(m, *x, *y, *w, *h);
+                    grow(bx, by, bw, bh)
+                }
+                _ => {}
+            }
+        }
+        (x0, y0, x1 - x0, y1 - y0)
     }
 
     /// Move everything emitted since `start` by (dx, dy).
@@ -1075,10 +1140,55 @@ impl<'a> Ctx<'a> {
                         }
                     }
                 } else if free < 0.0 {
-                    let total: f32 = line.iter().map(|&i| flex_of(i).1 * bases[i]).sum();
-                    if total > 0.0 {
+                    // Shrink, but never below an item's minimum: its min-width, or by default
+                    // its narrowest content (unless it clips its overflow). Items that hit
+                    // their minimum stop, and the rest share what's still left.
+                    let mins: Vec<f32> = line
+                        .iter()
+                        .map(|&i| match &items[i] {
+                            FlexItem::Node(n) => {
+                                let st = &self.styles[*n];
+                                match st.min_width {
+                                    Len::Auto if st.clip || st.width != Len::Auto => 0.0,
+                                    Len::Auto => self.content_widths(*n).0,
+                                    l => l.resolve(w),
+                                }
+                            }
+                            FlexItem::Text(nodes) => {
+                                let nodes = nodes.clone();
+                                self.detach_text(&nodes, 0.0, Align::Left).w
+                            }
+                        })
+                        .collect();
+                    let mut frozen = vec![false; line.len()];
+                    for _ in 0..line.len() + 1 {
+                        let left = w - gaps - sizes.iter().sum::<f32>();
+                        if left >= -0.01 {
+                            break;
+                        }
+                        let total: f32 = line.iter().enumerate().filter(|(k, _)| !frozen[*k]).map(|(_, &i)| flex_of(i).1 * bases[i]).sum();
+                        if total <= 0.0 {
+                            break;
+                        }
+                        let mut any = false;
                         for (k, &i) in line.iter().enumerate() {
-                            sizes[k] = (sizes[k] + free * flex_of(i).1 * bases[i] / total).max(0.0);
+                            if frozen[k] {
+                                continue;
+                            }
+                            let want = sizes[k] + left * flex_of(i).1 * bases[i] / total;
+                            if want < mins[k].min(bases[i]) {
+                                sizes[k] = mins[k].min(bases[i]);
+                                frozen[k] = true;
+                                any = true;
+                            }
+                        }
+                        if !any {
+                            for (k, &i) in line.iter().enumerate() {
+                                if !frozen[k] {
+                                    sizes[k] = (sizes[k] + left * flex_of(i).1 * bases[i] / total).max(0.0);
+                                }
+                            }
+                            break;
                         }
                     }
                 }

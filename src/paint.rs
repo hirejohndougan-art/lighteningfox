@@ -32,6 +32,10 @@ pub enum Item {
     /// A scrollable box (overflow: auto/scroll): its padding box and how far it can scroll.
     /// Never painted; collected into `Layout::scrollers`.
     ScrollArea { id: usize, x: f32, y: f32, w: f32, h: f32, max: f32 },
+    /// Start of a transformed element: everything up to the matching TransformPop is drawn
+    /// off-screen over the page area (x, y, w, h), then onto the page through matrix `m`.
+    TransformPush { m: [f32; 6], x: f32, y: f32, w: f32, h: f32 },
+    TransformPop,
 }
 
 /// How far a sticky box moves down at this scroll position.
@@ -392,15 +396,44 @@ impl Canvas {
     /// Paint the display list with the page's top at `origin_y`, scrolled by `scroll`.
     /// Fixed-position items ignore the scroll.
     pub fn paint(&mut self, fonts: &Fonts, images: &Images, items: &[Item], origin_y: f32, scroll: f32) {
-        let h = self.h as f32;
-        let dx = 0.0;
         self.clips.clear();
+        self.paint_at(fonts, images, items, 0.0, origin_y, scroll);
+        self.clips.clear();
+    }
+
+    /// Paint items with page coordinates shifted by (dx, origin_y - scroll).
+    fn paint_at(&mut self, fonts: &Fonts, images: &Images, items: &[Item], dx: f32, origin_y: f32, scroll: f32) {
+        let h = self.h as f32;
         let mut fixed_depth = 0;
         let mut dy = origin_y - scroll;
         let mut sticky: Vec<f32> = Vec::new();
-        for item in items {
+        let mut i = 0;
+        while i < items.len() {
+            let item = &items[i];
+            i += 1;
             match item {
-                Item::Mark { .. } | Item::ScrollArea { .. } => {}
+                Item::Mark { .. } | Item::ScrollArea { .. } | Item::TransformPop => {}
+                Item::TransformPush { m, x, y, w, h: th } => {
+                    // Find the matching pop.
+                    let mut depth = 1;
+                    let mut j = i;
+                    while j < items.len() {
+                        match items[j] {
+                            Item::TransformPush { .. } => depth += 1,
+                            Item::TransformPop => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                        j += 1;
+                    }
+                    let inner = &items[i..j.min(items.len())];
+                    i = j + 1;
+                    self.draw_transformed(fonts, images, inner, m, (*x, *y, *w, *th), dx, dy);
+                }
                 Item::StickyPush { y, top, limit, .. } => {
                     let off = if fixed_depth == 0 { sticky_offset(*y, *top, *limit, scroll) } else { 0.0 };
                     sticky.push(off);
@@ -457,7 +490,70 @@ impl Canvas {
                 }
             }
         }
-        self.clips.clear();
+    }
+
+    /// Draw `items` (a transformed element) off-screen, then onto this canvas through `m`.
+    /// The off-screen copy is drawn twice, over black and over white, which gives each
+    /// pixel's color and transparency exactly.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_transformed(&mut self, fonts: &Fonts, images: &Images, items: &[Item], m: &[f32; 6], area: (f32, f32, f32, f32), dx: f32, dy: f32) {
+        use crate::transform;
+        let (ax, ay) = (area.0.floor(), area.1.floor());
+        let bw = ((area.2 + area.0 - ax).ceil() as usize + 1).min(4096);
+        let bh = ((area.3 + area.1 - ay).ceil() as usize + 1).min(4096);
+        if bw == 0 || bh == 0 {
+            return;
+        }
+        // Where it lands on this canvas; skip if off-screen.
+        let to_canvas = transform::mul(transform::translate(dx, dy), *m);
+        let (qx, qy, qw, qh) = transform::bounds(&to_canvas, ax, ay, bw as f32, bh as f32);
+        let (x0, y0) = (qx.floor().max(0.0) as i32, qy.floor().max(0.0) as i32);
+        let (x1, y1) = ((qx + qw).ceil().min(self.w as f32) as i32, (qy + qh).ceil().min(self.h as f32) as i32);
+        if x0 >= x1 || y0 >= y1 {
+            return;
+        }
+        let Some(inv) = transform::invert(&to_canvas) else { return };
+        let mut layers = [Canvas::new(bw, bh), Canvas::new(bw, bh)];
+        layers[0].clear(Color::rgb(0, 0, 0));
+        layers[1].clear(Color::rgb(255, 255, 255));
+        for l in &mut layers {
+            l.paint_at(fonts, images, items, -ax, -ay, 0.0);
+            l.clips.clear();
+        }
+        let sample = |c: &Canvas, x: f32, y: f32| -> [f32; 3] {
+            // Bilinear sampling; outside the copy counts as the background.
+            let (fx, fy) = (x - 0.5, y - 0.5);
+            let (ix, iy) = (fx.floor() as i32, fy.floor() as i32);
+            let (tx, ty) = (fx - ix as f32, fy - iy as f32);
+            let bg = c.buf[0];
+            let px = |x: i32, y: i32| if x < 0 || y < 0 || x as usize >= c.w || y as usize >= c.h { bg } else { c.buf[y as usize * c.w + x as usize] };
+            let (p00, p10, p01, p11) = (px(ix, iy), px(ix + 1, iy), px(ix, iy + 1), px(ix + 1, iy + 1));
+            let ch = |p: u32, s: u32| ((p >> s) & 255) as f32;
+            let mut out = [0.0; 3];
+            for (k, sh) in [16u32, 8, 0].into_iter().enumerate() {
+                let top = ch(p00, sh) * (1.0 - tx) + ch(p10, sh) * tx;
+                let bot = ch(p01, sh) * (1.0 - tx) + ch(p11, sh) * tx;
+                out[k] = top * (1.0 - ty) + bot * ty;
+            }
+            out
+        };
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let (sx, sy) = transform::apply(&inv, x as f32 + 0.5, y as f32 + 0.5);
+                let (lx, ly) = (sx - ax, sy - ay);
+                if lx < -1.0 || ly < -1.0 || lx > bw as f32 + 1.0 || ly > bh as f32 + 1.0 {
+                    continue;
+                }
+                let b = sample(&layers[0], lx, ly);
+                let w = sample(&layers[1], lx, ly);
+                let alpha = 1.0 - ((w[0] - b[0]) + (w[1] - b[1]) + (w[2] - b[2])) / (3.0 * 255.0);
+                if alpha <= 0.004 {
+                    continue;
+                }
+                let un = |v: f32| (v / alpha).round().clamp(0.0, 255.0) as u8;
+                self.blend(x, y, Color { r: un(b[0]), g: un(b[1]), b: un(b[2]), a: 255 }, alpha.min(1.0));
+            }
+        }
     }
 }
 
