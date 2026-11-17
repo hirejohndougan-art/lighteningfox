@@ -308,14 +308,28 @@ top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`.
 "stuck frame" stop working per process.
 
 ### X15. Turn site processes on by default
-**Status:** claimed by chat-nsX16 2026-11-17 15:45
-**After:** X13, X14
+**Status:** blocked: video and audio don't play in site processes (X23)
+**Progress:** `--png` of an http(s) page goes through a site process with `IRONSWIFT_SITE_PROCESS=1` (`src/site_snapshot.rs`); `tools/site_process_check.py` draws every screenshot test page both ways. Fixed: site processes had no system fonts with a fresh profile (the browser now writes the font list they read). 43 of 45 pages identical; animated images differ only because site processes animate (snapshots freeze); `media.html` shows "This video can't be played". Memory: about 50-70 MB per site process on top of the browser (in `docs/ARCHITECTURE.md`). `site_check.py --tracker` needs internet access, so it wasn't run here; John runs the live-site check after the default changes.
+**After:** X13, X14, X23
 **Checklist:** none
 **Files:** `src/settings.rs` (the `site_processes` default), `docs/`
 Make `site_processes` default to on once WebSockets and per-site frames work in them. Run the
 screenshot tests and `tools/site_check.py --tracker` with it on and fix what got worse; note the
 memory cost in the docs. John runs the live-site check on his computer afterwards.
 
+
+### X23. Video and audio in site processes
+**Status:** claimed by chat-nsX16 2026-11-17 16:35
+**After:** —
+**Checklist:** none
+**Files:** `src/media.rs` (starting the decoders), `src/process.rs` / `src/sandbox.rs` (small hooks), new code in new files
+Found in X15: a site process can't start programs or write files, and media decoding runs
+`ffmpeg`/`ffprobe` (and a sound player) on a downloaded temp file, so `<video>`/`<audio>` show
+"This video can't be played" with site processes on. Have the browser start the decoders for
+the site process (passing their pipes back, e.g. over a Unix socket with SCM_RIGHTS), feed them
+the media bytes through a pipe instead of a temp file, and lock the decoders down too (they
+parse untrusted files: no network, no writing, read-only system files). Sound is played by the
+browser. Check with `tools/site_process_check.py media.html` and `cargo test --release media`.
 ### X9. Geolocation in Flatpak and with site isolation
 **Status:** claimed by chat-mseX17 2026-11-17 15:45
 **After:** —
