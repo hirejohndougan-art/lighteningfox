@@ -364,7 +364,21 @@ and `Document-createElement-namespace.html`. Run `tools/wpt.py <wpt> dom/nodes` 
 `createDocument`, which can be left undone if it grows large.
 
 ### X17. Media Source Extensions: frame-level edits, sequence mode, tracks
-**Status:** claimed by chat-mseX17 2026-11-17 12:55
+**Status:** done
+**Result:** WPT `media-source` 214/339 → 240/299 (25 → 28 files with no result). Now all passing:
+`mediasource-remove` (13 → 17 alone; one subtest sometimes fails in a full parallel run when the
+test's own data download comes back empty), `-sequencemode-append-buffer` 0 → 3, `-avtracks` 0 → 4,
+`-timestamp-offset` 10 → 15, `-activesourcebuffers` 3 → 8, `-sourcebuffer-mode` 4 → 6,
+`-sourcebuffer-mode-timestamps` 0 → 2; `-buffered` 4 → 7, `-changetype` 6 → 7. Segments keep
+their coded frames (`src/mse_frames.rs`): per-track buffered ranges, frame-level removal with
+dependent frames, MP4/WebM segments rewritten without dropped frames, MP4 edit lists applied,
+`audio/aac` and `audio/mpeg` with generated timestamps, track lists, `srcObject = mediaSource`,
+metadata as soon as the init segments are in, Chrome's quotas (150 MB, 12 MB for sound only).
+**Left undone:** the three `mediasource-changetype-play*` files (3 of 43 subtests passed before)
+now get past their duration checks and wait for real playback, so they give no result under
+`--png` until X20; audio frames that straddle `appendWindowStart` are dropped, not trimmed; laced
+WebM blocks count as one frame; `remove()` doesn't drop `readyState` to HAVE_METADATA;
+`QuotaExceededError` as its own interface (the quota test checks `ex.constructor`) is missing.
 **After:** —
 **Checklist:** none
 **Files:** `src/mse.rs`, `src/mse.js`, `src/media.js` (MSE hooks only)
