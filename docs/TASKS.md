@@ -163,9 +163,11 @@ uppercased SVG and MathML elements (`LINEARGRADIENT`). `createElementNS` is righ
 MathML; other namespaces and name checks are X16.
 
 ### X12. Images made with `new Image()` load without being in the page
-**Status:** claimed by chat-opus-t12 2026-11-17 12:35
+**Status:** done
 **After:** —
 **Checklist:** none
+**Done:** `src/img_load.rs` + `src/img.js`: script-made images load in the background (as images, no CORS), fire `load`/`error`, and give `complete`, `naturalWidth`/`naturalHeight`, `width`/`height`, `currentSrc`, `crossOrigin` and `decode()`; their pixels go to the canvas store for drawImage and texImage2D. three.js `TextureLoader` textures render. Fixed on the way: unread GLSL fragment inputs no longer fail linking, and `TEXTURE0`–`TEXTURE31` exist. WPT `webgl/`: 86/87.
+**Left undone:** `<img>` from the page's HTML fires `load` only once a script listens for it or reads `complete`/`naturalWidth` (it then loads a second time here); no `loading=lazy` or `srcset` re-selection for script images; canvas tainting by cross-origin images isn't tracked.
 **Files:** the image-loading code (`src/page_images.rs`, `src/images.rs`), `src/prelude.js` (the `Image` factory only)
 An `<img>` created by script (`new Image()`, `document.createElement("img")`) and never added to
 the document never loads: `complete` is undefined and `load`/`error` never fire. three.js's
