@@ -247,6 +247,17 @@ impl EnumBasedValue {
         }
     }
 
+    /// Ironswift: the object without touching its reference count. The caller must not let
+    /// the result outlive `self` (see `JsValue::as_object_ref`).
+    #[inline]
+    pub(crate) fn as_object_borrowed(&self) -> Option<std::mem::ManuallyDrop<JsObject>> {
+        match self {
+            // SAFETY: a bitwise copy wrapped in ManuallyDrop never decrements the count.
+            Self::Object(value) => Some(std::mem::ManuallyDrop::new(unsafe { std::ptr::read(value) })),
+            _ => None,
+        }
+    }
+
     /// Returns the value as a boxed `[JsSymbol]`.
     #[must_use]
     #[inline]

@@ -20,17 +20,26 @@ fn set_by_name(
 ) -> JsResult<()> {
     let value = context.vm.get_register(value.into()).clone();
 
-    let object = value_object.to_object(context)?;
+    // Ironswift: borrow the object instead of cloning it when it already is one.
+    let converted;
+    let object_ref;
+    let object: &crate::JsObject = if let Some(o) = value_object.as_object_ref() {
+        object_ref = o;
+        &object_ref
+    } else {
+        converted = value_object.to_object(context)?;
+        &converted
+    };
 
     let ic = &context.vm.frame().code_block().ic[usize::from(index)];
 
     let object_borrowed = object.borrow();
-    if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
+    if let Some(slot) = ic.get(object_borrowed.shape()) {
         let slot_index = slot.index as usize;
 
         if slot.attributes.is_accessor_descriptor() {
             let result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
-                let prototype = shape.prototype().expect("prototype should have value");
+                let prototype = object_borrowed.shape().prototype().expect("prototype should have value");
                 let prototype = prototype.borrow();
 
                 prototype.properties().storage[slot_index + 1].clone()
@@ -47,7 +56,7 @@ fn set_by_name(
                 )?;
             }
         } else if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
-            let prototype = shape.prototype().expect("prototype should have value");
+            let prototype = object_borrowed.shape().prototype().expect("prototype should have value");
             let mut prototype = prototype.borrow_mut();
 
             prototype.properties_mut().storage[slot_index] = value.clone();

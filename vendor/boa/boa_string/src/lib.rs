@@ -29,7 +29,7 @@ use crate::display::{JsStrDisplayEscaped, JsStrDisplayLossy, JsStringDebugInfo};
 use crate::iter::CodePointsIter;
 use crate::r#type::{Latin1, Utf16};
 pub use crate::vtable::StaticString;
-use crate::vtable::{SequenceString, SliceString};
+use crate::vtable::{RopeString, SequenceString, SliceString};
 #[doc(inline)]
 pub use crate::{
     builder::{CommonJsStringBuilder, Latin1JsStringBuilder, Utf16JsStringBuilder},
@@ -114,6 +114,9 @@ pub(crate) enum JsStringKind {
 
     /// A static string that is valid for `'static` lifetime.
     Static = 3,
+
+    /// Two strings joined lazily (Ironswift). See [`RopeString`].
+    Rope = 4,
 }
 
 /// A Latin1 or UTF-16–encoded, reference counted, immutable string.
@@ -620,6 +623,26 @@ impl JsString {
     #[must_use]
     pub fn as_str(&self) -> JsStr<'_> {
         (self.vtable().as_str)(self.ptr)
+    }
+
+    /// Joins two strings (Ironswift). Long results become a rope that copies the characters
+    /// only when they are first read, so repeated `s += piece` doesn't copy `s` every time.
+    #[inline]
+    #[must_use]
+    pub fn concat_strings(x: &JsString, y: &JsString) -> Self {
+        if y.is_empty() {
+            return x.clone();
+        }
+        if x.is_empty() {
+            return y.clone();
+        }
+        if x.len() + y.len() < vtable::rope::ROPE_MIN_LEN {
+            return Self::concat(x.as_str(), y.as_str());
+        }
+        let rope = Box::new(RopeString::new(x.clone(), y.clone()));
+        Self {
+            ptr: NonNull::from(Box::leak(rope)).cast(),
+        }
     }
 
     /// Creates a new [`JsString`] from the concatenation of `x` and `y`.

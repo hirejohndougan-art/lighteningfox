@@ -662,6 +662,18 @@ impl NanBoxedValue {
         }
     }
 
+    /// Ironswift: the object without touching its reference count. The caller must not let
+    /// the result outlive `self` (see `JsValue::as_object_ref`).
+    #[inline]
+    pub(crate) fn as_object_borrowed(&self) -> Option<ManuallyDrop<JsObject>> {
+        if self.is_object() {
+            // SAFETY: the inner address holds a valid JsObject.
+            Some(unsafe { self.as_object_unchecked() })
+        } else {
+            None
+        }
+    }
+
     /// Returns the value as a boxed [`JsObject`].
     #[must_use]
     #[inline(always)]

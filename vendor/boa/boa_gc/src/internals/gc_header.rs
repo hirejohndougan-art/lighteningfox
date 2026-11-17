@@ -27,6 +27,7 @@ impl GcHeader {
     }
 
     /// Returns the [`GcHeader`]'s current ref count.
+    #[inline]
     pub(crate) fn ref_count(&self) -> u32 {
         self.ref_count.get()
     }
@@ -69,10 +70,12 @@ impl GcHeader {
     }
 
     /// Returns a bool for whether [`GcHeader`]'s mark bit is 1.
+    #[inline]
     pub(crate) fn is_marked(&self) -> bool {
         self.non_root_count.get() & MARK_MASK != 0
     }
 
+    #[inline]
     pub(crate) fn inc_ref_count(&self) {
         // Mark this as `cold` since the ref count will
         // (almost) never overflow.
@@ -95,6 +98,7 @@ impl GcHeader {
         self.ref_count.set(count);
     }
 
+    #[inline]
     pub(crate) fn dec_ref_count(&self) {
         self.ref_count.set(self.ref_count.get() - 1);
     }
@@ -105,6 +109,7 @@ impl GcHeader {
     ///
     /// This only gives valid result if the we have run through the
     /// tracing non roots phase.
+    #[inline]
     pub(crate) fn is_rooted(&self) -> bool {
         self.non_root_count() < self.ref_count()
     }

@@ -42,6 +42,10 @@ type EphemeronPointer = NonNull<dyn ErasedEphemeronBox>;
 type ErasedWeakMapBoxPointer = NonNull<dyn ErasedWeakMapBox>;
 
 thread_local!(static GC_DROPPING: Cell<bool> = const { Cell::new(false) });
+/// Ironswift: how many threads are sweeping right now. Every `Gc` drop asks whether a sweep is
+/// running; reading this global is far cheaper than the thread-local call, so the thread-local
+/// is only consulted while some thread is actually sweeping.
+static SWEEPING_THREADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 thread_local!(static BOA_GC: RefCell<BoaGc> = RefCell::new( BoaGc {
     config: GcConfig::default(),
     runtime: GcRuntimeData::default(),
@@ -64,9 +68,11 @@ struct GcConfig {
 impl Default for GcConfig {
     fn default() -> Self {
         Self {
-            // Start at 1MB, the nursary size for V8 is ~1-8MB and SM can be up to 16MB
-            threshold: 1_048_576,
-            used_space_percentage: 70,
+            // Ironswift: start at 8 MB (V8's young generation is 1-8 MB, SpiderMonkey's up
+            // to 16 MB) and let the heap double between collections (Boa used 1 MB and
+            // ~1.4x), so busy pages collect far less often.
+            threshold: 8 * 1_048_576,
+            used_space_percentage: 50,
         }
     }
 }
@@ -102,6 +108,7 @@ struct DropGuard;
 
 impl DropGuard {
     fn new() -> Self {
+        SWEEPING_THREADS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         GC_DROPPING.with(|dropping| dropping.set(true));
         Self
     }
@@ -110,6 +117,7 @@ impl DropGuard {
 impl Drop for DropGuard {
     fn drop(&mut self) {
         GC_DROPPING.with(|dropping| dropping.set(false));
+        SWEEPING_THREADS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -117,7 +125,9 @@ impl Drop for DropGuard {
 #[must_use]
 #[inline]
 pub fn finalizer_safe() -> bool {
-    GC_DROPPING.with(|dropping| !dropping.get())
+    // A thread always sees its own increment, so a zero here means this thread isn't sweeping.
+    SWEEPING_THREADS.load(std::sync::atomic::Ordering::Relaxed) == 0
+        || GC_DROPPING.with(|dropping| !dropping.get())
 }
 
 /// The Allocator handles allocation of garbage collected values.

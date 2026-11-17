@@ -93,6 +93,12 @@ impl<K: Trace + ?Sized, V: Trace> Ephemeron<K, V> {
         std::ptr::addr_eq(this.inner(), other.inner())
     }
 
+    /// Like `inner_ptr`, without the finalizer check (hot paths outside collection).
+    #[inline]
+    pub(crate) fn inner_ptr_unchecked(&self) -> NonNull<EphemeronBox<K, V>> {
+        self.inner_ptr
+    }
+
     pub(crate) fn inner_ptr(&self) -> NonNull<EphemeronBox<K, V>> {
         assert!(finalizer_safe());
         self.inner_ptr

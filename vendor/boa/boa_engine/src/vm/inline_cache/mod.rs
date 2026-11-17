@@ -20,6 +20,9 @@ pub(crate) const PIC_CAPACITY: usize = 4;
 pub(crate) struct CacheEntry {
     /// A weak reference is kept to the shape to avoid the shape preventing deallocation.
     pub(crate) shape: WeakShape,
+    /// Ironswift: the shape's address when cached, so a miss needs no pointer chasing.
+    #[unsafe_ignore_trace]
+    pub(crate) addr: usize,
     #[unsafe_ignore_trace]
     pub(crate) slot: Slot,
 }
@@ -68,11 +71,16 @@ impl InlineCache {
         }
 
         let mut entries = self.entries.borrow_mut();
+        // Ironswift: misses no longer remove collected shapes, so do it before giving up.
+        if entries.is_full() {
+            entries.retain(|e| e.shape.upgrade().is_some());
+        }
 
         // Add a new entry if there's space.
         if entries
             .try_push(CacheEntry {
                 shape: shape.into(),
+                addr: shape.to_addr_usize(),
                 slot,
             })
             .is_err()
@@ -83,32 +91,24 @@ impl InlineCache {
         }
     }
 
-    /// Returns the cached `(Shape, Slot)` if a matching shape exists in the inline cache.
-    ///
-    /// Opportunistically cleans up stale weak shape references during lookup.
-    pub(crate) fn get(&self, shape: &Shape) -> Option<(Shape, Slot)> {
+    /// Looks up `shape` in the cache. Ironswift: compares the cached weak shapes with `shape`
+    /// directly instead of upgrading each one (which cost two reference count changes per
+    /// entry), and returns only the slot; the caller already holds the shape.
+    pub(crate) fn get(&self, shape: &Shape) -> Option<Slot> {
         if self.megamorphic.get() {
             return None;
         }
 
-        let mut entries = self.entries.borrow_mut();
-        let mut i = 0;
-        let mut result = None;
-        let shape_addr = shape.to_addr_usize();
-
-        while i < entries.len() {
-            if let Some(upgraded) = entries[i].shape.upgrade() {
-                if upgraded.to_addr_usize() == shape_addr {
-                    result = Some((upgraded, entries[i].slot));
-                    break;
-                }
-                i += 1;
-            } else {
-                // Opportunistically clean up stale weak shapes.
-                entries.swap_remove(i);
-            }
+        let addr = shape.to_addr_usize();
+        let entries = self.entries.borrow();
+        let found = entries.iter().position(|e| e.addr == addr)?;
+        // Same address: check it is still the same shape and not a new one that reused the
+        // memory of a collected one.
+        if entries[found].shape.points_to(shape) == Some(true) {
+            return Some(entries[found].slot);
         }
-
-        result
+        drop(entries);
+        self.entries.borrow_mut().swap_remove(found);
+        None
     }
 }

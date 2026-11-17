@@ -12,8 +12,6 @@ Measure every change with the V8 benchmark suite (see `docs/boa-speed.md`):
 
 ## Changes
 
-(Each change: what, why, and the before/after score.)
-
 ### boa_ast: hash index for scope bindings
 
 `src/scope.rs`: scopes with 12 or more bindings keep a hash index from name to binding (marked
@@ -52,3 +50,37 @@ On top of the scope index above (ms, best of 9, parse / compile):
 | react-dom 18 | 51.5 / 13.8 | 38.5 / 10.1 |
 
 Instructions to load react-dom (valgrind): 510 M stock → 269 M. V8 suite unchanged (within noise).
+
+### Runtime speed (batch M)
+
+Instruction counts below come from valgrind (`--tool=callgrind`) on a fixed amount of work per
+benchmark; wall-clock times on the shared build machine vary by ±15%, too much to judge small
+changes.
+
+1. **Garbage collector (`boa_gc/src/lib.rs`).** Start collecting at 8 MB instead of 1 MB and let
+   the heap double between collections instead of growing by ~1.4×. Fewer collections on busy
+   pages, at the cost of a little more memory.
+2. **Inline caches (`boa_engine/src/vm/inline_cache`, `object/shape`).** Each cache entry keeps
+   the shape's address; a lookup compares addresses and only checks that the weak shape is
+   still alive on a match. Before, every lookup upgraded every cached weak shape to a strong
+   one (two reference-count updates each) and returned a cloned shape.
+3. **Borrowed objects in property access (`value/mod.rs`, `vm/opcode/get|set/property.rs`).**
+   `JsValue::as_object_ref` borrows the object inside a value instead of cloning it, used on
+   the `obj.name` get/set paths.
+4. **Inlining across crates (`boa_gc`).** Reference-count and borrow-flag helpers are marked
+   `#[inline]` so `boa_engine` doesn't call into `boa_gc` for every object borrow and clone.
+   The "is a sweep running" check on every `Gc` drop reads a global counter first and only
+   asks the thread-local while some thread is actually sweeping.
+5. **Rope strings (`boa_string/src/vtable/rope.rs`).** `a + b` with a result of 128+ code
+   units links the two strings instead of copying; the characters are joined on first read.
+   Building a 2 MB string with 200,000 `+=` went from 80 s to 1.4 s. Flattening and dropping
+   use an explicit stack, so million-deep ropes are fine.
+
+Changes 1–4 together, instructions per benchmark vs Boa 0.22.0: Richards −9%, DeltaBlue −7%,
+RayTrace −6%, Splay −8%, EarleyBoyer −8%, RegExp −1%, NavierStokes +1%, Crypto +1%.
+
+## Testing changes
+
+Boa's own tests need its workspace: clone `boa-dev/boa` at tag `v0.22`, copy a changed crate's
+`src/` over `core/<crate>/src`, and run `cargo test --release -p boa_engine --lib` there.
+`tools/test262.sh` runs the official conformance suite.

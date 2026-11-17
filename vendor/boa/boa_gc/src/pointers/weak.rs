@@ -29,6 +29,16 @@ impl<T: Trace + ?Sized> WeakGc<T> {
         self.inner.key()
     }
 
+    /// Ironswift: checks whether this weak pointer points at `other` without upgrading it (no
+    /// reference count changes). Returns `None` if the target was already collected.
+    #[inline]
+    #[must_use]
+    pub fn points_to(&self, other: &Gc<T>) -> Option<bool> {
+        // SAFETY: the ephemeron box is alive while `self` is; a collected key reads as `None`.
+        let key = unsafe { self.inner.inner_ptr_unchecked().as_ref().key_ptr() }?;
+        Some(std::ptr::addr_eq(key.as_ptr(), other.inner_ptr_unchecked().as_ptr()))
+    }
+
     /// Check if the [`WeakGc`] can be upgraded.
     #[inline]
     #[must_use]

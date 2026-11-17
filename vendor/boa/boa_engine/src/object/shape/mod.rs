@@ -258,6 +258,18 @@ impl WeakShape {
             WeakShape::Unique(shape) => Some(shape.upgrade()?.into()),
         }
     }
+
+    /// Ironswift: whether this points at `shape`, without upgrading it. `None` if the shape
+    /// was already collected.
+    #[inline]
+    pub(crate) fn points_to(&self, shape: &Shape) -> Option<bool> {
+        match (self, &shape.inner) {
+            (WeakShape::Shared(w), Inner::Shared(s)) => w.points_to(s),
+            (WeakShape::Unique(w), Inner::Unique(s)) => w.points_to(s),
+            (WeakShape::Shared(w), _) => w.upgrade().map(|_| false),
+            (WeakShape::Unique(w), _) => w.upgrade().map(|_| false),
+        }
+    }
 }
 
 impl From<&Shape> for WeakShape {

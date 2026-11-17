@@ -489,6 +489,12 @@ impl WeakSharedShape {
             inner: self.inner.upgrade()?,
         })
     }
+
+    /// Ironswift: whether this points at `shape`, without upgrading (`None` if collected).
+    #[inline]
+    pub(crate) fn points_to(&self, shape: &SharedShape) -> Option<bool> {
+        self.inner.points_to(&shape.inner)
+    }
 }
 
 impl From<&SharedShape> for WeakSharedShape {

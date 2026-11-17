@@ -74,6 +74,7 @@ impl BorrowFlag {
     ///
     /// # Panic
     ///  - This method will panic if the current `BorrowState` is not reading.
+    #[inline]
     fn sub_reading(self) -> Self {
         assert_eq!(self.borrowed(), BorrowState::Reading);
         Self(self.0 - 1)
@@ -260,6 +261,7 @@ struct BorrowGcRef<'a> {
 }
 
 impl Drop for BorrowGcRef<'_> {
+    #[inline]
     fn drop(&mut self) {
         debug_assert_eq!(self.borrow.get().borrowed(), BorrowState::Reading);
         self.borrow.set(self.borrow.get().sub_reading());
@@ -410,6 +412,7 @@ struct BorrowGcRefMut<'a> {
 }
 
 impl Drop for BorrowGcRefMut<'_> {
+    #[inline]
     fn drop(&mut self) {
         debug_assert_eq!(self.borrow.get().borrowed(), BorrowState::Writing);
         self.borrow.set(BorrowFlag(UNUSED));

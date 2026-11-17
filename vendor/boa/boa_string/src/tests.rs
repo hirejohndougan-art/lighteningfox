@@ -565,3 +565,41 @@ fn starts_with_and_ends_with_basic() {
     assert!(!basic.starts_with(end_needle));
     assert!(basic.ends_with(end_needle));
 }
+
+// Ironswift: rope strings.
+#[test]
+fn rope_concat_and_flatten() {
+    let a = JsString::from("a".repeat(100).as_str());
+    let b = JsString::from("b".repeat(100).as_str());
+    let r = JsString::concat_strings(&a, &b);
+    assert_eq!(r.kind(), JsStringKind::Rope);
+    assert_eq!(r.len(), 200);
+    assert_eq!(r, JsString::from(format!("{}{}", "a".repeat(100), "b".repeat(100)).as_str()));
+    // Short results are copied, empty sides are reused.
+    let short = JsString::concat_strings(&JsString::from("x"), &JsString::from("y"));
+    assert_ne!(short.kind(), JsStringKind::Rope);
+    assert_eq!(JsString::concat_strings(&a, &JsString::default()).kind(), a.kind());
+    // A slice of a rope stays valid after the rope is dropped.
+    let s = r.slice(95, 105);
+    drop(r);
+    assert_eq!(s, JsString::from("aaaaabbbbb"));
+}
+
+#[test]
+fn rope_deep_and_utf16() {
+    let piece = JsString::from("ab");
+    let mut s = JsString::from("é".repeat(100).as_str());
+    for _ in 0..200_000 {
+        s = JsString::concat_strings(&s, &piece);
+    }
+    assert_eq!(s.len(), 100 + 400_000);
+    assert_eq!(s.code_unit_at(100), Some(u16::from(b'a')));
+    // Deep unread rope: dropping must not overflow the stack.
+    let mut t = JsString::from("z".repeat(200).as_str());
+    for _ in 0..200_000 {
+        t = JsString::concat_strings(&t, &piece);
+    }
+    drop(t);
+    let u = JsString::concat_strings(&JsString::from("ü".repeat(70).as_str()), &JsString::from("€".repeat(70).as_str()));
+    assert_eq!(u.to_std_string_escaped(), format!("{}{}", "ü".repeat(70), "€".repeat(70)));
+}

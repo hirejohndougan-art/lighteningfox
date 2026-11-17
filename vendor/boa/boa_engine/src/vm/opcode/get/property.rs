@@ -12,7 +12,7 @@ fn get_by_name<const LENGTH: bool>(
     context: &mut Context,
 ) -> JsResult<()> {
     if LENGTH {
-        if let Some(object) = object.as_object()
+        if let Some(object) = object.as_object_ref()
             && object.is_array()
         {
             let value = object.borrow().properties().storage[0].clone();
@@ -35,13 +35,22 @@ fn get_by_name<const LENGTH: bool>(
     //
     //    To prevent the creation of a temporary JsObject, we directly retrieve the prototype that
     //    `to_object()` would produce, such as `Number.prototype`, `String.prototype`, etc.
-    let object = object.base_class(context)?;
+    // Ironswift: borrow the object instead of cloning it (two reference count updates).
+    let base;
+    let object_ref;
+    let object: &crate::JsObject = if let Some(o) = object.as_object_ref() {
+        object_ref = o;
+        &object_ref
+    } else {
+        base = object.base_class(context)?;
+        &base
+    };
 
     let ic = &context.vm.frame().code_block().ic[usize::from(index)];
     let object_borrowed = object.borrow();
-    if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
+    if let Some(slot) = ic.get(object_borrowed.shape()) {
         let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
-            let prototype = shape.prototype().expect("prototype should have value");
+            let prototype = object_borrowed.shape().prototype().expect("prototype should have value");
             let prototype = prototype.borrow();
             prototype.properties().storage[slot.index as usize].clone()
         } else {

@@ -323,6 +323,14 @@ impl JsValue {
         self.0.as_object()
     }
 
+    /// Ironswift: like [`JsValue::as_object`] but borrows the object instead of cloning it,
+    /// which saves two reference count updates on hot paths.
+    #[inline]
+    #[must_use]
+    pub(crate) fn as_object_ref(&self) -> Option<JsObjectRef<'_>> {
+        self.0.as_object_borrowed().map(|obj| JsObjectRef { obj, _value: std::marker::PhantomData })
+    }
+
     /// Consumes the value and return the inner object if it was an object.
     ///
     /// # Examples
@@ -1743,5 +1751,20 @@ impl From<Numeric> for JsValue {
             Numeric::Number(number) => Self::new(number),
             Numeric::BigInt(bigint) => Self::new(bigint),
         }
+    }
+}
+
+/// A borrowed [`JsObject`] inside a [`JsValue`] (Ironswift). Derefs to `&JsObject`; clone it to
+/// keep it longer than the value.
+pub(crate) struct JsObjectRef<'a> {
+    obj: std::mem::ManuallyDrop<JsObject>,
+    _value: std::marker::PhantomData<&'a JsValue>,
+}
+
+impl std::ops::Deref for JsObjectRef<'_> {
+    type Target = JsObject;
+    #[inline]
+    fn deref(&self) -> &JsObject {
+        &self.obj
     }
 }

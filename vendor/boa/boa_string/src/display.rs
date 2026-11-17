@@ -103,7 +103,7 @@ impl fmt::Debug for JsStringDebugInfo<'_> {
                 dbg.borrow_mut()
                     .field("original", &slice.owned().debug_info());
             }
-            JsStringKind::Static => {}
+            JsStringKind::Static | JsStringKind::Rope => {}
         }
 
         dbg.borrow_mut().finish()

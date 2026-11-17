@@ -256,6 +256,12 @@ impl WeakUniqueShape {
             inner: self.inner.upgrade()?,
         })
     }
+
+    /// Ironswift: whether this points at `shape`, without upgrading (`None` if collected).
+    #[inline]
+    pub(crate) fn points_to(&self, shape: &UniqueShape) -> Option<bool> {
+        self.inner.points_to(&shape.inner)
+    }
 }
 
 impl From<&UniqueShape> for WeakUniqueShape {

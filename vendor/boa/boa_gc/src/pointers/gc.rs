@@ -304,6 +304,12 @@ impl<T: Trace + ?Sized> Gc<T> {
         unsafe { self.inner_ptr.as_ref() }.vtable
     }
 
+    /// Like `inner_ptr`, without the finalizer check (hot paths outside collection).
+    #[inline]
+    pub(crate) fn inner_ptr_unchecked(&self) -> NonNull<GcBox<T>> {
+        self.inner_ptr
+    }
+
     #[inline(always)]
     #[allow(clippy::inline_always)]
     pub(crate) fn inner_ptr(&self) -> NonNull<GcBox<T>> {

@@ -9,6 +9,9 @@ pub(crate) use sequence::SequenceString;
 pub(crate) mod slice;
 pub(crate) use slice::SliceString;
 
+pub(crate) mod rope;
+pub(crate) use rope::RopeString;
+
 pub(crate) mod r#static;
 pub use r#static::StaticString;
 
