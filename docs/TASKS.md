@@ -121,9 +121,11 @@ CSSOM sheets and Annex B now work. BBC, NYT, The Guardian, Bing and WordPress.or
 X1a–X1e; this task keeps AP News (it now panics in a sort, see `x1-data2`) and MDN.
 
 ### X1a. Make BBC News render like Chrome
-**Status:** claimed by chat-opus-x1a 2026-11-17 13:01
+**Status:** done
 **After:** —
 **Checklist:** §21 "BBC News renders like Chrome" (required fix-up)
+**Done:** the replay (recording `rec-x1a`) matches Chrome's first screenful with no script errors: React hydration no longer throws (settable `defaultValue`, Navigation Timing names in `performance.measure`), the menus show (out-of-flow boxes don't widen shrink-to-fit boxes), numeric font weights pick the right web-font face (Reith 500), letter-spaced titles don't wrap, `fr` rows of auto-height grids hold their items, grid `align-content` works and grid items' percentage heights use their grid area. Tests: `tests/sites/bbc-startup.html`, `abs-shrink.html`, `letter-spacing-shrink.html`, `grid-fr-rows.html`, `grid-align-content.html`, `tests/font-weights.html`. WPT css-flexbox ref 291 -> 294/894, CSS2/floats ref 19 -> 21/78.
+**Left undone:** the consent pop-up (a third-party iframe from cdn.privacy-mgmt.com) doesn't show; in a local replay on a 2-core machine the lazy images below the first screen stay grey because React finishes hydrating after the snapshot (they load in the GitHub recording); `align-content` is done for grid rows only (not multi-line flex containers).
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
 Split out of X1. Recording: folder `www-bbc-com-news` in branch `x1-data2` (URL `https://www.bbc.com/news`). Follow
 `docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
