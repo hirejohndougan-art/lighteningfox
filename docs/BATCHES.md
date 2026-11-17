@@ -147,7 +147,7 @@ would need a from-source build with vendored crates.
 - §16 Windows and macOS builds
 
 ## K. CSS (§4)
-**Status:** claimed by the earlier section 4 chat (2026-11-17) — set back to `free` if that chat is not working on it
+**Status:** claimed by css-chat 2026-11-17 02:40 (the old section 4 chat switched to batch A work and finished)
 **Start after:** —
 **Main files:** `src/css.rs`, `src/style.rs`, `src/grid.rs` (grid extras)
 
