@@ -59,3 +59,15 @@ pub mod cookies {
         None
     }
 }
+
+/// dom.rs keeps per-document form state; the parsers don't need any.
+pub mod validation {
+    #[derive(Debug, Clone, Default)]
+    pub struct FormState;
+}
+
+pub mod platform {
+    pub fn path_from_url(path: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(path)
+    }
+}

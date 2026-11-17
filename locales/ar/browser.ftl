@@ -170,3 +170,10 @@ settings-permissions-reset = أُعيد ضبط أذونات { $site }.
 
 ## Find bar label
 find-label = بحث
+
+## The content-blocking shield in the toolbar
+shield-blocked = حُظر { $count } طلبًا في هذه الصفحة
+shield-off = الحظر متوقف في { $site }
+shield-turn-off = إيقاف الحظر في { $site }
+shield-turn-on = إعادة تشغيل الحظر في { $site }
+shield-settings = إعدادات الحظر…

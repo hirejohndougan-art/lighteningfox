@@ -663,3 +663,48 @@ fn shrink_to_fit_counts_inner_padding() {
     assert_eq!(text_of("out"), "true;true;true");
 }
 
+
+/// More scriptlets, including the trusted ones uBlock Origin's own lists use.
+#[test]
+fn content_blocking_more_scriptlets() {
+    let _serial = serial();
+    let mut page = open("tests/content-blocking.html");
+    let call = |parts: &[&str]| parts.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let calls = vec![
+        call(&["trusted-set-constant", "cfg.ads", "{\"on\":false}"]),
+        call(&["href-sanitizer", "a.out", "text"]),
+        call(&["spoof-css", ".adsbox", "display", "block", "height", "90px"]),
+        call(&["prevent-innerHTML", "", "/adblock/i"]),
+        call(&["trusted-replace-outbound-text", "getMsg", "/blocker/", "friend"]),
+        call(&["trusted-replace-argument", "report", "0", "\"clean\""]),
+        call(&["trusted-suppress-native-method", "console.warn", "/AdBlock/"]),
+    ];
+    let code = crate::blocklist::code_for(&calls, &[]);
+    eval(&mut page, "window.getMsg = function () { return 'hello blocker'; }; window.report = function (x) { window.reported = x; };");
+    let r = eval(&mut page, &code);
+    assert!(!r.starts_with("error"), "{r}");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_millis(300));
+    }
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            window.cfg = { ads: { on: true } };
+            out.push(String(cfg.ads.on));
+            out.push(document.getElementById("l1").getAttribute("href"));
+            const b = document.getElementById("bait1");
+            b.style.display = "none";
+            out.push(getComputedStyle(b).display, getComputedStyle(b).getPropertyValue("height"));
+            const d = document.createElement("div");
+            d.innerHTML = "<b>AdBlock detected</b>";
+            out.push(String(d.childNodes.length));
+            out.push(getMsg());
+            report("dirty");
+            out.push(window.reported);
+            out.push(String(console.warn("AdBlock found")));
+            return out.join("|");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "false|https://bayou.example/story|block|90px|0|hello friend|clean|undefined");
+}

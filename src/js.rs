@@ -477,6 +477,8 @@ fn run_inserted_inline(id: NodeId, ctx: &mut Context) {
     if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &code, nonce.as_deref())) {
         return;
     }
+    // Filter lists may drop the script or edit it first (`##^script:has-text`, `rpnt`).
+    let Some(code) = crate::blocklist::filter_inline_script(&page_url(ctx), &code) else { return };
     let prev = CURRENT_SCRIPT.with(|c| c.replace(id as i64));
     let _ = ctx.global_object().set(js_string!("__currentScript"), JsValue::from(id as f64), false, ctx);
     if let Err(e) = ctx.eval(Source::from_bytes(code.as_bytes())) {
@@ -1704,6 +1706,8 @@ impl Js {
                 if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &inline, nonce.as_deref())) {
                     return false;
                 }
+                // Filter lists may drop the script or edit it first (`##^script:has-text`, `rpnt`).
+                let Some(inline) = crate::blocklist::filter_inline_script(&page_url(&self.ctx), &inline) else { return true };
                 (inline, format!("inline script #{id}"))
             }
         };

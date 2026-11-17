@@ -168,3 +168,10 @@ settings-permissions-reset = ההרשאות של { $site } אופסו.
 
 ## Find bar label
 find-label = חיפוש
+
+## The content-blocking shield in the toolbar
+shield-blocked = { $count } בקשות נחסמו בדף זה
+shield-off = החסימה כבויה ב-{ $site }
+shield-turn-off = כיבוי החסימה ב-{ $site }
+shield-turn-on = הפעלת החסימה מחדש ב-{ $site }
+shield-settings = הגדרות חסימה…

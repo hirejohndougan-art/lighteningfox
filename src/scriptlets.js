@@ -3,7 +3,9 @@
 // ad scripts that a request filter can't reach. Written for Ironswift (MIT). The names and
 // arguments follow the scriptlets uBlock Origin's filter lists use, so those lists work here.
 //
-// This is the body of `function(calls) {…}`; `calls` is a list of [name, arg, …].
+// This is the body of `function(calls) {…}`; `calls` is a list of [name, arg, …]. A page gets
+// the shared helpers and only the `def(…)` blocks its calls name (each block starts with a line
+// `def('name alias…', …` and ends with a line `});`).
 'use strict';
 var win = window;
 var doc = document;
@@ -404,7 +406,8 @@ def('no-fetch-if prevent-fetch', function(spec, body) {
   });
 });
 
-def('no-xhr-if prevent-xhr', function(spec, body) {
+// Answer matching XMLHttpRequests with `text` instead of sending them.
+function preventXhr(spec, text) {
   var XHR = win.XMLHttpRequest;
   if (typeof XHR !== 'function') return;
   var open = XHR.prototype.open, send = XHR.prototype.send;
@@ -417,7 +420,6 @@ def('no-xhr-if prevent-xhr', function(spec, body) {
   XHR.prototype.send = function() {
     if (!hits.has(this)) return safe.apply(send, this, arguments);
     var xhr = this;
-    var text = body === 'emptyObj' ? '{}' : body === 'emptyArr' ? '[]' : '';
     var set = function(k, v) { try { safe.defineProperty(xhr, k, { value: v, configurable: true }); } catch (e) {} };
     set('readyState', 4);
     set('status', 200);
@@ -432,6 +434,10 @@ def('no-xhr-if prevent-xhr', function(spec, body) {
       });
     }, 1);
   };
+}
+
+def('no-xhr-if prevent-xhr', function(spec, body) {
+  preventXhr(spec, body === 'emptyObj' ? '{}' : body === 'emptyArr' ? '[]' : '');
 });
 
 // ---------------------------------------------------------------- JSON
@@ -631,6 +637,379 @@ function storageItem(which, key, value) {
 }
 def('set-local-storage-item', function(key, value) { storageItem('localStorage', key, value); });
 def('set-session-storage-item', function(key, value) { storageItem('sessionStorage', key, value); });
+
+// ---------------------------------------------------------------- response rewriting
+
+// Wrap fetch() so matching responses' text goes through `edit` (text -> text).
+function editFetch(spec, edit) {
+  var orig = win.fetch;
+  if (typeof orig !== 'function') return;
+  win.fetch = new safe.Proxy(orig, {
+    apply: function(target, self, args) {
+      var r = args[0];
+      var url = typeof r === 'string' ? r : (r && r.url) || String(r);
+      var p = safe.apply(target, self, args);
+      if (!matchProps(spec, { url: url })) return p;
+      return p.then(function(resp) {
+        return resp.clone().text().then(function(text) {
+          var out = edit(text, url);
+          if (out === text) return resp;
+          return new Response(out, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
+        }, function() { return resp; });
+      });
+    },
+  });
+}
+
+// Make XMLHttpRequest's response text go through `edit` for matching requests.
+function editXhr(spec, edit) {
+  var XHR = win.XMLHttpRequest;
+  if (typeof XHR !== 'function') return;
+  var open = XHR.prototype.open;
+  var urls = new WeakMap();
+  XHR.prototype.open = function(method, url) { urls.set(this, String(url)); return safe.apply(open, this, arguments); };
+  var desc = safe.getOwnPropertyDescriptor(XHR.prototype, 'responseText');
+  var rdesc = safe.getOwnPropertyDescriptor(XHR.prototype, 'response');
+  var cache = new WeakMap();
+  var fix = function(xhr, v) {
+    if (typeof v !== 'string' || !urls.has(xhr) || !matchProps(spec, { url: urls.get(xhr) })) return v;
+    var c = cache.get(xhr);
+    if (c && c[0] === v) return c[1];
+    var out = edit(v, urls.get(xhr));
+    cache.set(xhr, [v, out]);
+    return out;
+  };
+  if (desc && desc.get) safe.defineProperty(XHR.prototype, 'responseText', { configurable: true, get: function() { return fix(this, desc.get.call(this)); } });
+  if (rdesc && rdesc.get) safe.defineProperty(XHR.prototype, 'response', { configurable: true, get: function() { return fix(this, rdesc.get.call(this)); } });
+}
+
+function replacer(find, replacement) {
+  var m = /^\/(.+)\/([gimsu]*)$/.exec(find || '');
+  var re;
+  if (m) { try { re = new safe.RegExp(m[1], m[2]); } catch (e) { return null; } }
+  else if (find) re = find;
+  else return null;
+  var rep = replacement === undefined ? '' : String(replacement);
+  return function(text) { return String(text).replace(re, rep); };
+}
+
+// HLS playlists: drop the ad segments (lines matching, with the #EXTINF line before each).
+def('m3u-prune', function(needle, urlPattern) {
+  var p = pattern(needle);
+  if (p.empty) return;
+  var edit = function(text) {
+    if (!/^\s*#EXTM3U/.test(text)) return text;
+    var lines = text.split(/\r?\n/);
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (p.test(lines[i])) {
+        if (out.length && /^#EXTINF/.test(out[out.length - 1])) out.pop();
+        continue;
+      }
+      out.push(lines[i]);
+    }
+    return out.join('\n');
+  };
+  editFetch(urlPattern, edit);
+  editXhr(urlPattern, edit);
+});
+
+// VAST/XML ads: remove the elements a CSS selector (or simple XPath) names from XML answers.
+def('xml-prune', function(selector, needle, urlPattern) {
+  if (!selector || typeof win.DOMParser !== 'function') return;
+  var need = pattern(needle);
+  var edit = function(text) {
+    if (!/^\s*</.test(text) || !need.test(text)) return text;
+    try {
+      var d = new win.DOMParser().parseFromString(text, 'text/xml');
+      var els = [];
+      if (selector.indexOf('xpath(') === 0 && typeof d.evaluate === 'function') {
+        var r = d.evaluate(selector.slice(6, -1), d, null, 7, null);
+        for (var k = 0; k < r.snapshotLength; k++) els.push(r.snapshotItem(k));
+      } else els = toArray(d.querySelectorAll(selector));
+      if (els.length === 0) return text;
+      els.forEach(function(e) { if (e.parentNode) e.parentNode.removeChild(e); });
+      return new win.XMLSerializer().serializeToString(d);
+    } catch (e) { return text; }
+  };
+  editFetch(urlPattern, edit);
+  editXhr(urlPattern, edit);
+});
+function toArray(l) { return Array.prototype.slice.call(l || []); }
+
+// Links that go through a tracker: point them at their real destination.
+def('href-sanitizer', function(selector, source) {
+  if (!selector) return;
+  source = source || 'text';
+  var real = function(a) {
+    if (source === 'text') return (a.textContent || '').trim();
+    if (source.charAt(0) === '?') {
+      try { return new URL(a.href).searchParams.get(source.slice(1)) || ''; } catch (e) { return ''; }
+    }
+    if (source.charAt(0) === '[' && source.charAt(source.length - 1) === ']') return a.getAttribute(source.slice(1, -1)) || '';
+    return '';
+  };
+  watchDom(function() {
+    var els = doc.querySelectorAll(selector);
+    for (var i = 0; i < els.length; i++) {
+      var a = els[i], v = real(a);
+      if (/^https?:\/\//.test(v) && a.getAttribute('href') !== v) a.setAttribute('href', v);
+    }
+  }, ['href']);
+});
+
+// Tell scripts that read the computed style of an element what they expect to see (anti-adblock
+// checks look at the bait element's display or height).
+def('spoof-css', function(selector) {
+  if (!selector || typeof win.getComputedStyle !== 'function') return;
+  var spoof = {};
+  for (var i = 1; i + 1 < arguments.length; i += 2) spoof[String(arguments[i]).replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); })] = arguments[i + 1];
+  var dash = function(k) { return k.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); }); };
+  win.getComputedStyle = new safe.Proxy(win.getComputedStyle, {
+    apply: function(target, self, args) {
+      var cs = safe.apply(target, self, args);
+      var el = args[0];
+      var hit = false;
+      try { hit = el && el.matches && el.matches(selector); } catch (e) {}
+      if (!hit) return cs;
+      return new safe.Proxy(cs, {
+        get: function(t, prop) {
+          if (prop === 'getPropertyValue') return function(name) { var k = String(name).replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); }); return k in spoof ? spoof[k] : t.getPropertyValue(name); };
+          if (typeof prop === 'string' && prop in spoof) return spoof[prop];
+          var v = t[prop];
+          return typeof v === 'function' ? v.bind(t) : v;
+        },
+      });
+    },
+  });
+  var gbcr = win.Element && win.Element.prototype.getBoundingClientRect;
+  if (typeof gbcr === 'function' && ('height' in spoof || 'width' in spoof)) {
+    win.Element.prototype.getBoundingClientRect = function() {
+      var r = gbcr.call(this);
+      var hit = false;
+      try { hit = this.matches(selector); } catch (e) {}
+      if (!hit) return r;
+      var w = 'width' in spoof ? parseFloat(spoof.width) : r.width, h = 'height' in spoof ? parseFloat(spoof.height) : r.height;
+      return { x: r.x, y: r.y, top: r.top, left: r.left, width: w, height: h, right: r.left + w, bottom: r.top + h, toJSON: function() { return this; } };
+    };
+  }
+  void dash;
+});
+
+def('prevent-innerHTML', function(selector, needle) {
+  var p = pattern(needle);
+  var proto = win.Element && win.Element.prototype;
+  var d = proto && safe.getOwnPropertyDescriptor(proto, 'innerHTML');
+  if (!d || !d.set) return;
+  safe.defineProperty(proto, 'innerHTML', {
+    configurable: true,
+    get: d.get,
+    set: function(v) {
+      var hit = true;
+      if (selector) { try { hit = this.matches(selector); } catch (e) { hit = false; } }
+      if (hit && p.test(v)) return;
+      d.set.call(this, v);
+    },
+  });
+});
+
+// ---------------------------------------------------------------- trusted scriptlets
+// Only uBlock Origin's own lists and your own rules may use these (checked before they get here).
+
+// Any JSON value (or the usual constants).
+function anyValue(v) {
+  var c = constant(v);
+  if (c) return c;
+  try { return { v: safe.JSON_parse(v) }; } catch (e) {}
+  return { v: v };
+}
+
+def('trusted-set-constant trusted-set', function(chain, value) {
+  if (!chain) return;
+  var v = anyValue(value).v;
+  trapChain(chain, function(owner, prop) {
+    var d = safe.getOwnPropertyDescriptor(owner, prop);
+    if (d && d.configurable === false) return null;
+    return { configurable: false, enumerable: true, get: function() { return v; }, set: function() {} };
+  });
+});
+
+def('trusted-replace-fetch-response trusted-rpfr', function(find, replacement, spec) {
+  var f = replacer(find, replacement);
+  if (f) editFetch(spec, f);
+});
+def('trusted-replace-xhr-response', function(find, replacement, spec) {
+  var f = replacer(find, replacement);
+  if (f) editXhr(spec, f);
+});
+
+// Text nodes (and scripts added later) whose text matches; inline scripts are edited by the
+// browser itself before they run.
+def('trusted-replace-node-text trusted-rpnt replace-node-text rpnt', function(nodeName, find, replacement) {
+  var n = pattern(nodeName);
+  var f = replacer(find, replacement);
+  if (!f) return;
+  var opts = extra(arguments, 3);
+  var cond = pattern(opts.condition);
+  watchDom(function() {
+    var els = doc.querySelectorAll('*');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var name = el.nodeName.toLowerCase();
+      if (name === 'script' || !n.test(name) || el.childElementCount !== 0) continue;
+      var t = el.textContent;
+      if (!cond.test(t)) continue;
+      var nt = f(t);
+      if (nt !== t) el.textContent = nt;
+    }
+  });
+});
+
+def('trusted-set-cookie', function(name, value, offset, path) {
+  if (!name) return;
+  var v = String(value === undefined ? '' : value).replace('$now$', String(Date.now())).replace('$currentDate$', new Date().toUTCString());
+  var c = encodeURIComponent(name) + '=' + encodeURIComponent(v);
+  var secs = Number(offset);
+  if (secs > 0) c += '; expires=' + new Date(Date.now() + secs * 1000).toUTCString();
+  c += '; path=' + (path && path !== 'none' ? path : '/');
+  try { doc.cookie = c; } catch (e) {}
+});
+
+function trustedStorage(which, key, value) {
+  if (!key) return;
+  try {
+    if (value === '$remove$') win[which].removeItem(key);
+    else win[which].setItem(key, String(value === undefined ? '' : value).replace('$now$', String(Date.now())));
+  } catch (e) {}
+}
+def('trusted-set-local-storage-item', function(key, value) { trustedStorage('localStorage', key, value); });
+def('trusted-set-session-storage-item', function(key, value) { trustedStorage('sessionStorage', key, value); });
+
+// Click elements as they appear, in order (cookie consent "reject" buttons).
+def('trusted-click-element', function(selectors, extraMatch, delay) {
+  if (!selectors) return;
+  var list = String(selectors).split(/\s*,\s*/).filter(Boolean);
+  var wait = Math.max(0, Math.min(10000, Number(delay) || 0));
+  var start = Date.now();
+  var next = 0;
+  var tick = function() {
+    if (next >= list.length || Date.now() - start > 10000) return true;
+    var el = null;
+    try { el = doc.querySelector(list[next]); } catch (e) { next = list.length; return true; }
+    if (!el) return false;
+    try { el.click(); } catch (e) {}
+    next++;
+    return next >= list.length;
+  };
+  onReady(function() {
+    safe.setTimeout.call(win, function poll() {
+      if (!tick()) safe.setTimeout.call(win, poll, 200);
+    }, wait);
+  });
+  void extraMatch;
+});
+
+// Change an argument a function is called with.
+def('trusted-replace-argument', function(path, argpos, argval) {
+  if (!path) return;
+  var parts = path.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  if (!owner || typeof owner[prop] !== 'function') return;
+  var pos = Number(argpos) || 0;
+  var v = anyValue(argval).v;
+  var opts = extra(arguments, 3);
+  var cond = pattern(opts.condition);
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var k = pos >= 0 ? pos : args.length + pos;
+      if (k >= 0 && k < args.length && cond.test(args[k])) args[k] = v;
+      return safe.apply(t, self, args);
+    },
+  });
+});
+
+// Strings a function returns, edited.
+def('trusted-replace-outbound-text', function(path, find, replacement) {
+  if (!path) return;
+  var parts = path.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  var f = replacer(find, replacement);
+  if (!owner || typeof owner[prop] !== 'function' || !f) return;
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var r = safe.apply(t, self, args);
+      return typeof r === 'string' ? f(r) : r;
+    },
+  });
+});
+
+// Prune an object argument before a function gets it.
+def('trusted-prune-inbound-object', function(path, argpos, paths, needs) {
+  if (!path || !paths) return;
+  var parts = path.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  if (!owner || typeof owner[prop] !== 'function') return;
+  var a = pruneArgs(paths, needs);
+  var pos = Number(argpos) || 0;
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var k = pos >= 0 ? pos : args.length + pos;
+      var o = args[k];
+      if (o && typeof o === 'object') {
+        var copy;
+        try { copy = safe.JSON_parse(safe.JSON_stringify(o)); } catch (e) { copy = null; }
+        if (copy && prune(copy, a.paths, a.needs)) args[k] = copy;
+      }
+      return safe.apply(t, self, args);
+    },
+  });
+});
+
+// Don't let a native method run when its arguments match.
+def('trusted-suppress-native-method', function(path, signature, how) {
+  if (!path) return;
+  var parts = path.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  if (!owner || typeof owner[prop] !== 'function') return;
+  var sigs = String(signature || '').split('|').map(function(x) { return x === '' ? null : pattern(x); });
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var hit = sigs.every(function(p, k) {
+        if (!p) return true;
+        var a = args[k];
+        var text = typeof a === 'string' ? a : (a && a.nodeName) ? a.nodeName.toLowerCase() : safe.JSON_stringify(a) || String(a);
+        return p.test(text);
+      });
+      if (!hit) return safe.apply(t, self, args);
+      if (how === 'abort') throw new ReferenceError('blocked');
+      return undefined;
+    },
+  });
+});
+
+def('trusted-prevent-fetch', function(spec, body) {
+  var orig = win.fetch;
+  if (typeof orig !== 'function') return;
+  win.fetch = new safe.Proxy(orig, {
+    apply: function(target, self, args) {
+      var r = args[0], o = args[1] || {};
+      var url = typeof r === 'string' ? r : (r && r.url) || String(r);
+      if (!matchProps(spec, { url: url, method: o.method || 'GET' })) return safe.apply(target, self, args);
+      return Promise.resolve(new Response(body === undefined ? '' : String(body), { status: 200, statusText: 'OK' }));
+    },
+  });
+});
+def('trusted-prevent-xhr', function(spec, body) {
+  preventXhr(spec, body === undefined ? '' : String(body));
+});
 
 // ---------------------------------------------------------------- run the calls
 

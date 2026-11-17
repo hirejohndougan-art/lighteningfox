@@ -5,7 +5,7 @@ use libfuzzer_sys::fuzz_target;
 #[macro_use]
 #[path = "stubs.rs"]
 mod stubs;
-use stubs::{cookies, net, settings};
+use stubs::{cookies, net, platform, settings};
 
 #[path = "../../src/security.rs"]
 #[allow(dead_code)]

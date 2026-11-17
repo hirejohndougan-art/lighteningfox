@@ -100,6 +100,17 @@ pub const SEARCH_ENGINES: &[(&str, &str, &str)] = &[
     ("bing", "Bing", "https://www.bing.com/search?q=%s"),
 ];
 
+/// Turn ad and tracker blocking on or off for a site (the "Turn off blocking on these sites"
+/// list), from the shield menu in the toolbar.
+pub fn set_no_blocking(list: Vec<String>) {
+    let mut s = get();
+    s.no_blocking = list;
+    if let Ok(mut w) = store().write() {
+        *w = s.clone();
+    }
+    save(&s);
+}
+
 fn store() -> &'static RwLock<Settings> {
     static S: OnceLock<RwLock<Settings>> = OnceLock::new();
     S.get_or_init(|| RwLock::new(load()))

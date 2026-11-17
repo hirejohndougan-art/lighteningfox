@@ -33,3 +33,9 @@ fuzz_target!(|data: &[u8]| {
     }
     let _ = tb.finish();
 });
+
+/// dom.rs keeps per-document form state; the parser doesn't need any.
+mod validation {
+    #[derive(Debug, Clone, Default)]
+    pub struct FormState;
+}

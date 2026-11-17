@@ -186,7 +186,12 @@ pub struct Engine {
     /// `#@#` exceptions: (domain or "" for everywhere, selector).
     unhide: HashSet<(String, String)>,
     /// `##+js(…)` scriptlets: domain -> the call as written inside `+js(…)`.
-    scriptlets_on: HashMap<String, Vec<String>>,
+    scriptlets_on: HashMap<String, Vec<(String, bool)>>,
+    /// HTML filters for inline scripts (`##^script:has-text(…)`): domain -> what to look for.
+    script_removals_on: HashMap<String, Vec<String>>,
+    /// Is the list being added trusted (uBlock Origin's own lists and your own rules)? Only
+    /// trusted lists may use the `trusted-…` scriptlets, as in uBlock Origin.
+    loading_trusted: bool,
     /// `#@#+js(…)` exceptions: (domain, call; "" = every scriptlet).
     unscriptlet: HashSet<(String, String)>,
     /// Hosts that spread malware or phish (lower-case).
@@ -842,8 +847,97 @@ pub fn split_call(call: &str) -> Vec<String> {
         .collect()
 }
 
+/// Scriptlets only trusted lists may use: they can change a page's code and data at will.
+fn trusted_only(name: &str) -> bool {
+    let n = name.trim_end_matches(".js");
+    n.starts_with("trusted-") || matches!(n, "rpnt" | "replace-node-text")
+}
+
+/// A scriptlet's text argument: `/regex/flags` or plain text.
+enum TextPattern {
+    Re(regress::Regex, bool),
+    Plain(String),
+}
+
+fn text_pattern(s: &str) -> Option<TextPattern> {
+    if s.len() > 2 && s.starts_with('/') {
+        if let Some(end) = s.rfind('/').filter(|&e| e > 0) {
+            let flags = &s[end + 1..];
+            if flags.chars().all(|c| "gimsu".contains(c)) {
+                let re_flags: String = flags.chars().filter(|c| *c != 'g').collect();
+                return regress::Regex::with_flags(&s[1..end], re_flags.as_str()).ok().map(|r| TextPattern::Re(r, flags.contains('g')));
+            }
+        }
+    }
+    (!s.is_empty()).then(|| TextPattern::Plain(s.to_string()))
+}
+
+impl TextPattern {
+    fn test(&self, text: &str) -> bool {
+        match self {
+            TextPattern::Re(r, _) => r.find(text).is_some(),
+            TextPattern::Plain(p) => text.contains(p.as_str()),
+        }
+    }
+
+    /// Replace the first match (every match for a `/…/g` regex or plain text, as
+    /// String.prototype.replace / replaceAll would), with `$1`, `$&` and `$$` in `with`.
+    fn replace(&self, text: &str, with: &str) -> String {
+        match self {
+            TextPattern::Plain(p) => text.replacen(p.as_str(), with, 1),
+            TextPattern::Re(r, global) => {
+                let mut out = String::with_capacity(text.len());
+                let mut last = 0;
+                for m in r.find_iter(text) {
+                    out.push_str(&text[last..m.start()]);
+                    let w = with.as_bytes();
+                    let mut i = 0;
+                    while i < w.len() {
+                        if w[i] == b'$' && i + 1 < w.len() {
+                            let n = w[i + 1];
+                            if n == b'$' {
+                                out.push('$');
+                                i += 2;
+                                continue;
+                            }
+                            if n == b'&' {
+                                out.push_str(&text[m.range()]);
+                                i += 2;
+                                continue;
+                            }
+                            if n.is_ascii_digit() {
+                                let g = (n - b'0') as usize;
+                                if let Some(range) = m.group(g) {
+                                    out.push_str(&text[range]);
+                                }
+                                i += 2;
+                                continue;
+                            }
+                        }
+                        let ch = with[i..].chars().next().unwrap_or('$');
+                        out.push(ch);
+                        i += ch.len_utf8();
+                    }
+                    last = m.end();
+                    if !global {
+                        break;
+                    }
+                }
+                out.push_str(&text[last..]);
+                out
+            }
+        }
+    }
+}
+
 impl Engine {
     pub fn add_list(&mut self, text: &str, kind: Kind) {
+        self.add_list_from(text, kind, false);
+    }
+
+    /// Add a list; `trusted`: it may use the scriptlets that can run arbitrary edits.
+    pub fn add_list_from(&mut self, text: &str, kind: Kind, trusted: bool) {
+        self.loading_trusted = trusted;
         if kind == Kind::Dangerous {
             for line in text.lines() {
                 let line = line.split('#').next().unwrap_or("").trim();
@@ -900,13 +994,30 @@ impl Engine {
                     self.unscriptlet.insert((d.clone(), call.clone()));
                 }
                 for d in positive {
-                    self.scriptlets_on.entry(d).or_default().push(call.clone());
+                    self.scriptlets_on.entry(d).or_default().push((call.clone(), self.loading_trusted));
                 }
             }
             return;
         }
-        // HTML filters (`##^`) and unknown forms.
-        if body.starts_with('^') || body.starts_with('+') || body.is_empty() {
+        // HTML filters (`##^…`): inline scripts by their text are dropped before they run;
+        // other elements are removed as the page loads.
+        if let Some(html) = body.strip_prefix('^') {
+            if exception || positive.is_empty() || html.starts_with("responseheader(") {
+                return;
+            }
+            if let Some(needle) = html.strip_prefix("script:has-text(").and_then(|r| r.strip_suffix(')')) {
+                for d in positive {
+                    self.script_removals_on.entry(d).or_default().push(needle.to_string());
+                }
+            } else if !html.contains(":has-text(") || html.starts_with(|c: char| c.is_ascii_alphabetic() || c == '.' || c == '#' || c == '[') {
+                let rule = format!("{html}:remove()");
+                for d in positive {
+                    self.procedural_on.entry(d).or_default().push(rule.clone());
+                }
+            }
+            return;
+        }
+        if body.starts_with('+') || body.is_empty() {
             return;
         }
         // AdGuard's `#$#sel { decls }`: the same as `sel:style(decls)`.
@@ -1079,8 +1190,8 @@ impl Engine {
             .fold(0, |a, r| a | r.page)
     }
 
-    #[cfg(test)]
-    /// The rule that blocks this request, if any.
+    /// The rule that blocks this request, if any (tests and the fuzz target).
+    #[allow(dead_code)]
     pub fn check(&self, url: &str, page: &str, dest: Dest) -> Option<&str> {
         self.decide(url, page, type_bit(dest)).map(|(rule, _)| rule)
     }
@@ -1296,7 +1407,7 @@ impl Engine {
         out
     }
 
-    #[cfg(test)]
+    #[allow(dead_code)]
     /// CSS that hides ad leftovers in this page: site-specific rules, plus generic rules whose
     /// class, id or attribute actually appears in the page.
     pub fn hiding_css(&self, page: &str, classes: &HashSet<String>, ids: &HashSet<String>) -> String {
@@ -1394,10 +1505,47 @@ impl Engine {
         keys.iter()
             .filter_map(|k| self.scriptlets_on.get(k))
             .flatten()
-            .filter(|c| seen.insert(c.as_str()) && !off(c))
-            .map(|c| split_call(c))
-            .filter(|parts| parts.first().is_some_and(|n| !n.is_empty()))
+            .filter(|(c, _)| seen.insert(c.as_str()) && !off(c))
+            .map(|(c, trusted)| (split_call(c), *trusted))
+            .filter(|(parts, trusted)| parts.first().is_some_and(|n| !n.is_empty() && (*trusted || !trusted_only(n))))
+            .map(|(parts, _)| parts)
             .collect()
+    }
+
+    /// What an inline script should become before it runs: None = don't run it (an HTML
+    /// filter removes it), else its text with the `rpnt` edits filters make to scripts.
+    fn filter_script(&self, page: &str, code: &str) -> Option<String> {
+        let Some(page_host) = host_of(page) else { return Some(code.to_string()) };
+        if self.page_flags(page, &page_host) & PAGE_ALL != 0 {
+            return Some(code.to_string());
+        }
+        let keys = page_keys(&page_host);
+        let unhidden = |s: &str| keys.iter().chain([String::new()].iter()).any(|d| self.unhide.contains(&(d.clone(), format!("^script:has-text({s})"))));
+        for needle in keys.iter().filter_map(|k| self.script_removals_on.get(k)).flatten() {
+            if text_pattern(needle).is_some_and(|p| p.test(code)) && !unhidden(needle) {
+                log!("[content blocking] {page}: dropped an inline script (##^script:has-text({needle}))");
+                return None;
+            }
+        }
+        let mut out = code.to_string();
+        for call in self.scriptlets_for(page) {
+            let name = call[0].trim_end_matches(".js");
+            if !matches!(name, "rpnt" | "replace-node-text" | "trusted-replace-node-text" | "trusted-rpnt") || call.get(1).map(String::as_str) != Some("script") {
+                continue;
+            }
+            let (Some(find), Some(with)) = (call.get(2), call.get(3)) else { continue };
+            // Extra arguments come in name/value pairs: `condition` limits it to scripts that match.
+            let extra: HashMap<&str, &str> = call[4..].chunks(2).filter(|c| c.len() == 2).map(|c| (c[0].as_str(), c[1].as_str())).collect();
+            if let Some(cond) = extra.get("condition") {
+                if !text_pattern(cond).is_some_and(|p| p.test(&out)) {
+                    continue;
+                }
+            }
+            if let Some(p) = text_pattern(find) {
+                out = p.replace(&out, with);
+            }
+        }
+        Some(out)
     }
 
     /// Is this host (or a parent domain) on a malware or phishing list?
@@ -1509,7 +1657,7 @@ fn build() -> Engine {
     let mut have_full = false;
     for (name, _, kind) in LISTS {
         if let (true, Some(text)) = (list_on(*kind, &s), read(name)) {
-            e.add_list(&text, *kind);
+            e.add_list_from(&text, *kind, name.starts_with("ublock-"));
             have_full |= matches!(kind, Kind::Ads | Kind::Trackers);
         }
     }
@@ -1517,7 +1665,7 @@ fn build() -> Engine {
         e.add_list(BUILT_IN, Kind::Trackers);
     }
     if let Some(text) = read("custom.txt") {
-        e.add_list(&text, Kind::Ads);
+        e.add_list_from(&text, Kind::Ads, true);
     }
     if let Some(text) = read("custom-dangerous.txt") {
         e.add_list(&text, Kind::Dangerous);
@@ -1566,6 +1714,58 @@ pub struct Blocked {
     pub stand_in: Option<(&'static str, Vec<u8>)>,
 }
 
+/// The requests blocked for each top-level page (by its address); each address counts once.
+static COUNTS: Mutex<Option<HashMap<String, HashSet<String>>>> = Mutex::new(None);
+
+fn count_blocked(url: &str, page: &str) {
+    let top = crate::security::frame_info(page).map(|f| f.top).unwrap_or_else(|| page.to_string());
+    if let Ok(mut c) = COUNTS.lock() {
+        let map = c.get_or_insert_with(HashMap::new);
+        if map.len() > 200 {
+            map.clear();
+        }
+        map.entry(top).or_default().insert(url.to_string());
+    }
+}
+
+/// Requests blocked so far for this page (and its frames).
+pub fn blocked_count(page: &str) -> usize {
+    COUNTS.lock().ok().and_then(|c| c.as_ref().and_then(|m| m.get(page).map(HashSet::len))).unwrap_or(0)
+}
+
+/// A page is loading afresh: start its count again.
+pub fn reset_count(page: &str) {
+    if let Ok(mut c) = COUNTS.lock() {
+        if let Some(m) = c.as_mut() {
+            m.remove(page);
+        }
+    }
+}
+
+/// For the toolbar's shield: None for pages blocking doesn't apply to (about:, file:…), else
+/// whether blocking is on for this page's site.
+pub fn blocking_on(page: &str) -> Option<bool> {
+    let s = crate::settings::get();
+    (web(page) && (s.block_ads || s.block_trackers)).then(|| !exempt(page))
+}
+
+/// The site the shield menu turns blocking on or off for (example.com for www.example.com).
+pub fn site_for(page: &str) -> Option<String> {
+    host_of(page).map(|h| crate::cookies::site_of(&h))
+}
+
+/// Turn blocking on or off for a page's site.
+pub fn set_blocking_on(page: &str, on: bool) {
+    let (Some(host), Some(site)) = (host_of(page), site_for(page)) else { return };
+    let mut list = crate::settings::get().no_blocking;
+    // On: every entry that covers this host goes; off: the site is added.
+    list.retain(|d| !domain_matches(&host, d));
+    if !on {
+        list.push(site);
+    }
+    crate::settings::set_no_blocking(list);
+}
+
 /// Should a page's request be stopped, and answered with a stand-in?
 pub fn decide(url: &str, page: &str, dest: Dest) -> Option<Blocked> {
     if !web(url) || !web(page) || exempt(page) {
@@ -1575,6 +1775,7 @@ pub fn decide(url: &str, page: &str, dest: Dest) -> Option<Blocked> {
     let ty = type_bit(dest);
     let (rule, redirect) = e.decide(url, page, ty)?;
     let stand_in = redirect.and_then(|r| resource(r, ty));
+    count_blocked(url, page);
     match &stand_in {
         Some(_) => log!("[blocked] {url} ({rule}, answered with {})", redirect.unwrap_or("")),
         None => log!("[blocked] {url} ({rule})"),
@@ -1685,12 +1886,52 @@ pub fn page_script(page: &str) -> Option<String> {
     Some(code_for(&calls, &procs))
 }
 
+/// scriptlets.js with only the `def(…)` blocks for these scriptlet names (and the helpers).
+fn scriptlets_needed(names: &HashSet<&str>) -> String {
+    let mut out = String::with_capacity(SCRIPTLETS_JS.len() / 2);
+    let mut keep = true;
+    let mut inside = false;
+    for line in SCRIPTLETS_JS.lines() {
+        if !inside {
+            if let Some(rest) = line.strip_prefix("def('") {
+                let def_names = rest.split('\'').next().unwrap_or("");
+                keep = def_names.split(' ').any(|n| names.contains(n));
+                inside = !line.ends_with("});");
+            } else {
+                keep = true;
+            }
+        } else if line == "});" {
+            inside = false;
+            if keep {
+                out.push_str(line);
+                out.push('\n');
+            }
+            keep = true;
+            continue;
+        }
+        if keep {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// An inline script about to run in `page`: None = drop it, else the (possibly edited) code.
+pub fn filter_inline_script(page: &str, code: &str) -> Option<String> {
+    if !web(page) || exempt(page) {
+        return Some(code.to_string());
+    }
+    engine().filter_script(page, code)
+}
+
 /// The code that runs these scriptlet calls and procedural filters in a page.
 pub(crate) fn code_for(calls: &[Vec<String>], procs: &[&str]) -> String {
     let mut code = String::new();
     if !calls.is_empty() {
         let list: Vec<String> = calls.iter().map(|c| format!("[{}]", c.iter().map(|a| js_string(a)).collect::<Vec<_>>().join(","))).collect();
-        code.push_str(&format!("(function(calls){{{SCRIPTLETS_JS}\n}})([{}]);\n", list.join(",")));
+        let names: HashSet<&str> = calls.iter().map(|c| c[0].trim_end_matches(".js")).collect();
+        code.push_str(&format!("(function(calls){{{}\n}})([{}]);\n", scriptlets_needed(&names), list.join(",")));
     }
     if !procs.is_empty() {
         let list: Vec<String> = procs.iter().map(|s| js_string(s)).collect();
@@ -2051,6 +2292,25 @@ mod tests {
     }
 
     #[test]
+    fn trusted_scriptlets_and_script_filters() {
+        let rules = "news.com##+js(trusted-set-constant, a, 1)\nnews.com##+js(rpnt, script, /showAds\\((\\d)\\)/, hideAds($1))\nnews.com##+js(set, b, true)\nnews.com##^script:has-text(adblockDetected)\nnews.com##^.ad-frame\n";
+        let mut e = Engine::default();
+        e.add_list_from(rules, Kind::Ads, false);
+        let names = |e: &Engine| e.scriptlets_for("https://news.com/").into_iter().map(|c| c[0].clone()).collect::<Vec<_>>();
+        assert_eq!(names(&e), vec!["set"], "an untrusted list can't use trusted scriptlets");
+        assert_eq!(e.filter_script("https://news.com/", "showAds(1);"), Some("showAds(1);".into()));
+        assert_eq!(e.filter_script("https://news.com/", "if (adblockDetected) wall();"), None, "##^script:has-text drops the script");
+        assert_eq!(e.procedural_for("https://news.com/"), vec![".ad-frame:remove()"]);
+        let mut e = Engine::default();
+        e.add_list_from(rules, Kind::Ads, true);
+        assert_eq!(names(&e), vec!["trusted-set-constant", "rpnt", "set"]);
+        assert_eq!(e.filter_script("https://news.com/", "x(); showAds(2); showAds(3);"), Some("x(); hideAds(2); showAds(3);".into()));
+        assert_eq!(e.filter_script("https://other.com/", "showAds(2);"), Some("showAds(2);".into()));
+        assert_eq!(text_pattern("/a(b)/g").unwrap().replace("ab ab", "[$1$&$$]"), "[bab$] [bab$]");
+        assert_eq!(text_pattern("x.y").unwrap().replace("x.y x.y", "z"), "z x.y");
+    }
+
+    #[test]
     fn hosts_lines_and_network_rules_with_hashes() {
         let e = eng("0.0.0.0 ads.hosts.example\n127.0.0.1 localhost\n||site.com/page#anchor\n");
         assert!(e.check("https://ads.hosts.example/x", "https://a.com/", Dest::Image).is_some());
@@ -2080,11 +2340,32 @@ mod tests {
     /// The bundled JavaScript parses (a syntax error there would break every page it's added to).
     #[test]
     fn bundled_scripts_parse() {
-        let mut ctx = boa_engine::Context::default();
-        for (name, code) in [("scriptlets.js", format!("(function(calls){{{SCRIPTLETS_JS}\n}})")), ("cosmetic.js", format!("(function(rules){{{COSMETIC_JS}\n}})")), ("redirects.js", REDIRECT_JS.to_string())] {
-            let src = boa_engine::Source::from_bytes(code.as_bytes());
-            assert!(boa_engine::Script::parse(src, None, &mut ctx).is_ok(), "{name} doesn't parse");
-        }
+        // Boa's parser recurses deeply in debug builds: give it room.
+        std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(|| {
+                let mut ctx = boa_engine::Context::default();
+                for (name, code) in [("scriptlets.js", format!("(function(calls){{{SCRIPTLETS_JS}\n}})")), ("cosmetic.js", format!("(function(rules){{{COSMETIC_JS}\n}})")), ("redirects.js", REDIRECT_JS.to_string())] {
+                    let src = boa_engine::Source::from_bytes(code.as_bytes());
+                    assert!(boa_engine::Script::parse(src, None, &mut ctx).is_ok(), "{name} doesn't parse");
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn scriptlet_subsets() {
+        let all = scriptlets_needed(&HashSet::new());
+        assert!(!all.contains("def('set-constant"), "no blocks without a name");
+        assert!(all.contains("function trapChain") && all.contains("run the calls"));
+        let some = scriptlets_needed(&["aopr", "trusted-prevent-xhr"].into_iter().collect());
+        assert!(some.contains("def('abort-on-property-read aopr'") && some.contains("def('trusted-prevent-xhr'"));
+        assert!(!some.contains("def('json-prune'") && !some.contains("def('set-constant"));
+        // Every block is closed: the whole file is all of its blocks.
+        let every: HashSet<&str> = SCRIPTLETS_JS.lines().filter_map(|l| l.strip_prefix("def('")).flat_map(|r| r.split('\'').next().unwrap_or("").split(' ')).collect();
+        assert_eq!(scriptlets_needed(&every).lines().count(), SCRIPTLETS_JS.lines().count());
     }
 
     /// With the real lists: IRONSWIFT_LISTS=dir cargo test --release real_lists -- --ignored --nocapture

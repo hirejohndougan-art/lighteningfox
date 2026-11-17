@@ -268,6 +268,14 @@ const NEW_TAB_W: f32 = 32.0;
 const STAR_W: f32 = 30.0;
 /// The downloads chip, left of the star, while something is downloading.
 const DL_W: f32 = 64.0;
+/// The content-blocking shield, left of the downloads chip (or the star): how many requests
+/// were blocked on this page; a click opens its menu.
+const SHIELD_W: f32 = 46.0;
+
+/// Where the shield starts (it ends where the downloads chip or the star begins).
+fn shield_x(w: f32, downloads: bool) -> f32 {
+    w - 8.0 - STAR_W - if downloads { DL_W } else { 0.0 } - SHIELD_W
+}
 const SUGGEST_H: f32 = 30.0;
 /// Toolbar buttons: (x, label). Each is BTN_W wide.
 const BTN_W: f32 = 30.0;
@@ -816,6 +824,9 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
         .filter(|&m| dom.attr(m, "http-equiv").is_some_and(|v| v.trim().eq_ignore_ascii_case("content-security-policy")))
         .filter_map(|m| dom.attr(m, "content").map(String::from))
         .collect();
+    if full {
+        blocklist::reset_count(&final_url);
+    }
     // Policies filter lists add (`$csp`), enforced like the page's own.
     meta_csp.extend(blocklist::extra_csp(&final_url, &final_url));
     let mut policy = security::PagePolicy::from_headers(&final_url, headers, &meta_csp);
@@ -3414,6 +3425,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 editing = false;
                 suggestions.clear();
                 dirty = true;
+            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && blocklist::blocking_on(&page.url).is_some() && {
+                let sx = shield_x(w as f32, !downloads::list().is_empty());
+                mx >= sx && mx < sx + SHIELD_W
+            } {
+                let sx = shield_x(w as f32, !downloads::list().is_empty());
+                ctx_menu = Some(shield_menu(&page.url, if rtl::on() { w as f32 - sx - 300.0 } else { sx + SHIELD_W - 300.0 }, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
+                dirty = true;
             } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && !downloads::list().is_empty() && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
                 let px = w as f32 - 8.0 - STAR_W - 330.0;
                 dl_panel = Some(downloads_panel(if rtl::on() { w as f32 - px - 330.0 } else { px }, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
@@ -3792,6 +3810,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Ctx::Back => navigate = Some(Go::Back),
                 Ctx::Forward => navigate = Some(Go::Forward),
                 Ctx::Reload => navigate = Some(Go::Reload),
+                Ctx::SiteBlocking(on) => {
+                    blocklist::set_blocking_on(&page.url, on);
+                    navigate = Some(Go::Reload);
+                }
+                Ctx::OpenSettings => tab_cmd = Some(TabCmd::Open("about:settings".into(), true)),
                 Ctx::OpenNewTab(u) => tab_cmd = Some(TabCmd::Open(u, true)),
                 Ctx::Copy(text) => {
                     if let Some(c) = clipboard.as_mut() {
@@ -4201,7 +4224,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     p.icon.as_deref().and_then(|u| favicon::get(u, &p.url))
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom(), shield: blocklist::blocking_on(&page.url).map(|on| (blocklist::blocked_count(&page.url), on)) };
             if let Some(bridge) = a11y.as_mut() {
                 if window.is_active() != window_active {
                     window_active = window.is_active();
@@ -4399,6 +4422,29 @@ enum Ctx {
     Print,
     ViewSource,
     Inspect,
+    /// Turn content blocking on (true) or off for this page's site, then reload.
+    SiteBlocking(bool),
+    OpenSettings,
+}
+
+/// The shield's menu: what was blocked, and a switch for the site.
+fn shield_menu(url: &str, x: f32, y: f32, win_w: f32, win_h: f32) -> chrome::Menu<Ctx> {
+    use chrome::MenuRow as R;
+    let site = blocklist::site_for(url).unwrap_or_default();
+    let on = blocklist::blocking_on(url).unwrap_or(false);
+    let n = blocklist::blocked_count(url);
+    let mut rows = Vec::new();
+    if on {
+        rows.push(R::disabled(&i18n::tf("shield-blocked", &[("count", &n.to_string())])));
+        rows.push(R::separator());
+        rows.push(R::item(&i18n::tf("shield-turn-off", &[("site", &site)]), Ctx::SiteBlocking(false)));
+    } else {
+        rows.push(R::disabled(&i18n::tf("shield-off", &[("site", &site)])));
+        rows.push(R::separator());
+        rows.push(R::item(&i18n::tf("shield-turn-on", &[("site", &site)]), Ctx::SiteBlocking(true)));
+    }
+    rows.push(R::item(&i18n::t("shield-settings"), Ctx::OpenSettings));
+    chrome::Menu::new(x.max(4.0), y, 300.0, rows, win_w, win_h)
 }
 
 /// The downloads panel's actions.
@@ -4530,6 +4576,9 @@ struct Toolbar<'a> {
     loading: Option<f32>,
     /// The page's zoom (a "125%" note in the address field when it isn't 100%).
     zoom: f32,
+    /// The shield: requests blocked on this page, and whether blocking is on for its site
+    /// (None on pages blocking doesn't apply to).
+    shield: Option<(usize, bool)>,
 }
 
 struct Loading {
@@ -4675,6 +4724,15 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         };
         canvas.draw_text(fonts, x + 9.0, top + 23.0, &label, font::REGULAR, 13.0, Color::rgb(55, 48, 163));
     }
+    // The shield: a green count while blocking is on, a grey "off" when it's off for the site.
+    if let Some((n, on)) = ui.shield {
+        let x = shield_x(w, ui.downloads.is_some());
+        let (bg, ink) = if on { (Color::rgb(220, 252, 231), Color::rgb(21, 128, 61)) } else { (Color::rgb(235, 235, 240), Color::rgb(110, 110, 120)) };
+        canvas.fill_rect(x + 2.0, top + 8.0, SHIELD_W - 6.0, TOOL_H - 16.0, bg);
+        let label = if !on { "off".to_string() } else if n > 999 { "999+".to_string() } else { n.to_string() };
+        let lw = fonts.width(font::BOLD, &label, 12.5);
+        canvas.draw_text(fonts, x + 2.0 + (SHIELD_W - 6.0 - lw) / 2.0, top + 22.0, &label, font::BOLD, 12.5, ink);
+    }
     // Bookmark star
     let (star, star_ink) = if ui.bookmarked { ("★", Color::rgb(234, 179, 8)) } else { ("☆", Color::rgb(110, 110, 120)) };
     canvas.draw_text(fonts, w - 8.0 - STAR_W + 7.0, top + 24.0, star, font::REGULAR, 17.0, star_ink);
@@ -4693,7 +4751,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     canvas.draw_text(fonts, tx, top + 23.0, ui.address, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
     if (ui.zoom - 1.0).abs() > 1e-3 && !ui.editing {
         let label = format!("{:.0}%", ui.zoom * 100.0);
-        let right = w - 8.0 - STAR_W - if ui.downloads.is_some() { DL_W } else { 0.0 };
+        let right = w - 8.0 - STAR_W - if ui.downloads.is_some() { DL_W } else { 0.0 } - if ui.shield.is_some() { SHIELD_W } else { 0.0 };
         let lw = fonts.width(font::REGULAR, &label, 12.5) + 12.0;
         canvas.fill_rect(right - lw - 4.0, top + 9.0, lw, TOOL_H - 18.0, Color::rgb(230, 230, 236));
         canvas.draw_text(fonts, right - lw + 2.0, top + 22.0, &label, font::REGULAR, 12.5, Color::rgb(60, 60, 70));

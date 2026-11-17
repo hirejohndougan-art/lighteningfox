@@ -34,7 +34,10 @@ entry here, newest first.
     libraries, so pages keep working), `$removeparam`, `$csp`, `$denyallow`/`$to`, `$popup`,
     `example.*` domains, `!#if`/`!#include`; procedural cosmetic filters (`:has-text`,
     `:upward`, `:remove`, `:style`…); and scriptlets (`##+js(…)`) that defuse anti-adblock
-    walls, written from scratch. Optional hiding of cookie notices. A warning before sites on
+    walls, written from scratch (uBlock's own lists may also use its "trusted" ones);
+    `##^script:has-text()` and `rpnt` edit inline scripts before they run. A shield in the
+    address bar counts what was blocked on the page and turns blocking off or on for the
+    site. Optional hiding of cookie notices. A warning before sites on
     malware and phishing lists or that a filter blocks outright.
   - Embedded sites get partitioned cookies and storage; per-site cookie rules (always
     allow, block, delete on close) and a list of sites with cookies on about:settings.

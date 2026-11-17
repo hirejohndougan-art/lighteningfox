@@ -174,3 +174,10 @@ settings-permissions-reset = Berechtigungen für { $site } zurückgesetzt.
 
 ## Find bar label
 find-label = Suchen
+
+## The content-blocking shield in the toolbar
+shield-blocked = { $count } Anfragen auf dieser Seite blockiert
+shield-off = Blockieren ist auf { $site } aus
+shield-turn-off = Blockieren auf { $site } ausschalten
+shield-turn-on = Blockieren auf { $site } wieder einschalten
+shield-settings = Einstellungen zum Blockieren…
