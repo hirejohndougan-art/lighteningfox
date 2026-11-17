@@ -77,6 +77,7 @@ mod canvas;
 mod media;
 mod channels;
 mod geo;
+mod parallel;
 mod clipboard;
 mod downloads;
 mod entities;

@@ -44,6 +44,8 @@ accesskit_unix = "0.24"
 unicode-bidi = "0.3"
 # Geolocation: GeoClue over D-Bus (zbus is already built for accesskit_unix).
 zbus = { version = "5.19", default-features = false, features = ["async-io", "blocking-api"] }
+# Styling across CPU cores (src/parallel.rs).
+rayon = "1"
 
 [dev-dependencies]
 # Tests talk to a pretend GeoClue over a socket pair (src/geo.rs).

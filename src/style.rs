@@ -16,7 +16,42 @@ thread_local! {
     /// Whether the last styled page has :active rules.
     static ACTIVE_RULES: Cell<bool> = const { Cell::new(false) };
     /// The page's address and the visited addresses, for :visited.
-    static VISITED: std::cell::RefCell<(String, std::collections::HashSet<String>)> = std::cell::RefCell::new(Default::default());
+    static VISITED: std::cell::RefCell<Visited> = std::cell::RefCell::new(Default::default());
+    /// Set on the threads that match selectors in parallel: the focused element as the
+    /// window's thread sees it (layout keeps focus in its own thread-local).
+    static FOCUS_SNAPSHOT: Cell<Option<Option<NodeId>>> = const { Cell::new(None) };
+}
+
+/// The page's address and the visited addresses (shared, so parallel matching threads can
+/// have it without copying the history).
+type Visited = std::sync::Arc<(String, std::collections::HashSet<String>)>;
+
+fn focused() -> Option<NodeId> {
+    FOCUS_SNAPSHOT.with(Cell::get).unwrap_or_else(crate::layout::focus)
+}
+
+/// What selector matching reads besides the DOM and the stylesheets (:hover, :active,
+/// :focus, :visited), taken on the window's thread and set up on the threads that match
+/// selectors in parallel.
+#[derive(Clone)]
+pub(crate) struct MatchState {
+    hover: Option<NodeId>,
+    active: Option<NodeId>,
+    focus: Option<NodeId>,
+    visited: Visited,
+}
+
+impl MatchState {
+    pub(crate) fn capture() -> Self {
+        MatchState { hover: HOVER.with(Cell::get), active: ACTIVE.with(Cell::get), focus: focused(), visited: VISITED.with(|v| v.borrow().clone()) }
+    }
+
+    pub(crate) fn install(&self) {
+        HOVER.with(|h| h.set(self.hover));
+        ACTIVE.with(|h| h.set(self.active));
+        FOCUS_SNAPSHOT.with(|f| f.set(Some(self.focus)));
+        VISITED.with(|v| *v.borrow_mut() = self.visited.clone());
+    }
 }
 
 pub fn set_active(node: Option<NodeId>) {
@@ -30,7 +65,7 @@ pub fn uses_active() -> bool {
 /// The page :visited links are resolved against, and the addresses in history.
 pub fn set_visited(base: &str, urls: std::collections::HashSet<String>) {
     crate::restyle::visited_changed();
-    VISITED.with(|v| *v.borrow_mut() = (base.to_string(), urls));
+    VISITED.with(|v| *v.borrow_mut() = std::sync::Arc::new((base.to_string(), urls)));
 }
 
 /// Run `f` as if no link had been visited (for styles that scripts can read).
@@ -664,6 +699,136 @@ struct Matched<'a> {
     decl: &'a Decl,
 }
 
+/// The rules that matched one element, in cascade order of appearance (`order` is the next
+/// free position, for its inline style).
+#[derive(Default)]
+pub(crate) struct Matches<'a> {
+    all: Vec<Matched<'a>>,
+    /// ::before, ::after, ::marker, ::placeholder.
+    pseudo: [Vec<Matched<'a>>; 4],
+    order: usize,
+}
+
+/// Everything selector matching needs for one styling pass, shared (read-only) by the
+/// threads that match elements in parallel.
+pub(crate) struct MatchCx<'a> {
+    ua: &'a Stylesheet,
+    sheets: &'a [Stylesheet],
+    scoped: &'a HashMap<NodeId, (Stylesheet, Stylesheet)>,
+    /// Per stylesheet (by address): rules whose selectors end in a pseudo-element, rules filed
+    /// by id/class/tag (see selmatch.rs), and whether each rule's @media matches the window.
+    pseudo_index: HashMap<usize, Vec<PseudoRule>>,
+    rule_index: HashMap<usize, crate::selmatch::SheetIndex>,
+    media: HashMap<usize, Vec<bool>>,
+    layers: crate::cascade::LayerOrder,
+}
+
+impl<'a> MatchCx<'a> {
+    fn new(ua: &'a Stylesheet, sheets: &'a [Stylesheet], scoped: &'a HashMap<NodeId, (Stylesheet, Stylesheet)>) -> Self {
+        let mut cx = MatchCx {
+            ua,
+            sheets,
+            scoped,
+            pseudo_index: HashMap::new(),
+            rule_index: HashMap::new(),
+            media: HashMap::new(),
+            layers: crate::cascade::LayerOrder::new(std::iter::once(ua).chain(sheets.iter())),
+        };
+        // Each @media condition is checked once per pass, not once per element.
+        let mut seen: HashMap<&str, bool> = HashMap::new();
+        for sheet in std::iter::once(ua).chain(sheets.iter()).chain(scoped.values().flat_map(|(a, b)| [a, b])) {
+            let key = sheet as *const Stylesheet as usize;
+            cx.pseudo_index.insert(key, pseudo_rules(sheet));
+            cx.rule_index.insert(key, crate::selmatch::SheetIndex::new(sheet));
+            let media = sheet.rules.iter().map(|r| r.media.as_deref().is_none_or(|m| *seen.entry(m).or_insert_with(|| css::media_matches(m)))).collect();
+            cx.media.insert(key, media);
+        }
+        cx
+    }
+
+    fn media_ok(&self, sheet: &Stylesheet, rule: usize) -> bool {
+        match self.media.get(&(sheet as *const Stylesheet as usize)) {
+            Some(m) => m[rule],
+            None => sheet.rules[rule].media.as_deref().is_none_or(css::media_matches),
+        }
+    }
+
+    /// Match every rule against element `id`. `styles` = the styles computed so far, for
+    /// @container conditions; without them (matching ahead, in parallel) an element that a
+    /// rule's @container condition applies to gives None and is matched again in order.
+    pub(crate) fn match_element(&self, dom: &Dom, id: NodeId, bloom: &crate::selmatch::Bloom, styles: Option<&[Rc<Style>]>, candidates: &mut Vec<u32>) -> Option<Matches<'a>> {
+        let mut matched: Vec<Matched<'a>> = Vec::new();
+        let mut order = 0;
+        // The page's stylesheets style the document; a shadow tree is styled only by its
+        // own (plus the browser's), and a host also by its shadow tree's `:host` rules.
+        let page: Vec<&'a Stylesheet> = match dom.render_scope.get(&id) {
+            Some(root) => self.scoped.get(root).map(|(_, inner)| vec![inner]).unwrap_or_default(),
+            None => {
+                let mut v: Vec<&'a Stylesheet> = self.sheets.iter().collect();
+                if let Some((host_rules, _)) = dom.attr(id, "__shadowhost").and_then(|r| r.parse::<NodeId>().ok()).and_then(|r| self.scoped.get(&r)) {
+                    // Page rules win over :host rules: put those first.
+                    v.insert(0, host_rules);
+                }
+                v
+            }
+        };
+        let container_ok = |c: &str| styles.map(|st| crate::cascade::matches(dom, st, id, c));
+        let mut pmatched: [Vec<Matched<'a>>; 4] = Default::default();
+        for (origin, sheet) in std::iter::once(self.ua).chain(page).enumerate() {
+            let origin = if origin == 0 { 0 } else { 1 };
+            for pr in self.pseudo_index.get(&(sheet as *const Stylesheet as usize)).map(|v| v.as_slice()).unwrap_or(&[]) {
+                let rule = &sheet.rules[pr.rule];
+                if !self.media_ok(sheet, pr.rule) || !matches(dom, id, &pr.sel) {
+                    continue;
+                }
+                if let Some(c) = rule.container.as_deref() {
+                    if !container_ok(c)? {
+                        continue;
+                    }
+                }
+                for d in &rule.decls {
+                    let layer = self.layers.key(rule.layer.as_ref(), d.important);
+                    pmatched[pr.kind].push(Matched { important: d.important, origin, layer, spec: pr.spec, order, decl: d });
+                    order += 1;
+                }
+            }
+            match self.rule_index.get(&(sheet as *const Stylesheet as usize)) {
+                Some(ix) => ix.candidates(dom, id, candidates),
+                None => {
+                    candidates.clear();
+                    candidates.extend(0..sheet.rules.len() as u32);
+                }
+            }
+            for &ri in candidates.iter() {
+                let rule = &sheet.rules[ri as usize];
+                if !self.media_ok(sheet, ri as usize) {
+                    continue;
+                }
+                let mut best: Option<(u32, u32, u32)> = None;
+                let mut only_visited = true;
+                for s in rule.selectors.iter().filter(|s| crate::selmatch::may_match(s, bloom) && matches(dom, id, s)) {
+                    best = best.max(Some(s.specificity()));
+                    only_visited &= uses_visited(s);
+                }
+                if best.is_some()
+                    && let Some(c) = rule.container.as_deref()
+                    && !container_ok(c)?
+                {
+                    continue;
+                }
+                if let Some(spec) = best {
+                    for d in rule.decls.iter().filter(|d| !only_visited || visited_safe(&d.name)) {
+                        let layer = self.layers.key(rule.layer.as_ref(), d.important);
+                        matched.push(Matched { important: d.important, origin, layer, spec, order, decl: d });
+                        order += 1;
+                    }
+                }
+            }
+        }
+        Some(Matches { all: matched, pseudo: pmatched, order })
+    }
+}
+
 /// Compute a style for every node.
 ///
 /// Styles are shared to save memory: text uses its parent's style, and elements
@@ -774,25 +939,48 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     }
     styles[0] = cache.root.clone().unwrap_or_else(|| Rc::new(Style { display: Display::Block, ..Style::default() }));
     let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
-    // Rules whose selectors end in a pseudo-element, per stylesheet.
-    let mut pseudo_index: HashMap<*const Stylesheet, Vec<PseudoRule>> = HashMap::new();
-    // Rules filed by id/class/tag, and each element's ancestor bloom filter (see selmatch.rs).
-    let mut rule_index: HashMap<*const Stylesheet, crate::selmatch::SheetIndex> = HashMap::new();
     let mut blooms: Vec<crate::selmatch::Bloom> = vec![[0; 4]; dom.nodes.len()];
     let mut candidates: Vec<u32> = Vec::new();
-    for sheet in std::iter::once(&ua).chain(sheets.iter()).chain(scoped.values().flat_map(|(a, b)| [a, b])) {
-        pseudo_index.insert(sheet as *const Stylesheet, pseudo_rules(sheet));
-        rule_index.insert(sheet as *const Stylesheet, crate::selmatch::SheetIndex::new(sheet));
-    }
-    let layers = crate::cascade::LayerOrder::new(std::iter::once(&ua).chain(sheets.iter()));
+    let cx = MatchCx::new(&ua, sheets, &scoped);
     ACTIVE_RULES.with(|a| a.set(sheets.iter().any(|sh| sh.rules.iter().any(|r| r.selectors.iter().any(|s| s.parts.iter().any(|p| p.pseudo.iter().any(|x| x == "active")))))));
+    // Selector matching doesn't depend on the parent's computed style: on big pages it runs
+    // for every element at once across the CPU cores first (see parallel.rs), and the
+    // in-order pass below only cascades.
+    let mut sigs: Vec<u64> = Vec::new();
+    let mut pre: Vec<Option<Matches>> = Vec::new();
+    if crate::parallel::worth_it(dom.nodes.len()) {
+        let mut todo: Vec<NodeId> = Vec::new();
+        if reuse {
+            sigs = vec![0; dom.nodes.len()];
+        }
+        let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
+        while let Some(id) = stack.pop() {
+            stack.extend(dom.nodes[id].children.iter().rev().copied());
+            let parent = dom.nodes[id].parent.unwrap_or(0);
+            blooms[id] = crate::selmatch::child_bloom(dom, parent, &blooms[parent]);
+            if !matches!(dom.nodes[id].data, NodeData::Element { .. }) {
+                continue;
+            }
+            if reuse {
+                sigs[id] = crate::restyle::signature(dom, id, &feats, &states);
+                // Probably reused as it was: match it later only if it turns out it isn't.
+                if cache.nodes.get(id).is_some_and(|o| o.as_ref().is_some_and(|o| o.sig == sigs[id])) {
+                    continue;
+                }
+            }
+            todo.push(id);
+        }
+        pre = crate::parallel::match_all(&cx, dom, &todo, &blooms);
+    }
     crate::anim::begin_pass(sheets);
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
         stack.extend(dom.nodes[id].children.iter().rev().copied());
         let parent = dom.nodes[id].parent.unwrap_or(0);
-        blooms[id] = crate::selmatch::child_bloom(dom, parent, &blooms[parent]);
+        if pre.is_empty() {
+            blooms[id] = crate::selmatch::child_bloom(dom, parent, &blooms[parent]);
+        }
         let bloom = blooms[id];
         let parent_style = styles[parent].clone();
         let NodeData::Element { tag, attrs } = &dom.nodes[id].data else {
@@ -800,7 +988,11 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             styles[id] = parent_style;
             continue;
         };
-        let sig = if reuse { crate::restyle::signature(dom, id, &feats, &states) } else { 0 };
+        let sig = match sigs.get(id) {
+            Some(&sig) => sig,
+            None if reuse => crate::restyle::signature(dom, id, &feats, &states),
+            None => 0,
+        };
         if reuse {
             if let Some(Some(old)) = cache.nodes.get_mut(id) {
                 if old.sig == sig && Rc::ptr_eq(&old.parent, &parent_style) && old.style.anim.is_none() && !crate::anim::has_state(id) {
@@ -811,68 +1003,11 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 }
             }
         }
-        let mut matched: Vec<Matched> = Vec::new();
-        let mut order = 0;
-        // The page's stylesheets style the document; a shadow tree is styled only by its
-        // own (plus the browser's), and a host also by its shadow tree's `:host` rules.
-        let page: Vec<&Stylesheet> = match dom.render_scope.get(&id) {
-            Some(root) => scoped.get(root).map(|(_, inner)| vec![inner]).unwrap_or_default(),
-            None => {
-                let mut v: Vec<&Stylesheet> = sheets.iter().collect();
-                if let Some((host_rules, _)) = dom.attr(id, "__shadowhost").and_then(|r| r.parse::<NodeId>().ok()).and_then(|r| scoped.get(&r)) {
-                    // Page rules win over :host rules: put those first.
-                    v.insert(0, host_rules);
-                }
-                v
-            }
+        let found = match pre.get_mut(id).and_then(Option::take) {
+            Some(m) => m,
+            None => cx.match_element(dom, id, &bloom, Some(&styles), &mut candidates).unwrap_or_default(),
         };
-        let mut pmatched: [Vec<Matched>; 4] = Default::default();
-        for (origin, sheet) in std::iter::once(&ua).chain(page.into_iter()).enumerate() {
-            let origin = if origin == 0 { 0 } else { 1 };
-            for pr in pseudo_index.get(&(sheet as *const Stylesheet)).map(|v| v.as_slice()).unwrap_or(&[]) {
-                let rule = &sheet.rules[pr.rule];
-                if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) || !matches(dom, id, &pr.sel) {
-                    continue;
-                }
-                if rule.container.as_deref().is_some_and(|c| !crate::cascade::matches(dom, &styles, id, c)) {
-                    continue;
-                }
-                for d in &rule.decls {
-                    let layer = layers.key(rule.layer.as_ref(), d.important);
-                    pmatched[pr.kind].push(Matched { important: d.important, origin, layer, spec: pr.spec, order, decl: d });
-                    order += 1;
-                }
-            }
-            match rule_index.get(&(sheet as *const Stylesheet)) {
-                Some(ix) => ix.candidates(dom, id, &mut candidates),
-                None => {
-                    candidates.clear();
-                    candidates.extend(0..sheet.rules.len() as u32);
-                }
-            }
-            for &ri in &candidates {
-                let rule = &sheet.rules[ri as usize];
-                if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) {
-                    continue;
-                }
-                if rule.container.as_deref().is_some_and(|c| !crate::cascade::matches(dom, &styles, id, c)) {
-                    continue;
-                }
-                let mut best: Option<(u32, u32, u32)> = None;
-                let mut only_visited = true;
-                for s in rule.selectors.iter().filter(|s| crate::selmatch::may_match(s, &bloom) && matches(dom, id, s)) {
-                    best = best.max(Some(s.specificity()));
-                    only_visited &= uses_visited(s);
-                }
-                if let Some(spec) = best {
-                    for d in rule.decls.iter().filter(|d| !only_visited || visited_safe(&d.name)) {
-                        let layer = layers.key(rule.layer.as_ref(), d.important);
-                        matched.push(Matched { important: d.important, origin, layer, spec, order, decl: d });
-                        order += 1;
-                    }
-                }
-            }
-        }
+        let Matches { all: mut matched, pseudo: pmatched, mut order } = found;
         // Same parent style + same rules + same attributes that affect style = same result.
         let attr_key: String = attrs
             .iter()
@@ -902,7 +1037,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         let mut st = Style::inherit(&parent_style);
         let inline = dom.attr(id, "style").map(css::parse_declarations).unwrap_or_default();
         for d in &inline {
-            matched.push(Matched { important: d.important, origin: 2, layer: layers.key(None, d.important), spec: (9, 9, 9), order, decl: d });
+            matched.push(Matched { important: d.important, origin: 2, layer: cx.layers.key(None, d.important), spec: (9, 9, 9), order, decl: d });
             order += 1;
         }
         matched.sort_by_key(|m| (m.important, m.origin, m.layer, m.spec, m.order));
@@ -1300,8 +1435,8 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
             }
             "empty" => dom.nodes[id].children.iter().all(|&k| matches!(&dom.nodes[k].data, NodeData::Text(t) if t.is_empty())),
             "checked" => dom.attr(id, "checked").is_some() || dom.attr(id, "selected").is_some(),
-            "focus" | "focus-visible" => crate::layout::focus() == Some(id),
-            "focus-within" => crate::layout::focus().is_some_and(|f| {
+            "focus" | "focus-visible" => focused() == Some(id),
+            "focus-within" => focused().is_some_and(|f| {
                 let mut cur = Some(f);
                 while let Some(n) = cur {
                     if n == id {
