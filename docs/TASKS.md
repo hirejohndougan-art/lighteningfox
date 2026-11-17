@@ -149,11 +149,27 @@ browser process and pass positions to the page process.
 `writing-mode` (vertical-rl/lr), `text-orientation`, `text-combine-upright`.
 
 ### T04. Parallel styling and layout
-**Status:** claimed by chat-opus-geo 2026-11-17 16:16
+**Status:** done
 **After:** T01 and batch K done (`docs/BATCHES.md`)
 **Checklist:** §14 "Parallel styling and layout across CPU cores (Rayon)"
 **Files:** `src/style.rs`, `src/cascade.rs`, `src/boxtree.rs`
 Styles use `Rc` and per-thread state (hover, viewport, animations) today; see batch L's notes.
+**Left undone:** layout is still on one thread; that half is now T04b below. Styling: rules
+inside `@container` are matched in order, not in parallel (they need ancestors' styles).
+
+### T04b. Parallel layout
+**Status:** free
+**After:** T04
+**Checklist:** §14 "Parallel styling and layout across CPU cores (Rayon)" (the layout half; tick
+the item when this is done)
+**Files:** `src/font.rs`, `src/layout.rs`, new files for the parallel parts
+On text-heavy pages layout is most of the time (1500 paragraphs: layout ~200 ms, styling ~4 ms;
+see `src/parallel.rs` for how styling was split). In a profile of that page, layout spends about
+a third of its time shaping words (`Fonts::shape`) and another third in `word_width` and
+`Fonts::resolve` (hashing the font-family string for every word). `Fonts` keeps faces and
+caches in `Rc`/`RefCell` shared with painting, so shaping can't run on other threads until
+those become thread-safe (or each thread gets its own shaping state). Measure before and after;
+keep every reference screenshot identical.
 
 ### T06. Shared process pool
 **Status:** done
