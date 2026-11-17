@@ -279,6 +279,7 @@ fn layout_tree(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, 
         absorb_top: None,
         cb_heights: vec![Some(viewport_h)],
     };
+    crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // The page grows to contain floats that hang below the last block.
     let height = height.max(cx.float_bottom(true, true));
@@ -3131,6 +3132,9 @@ impl<'a> Ctx<'a> {
                     Tok::Word { text, node, link, glue, hyphen } => {
                         let s = &self.styles[*node];
                         let (font, size) = self.font_of(*node);
+                        if !self.measuring {
+                            crate::editing::record_word(self.dom, *node, px, baseline, size, font, text);
+                        }
                         // A hyphen where the line breaks after a soft or automatic hyphen point.
                         let last_on_line = pi + 1 == line.items.len();
                         let shown: String = if *hyphen && last_on_line { format!("{text}-") } else { text.clone() };

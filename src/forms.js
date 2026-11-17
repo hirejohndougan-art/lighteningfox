@@ -167,4 +167,41 @@
       else if (form && type === "reset") form.reset();
     },
   });
+  // ------------------------------------------------------------------ contenteditable
+  define("contentEditable", {
+    get() {
+      const v = this.getAttribute("contenteditable");
+      if (v === null) return "inherit";
+      const l = v.trim().toLowerCase();
+      return l === "" || l === "true" ? "true" : l === "false" ? "false" : l === "plaintext-only" ? "plaintext-only" : "inherit";
+    },
+    set(v) {
+      const l = String(v).toLowerCase();
+      if (l === "inherit") this.removeAttribute("contenteditable");
+      else if (l === "true" || l === "false" || l === "plaintext-only") this.setAttribute("contenteditable", l);
+      else throw new DOMException("Not a valid contentEditable value.", "SyntaxError");
+    },
+  });
+  define("isContentEditable", {
+    get() {
+      for (let n = this; n && n.nodeType === 1; n = n.parentNode) {
+        const v = n.getAttribute("contenteditable");
+        if (v === null) continue;
+        const l = v.trim().toLowerCase();
+        if (l === "false") return false;
+        if (l === "" || l === "true" || l === "plaintext-only") return true;
+      }
+      return false;
+    },
+  });
+  // The browser's typing in a contenteditable host: beforeinput (cancellable) and input.
+  g.__editEvent = function (id, type, inputType, data) {
+    let el = null;
+    for (const e of document.querySelectorAll("[contenteditable]")) if (e.__id === id) { el = e; break; }
+    if (!el) return 1;
+    const C = typeof InputEvent === "function" ? InputEvent : Event;
+    const ev = new C(type, { bubbles: true, cancelable: type === "beforeinput", composed: true, inputType, data });
+    if (C === Event) { Object.defineProperty(ev, "inputType", { value: inputType }); Object.defineProperty(ev, "data", { value: data }); }
+    return el.dispatchEvent(ev) ? 1 : 0;
+  };
 })();

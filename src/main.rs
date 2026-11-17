@@ -21,6 +21,7 @@ mod csssyntax;
 mod shorthand;
 mod cascade;
 mod dom;
+mod editing;
 mod font;
 mod filepicker;
 mod forms;
@@ -1591,6 +1592,95 @@ fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
     }
 }
 
+/// Stop editing a contenteditable element.
+fn stop_editing(ce: &mut Option<editing::Caret>) {
+    if ce.take().is_some() {
+        editing::set_host(None);
+    }
+}
+
+/// Keys that belong to a contenteditable element being edited (not page scrolling).
+fn editing_key(key: Key, ctrl: bool, alt: bool) -> bool {
+    !alt && (!ctrl || matches!(key, Key::V | Key::A))
+        && !matches!(key, Key::F1 | Key::F2 | Key::F3 | Key::F4 | Key::F5 | Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 | Key::F11 | Key::F12 | Key::Tab | Key::PageUp | Key::PageDown)
+}
+
+/// Apply this frame's typing to a contenteditable element. Each change fires `beforeinput`
+/// (a script can cancel it) and `input`. Returns true if anything changed or moved.
+fn contenteditable_keys(page: &mut Page, fonts: &Fonts, c: &mut editing::Caret, presses: &[KeyPress], chars: &[char], ctrl: bool, clip: &mut Option<arboard::Clipboard>) -> bool {
+    let plain = js::with_dom(|d| d.attr(c.host, "contenteditable").is_some_and(|v| v.trim().eq_ignore_ascii_case("plaintext-only")));
+    let mut any = false;
+    // Ask the page first; `data` is the inserted text (if any).
+    let mut edit = |page: &mut Page, c: &mut editing::Caret, input_type: &str, data: Option<&str>, f: &mut dyn FnMut(&mut dom::Dom, &mut editing::Caret) -> bool| -> bool {
+        let esc = |s: &str| s.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
+        let arg = data.map_or("null".to_string(), |d| format!("'{}'", esc(d)));
+        let host = c.host;
+        if let Some(js) = page.js.as_mut() {
+            if js.call_number(&format!("__editEvent({host}, 'beforeinput', '{input_type}', {arg})"), "beforeinput") == 0.0 {
+                return false;
+            }
+        }
+        let changed = js::with_dom_mut(|d| f(d, c));
+        if changed {
+            if let Some(js) = page.js.as_mut() {
+                js.call_number(&format!("__editEvent({host}, 'input', '{input_type}', {arg})"), "input");
+            }
+        }
+        changed
+    };
+    let typed: String = chars.iter().filter(|ch| !ch.is_control()).collect();
+    if !typed.is_empty() && !ctrl {
+        any |= edit(page, c, "insertText", Some(&typed), &mut |d, c| {
+            editing::insert_text(d, c, &typed);
+            true
+        });
+    }
+    for p in presses {
+        match p.key {
+            Key::Backspace => any |= edit(page, c, "deleteContentBackward", None, &mut |d, c| editing::delete_backward(d, c)),
+            Key::Delete => any |= edit(page, c, "deleteContentForward", None, &mut |d, c| editing::delete_forward(d, c)),
+            Key::Enter | Key::NumPadEnter => {
+                let kind = if plain || p.shift { "insertLineBreak" } else { "insertParagraph" };
+                any |= edit(page, c, kind, None, &mut |d, c| {
+                    editing::insert_line_break(d, c);
+                    true
+                });
+            }
+            Key::Left | Key::Right => any |= js::with_dom(|d| editing::move_by(d, c, p.key == Key::Right)),
+            Key::Home | Key::End => {
+                editing::line_edge(fonts, c, p.key == Key::End);
+                any = true;
+            }
+            Key::V if ctrl => {
+                if let Some(text) = clip.as_mut().and_then(|cb| cb.get_text().ok()) {
+                    let text = text.replace("\r\n", "\n");
+                    any |= edit(page, c, "insertFromPaste", Some(&text), &mut |d, c| {
+                        for (i, line) in text.split('\n').enumerate() {
+                            if i > 0 {
+                                editing::insert_line_break(d, c);
+                            }
+                            editing::insert_text(d, c, line);
+                        }
+                        true
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    any
+}
+
+/// The caret in a contenteditable element.
+fn draw_edit_caret(canvas: &mut Canvas, fonts: &Fonts, page: &Page, lay: &layout::Layout, c: &editing::Caret, scroll: f32) {
+    let z = page.scale();
+    let st = page.styles.get(c.host).cloned();
+    let (pad_l, pad_t, size, color) = st.map_or((0.0, 0.0, 16.0, Color::rgb(0, 0, 0)), |s| (s.padding[3].resolve(0.0) + s.border[3], s.padding[0].resolve(0.0) + s.border[0], s.font_size, s.color));
+    let host_box = lay.boxes.get(&c.host).map(|(r, _)| r).or_else(|| lay.hits.iter().rev().find(|(_, n)| *n == c.host).map(|(r, _)| r)).map_or((0.0, 0.0), |r| (r.x / z + pad_l, r.y / z + pad_t));
+    let (x, top, hgt) = js::with_dom(|d| editing::caret_rect(d, fonts, c, host_box, size));
+    canvas.fill_rect((x * z).round(), top * z - scroll + bar_h() as f32, (z.round()).max(1.0), hgt * z, color);
+}
+
 /// Open the file chooser for a file input.
 fn open_file_picker(page: &Page, input: dom::NodeId) -> Result<filepicker::Pending, String> {
     let (multiple, accept) = js::with_dom(|d| (d.attr(input, "multiple").is_some(), d.attr(input, "accept").unwrap_or("").to_string()));
@@ -1783,6 +1873,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut file_pick: Option<filepicker::Pending> = None;
     // An open date, time or color picker.
     let mut picker: Option<formui::Picker> = None;
+    // The caret in a contenteditable element being typed into.
+    let mut ce: Option<editing::Caret> = None;
     window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
@@ -1876,6 +1968,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             dropdown = None;
             picker = None;
+            stop_editing(&mut ce);
             editing = false;
             fedit = None;
             hovered = None;
@@ -2070,6 +2163,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // Requests from scripts: focus(), blur(), form.submit(), form.reset().
         for req in js::take_requests() {
             match req {
+                js::Request::Focus(n) if js::with_dom(|d| editing::host_of(d, n) == Some(n)) => {
+                    editing::set_host(Some(n));
+                    ce = Some(js::with_dom_mut(|d| editing::caret_at_end(d, n)));
+                    focused = None;
+                    form_changed = true;
+                }
+                js::Request::Blur(n) if ce.is_some_and(|c| c.host == n) => {
+                    stop_editing(&mut ce);
+                    form_changed = true;
+                }
                 js::Request::Focus(n) if js::with_dom(|d| forms::control(d, n).is_some() || a11y::is_focusable(d, n)) => {
                     focused = Some(n);
                     form_changed = true;
@@ -2353,6 +2456,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 dirty = true;
             }
         }
+        if let (Some(c), false, false) = (ce.as_mut(), finding, editing) {
+            if contenteditable_keys(&mut page, fonts, c, &presses, &chars, ctrl_down, &mut clipboard) {
+                form_changed = true;
+                reflow = true;
+                dirty = true;
+            }
+        }
         if typing {
             let f = focused.unwrap();
             let multiline = js::with_dom(|d| d.tag(f) == Some("textarea"));
@@ -2491,6 +2601,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     dirty = true;
                     continue;
                 }
+                if ce.is_some() && editing_key(key, ctrl, alt) {
+                    continue;
+                }
                 // Keys for the focused control come first.
                 if let Some(f) = focused {
                     let kind = js::with_dom(|d| forms::control(d, f));
@@ -2513,6 +2626,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             }
                             dropdown = None;
                             picker = None;
+                            stop_editing(&mut ce);
                             form_changed = true;
                             true
                         }
@@ -2532,6 +2646,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             focused = None;
                             dropdown = None;
                             picker = None;
+                            stop_editing(&mut ce);
                             form_changed = true;
                             true
                         }
@@ -3206,6 +3321,41 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         }
                         form_changed = true;
                     }
+                    // A click in a contenteditable element puts the caret there; elsewhere ends editing.
+                    // (Clicks on a plain block hit no node: find the editable box under the mouse.)
+                    let host = node.and_then(|n| js::with_dom(|d| editing::host_of(d, n))).or_else(|| {
+                        js::with_dom(|d| {
+                            d.descendants(dom::Dom::ROOT).into_iter().rev().find(|&n| {
+                                editing::host_of(d, n) == Some(n) && lay.boxes.get(&n).is_some_and(|(r, fixed)| {
+                                    let py = if *fixed { view_y } else { view_y + scroll };
+                                    mx >= r.x && mx < r.x + r.w && py >= r.y && py < r.y + r.h
+                                })
+                            })
+                        })
+                    });
+                    let host = host.filter(|_| ctrl.is_none() && allowed);
+                    match host {
+                        Some(hst) => {
+                            if ce.map(|c| c.host) != Some(hst) {
+                                // Lay out once with the host known, so its words' positions are recorded.
+                                editing::set_host(Some(hst));
+                                lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                                fire(&mut page, hst, "focus");
+                            }
+                            let z = page.scale();
+                            ce = Some(js::with_dom_mut(|d| editing::caret_at_point(d, fonts, hst, mx / z, (view_y + scroll) / z)));
+                            form_changed = true;
+                            dirty = true;
+                        }
+                        None if ce.is_some() => {
+                            if let Some(c) = ce {
+                                fire(&mut page, c.host, "blur");
+                            }
+                            stop_editing(&mut ce);
+                            dirty = true;
+                        }
+                        None => {}
+                    }
                     // A click inside a single-line text field puts the caret where you clicked
                     // (double-click selects a word).
                     if let Some(c) = ctrl.filter(|&c| js::with_dom(|d| forms::is_editable(d, c) && d.tag(c) == Some("input"))) {
@@ -3573,6 +3723,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     focused = None;
                     dropdown = None;
                     picker = None;
+                    stop_editing(&mut ce);
                     layout::set_focus(None);
                     lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
                     page_version += 1;
@@ -3638,6 +3789,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             focused = None;
             dropdown = None;
             picker = None;
+            stop_editing(&mut ce);
             layout::set_focus(None);
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
@@ -3846,6 +3998,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
                     keynav::draw_ring(&mut canvas, r, fixed, bar_h() as f32, scroll.round(), h as f32, settings::get().high_contrast);
                 }
+            }
+            if let Some(c) = &ce {
+                draw_edit_caret(&mut canvas, fonts, &page, &lay, c, scroll);
             }
             if let Some(p) = &picker {
                 p.draw(&mut canvas, fonts, p.y - scroll + bar_h() as f32);
