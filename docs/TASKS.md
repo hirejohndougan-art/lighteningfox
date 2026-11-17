@@ -158,7 +158,7 @@ Cap the number of site processes on small laptops and reuse them, keeping sites 
 origins apart when memory allows.
 
 ### T08. Bindings generated from WebIDL
-**Status:** free
+**Status:** claimed by chat-opus-x2 2026-11-17 10:55
 **After:** T07
 **Checklist:** §9 "Generate bindings automatically from the WebIDL spec files" and §14 "Generate
 bindings from WebIDL so every API gets the fast path" (two items)
