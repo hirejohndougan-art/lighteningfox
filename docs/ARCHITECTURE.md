@@ -30,6 +30,11 @@ image and font decoding (`image`, `ab_glyph`, `wuff`), text shaping (`rustybuzz`
    box and line of text: block, inline, flexbox, grid, floats, tables, positioned and sticky boxes.
    The output is a `Layout`: a **display list** (`Item::Rect`, `Item::Text`, `Item::Image`, clips,
    transforms…) plus hit-testing data (links, element boxes, scroll areas).
+   Layout works on the **box tree** (`boxtree.rs`), not the DOM: `display: contents` unwrapped,
+   `::before`/`::after` and list markers added, inline runs beside blocks wrapped in anonymous
+   block boxes. Each box has a subtree fingerprint, and a block box whose fingerprint and inputs
+   match the last pass is put back moved instead of laid out again (`relayout.rs`; set
+   `IRONSWIFT_NO_RELAYOUT_CACHE=1` to turn that off when chasing a layout bug).
 6. **Paint** (`paint.rs`, `font.rs`): draw the display list into a pixel buffer (`Canvas`, 0RGB `u32`s).
    Text is shaped (`rustybuzz`), glyphs come from system fonts, web fonts or fallback fonts, and
    are cached.

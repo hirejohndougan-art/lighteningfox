@@ -104,6 +104,7 @@ mod net;
 mod paint;
 mod style;
 mod boxtree;
+mod relayout;
 mod svg_inline;
 mod pseudo;
 mod textedit;

@@ -42,6 +42,11 @@ pub fn set_host(host: Option<NodeId>) {
     WORDS.with(|w| w.borrow_mut().clear());
 }
 
+/// The element being edited, whose words layout records.
+pub fn host() -> Option<NodeId> {
+    HOST.with(Cell::get)
+}
+
 /// Called when a layout starts.
 pub fn begin_layout() {
     if HOST.with(Cell::get).is_some() {

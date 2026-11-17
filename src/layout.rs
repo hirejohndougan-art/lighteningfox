@@ -240,7 +240,16 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
     // Layout works on the box tree (anonymous boxes, ::before/::after, markers,
     // display: contents); hits and element boxes are reported in DOM ids.
     let tree = crate::boxtree::build(dom, styles);
-    let mut lay = layout_tree(&tree.dom, &tree.styles, &tree.markers, fonts, images, width, viewport_h);
+    // Boxes whose subtree didn't change are put back from the last pass (relayout.rs).
+    let fps = crate::relayout::fingerprints(&tree, FOCUS.with(|f| f.get()).map(|f| f.0), crate::editing::host());
+    let mut env = crate::relayout::hasher();
+    {
+        use std::hash::Hash;
+        (width.to_bits(), viewport_h.to_bits(), images.layout_stamp(), crate::settings::get().min_font_size).hash(&mut env);
+    }
+    crate::relayout::begin_pass(std::hash::Hasher::finish(&env), &tree.styles);
+    let mut lay = layout_tree(&tree, &fps, fonts, images, width, viewport_h);
+    crate::relayout::end_pass(lay.items.len() + lay.hits.len());
     for h in &mut lay.hits {
         h.1 = tree.origin(h.1);
     }
@@ -251,11 +260,15 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
     lay
 }
 
-fn layout_tree(dom: &Dom, styles: &[Rc<Style>], markers: &HashMap<NodeId, String>, fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+    let (dom, styles, markers) = (&tree.dom, &tree.styles[..], &tree.markers);
     let mut cx = Ctx {
         dom,
         styles,
         markers,
+        tree,
+        fps,
+        no_reuse: 0,
         fonts,
         images,
         items: Vec::new(),
@@ -335,6 +348,12 @@ struct Ctx<'a> {
     styles: &'a [Rc<Style>],
     /// Outside list markers' text (from the box tree).
     markers: &'a HashMap<NodeId, String>,
+    tree: &'a crate::boxtree::BoxTree,
+    /// Subtree fingerprints, for reusing unchanged boxes (relayout.rs).
+    fps: &'a [u64],
+    /// Inside multi-column content: balancing reacts to the tiniest change in where lines
+    /// sit, so boxes there are always laid out afresh.
+    no_reuse: u32,
     fonts: &'a Fonts,
     images: &'a Images,
     items: Vec<Item>,
@@ -654,7 +673,98 @@ impl<'a> Ctx<'a> {
     }
 
     /// Lay out an element as a block box. Returns (outer height, bottom margin).
+    /// Lay a block box out, or put back what it made last time if its subtree and what it
+    /// was handed are unchanged (relayout.rs).
     fn block(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
+        let Some(key) = self.reuse_key(id, y, avail, prev_mb) else {
+            return self.block_fresh(id, x, y, avail, prev_mb);
+        };
+        if let Some(e) = crate::relayout::lookup(key) {
+            self.flow_child = false;
+            if self.absorb_top == Some(id) {
+                self.absorb_top = None;
+            }
+            self.items.extend(e.items.iter().map(|it| {
+                let mut it = it.clone();
+                shift_item(&mut it, x, y);
+                it
+            }));
+            self.links.extend(e.links.iter().map(|(r, l)| (Rect { x: r.x + x, y: r.y + y, ..*r }, l.clone())));
+            self.hits.extend(e.hits.iter().map(|(r, n)| (Rect { x: r.x + x, y: r.y + y, ..*r }, *n)));
+            if let Some(fs) = self.floats.last_mut() {
+                fs.extend(e.floats.iter().map(|&(x0, x1, y0, y1, left)| FloatBox { x0: x0 + x, x1: x1 + x, y0: y0 + y, y1: y1 + y, left }));
+            }
+            return (e.h, e.mb);
+        }
+        let before = self.side_effects();
+        let (i0, l0, h0) = (self.items.len(), self.links.len(), self.hits.len());
+        let f0 = self.floats.last().map_or(0, Vec::len);
+        let out = self.block_fresh(id, x, y, avail, prev_mb);
+        let floats_kept = self.floats.last().map_or(0, Vec::len) >= f0;
+        if self.side_effects() == before && floats_kept && self.items.len() >= i0 && self.links.len() >= l0 && self.hits.len() >= h0 {
+            let tree = self.tree;
+            let mut items = Vec::with_capacity(self.items.len() - i0);
+            for it in &self.items[i0..] {
+                let mut it = it.clone();
+                match &mut it {
+                    // Generated boxes are renumbered on every build: keep only DOM nodes' marks.
+                    Item::Mark { id, .. } if !tree.is_dom_node(*id) => continue,
+                    Item::StickyPush { id, .. } if !tree.is_dom_node(*id) => return out,
+                    Item::ScrollArea { id, .. } => *id = tree.origin(*id),
+                    _ => {}
+                }
+                shift_item(&mut it, -x, -y);
+                items.push(it);
+            }
+            let links = self.links[l0..].iter().map(|(r, l)| (Rect { x: r.x - x, y: r.y - y, ..*r }, l.clone())).collect();
+            let hits = self.hits[h0..].iter().map(|(r, n)| (Rect { x: r.x - x, y: r.y - y, ..*r }, tree.origin(*n))).collect();
+            // Floats it placed in the surrounding formatting context go back in with it.
+            let floats = self.floats.last().map(|fs| fs[f0..].iter().map(|f| (f.x0 - x, f.x1 - x, f.y0 - y, f.y1 - y, f.left)).collect()).unwrap_or_default();
+            crate::relayout::store(key, crate::relayout::Entry::new(items, links, hits, floats, out));
+        }
+        out
+    }
+
+    /// What a box's layout is keyed on besides its subtree, or None if it can't be reused.
+    fn reuse_key(&self, id: NodeId, y: f32, avail: f32, prev_mb: f32) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+        let fp = self.fps.get(id).copied().unwrap_or(crate::relayout::VOLATILE);
+        if fp == crate::relayout::VOLATILE || self.measuring || self.no_reuse > 0 {
+            return None;
+        }
+        // Floats already in this formatting context would shape its lines (unless they
+        // end above it).
+        if !self.own_bfc(id) && self.float_bottom(true, true) > y + 0.01 {
+            return None;
+        }
+        let mut h = crate::relayout::hasher();
+        fp.hash(&mut h);
+        (avail.to_bits(), prev_mb.to_bits(), self.flow_child, self.absorb_top == Some(id)).hash(&mut h);
+        if let Some((w, hh)) = self.forced.get(&id) {
+            (w.map(f32::to_bits), hh.map(f32::to_bits)).hash(&mut h);
+        }
+        self.pad_top.get(&id).map(|p| p.to_bits()).hash(&mut h);
+        if let Some((cols, gap, rows)) = self.subgrid.get(&id) {
+            (cols.iter().map(|c| c.to_bits()).collect::<Vec<_>>(), gap.to_bits()).hash(&mut h);
+            rows.as_ref().map(|(r, g)| (r.iter().map(|c| c.to_bits()).collect::<Vec<_>>(), g.to_bits())).hash(&mut h);
+        }
+        self.cb_heights.last().copied().flatten().map(f32::to_bits).hash(&mut h);
+        Some(h.finish())
+    }
+
+    /// Context a box's layout can leave things in outside its own output; a box that
+    /// changed any of these isn't remembered.
+    fn side_effects(&self) -> (usize, usize, usize, usize, usize) {
+        (
+            self.abs.len(),
+            self.abs.last().map_or(0, Vec::len),
+            self.fixed.len(),
+            self.floats.len(),
+            self.layers.len(),
+        )
+    }
+
+    fn block_fresh(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
         let flow = std::mem::replace(&mut self.flow_child, false);
         let absorbed = self.absorb_top == Some(id);
         if absorbed {
@@ -2463,10 +2573,12 @@ impl<'a> Ctx<'a> {
     /// background, which are kept whole) and set the pieces side by side.
     fn multicol(&mut self, id: NodeId, x: f32, y: f32, w: f32, align: Align) -> f32 {
         let Some((n, cw, gap)) = self.columns_of(id, w) else { return 0.0 };
+        self.no_reuse += 1;
         let d = self.detach(|cx| {
             let (h, mb) = cx.block_children(id, 0.0, 0.0, cw, align);
             (cw, h - mb)
         });
+        self.no_reuse -= 1;
         // Vertical extents of everything that must not be cut.
         let mut spans: Vec<(f32, f32)> = Vec::new();
         for it in &d.items {
