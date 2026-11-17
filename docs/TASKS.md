@@ -189,7 +189,7 @@ access away from the frame renderer (`sandbox::protect_frame_renderer`, `no_net`
 sockets per process. Test with `tools/ws_echo.py`.
 
 ### X14. One process per site for cross-site iframes
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 12:50
 **After:** —
 **Checklist:** none
 **Files:** `src/frames.rs` (`isolated`), `src/process.rs` (the pool)
