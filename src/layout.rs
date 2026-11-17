@@ -1817,7 +1817,7 @@ impl<'a> Ctx<'a> {
             Some(Control::Other) => match self.dom.attr(id, "type").unwrap_or("").to_ascii_lowercase().as_str() {
                 "color" => 40.0,
                 "range" => 130.0,
-                _ => self.fonts.width(font, "Browse… No file selected.", size).ceil(),
+                _ => (self.fonts.width(font, "Browse… No file selected.", size) + 18.0).ceil(),
             },
             None => 0.0,
         }
@@ -2015,7 +2015,16 @@ impl<'a> Ctx<'a> {
                         items.push(Item::Box { x: x + (w - 14.0) * t, y: mid - 7.0, w: 14.0, h: 14.0, radius: 7.0, bg: Box::new(bg) });
                     }
                     _ => {
-                        items.push(Item::Text { x, y: baseline(y), text: "Browse… No file selected.".into(), font, size, color: st.color });
+                        let names: Vec<String> = self.dom.form_state.files.get(&id).map(|f| f.iter().map(|f| f.name.clone()).collect()).unwrap_or_default();
+                        let button = "Browse…";
+                        let bw = self.fonts.width(font, button, size) + 12.0;
+                        let edge = Color { r: 150, g: 150, b: 160, a: 255 };
+                        items.push(Item::Rect { x, y: y - 1.0, w: bw, h: lh + 2.0, color: edge });
+                        items.push(Item::Rect { x: x + 1.0, y, w: bw - 2.0, h: lh, color: Color { r: 239, g: 239, b: 242, a: 255 } });
+                        items.push(Item::Text { x: x + 6.0, y: baseline(y), text: button.into(), font, size, color: st.color });
+                        items.push(Item::ClipPush { x: x + bw + 6.0, y, w: (w - bw - 6.0).max(0.0), h: lh, radius: 0.0 });
+                        items.push(Item::Text { x: x + bw + 6.0, y: baseline(y), text: crate::filepicker::label(&names), font, size, color: st.color });
+                        items.push(Item::ClipPop);
                     }
                 }
                 lh

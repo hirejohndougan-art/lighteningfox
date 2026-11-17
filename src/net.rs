@@ -128,11 +128,11 @@ fn image_page(url: &str, content_type: &str, bytes: &[u8]) -> String {
 ///
 /// While a slow HTML page downloads, `partial(url, html_so_far)` is called now and then so the
 /// page can be shown before it has all arrived.
-pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str, &str, &[(String, String)])) -> Result<Navigated, String> {
+pub fn navigate_with(url: &str, post: Option<&crate::forms::PostBody>, partial: &mut dyn FnMut(&str, &str, &[(String, String)])) -> Result<Navigated, String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         // Local files and data: URLs: shown by type, never downloaded.
         let r = match post {
-            Some(body) if url.starts_with("file://") => http(&Request { method: "GET", url: &format!("{}?{body}", url.split('?').next().unwrap_or(url)), headers: &[], body: None, top: None, cookies: true, extra: &[] })?,
+            Some(body) if url.starts_with("file://") => http(&Request { method: "GET", url: &format!("{}?{}", url.split('?').next().unwrap_or(url), body.query()), headers: &[], body: None, top: None, cookies: true, extra: &[] })?,
             _ => http(&Request { method: "GET", url, headers: &[], body: None, top: None, cookies: true, extra: &[] })?,
         };
         let ct = r.header("content-type").map(str::to_string);
@@ -146,10 +146,10 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
         return Ok(Navigated::Page { url: r.url, html, xml, headers: Vec::new() });
     }
     let headers = match post {
-        Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
+        Some(p) => vec![("content-type".to_string(), p.content_type.clone())],
         None => Vec::new(),
     };
-    let req = Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(str::as_bytes), top: None, cookies: true, extra: &[] };
+    let req = Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(|p| p.bytes.as_slice()), top: None, cookies: true, extra: &[] };
     let (final_url, st) = http_stream(&req)?;
     let ct = st.header("content-type").map(str::to_string);
     let disposition = st.header("content-disposition").map(str::to_string);

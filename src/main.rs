@@ -19,6 +19,7 @@ mod cookies;
 mod css;
 mod dom;
 mod font;
+mod filepicker;
 mod forms;
 mod formui;
 mod geometry;
@@ -220,7 +221,7 @@ const FIELD_X: f32 = 108.0;
 enum Go {
     To(String),
     /// Submit a form with POST: (url, urlencoded body)
-    Post(String, String),
+    Post(String, forms::PostBody),
     Back,
     Forward,
     Reload,
@@ -604,12 +605,12 @@ fn install_fonts(fonts: Vec<WebFont>) {
 
 /// Fetch the page, its stylesheets, scripts and images, all in parallel where possible.
 /// Runs on a worker thread; touches nothing the UI thread owns.
-fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
+fn fetch_page(url: &str, post: Option<&forms::PostBody>) -> Prepared {
     fetch_page_with(url, post, &mut |_| {})
 }
 
 /// `fetch_page`, also handing over previews of a slow page while it downloads.
-fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepared)) -> Prepared {
+fn fetch_page_with(url: &str, post: Option<&forms::PostBody>, preview: &mut dyn FnMut(Prepared)) -> Prepared {
     let mut xml = false;
     let mut headers: Vec<(String, String)> = Vec::new();
     let (final_url, body) = if url == "about:home" || url.is_empty() {
@@ -1672,6 +1673,12 @@ fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
     }
 }
 
+/// Open the file chooser for a file input.
+fn open_file_picker(page: &Page, input: dom::NodeId) -> Result<filepicker::Pending, String> {
+    let (multiple, accept) = js::with_dom(|d| (d.attr(input, "multiple").is_some(), d.attr(input, "accept").unwrap_or("").to_string()));
+    filepicker::open(input, page.doc, multiple, &accept)
+}
+
 /// Submit a form. With `fire_event`, the page's submit handlers run first and may cancel it.
 fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId>, fire_event: bool) -> Option<Go> {
     // Interactive submissions check the form first (required, pattern, min/max…) and stop at
@@ -1836,6 +1843,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut dropdown: Option<Dropdown> = None;
     // A form control's validation message, shown after a blocked submission.
     let mut bubble: Option<formui::Bubble> = None;
+    // An open file chooser for an <input type=file>.
+    let mut file_pick: Option<filepicker::Pending> = None;
     window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
@@ -2124,6 +2133,20 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         let view_h = h.saturating_sub(bar_h()) as f32;
+        // Files picked in the file chooser go into their input (if its page is still shown).
+        if let Some(chosen) = file_pick.as_ref().and_then(|p| p.poll()) {
+            let p = file_pick.take().unwrap();
+            if let (Some(paths), true) = (chosen, p.doc == page.doc) {
+                let files: Vec<validation::ChosenFile> = paths.iter().filter_map(|p| validation::ChosenFile::from_path(p)).collect();
+                js::with_dom_mut(|d| {
+                    d.form_state.files.insert(p.node, files);
+                });
+                fire(&mut page, p.node, "input");
+                fire(&mut page, p.node, "change");
+                form_changed = true;
+                dirty = true;
+            }
+        }
         // A blocked submission or reportValidity(): focus the control and say what's wrong.
         if let Some(id) = validation::take_report() {
             let text = js::with_dom(|d| {
@@ -2398,6 +2421,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                 fire(&mut page, f, "input");
                                 fire(&mut page, f, "change");
                                 form_changed = true;
+                            }
+                            true
+                        }
+                        Key::Space | Key::Enter if kind == Some(forms::Control::Other) && js::with_dom(|d| forms::is_file(d, f)) => {
+                            if file_pick.is_none() {
+                                match open_file_picker(&page, f) {
+                                    Ok(p) => file_pick = Some(p),
+                                    Err(e) => toast = Some((e, Instant::now())),
+                                }
                             }
                             true
                         }
@@ -2956,6 +2988,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                     }
                                 }
                             }
+                            Some(forms::Control::Other) if file_pick.is_none() && js::with_dom(|d| forms::is_file(d, c)) => match open_file_picker(&page, c) {
+                                Ok(p) => file_pick = Some(p),
+                                Err(e) => {
+                                    toast = Some((e, Instant::now()));
+                                    dirty = true;
+                                }
+                            },
                             Some(forms::Control::Button { reset: true, .. }) => {
                                 if let Some(form) = js::with_dom(|d| forms::form_of(d, c)) {
                                     if fire(&mut page, form, "reset") {
@@ -3223,7 +3262,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let (g, t, tx) = (generation, target.clone(), tx.clone());
             std::thread::spawn(move || {
                 let ptx = tx.clone();
-                let _ = tx.send((g, fetch_page_with(&t, post.as_deref(), &mut |p| {
+                let _ = tx.send((g, fetch_page_with(&t, post.as_ref(), &mut |p| {
                     let _ = ptx.send((g, p));
                 })));
             });

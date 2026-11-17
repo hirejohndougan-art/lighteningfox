@@ -204,7 +204,11 @@ pub fn form_data(dom: &Dom, form: NodeId, submitter: Option<NodeId>) -> Vec<(Str
                     out.push((name.to_string(), option_value(dom, o)));
                 }
             }
-            Some(Control::Other) if dom.attr(n, "type").is_some_and(|t| t.eq_ignore_ascii_case("file")) => {}
+            // A file picker sends its files' names here; `submission` sends the files themselves.
+            Some(Control::Other) if is_file(dom, n) => match dom.form_state.files.get(&n).filter(|f| !f.is_empty()) {
+                Some(files) => out.extend(files.iter().map(|f| (name.to_string(), f.name.clone()))),
+                None => out.push((name.to_string(), String::new())),
+            },
             Some(_) => out.push((name.to_string(), value(dom, n).replace("\r\n", "\n").replace('\n', "\r\n"))),
             None if dom.tag(n) == Some("input") => out.push((name.to_string(), dom.attr(n, "value").unwrap_or("").to_string())), // hidden
             None => {}
@@ -236,24 +240,105 @@ pub fn urlencode(pairs: &[(String, String)]) -> String {
     out
 }
 
+pub fn is_file(dom: &Dom, id: NodeId) -> bool {
+    dom.tag(id) == Some("input") && dom.attr(id, "type").is_some_and(|t| t.trim().eq_ignore_ascii_case("file"))
+}
+
 /// Where and how a form submits.
 pub struct Submission {
     pub url: String,
     /// `Some(body)` for POST.
-    pub post: Option<String>,
+    pub post: Option<PostBody>,
+}
+
+/// A POST request's body and its Content-Type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PostBody {
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+impl PostBody {
+    pub fn urlencoded(data: String) -> PostBody {
+        PostBody { content_type: "application/x-www-form-urlencoded".into(), bytes: data.into_bytes() }
+    }
+
+    /// The body as a query string (for forms "posted" to local files, which can only be read).
+    pub fn query(&self) -> String {
+        if self.content_type.starts_with("application/x-www-form-urlencoded") { String::from_utf8_lossy(&self.bytes).into_owned() } else { String::new() }
+    }
+}
+
+/// multipart/form-data: every field as its own part, picked files with their contents.
+pub fn multipart(dom: &Dom, form: NodeId, submitter: Option<NodeId>, boundary: &str) -> Vec<u8> {
+    let esc = |s: &str| s.replace('"', "%22").replace('\r', "%0D").replace('\n', "%0A");
+    let mut out: Vec<u8> = Vec::new();
+    let mut files_done = std::collections::HashSet::new();
+    for (name, value) in form_data(dom, form, submitter) {
+        // Pair each file input's entries back up with its files, in order.
+        let file_input = controls(dom, form).into_iter().find(|&n| is_file(dom, n) && dom.attr(n, "name") == Some(name.as_str()) && !files_done.contains(&n) && !is_disabled(dom, n));
+        out.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{}\"", esc(&name)).as_bytes());
+        match file_input {
+            Some(n) => {
+                let files = dom.form_state.files.get(&n).cloned().unwrap_or_default();
+                let i = out_count(&files, &value);
+                let file = files.get(i);
+                if i + 1 >= files.len() {
+                    files_done.insert(n);
+                }
+                let (fname, mime) = file.map_or((String::new(), "application/octet-stream".to_string()), |f| (f.name.clone(), f.mime.clone()));
+                out.extend_from_slice(format!("; filename=\"{}\"\r\nContent-Type: {mime}\r\n\r\n", esc(&fname)).as_bytes());
+                if let Some(f) = file {
+                    out.extend(std::fs::read(&f.path).unwrap_or_default());
+                }
+            }
+            None => {
+                out.extend_from_slice(b"\r\n\r\n");
+                out.extend_from_slice(value.as_bytes());
+            }
+        }
+        out.extend_from_slice(b"\r\n");
+    }
+    out.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    out
+}
+
+/// Which of an input's files a form entry named `value` is (entries come in file order).
+fn out_count(files: &[crate::validation::ChosenFile], value: &str) -> usize {
+    files.iter().position(|f| f.name == value).unwrap_or(0)
 }
 
 pub fn submission(dom: &Dom, form: NodeId, submitter: Option<NodeId>, page_url: &str) -> Submission {
     let pick = |attr: &str| submitter.and_then(|s| dom.attr(s, &format!("form{attr}"))).or_else(|| dom.attr(form, attr));
     let action = pick("action").filter(|a| !a.trim().is_empty()).map(|a| crate::net::resolve(page_url, a.trim())).unwrap_or_else(|| page_url.to_string());
     let method = pick("method").unwrap_or("get").to_ascii_lowercase();
-    let data = urlencode(&form_data(dom, form, submitter));
     if method == "post" {
-        Submission { url: action, post: Some(data) }
+        let enctype = pick("enctype").unwrap_or("").trim().to_ascii_lowercase();
+        let body = match enctype.as_str() {
+            "multipart/form-data" => {
+                let boundary = format!("----IronswiftFormBoundary{:016x}", boundary_seed());
+                PostBody { bytes: multipart(dom, form, submitter, &boundary), content_type: format!("multipart/form-data; boundary={boundary}") }
+            }
+            "text/plain" => {
+                let text: String = form_data(dom, form, submitter).into_iter().map(|(k, v)| format!("{k}={v}\r\n")).collect();
+                PostBody { content_type: "text/plain".into(), bytes: text.into_bytes() }
+            }
+            _ => PostBody::urlencoded(urlencode(&form_data(dom, form, submitter))),
+        };
+        Submission { url: action, post: Some(body) }
     } else {
+        let data = urlencode(&form_data(dom, form, submitter));
         let base = action.split('#').next().unwrap_or("").split('?').next().unwrap_or("").to_string();
         Submission { url: format!("{base}?{data}"), post: None }
     }
+}
+
+/// A boundary that won't turn up inside an uploaded file by chance.
+fn boundary_seed() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos()));
+    h.finish()
 }
 
 /// The form's default button (its first submit button), for pressing Enter in a field.
@@ -334,5 +419,23 @@ line2</textarea>
         let s = submission(&dom, form, None, "https://example.com/a/b?x=1");
         assert_eq!(s.url, "https://example.com/search?q=rust+browser&safe=on&s=b&lang=fr&t=line1%0D%0Aline2&h=1%262");
         assert!(s.post.is_none());
+    }
+
+    #[test]
+    fn multipart_upload() {
+        let dir = std::env::temp_dir().join(format!("ironswift-mp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("note.txt");
+        std::fs::write(&path, b"hello\x00bytes").unwrap();
+        let mut dom = crate::html::parse(r#"<form method=post enctype="multipart/form-data"><input name="t" value="a&quot;b"><input type=file name="f"><input type=file name="g"></form>"#);
+        let inputs = dom.find_all("input");
+        dom.form_state.files.insert(inputs[1], vec![crate::validation::ChosenFile::from_path(&path).unwrap()]);
+        let form = dom.find_all("form")[0];
+        let body = multipart(&dom, form, None, "XX");
+        let text = String::from_utf8_lossy(&body);
+        assert_eq!(text, "--XX\r\nContent-Disposition: form-data; name=\"t\"\r\n\r\na\"b\r\n--XX\r\nContent-Disposition: form-data; name=\"f\"; filename=\"note.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\0bytes\r\n--XX\r\nContent-Disposition: form-data; name=\"g\"; filename=\"\"\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--XX--\r\n");
+        let s = submission(&dom, form, None, "https://x.org/");
+        assert!(s.post.unwrap().content_type.starts_with("multipart/form-data; boundary=----IronswiftFormBoundary"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
