@@ -76,6 +76,9 @@ jobs:
             ./target/release/ironswift --png "shots/$p.png" --width 1000 "tests/$p.html"
           done
           ls -la shots
+          # One picture in the log as base64, for reviewers who can't download artifacts.
+          py=$(command -v python3 || command -v python)
+          echo "BEGIN-SHOT"; "$py" -c "import base64,sys; print(base64.b64encode(open(sys.argv[1],'rb').read()).decode())" shots/forms.png; echo "END-SHOT"
       - name: Unit tests that don't depend on Linux fonts
         run: cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
       - name: Keep the pictures

@@ -7,6 +7,8 @@ name: Release
 #   Ironswift-<v>-x86_64.AppImage        any distribution
 #   ironswift-<v>-linux-x86_64.tar.gz    unpack-and-run, installs into your home folder
 #   Ironswift-<v>.flatpak                Flatpak bundle
+#   ironswift-<v>-windows-x86_64.zip     Windows: unzip and run ironswift.exe
+#   Ironswift-<v>-macos-arm64.zip        macOS (Apple silicon): Ironswift.app, not yet signed
 #   SHA256SUMS                           checksums of everything above
 # Built on the oldest supported Ubuntu so the packages run on more systems (glibc 2.35+).
 on:
@@ -61,9 +63,68 @@ jobs:
           cache-key: flatpak-${{ github.sha }}
           upload-artifact: true
 
+  windows-and-macos:
+    # The program plus DejaVu (the default font; Windows and macOS don't have it) in fonts/.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: DejaVu fonts
+        shell: bash
+        run: |
+          curl -fsSL -o dejavu.zip https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip
+          unzip -q dejavu.zip
+          mkdir -p fonts
+          cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans*.ttf dejavu-fonts-ttf-2.37/ttf/DejaVuSerif*.ttf fonts/
+          cp dejavu-fonts-ttf-2.37/LICENSE fonts/DejaVu-LICENSE.txt
+      - name: Package
+        shell: bash
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          mkdir -p dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            d=ironswift-$v-windows-x86_64
+            mkdir "$d"
+            cp target/release/ironswift.exe "$d/"
+            cp -r fonts README.md LICENSE* "$d/" 2>/dev/null || cp -r fonts README.md "$d/"
+            7z a "dist/$d.zip" "$d" > /dev/null
+          else
+            app=Ironswift.app/Contents
+            mkdir -p "$app/MacOS" "$app/Resources"
+            cp target/release/ironswift "$app/MacOS/"
+            cp -r fonts "$app/Resources/"
+            cat > "$app/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>Ironswift</string>
+            <key>CFBundleIdentifier</key><string>io.github.hirejohndougan_art.Ironswift</string>
+            <key>CFBundleExecutable</key><string>ironswift</string>
+            <key>CFBundleVersion</key><string>$v</string>
+            <key>CFBundleShortVersionString</key><string>$v</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+          </dict></plist>
+          PLIST
+            ditto -c -k --keepParent Ironswift.app "dist/Ironswift-$v-macos-arm64.zip"
+          fi
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: dist/
+
   publish:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build, flatpak]
+    needs: [build, flatpak, windows-and-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

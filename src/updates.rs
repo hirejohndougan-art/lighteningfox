@@ -96,8 +96,13 @@ fn latest() -> Result<(String, String, Option<String>, Option<String>), String> 
 }
 
 /// Can this copy of Ironswift replace its own program file? Only a per-user install
-/// (~/.local/bin and the like), never a system, Flatpak or development build.
+/// (~/.local/bin and the like), never a system, Flatpak or development build. Only on Linux:
+/// the release's program file is the Linux one, so Windows and macOS copies just say that a
+/// new version is out.
 fn self_updatable() -> Option<std::path::PathBuf> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
     let exe = std::env::current_exe().ok()?;
     let s = exe.to_string_lossy();
     if s.contains("/target/") || s.starts_with("/usr/") || s.starts_with("/app/") || std::env::var("FLATPAK_ID").is_ok() {

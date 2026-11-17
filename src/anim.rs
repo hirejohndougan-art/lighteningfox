@@ -907,7 +907,8 @@ mod tests {
         let mut sheet = crate::css::parse(src);
         sheet.keyframes = find_keyframes(src);
         let mut spec = None;
-        apply_prop(&mut spec, "animation", "pop 0.1s linear 2");
+        // Iterations long enough that a slow test machine oversleeping doesn't skip one.
+        apply_prop(&mut spec, "animation", "pop 0.4s linear 2");
         let pass = |spec: &Option<Rc<AnimSpec>>| {
             set_current(9_997);
             begin_pass(std::slice::from_ref(&sheet));
@@ -916,9 +917,9 @@ mod tests {
             take_events().into_iter().map(|e| e.kind).collect::<Vec<_>>()
         };
         assert_eq!(pass(&spec), vec!["animationstart"]);
-        std::thread::sleep(std::time::Duration::from_millis(120));
+        std::thread::sleep(std::time::Duration::from_millis(500));
         assert_eq!(pass(&spec), vec!["animationiteration"]);
-        std::thread::sleep(std::time::Duration::from_millis(120));
+        std::thread::sleep(std::time::Duration::from_millis(400));
         assert_eq!(pass(&spec), vec!["animationend"]);
         assert!(pass(&spec).is_empty());
 
