@@ -399,6 +399,81 @@ mod tests {
         same(&incremental, &fresh);
     }
 
+    /// Every test page, through a run of structural edits (remove, insert, a class change,
+    /// display: contents, display: none, a list item added, a paragraph emptied): after each,
+    /// the reused layout matches a fresh one.
+    #[test]
+    fn structural_edits_match_fresh_layouts() {
+        let fonts = crate::load_fonts().expect("fonts");
+        crate::images::freeze_animations();
+        let mut pages: Vec<_> = ["tests", "tests/real-world"]
+            .iter()
+            .flat_map(|d| std::fs::read_dir(d).unwrap().flatten().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "html"))
+            .collect();
+        pages.sort();
+        type Edit = fn(&mut Dom) -> bool;
+        // The element in the middle of the body (not a script or style), if any.
+        fn middle(d: &Dom, nth: usize) -> Option<crate::dom::NodeId> {
+            let body = d.find_all("body").first().copied()?;
+            let els: Vec<_> = d
+                .descendants(body)
+                .into_iter()
+                .filter(|&n| n != body && d.tag(n).is_some_and(|t| !matches!(t, "script" | "style" | "template" | "link" | "meta")))
+                .collect();
+            els.get((els.len() / 2 + nth).min(els.len().saturating_sub(1))).copied()
+        }
+        let edits: [(&str, Edit); 7] = [
+            ("remove", |d| middle(d, 0).map(|n| d.detach(n)).is_some()),
+            ("insert", |d| {
+                let Some(n) = middle(d, 1) else { return false };
+                let Some(parent) = d.nodes[n].parent else { return false };
+                let div = d.create(crate::dom::NodeData::Element { tag: "div".into(), attrs: vec![] });
+                let t = d.create(crate::dom::NodeData::Text("a new block with a few words".into()));
+                d.insert(div, t, None);
+                d.insert(parent, div, Some(n));
+                true
+            }),
+            ("class", |d| middle(d, 2).map(|n| d.set_attr(n, "class", "edited-class")).is_some()),
+            ("contents", |d| middle(d, 3).map(|n| d.set_attr(n, "style", "display:contents")).is_some()),
+            ("none", |d| middle(d, 4).map(|n| d.set_attr(n, "style", "display:none")).is_some()),
+            ("list item", |d| {
+                let Some(&list) = d.find_all("ul").first().or(d.find_all("ol").first()) else { return false };
+                let li = d.create(crate::dom::NodeData::Element { tag: "li".into(), attrs: vec![] });
+                let t = d.create(crate::dom::NodeData::Text("added item".into()));
+                d.insert(li, t, None);
+                d.insert(list, li, None);
+                true
+            }),
+            ("emptied", |d| {
+                let Some(&p) = d.find_all("p").get(1) else { return false };
+                d.remove_children(p);
+                true
+            }),
+        ];
+        for path in pages {
+            let url = crate::net::normalize_input(path.to_str().unwrap());
+            let mut page = crate::load(&url);
+            if let Some(js) = page.js.as_mut() {
+                js.settle(std::time::Duration::from_millis(50));
+            }
+            page.restyle();
+            super::clear();
+            page.layout(fonts, 900.0, 700.0);
+            for (name, edit) in edits {
+                if !crate::js::with_dom_mut(edit) {
+                    continue;
+                }
+                page.restyle();
+                let incremental = page.layout(fonts, 900.0, 700.0);
+                super::clear();
+                let fresh = page.layout(fonts, 900.0, 700.0);
+                eprintln!("{} after {name}", path.display());
+                same(&incremental, &fresh);
+            }
+        }
+    }
+
     /// Every reference page: a second pass reuses boxes and matches a fresh layout, and so
     /// does a pass after one text node in the middle of the page changes.
     #[test]
