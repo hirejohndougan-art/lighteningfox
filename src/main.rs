@@ -20,6 +20,7 @@ mod layout;
 mod net;
 mod paint;
 mod style;
+mod textedit;
 mod transform;
 
 use font::Fonts;
@@ -579,6 +580,75 @@ impl minifb::InputCallback for Typed {
     }
 }
 
+/// What a round of editing keys did to a text field.
+struct EditResult {
+    changed: bool,
+    moved: bool,
+    enter: bool,
+}
+
+/// Apply this frame's keys and typed characters to an editable text: caret movement,
+/// selection (Shift), word jumps (Ctrl), deleting, and clipboard (Ctrl+A/C/X/V).
+#[allow(clippy::too_many_arguments)]
+fn edit_keys(ed: &mut textedit::TextEdit, keys: &[Key], chars: &[char], ctrl: bool, shift: bool, multiline: bool, clip: &mut Option<arboard::Clipboard>) -> EditResult {
+    let before = ed.clone();
+    let mut enter = false;
+    for &k in keys {
+        match k {
+            Key::Left => ed.left(ctrl, shift),
+            Key::Right => ed.right(ctrl, shift),
+            Key::Home if ctrl => ed.move_to(0, shift),
+            Key::Home => ed.home(shift),
+            Key::End if ctrl => {
+                let n = ed.len();
+                ed.move_to(n, shift)
+            }
+            Key::End => ed.end(shift),
+            Key::Up if multiline => ed.vertical(false, shift),
+            Key::Down if multiline => ed.vertical(true, shift),
+            Key::Backspace => ed.backspace(ctrl),
+            Key::Delete => ed.delete(ctrl),
+            Key::A if ctrl => ed.select_all_text(),
+            Key::C | Key::X if ctrl && ed.has_selection() => {
+                if let Some(c) = clip.as_mut() {
+                    let _ = c.set_text(ed.selected_text());
+                }
+                if k == Key::X {
+                    ed.insert("");
+                }
+            }
+            Key::V if ctrl => {
+                let pasted = clip.as_mut().and_then(|c| c.get_text().ok()).unwrap_or_default();
+                let pasted = if multiline { pasted.replace("\r\n", "\n") } else { pasted.replace(['\r', '\n'], " ") };
+                ed.insert(&pasted);
+            }
+            _ => {}
+        }
+    }
+    for &c in chars {
+        match c {
+            '\r' | '\n' if multiline => ed.insert("\n"),
+            '\r' | '\n' => enter = true,
+            c if !c.is_control() && c != '\u{7f}' && !ctrl => ed.insert(c.encode_utf8(&mut [0; 4])),
+            _ => {}
+        }
+    }
+    EditResult { changed: ed.text != before.text, moved: ed.caret != before.caret || ed.anchor != before.anchor, enter }
+}
+
+/// The character position nearest to `x` px into `text`.
+fn char_index_at(fonts: &Fonts, font: u8, size: f32, text: &str, x: f32) -> usize {
+    let mut acc = 0.0;
+    for (i, c) in text.chars().enumerate() {
+        let w = fonts.advance(font, c, size);
+        if x < acc + w / 2.0 {
+            return i;
+        }
+        acc += w;
+    }
+    text.chars().count()
+}
+
 /// One entry in the tab's history: a URL, the document it belongs to, and the state
 /// object a script attached with pushState (as JSON).
 #[derive(Clone, Debug)]
@@ -721,6 +791,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut closed: Vec<String> = Vec::new();
     let mut tab_hover: Option<TabHit> = None;
     let mut was_mid = false;
+    // Text editing: the address bar and the focused field each have a caret and selection.
+    let mut clipboard = arboard::Clipboard::new().ok();
+    let mut aedit = textedit::TextEdit::default();
+    let mut fedit: Option<textedit::TextEdit> = None;
+    // For double-click detection: when and where the last click was.
+    let mut last_click = (Instant::now() - std::time::Duration::from_secs(5), 0.0f32, 0.0f32);
 
     // Pack the visible tab away (into a Saved) / show a packed tab.
     macro_rules! stash {
@@ -779,6 +855,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
             dropdown = None;
             editing = false;
+            fedit = None;
             hovered = None;
             style::set_hover(None);
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
@@ -826,6 +903,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         // A new empty tab: start typing an address.
                         editing = true;
                         address.clear();
+                        aedit = textedit::TextEdit::default();
                     } else {
                         pending_nav = Some(Go::To(url));
                     }
@@ -946,35 +1024,35 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         // Typing in the address bar.
         let chars: Vec<char> = typed.borrow_mut().drain(..).collect();
         let typing = !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
+        let ctrl_down = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+        let shift_down = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+        let edit_keys_now = if typing || editing { window.get_keys_pressed(KeyRepeat::Yes) } else { Vec::new() };
         if typing {
             let f = focused.unwrap();
             let multiline = js::with_dom(|d| d.tag(f) == Some("textarea"));
-            let mut value = js::with_dom(|d| forms::value(d, f));
-            let before = value.clone();
-            let mut enter = false;
-            for &c in &chars {
-                match c {
-                    '\u{8}' => {
-                        value.pop();
-                    }
-                    '\r' | '\n' if multiline => value.push('\n'),
-                    '\r' | '\n' => enter = true,
-                    c if !c.is_control() && c != '\u{7f}' => value.push(c),
-                    _ => {}
-                }
-            }
-            // A maxlength limit, counted in characters.
+            let value = js::with_dom(|d| forms::value(d, f));
+            let ed = fedit.get_or_insert_with(|| textedit::TextEdit::new(&value));
+            ed.sync(&value);
+            let r = edit_keys(ed, &edit_keys_now, &chars, ctrl_down, shift_down, multiline, &mut clipboard);
+            // A maxlength limit, counted in characters (only stops text from growing).
             if let Some(max) = js::with_dom(|d| d.attr(f, "maxlength").and_then(|m| m.trim().parse::<usize>().ok())) {
-                if value.chars().count() > max && value.len() > before.len() {
-                    value = value.chars().take(max.max(before.chars().count())).collect();
+                let n = ed.len();
+                if r.changed && n > max && n > value.chars().count() {
+                    let keep = max.max(value.chars().count());
+                    *ed = textedit::TextEdit::new(&ed.text.chars().take(keep).collect::<String>());
                 }
             }
-            if value != before {
-                js::with_dom_mut(|d| forms::set_value(d, f, &value));
+            let (text, caret, anchor) = (ed.text.clone(), ed.caret, ed.anchor);
+            if text != value {
+                js::with_dom_mut(|d| forms::set_value(d, f, &text));
                 fire(&mut page, f, "input");
                 form_changed = true;
             }
-            if enter {
+            if r.moved || r.changed {
+                layout::set_edit(caret, anchor);
+                reflow = true;
+            }
+            if r.enter {
                 // Pressing Enter in a field submits its form (through its default button).
                 fire(&mut page, f, "change");
                 if let Some(form) = js::with_dom(|d| forms::form_of(d, f)) {
@@ -989,22 +1067,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
         }
         if editing {
-            for c in chars {
-                match c {
-                    '\u{8}' => {
-                        address.pop();
-                    }
-                    '\r' | '\n' => {
-                        editing = false;
-                        navigate = Some(Go::To(net::normalize_input(&address)));
-                    }
-                    '\u{1b}' => {
-                        editing = false;
-                        address = page.url.clone();
-                    }
-                    c if !c.is_control() && c != '\u{7f}' => address.push(c),
-                    _ => {}
-                }
+            aedit.sync(&address);
+            let r = edit_keys(&mut aedit, &edit_keys_now, &chars, ctrl_down, shift_down, false, &mut clipboard);
+            address = aedit.text.clone();
+            if r.enter {
+                editing = false;
+                navigate = Some(Go::To(net::normalize_input(&address)));
+            }
+            if r.changed || r.moved || r.enter {
                 dirty = true;
             }
             if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
@@ -1078,12 +1148,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     Key::End => scroll = max_scroll,
                     Key::L if ctrl => {
                         editing = true;
-                        address.clear();
+                        aedit = textedit::TextEdit::select_all(&address);
                         dirty = true;
                     }
                     Key::F6 => {
                         editing = true;
-                        address.clear();
+                        aedit = textedit::TextEdit::select_all(&address);
                         dirty = true;
                     }
                     Key::F5 | Key::R if key == Key::F5 || ctrl => navigate = Some(Go::Reload),
@@ -1205,8 +1275,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         _ => Go::Reload,
                     });
                 } else if (my as usize) < BAR_H && mx >= FIELD_X {
-                    editing = true;
-                    address.clear();
+                    let double = last_click.0.elapsed().as_millis() < 450 && (mx - last_click.1).abs() < 5.0 && (my - last_click.2).abs() < 5.0;
+                    if !editing {
+                        // First click selects the whole address, ready to type over.
+                        editing = true;
+                        aedit = textedit::TextEdit::select_all(&address);
+                    } else {
+                        let i = char_index_at(fonts, font::REGULAR, 14.0, &aedit.text, mx - FIELD_X - 8.0);
+                        if double {
+                            aedit.select_word_at(i);
+                        } else {
+                            aedit.move_to(i, shift_down);
+                        }
+                    }
                     dirty = true;
                 } else if (my as usize) >= BAR_H {
                     // Let the page's JavaScript see the click first.
@@ -1262,6 +1343,28 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                             fire(&mut page, n, "focus");
                         }
                         form_changed = true;
+                    }
+                    // A click inside a single-line text field puts the caret where you clicked
+                    // (double-click selects a word).
+                    if let Some(c) = ctrl.filter(|&c| js::with_dom(|d| forms::is_editable(d, c) && d.tag(c) == Some("input"))) {
+                        if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r) {
+                            let st = page.styles[c].clone();
+                            let fnt = font::resolve(st.family.as_deref(), st.bold, st.italic, st.mono);
+                            let value = js::with_dom(|d| forms::value(d, c));
+                            let shown = if js::with_dom(|d| d.attr(c, "type").is_some_and(|t| t.eq_ignore_ascii_case("password"))) { "•".repeat(value.chars().count()) } else { value.clone() };
+                            let cx = r.x + st.border[3] + st.padding[3].resolve(r.w);
+                            let i = char_index_at(fonts, fnt, st.font_size, &shown, mx - cx);
+                            let double = last_click.0.elapsed().as_millis() < 450 && (mx - last_click.1).abs() < 5.0 && (my - last_click.2).abs() < 5.0;
+                            let ed = fedit.get_or_insert_with(|| textedit::TextEdit::new(&value));
+                            ed.sync(&value);
+                            if double {
+                                ed.select_word_at(i);
+                            } else {
+                                ed.move_to(i, shift_down && focused == Some(c));
+                            }
+                            layout::set_edit(ed.caret, ed.anchor);
+                            form_changed = true;
+                        }
                     }
                     if let (true, Some(c)) = (allowed, ctrl) {
                         // A click on a <label> is a click on its control.
@@ -1336,6 +1439,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 focused = None;
             }
             let focus_moved = layout::focus() != focused;
+            if focus_moved {
+                // A newly focused field starts with the caret at the end (a click may move it).
+                fedit = focused.filter(|&f| js::with_dom(|d| forms::is_editable(d, f))).map(|f| textedit::TextEdit::new(&js::with_dom(|d| forms::value(d, f))));
+            }
+            match &fedit {
+                Some(e) => layout::set_edit(e.caret, e.anchor),
+                None => layout::clear_edit(),
+            }
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
             // Scripts may have changed more than the value, and :focus rules may apply; restyle if so.
             if focus_moved || js::take_dirty() || js::with_dom(|d| d.nodes.len()) != page.styles.len() {
@@ -1346,6 +1457,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         if reflow && navigate.is_none() {
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
             dirty = true;
+        }
+        if down && !was_down {
+            if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
+                last_click = (Instant::now(), mx, my);
+            }
         }
         was_down = down;
         was_mid = mid;
@@ -1531,7 +1647,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)) };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
@@ -1548,6 +1664,8 @@ struct Toolbar<'a> {
     tabs: &'a [(String, bool)],
     active: usize,
     tab_hover: Option<TabHit>,
+    /// While editing the address: (caret, selection anchor).
+    caret: Option<(usize, usize)>,
     address: &'a str,
     editing: bool,
     can_back: bool,
@@ -1632,8 +1750,16 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     // Address field
     let field = if ui.editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
     canvas.fill_rect(FIELD_X, top + 5.0, w - FIELD_X - 8.0, TOOL_H - 10.0, field);
-    let text = if ui.editing { format!("{}|", ui.address) } else { ui.address.to_string() };
-    canvas.draw_text(fonts, FIELD_X + 8.0, top + 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
+    let tx = FIELD_X + 8.0;
+    if let Some((caret, anchor)) = ui.caret {
+        let upto = |i: usize| fonts.width(font::REGULAR, &ui.address.chars().take(i).collect::<String>(), 14.0);
+        if caret != anchor {
+            let (a, b) = (upto(caret.min(anchor)), upto(caret.max(anchor)));
+            canvas.fill_rect(tx + a, top + 9.0, b - a, TOOL_H - 18.0, Color::rgb(180, 213, 254));
+        }
+        canvas.fill_rect((tx + upto(caret)).round(), top + 9.0, 1.0, TOOL_H - 18.0, Color::rgb(30, 30, 40));
+    }
+    canvas.draw_text(fonts, tx, top + 23.0, ui.address, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
     // Loading bar: a segment sliding along the bottom of the toolbar.
     if let Some(t) = ui.loading {
         let span = w * 0.25;

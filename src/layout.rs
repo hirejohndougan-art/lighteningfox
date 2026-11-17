@@ -12,6 +12,7 @@ use std::cell::Cell;
 thread_local! {
     /// The focused form control and whether its caret is currently shown.
     static FOCUS: Cell<Option<(NodeId, bool)>> = const { Cell::new(None) };
+    static EDIT: Cell<Option<(usize, usize)>> = const { Cell::new(None) };
     /// How far each scrollable box (overflow: auto/scroll) is scrolled.
     static SCROLLS: std::cell::RefCell<HashMap<NodeId, f32>> = std::cell::RefCell::new(HashMap::new());
 }
@@ -42,6 +43,15 @@ pub fn reset_element_scrolls() {
 
 pub fn set_focus(f: Option<(NodeId, bool)>) {
     FOCUS.with(|c| c.set(f));
+}
+
+/// The focused field's caret and selection anchor (character indices).
+pub fn set_edit(caret: usize, anchor: usize) {
+    EDIT.with(|e| e.set(Some((caret, anchor))));
+}
+
+pub fn clear_edit() {
+    EDIT.with(|e| e.set(None));
 }
 
 pub fn focus() -> Option<NodeId> {
@@ -1532,27 +1542,37 @@ impl<'a> Ctx<'a> {
         let faint = Color { a: (st.color.a as f32 * 0.5) as u8, ..st.color };
         let accent = Color { r: 0x0b, g: 0x6b, b: 0xd3, a: 255 };
         let white = Color { r: 255, g: 255, b: 255, a: 255 };
+        let selection = Color { r: 0xb4, g: 0xd5, b: 0xfe, a: 255 };
         let hidden = st.hidden;
         let mut items: Vec<Item> = Vec::new();
         let height = match c {
             Control::Text { password } => {
                 let value = forms::value(self.dom, id);
+                let n = value.chars().count();
                 let (text, color) = if value.is_empty() {
                     (self.dom.attr(id, "placeholder").unwrap_or("").replace(['\n', '\r'], ""), faint)
                 } else if password {
-                    ("•".repeat(value.chars().count()), st.color)
+                    ("•".repeat(n), st.color)
                 } else {
                     (value.clone(), st.color)
                 };
-                let tw = if value.is_empty() { 0.0 } else { self.fonts.width(font, &text, size) };
-                // Keep the end of long text (where the caret is) in view while editing.
-                let shift = if focus.is_some() { (tw + 2.0 - w).max(0.0) } else { 0.0 };
+                // Caret and selection (character indices into the value).
+                let (caret, anchor) = EDIT.with(Cell::get).filter(|_| focus.is_some()).unwrap_or((n, n));
+                let (caret, anchor) = (caret.min(n), anchor.min(n));
+                let upto = |i: usize| if value.is_empty() { 0.0 } else { self.fonts.width(font, &text.chars().take(i).collect::<String>(), size) };
+                let caret_x = upto(caret);
+                // Scroll long text so the caret stays in view.
+                let shift = if focus.is_some() { (caret_x + 2.0 - w).max(0.0) } else { 0.0 };
                 items.push(Item::ClipPush { x, y, w, h: lh, radius: 0.0 });
+                if focus.is_some() && caret != anchor {
+                    let (a, b) = (upto(caret.min(anchor)), upto(caret.max(anchor)));
+                    items.push(Item::Rect { x: x - shift + a, y: baseline(y) - ascent, w: b - a, h: size * 1.2, color: selection });
+                }
                 if !text.is_empty() {
                     items.push(Item::Text { x: x - shift, y: baseline(y), text, font, size, color });
                 }
                 if let Some((_, true)) = focus {
-                    items.push(Item::Rect { x: (x - shift + tw).round(), y: baseline(y) - ascent, w: 1.0, h: size * 1.15, color: st.color });
+                    items.push(Item::Rect { x: (x - shift + caret_x).round(), y: baseline(y) - ascent, w: 1.0, h: size * 1.15, color: st.color });
                 }
                 items.push(Item::ClipPop);
                 lh
@@ -1566,41 +1586,65 @@ impl<'a> Ctx<'a> {
                 } else {
                     (value.clone(), st.color)
                 };
-                // Wrap each paragraph at word boundaries (long words break anywhere).
-                let mut lines: Vec<String> = Vec::new();
+                // Wrap each paragraph at word boundaries (long words break anywhere), remembering
+                // where each line starts in the text so the caret can be placed.
+                let mut lines: Vec<(String, usize)> = Vec::new();
+                let mut offset = 0usize;
                 for para in src.split('\n') {
                     let mut line = String::new();
+                    let mut start = offset;
                     for word in para.split_inclusive(' ') {
                         let trial = format!("{line}{word}");
                         if self.fonts.width(mono, trial.trim_end(), size) <= w || line.is_empty() {
                             line = trial;
                             while self.fonts.width(mono, line.trim_end(), size) > w && line.chars().count() > 1 {
                                 let cut = line.char_indices().rev().find(|&(i, _)| self.fonts.width(mono, &line[..i], size) <= w).map(|(i, _)| i).unwrap_or(1).max(1);
-                                lines.push(line[..cut].to_string());
+                                let head = line[..cut].to_string();
+                                let taken = head.chars().count();
+                                lines.push((head, start));
+                                start += taken;
                                 line = line[cut..].to_string();
                             }
                         } else {
-                            lines.push(std::mem::take(&mut line));
+                            let taken = line.chars().count();
+                            lines.push((std::mem::take(&mut line), start));
+                            start += taken;
                             line = word.to_string();
                         }
                     }
-                    lines.push(line);
+                    lines.push((line, start));
+                    offset += para.chars().count() + 1;
                 }
+                let n = value.chars().count();
+                let (caret, anchor) = EDIT.with(Cell::get).filter(|_| focus.is_some()).unwrap_or((n, n));
+                let (caret, anchor) = (caret.min(n), anchor.min(n));
+                let caret_line = if value.is_empty() { 0 } else { lines.iter().rposition(|(_, st0)| *st0 <= caret).unwrap_or(0) };
                 let h = (rows * lh).max(lh);
                 let visible = (h / lh).floor().max(1.0) as usize;
-                let first = if focus.is_some() { lines.len().saturating_sub(visible) } else { 0 };
+                // Keep the caret's line in view.
+                let first = if focus.is_some() { caret_line.saturating_sub(visible - 1) } else { 0 };
                 items.push(Item::ClipPush { x, y, w, h, radius: 0.0 });
+                let (sa, sb) = (caret.min(anchor), caret.max(anchor));
                 let mut ly = y;
-                for l in lines.iter().skip(first) {
+                for (l, start) in lines.iter().skip(first) {
+                    let len = l.chars().count();
+                    if focus.is_some() && sa != sb && !value.is_empty() && *start + len >= sa && *start <= sb {
+                        let from = sa.max(*start) - start;
+                        let to = (sb.min(start + len)) - start;
+                        let px = |i: usize| self.fonts.width(mono, &l.chars().take(i).collect::<String>(), size);
+                        let extra = if sb > start + len { size * 0.4 } else { 0.0 };
+                        items.push(Item::Rect { x: x + px(from), y: baseline(ly) - ascent, w: px(to) - px(from) + extra, h: size * 1.2, color: selection });
+                    }
                     if !l.is_empty() {
                         items.push(Item::Text { x, y: baseline(ly), text: l.trim_end_matches(' ').to_string(), font: mono, size, color });
                     }
                     ly += lh;
                 }
                 if let Some((_, true)) = focus {
-                    let last = if value.is_empty() { "" } else { lines.last().map(String::as_str).unwrap_or("") };
-                    let cy = y + (lines.len().saturating_sub(first).max(1) - 1) as f32 * lh;
-                    let cx = x + self.fonts.width(mono, last, size);
+                    let (line, start) = if value.is_empty() { ("", 0) } else { lines.get(caret_line).map(|(l, s0)| (l.as_str(), *s0)).unwrap_or(("", 0)) };
+                    let col = caret.saturating_sub(start);
+                    let cy = y + (caret_line.saturating_sub(first)) as f32 * lh;
+                    let cx = x + self.fonts.width(mono, &line.chars().take(col).collect::<String>(), size);
                     items.push(Item::Rect { x: cx.round(), y: baseline(cy) - ascent, w: 1.0, h: size * 1.15, color: st.color });
                 }
                 items.push(Item::ClipPop);
