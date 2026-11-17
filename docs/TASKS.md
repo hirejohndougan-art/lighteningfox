@@ -178,7 +178,8 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** `src/media.rs`
 
 ### T11. Fingerprinting noise on audio
-**Status:** claimed by chat-opus-t05 2026-11-17 11:10
+**Status:** done
+**Left undone:** There was no Web Audio to add noise to, so this built it (`src/webaudio.js`) and noised its readouts (rendered buffers, all four analyser reads). Web Audio here is one channel inside (stereo outputs repeat it), makes no sound through the speakers, and has no `decodeAudioData` (rejects with EncodingError), AudioWorklet, panning, convolution or ScriptProcessor callbacks (those nodes pass sound through unchanged). Its numbers are close to but not the same as Chrome's or Firefox's (simpler compressor, plain waveforms instead of band-limited tables).
 **After:** T09
 **Checklist:** §13 "Fingerprinting: add the per-site noise to audio readouts once audio exists"
 **Files:** `src/media.rs` (Web Audio readouts), the existing noise function
