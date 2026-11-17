@@ -134,7 +134,7 @@ first screenful and has no script errors of its own (ads and trackers missing is
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
 
 ### X1c. Make The Guardian render like Chrome
-**Status:** claimed by chat-opus-x5 2026-11-17 13:10
+**Status:** done (chat-opus-x5 2026-11-17 16:40)
 **After:** —
 **Checklist:** §21 "The Guardian renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
@@ -145,6 +145,22 @@ Redirects to `/us`; 11 script errors in the recording. Record it again (`record-
 are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
 first screenful and has no script errors of its own (ads and trackers missing is fine).
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+**Done:** the replay matches Chrome's first screenful from the top bar down, and the
+only script errors left are Ophan tracker beacons (a random view id in every URL, so they can
+never be in a recording). Fixes, each with a test: a block inside an inline gets its own block
+box; `document.doctype`; `performance.navigation`/`performance.timing`; SVG presentation
+attributes take `var()`; `visibility: hidden` content keeps its size; IntersectionObserverEntry
+fields on the prototype (pages no longer load the polling polyfill); shrink-to-fit leaves room
+for inner blocks' right padding; `matchMedia` gives the stylesheets' answer (`dpcm` too).
+Script errors 11 → 0 of its own. WPT CSS2/normal-flow 70 → 75/117 script, 11 → 17/46 ref;
+CSS2/floats 19 → 23/36 script, 19 → 20/78 ref; css-flexbox unchanged (one subtest lost:
+block-in-inline-client-rects-001, the span's own rectangle after a split).
+**Left undone:** the grey 970×250 ad placeholder at the top stays, because the built-in block
+list stops Google's ad server so the slot never reports "empty" (the full EasyList hides it).
+"Support the Guardian" doesn't show in the replay: its script chunk loaded after the recorder's
+5 s window, so it isn't in the recording (the replay does ask for it). Headline text draws a
+little heavier than Chrome's (same Medium face; antialiasing). Recording branch `rec-x1c` can
+be deleted.
 
 ### X1d. Make Bing render like Chrome
 **Status:** claimed by chat-opus-t12 2026-11-17 14:00
