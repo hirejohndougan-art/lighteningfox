@@ -412,6 +412,42 @@ frame; `remove()` doesn't drop the element's `readyState` to HAVE_METADATA when 
 current position; `QuotaExceededError` isn't an interface of its own (WPT
 `mediasource-appendbuffer-quota-exceeded` checks `ex.constructor`). Run WPT `media-source` before
 and after.
+### X27. align-content for multi-line flex containers
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** the flex-wrap part of `src/layout.rs` (`flex_children`), `src/grid_align.rs` (reuse `row_offsets`)
+Left from X1a: `align-content` (center, end, space-between/around/evenly, stretch) now works for
+grid rows only. A wrapping flex container with a set height still stacks its lines at the top
+instead of distributing them. `Flex::align_content` is already parsed and cascaded. Add a test page
+in `tests/sites/` and run `python3 tools/wpt.py <wpt> css/css-flexbox` before and after
+(`align-content-*` tests).
+
+### X28. Let `--png` snapshots wait for work started by late animation frames and timers
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** `Js::settle` in `src/js.rs`, `load_lazy_now` in `src/page_images.rs`
+Left from X1a: on a slow machine, BBC News starts hydrating React (from a `requestAnimationFrame`
+promise) only when `settle`'s 5 seconds are up, so the snapshot is taken before React hears the
+`load` events of lazy images and removes their grey placeholders. Replay `rec-x1a`
+(`www-bbc-com-news`) on a 2-core machine to see it: the "More to explore" pictures stay grey. Look
+at running promise jobs after each animation frame before deciding the page is idle, and at
+loading lazy images earlier, then taking one more short settle after they arrive. Keep `--png`
+runs of ordinary pages as fast as now (time `tools/wpt.py` before and after).
+
+### X29. Consent pop-ups served from third-party iframes (BBC News, Sourcepoint)
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever it needs; new JS in a file listed in `EXTRA_APIS`
+Left from X1a: Chrome shows BBC's "Terms of Use & Privacy" dialog (Sourcepoint,
+`cdn.privacy-mgmt.com`); Ironswift shows nothing. In the replay its messaging script ends with
+"Failed to fetch" (requests it never got to make when recorded); on GitHub's live run it shows no
+error but no dialog either. Record BBC again, find which request or API stops it, and fix that in
+the engine. Optional for the site to look right (ads and trackers missing is fine), but many news
+sites use the same consent service.
+
 ### X9. Geolocation in Flatpak and with site isolation
 **Status:** done
 **Result:** `geo.rs` falls back to `org.freedesktop.portal.Location` (session bus) inside Flatpak
