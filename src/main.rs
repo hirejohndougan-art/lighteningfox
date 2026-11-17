@@ -93,6 +93,7 @@ mod websocket;
 mod worker;
 mod sandbox;
 mod frames;
+mod process;
 mod tiles;
 #[cfg(feature = "gpu")]
 mod gpu;
@@ -714,6 +715,10 @@ fn fetch_page_with(url: &str, post: Option<&forms::PostBody>, preview: &mut dyn 
     } else if blocklist::dangerous(url) {
         log!("[safe browsing] {url} is on a malware or phishing list");
         (format!("about:blocked?url={}", url), blocklist::warning_page(url))
+    } else if let Some(shell) = process::shell_for(url, post) {
+        // Site processes on: the page itself loads and runs in its site's process; here it's
+        // just the frame that shows it.
+        return prepare(shell.0, shell.1, true, false, &[]);
     } else {
         let target = if post.is_some() { url.to_string() } else { net::strip_tracking(url) };
         let mut on_partial = |u: &str, html: &str, h: &[(String, String)]| {
@@ -871,6 +876,8 @@ struct FrameJob {
     /// `<iframe sandbox>` flags (combined with any sandbox the parent itself is under).
     sandbox: Option<security::Sandbox>,
     reply: std::sync::mpsc::Sender<Option<image::RgbaImage>>,
+    /// Not an iframe but a tab's page, run in its site's process (process.rs).
+    top_level: bool,
 }
 
 thread_local! {
@@ -996,6 +1003,15 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
         }
         .unwrap_or(150.0)
         .clamp(1.0, 2000.0) as u32;
+        // A tab's page shown from its site process (process.rs).
+        if depth == 0 && frames::enabled() && process::is_shell_frame(dom, id, base) {
+            let (tx, _) = std::sync::mpsc::channel();
+            let job = FrameJob { src: FrameSrc::Url(base.to_string()), w, h, parent: base.to_string(), top: base.to_string(), sandbox: None, reply: tx, top_level: true };
+            if let Some(img) = frames::start(job, &key, base, Instant::now() + std::time::Duration::from_secs(20)) {
+                images.insert(&key, img);
+            }
+            continue;
+        }
         let src = match (dom.attr(id, "srcdoc"), dom.attr(id, "src").map(str::trim)) {
             (Some(doc), _) => FrameSrc::Doc { html: doc.to_string(), base: base.to_string() },
             (None, Some(s)) if !s.is_empty() && s != "about:blank" && !s.starts_with("javascript:") => FrameSrc::Url(net::resolve(base, s)),
@@ -1027,12 +1043,12 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
             // In the window, frames stay live: their documents keep running and take input (frames.rs).
             let (parent, top, sandbox) = job_parts;
             let (tx, _) = std::sync::mpsc::channel();
-            frames::start(FrameJob { src, w, h, parent, top, sandbox, reply: tx }, &key, base, deadline)
+            frames::start(FrameJob { src, w, h, parent, top, sandbox, reply: tx, top_level: false }, &key, base, deadline)
         } else if depth == 0 {
             let Some(worker) = frame_worker() else { return };
             let (tx, rx) = std::sync::mpsc::channel();
             let (parent, top, sandbox) = job_parts;
-            if worker.send(FrameJob { src, w, h, parent, top, sandbox, reply: tx }).is_err() {
+            if worker.send(FrameJob { src, w, h, parent, top, sandbox, reply: tx, top_level: false }).is_err() {
                 return;
             }
             match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
@@ -1047,7 +1063,7 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
             FRAME_DEPTH.with(|d| d.set(depth + 1));
             let (parent, top, sandbox) = job_parts;
             let (tx, _rx) = std::sync::mpsc::channel();
-            let img = render_frame(&FrameJob { src, w, h, parent, top, sandbox, reply: tx });
+            let img = render_frame(&FrameJob { src, w, h, parent, top, sandbox, reply: tx, top_level: false });
             FRAME_DEPTH.with(|d| d.set(depth));
             img
         };
@@ -1258,6 +1274,10 @@ fn browser_main() {
             }
             "--frame-renderer" => {
                 isolated::serve();
+                return;
+            }
+            "--site-renderer" => {
+                process::serve(args.get(i + 1).map_or("", String::as_str));
                 return;
             }
             "--conformance-tokenizer" => {
@@ -1783,6 +1803,7 @@ fn is_private() -> bool {
 fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // Iframes in the window stay live (frames.rs); snapshots draw them once.
     frames::enable();
+    process::enable_from_settings();
     zoom::use_device_scale();
     zoom::set_pixel_ratio(zoom::device_scale());
     // Without a page on the command line, reopen last session's tabs (if that's the setting),
@@ -2178,6 +2199,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             page_version += 1;
             dirty = true;
         }
+        // A page in a site process: its title, its forms, and its size follows the window.
+        frames::fit(page.doc, &lay);
+        if let Some(t) = fr.title {
+            page.title = t;
+            window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
+            dirty = true;
+        }
+        if let Some((u, body)) = fr.post.filter(|(t, _)| security::page_may_navigate(&page.url, t)) {
+            pending_nav = Some(Go::Post(u, body));
+        }
         if let Some(t) = fr.navigate.filter(|t| security::page_may_navigate(&page.url, t)) {
             pending_nav = Some(Go::To(t));
         }
@@ -2430,6 +2461,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // A live iframe with the keyboard gets the typing (frames.rs); browser shortcuts stay here.
         if frame_focus.as_ref().is_some_and(|k| !frames::has(page.doc, k)) {
             frame_focus = None;
+        }
+        if frame_focus.is_none() {
+            frame_focus = frames::site_frame(page.doc);
         }
         if let (Some(k), false, false) = (&frame_focus, finding, editing) {
             let mut text: String = chars.drain(..).collect();

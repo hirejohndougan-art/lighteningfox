@@ -109,6 +109,8 @@ settings-sleep = Hintergrund-Tabs schlafen legen nach (Minuten, 0 = nie)
 settings-sleep-hint = Ein schlafender Tab gibt seine Seite frei und lädt neu, wenn Sie zurückkehren.
 settings-gpu = Mit der Grafikkarte zeichnen
 settings-gpu-hint = Flüssigeres Scrollen und weniger Arbeit für den Prozessor; der Grafiktreiber braucht etwa 40–70 MB mehr Speicher. Gilt ab dem nächsten Start von Ironswift.
+settings-site-processes = Website-Isolierung: jede Website in einem eigenen Prozess
+settings-site-processes-hint = Die Seiten jeder Website laufen in einem eigenen, abgeschotteten Prozess ohne Zugriff auf Ihre Dateien, die Cookies anderer Websites oder direkt aufs Netz. Braucht mehr Speicher. Suchen auf der Seite, Textauswahl und einige Menüs funktionieren dort noch nicht. Gilt ab dem nächsten Start von Ironswift.
 settings-privacy = Datenschutz
 settings-tpc = Cookies mit eingebetteten Seiten teilen
 settings-tpc-hint = Standardmäßig aus: eine in andere Seiten eingebettete Seite (ein Werbe- oder Tracking-Netzwerk, ein Videoplayer) bekommt auf jeder Seite einen eigenen Cookie-Speicher und kann Ihnen so nicht folgen.

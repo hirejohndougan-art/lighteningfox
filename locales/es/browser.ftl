@@ -109,6 +109,8 @@ settings-sleep = Dormir las pestañas en segundo plano tras (minutos, 0 = nunca)
 settings-sleep-hint = Una pestaña dormida libera su página y se recarga al volver a ella.
 settings-gpu = Dibujar con la tarjeta gráfica
 settings-gpu-hint = Desplazamiento más suave y menos trabajo para el procesador; el controlador gráfico usa unos 40–70 MB más de memoria. Se aplica la próxima vez que se inicie Ironswift.
+settings-site-processes = Aislamiento de sitios: cada sitio en su propio proceso
+settings-site-processes-hint = Las páginas de cada sitio se ejecutan en un proceso aparte y restringido, sin acceso a tus archivos, a las cookies de otros sitios ni directamente a la red. Usa más memoria. Buscar en la página, la selección de texto y algunos menús aún no funcionan en esas páginas. Se aplica la próxima vez que se inicie Ironswift.
 settings-privacy = Privacidad
 settings-tpc = Compartir cookies con sitios incrustados
 settings-tpc-hint = Desactivado por defecto: un sitio incrustado en otros (una red de anuncios o de rastreo, un reproductor de vídeo) recibe un almacén de cookies distinto en cada sitio, así no puede seguirte.

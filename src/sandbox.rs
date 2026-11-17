@@ -82,11 +82,16 @@ mod imp {
 
     /// Install a seccomp filter: the listed calls fail with EPERM, clone3 says "not
     /// supported" (so the C library falls back to clone, whose flags can be checked), and
-    /// clone can't create namespaces. With `no_exec`, starting programs is refused too.
-    pub fn seccomp(no_exec: bool) -> Result<(), String> {
+    /// clone can't create namespaces. With `no_exec`, starting programs is refused too; with
+    /// `no_net`, so is opening any socket but a local (Unix) one.
+    pub fn seccomp(no_exec: bool, no_net: bool) -> Result<(), String> {
         let mut deny = denied_always();
         if no_exec {
             deny.extend([libc::SYS_execve, libc::SYS_execveat]);
+        }
+        if no_net {
+            // io_uring can open connections without the socket call.
+            deny.extend([libc::SYS_io_uring_setup, libc::SYS_io_uring_enter, libc::SYS_io_uring_register]);
         }
         let errno = |e: i32| SECCOMP_RET_ERRNO | (e as u32 & 0xffff);
         let mut prog = vec![
@@ -104,6 +109,14 @@ mod imp {
         for nr in &deny {
             prog.push(ins(BPF_JEQ_K, 0, 1, *nr as u32));
             prog.push(ins(BPF_RET_K, 0, 0, errno(libc::EPERM)));
+        }
+        if no_net {
+            // socket(domain, …): only AF_UNIX; then reload the call number.
+            prog.push(ins(BPF_JEQ_K, 0, 4, libc::SYS_socket as u32));
+            prog.push(ins(BPF_LD_W_ABS, 0, 0, 16));
+            prog.push(ins(BPF_JEQ_K, 1, 0, libc::AF_UNIX as u32));
+            prog.push(ins(BPF_RET_K, 0, 0, errno(libc::EACCES)));
+            prog.push(ins(BPF_LD_W_ABS, 0, 0, 0));
         }
         prog.push(ins(BPF_JEQ_K, 0, 1, libc::SYS_clone3 as u32));
         prog.push(ins(BPF_RET_K, 0, 0, errno(libc::ENOSYS)));
@@ -216,7 +229,7 @@ pub fn protect_browser() {
         return;
     }
     #[cfg(target_os = "linux")]
-    match imp::seccomp(false) {
+    match imp::seccomp(false, false) {
         Ok(()) => log!("[sandbox] system-call filter on"),
         Err(e) => log!("[sandbox] couldn't install the system-call filter: {e}"),
     }
@@ -253,8 +266,43 @@ pub fn protect_frame_renderer() -> bool {
             Ok(abi) => log!("[sandbox] frame renderer: Landlock ABI {abi}, read-only system files"),
             Err(e) => log!("[sandbox] frame renderer: {e}; continuing with the system-call filter only"),
         }
-        if let Err(e) = imp::seccomp(true) {
+        if let Err(e) = imp::seccomp(true, false) {
             log!("[sandbox] frame renderer: {e}");
+            return false;
+        }
+    }
+    true
+}
+
+/// Lock down a site process (process.rs), which runs one top-level site's pages: no
+/// programs, no network (the browser fetches for it), no writing, and of the profile only the
+/// settings it needs to draw pages — not the cookies, the cache, history or other sites' storage.
+pub fn protect_site_renderer() -> bool {
+    if std::env::var("IRONSWIFT_NO_SANDBOX").is_ok_and(|v| v == "1") {
+        return true;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let mut read: Vec<String> = ["/usr", "/lib", "/lib64", "/lib32", "/etc", "/opt", "/proc/self", "/sys/devices/system/cpu", "/dev/urandom", "/dev/null", "/nix/store"].iter().map(|s| s.to_string()).collect();
+        if let Ok(home) = std::env::var("HOME") {
+            for p in [".fonts", ".local/share/fonts", ".config/fontconfig", ".cache/fontconfig"] {
+                read.push(format!("{home}/{p}"));
+            }
+        }
+        if let Some(p) = crate::cookies::profile_dir() {
+            for f in ["settings.tsv", "zoom.txt", "hsts.txt", "filters", "permissions.tsv", "font-index.tsv"] {
+                read.push(p.join(f).display().to_string());
+            }
+        }
+        if let Ok(d) = std::env::var("IRONSWIFT_FRAME_FILES") {
+            read.push(d);
+        }
+        match imp::landlock(&read, &[]) {
+            Ok(abi) => log!("[sandbox] site process: Landlock ABI {abi}, read-only system files"),
+            Err(e) => log!("[sandbox] site process: {e}; continuing with the system-call filter only"),
+        }
+        if let Err(e) = imp::seccomp(true, true) {
+            log!("[sandbox] site process: {e}");
             return false;
         }
     }
@@ -278,6 +326,40 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
         assert!(text.contains("CHILD-OK"), "{text}");
+    }
+
+    /// The site process can't reach the network or the cookie jar.
+    #[test]
+    fn site_renderer_lockdown() {
+        let exe = std::env::current_exe().unwrap();
+        if std::env::var("IRONSWIFT_SANDBOX_CHILD").is_ok() {
+            return;
+        }
+        let out = std::process::Command::new(exe)
+            .args(["--exact", "sandbox::tests::site_child_body", "--nocapture", "--include-ignored"])
+            .env("IRONSWIFT_SANDBOX_CHILD", "1")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        assert!(text.contains("SITE-CHILD-OK"), "{text}");
+    }
+
+    #[test]
+    #[ignore]
+    fn site_child_body() {
+        if std::env::var("IRONSWIFT_SANDBOX_CHILD").is_err() {
+            return;
+        }
+        assert!(super::protect_site_renderer());
+        // No internet sockets (TCP or UDP)…
+        assert!(std::net::TcpStream::connect("127.0.0.1:9").is_err());
+        assert!(std::net::UdpSocket::bind("127.0.0.1:0").is_err(), "UDP should be refused");
+        // …but local socket pairs (used by the runtime) still work.
+        assert!(std::os::unix::net::UnixStream::pair().is_ok());
+        assert!(std::process::Command::new("/bin/true").status().is_err(), "exec should be refused");
+        assert_eq!(std::thread::spawn(|| 2 * 21).join().unwrap(), 42);
+        println!("SITE-CHILD-OK");
     }
 
     #[test]

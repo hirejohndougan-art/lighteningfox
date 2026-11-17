@@ -352,6 +352,10 @@ fn join(cookies: &[&Cookie]) -> String {
 
 /// The Cookie header for a request to `url` from a page at `top` (None = send nothing).
 pub fn header_for(url: &str, top: &str) -> Option<String> {
+    // A site process asks the browser, which keeps the jar (process.rs).
+    if let Some(h) = crate::process::remote_cookie_header(url, top) {
+        return h;
+    }
     let access = access(url, top);
     if access == Access::Blocked {
         return None;
@@ -379,7 +383,7 @@ fn place(mut c: Cookie, access: &Access) -> Option<Cookie> {
 
 /// Store the Set-Cookie headers of a response to `url`, requested by a page at `top`.
 pub fn receive(url: &str, top: &str, headers: &[String]) {
-    if headers.is_empty() {
+    if headers.is_empty() || crate::process::remote_cookie_receive(url, top, headers) {
         return;
     }
     let access = access(url, top);
@@ -397,12 +401,18 @@ pub fn receive(url: &str, top: &str, headers: &[String]) {
 
 /// `document.cookie` for a page at `url` shown inside `top` (the same URL when not framed).
 pub fn script_get(url: &str, top: &str) -> String {
+    if let Some(v) = crate::process::remote_cookie_get(url, top) {
+        return v;
+    }
     let access = access(url, top);
     jar().lock().map(|mut j| join(&j.matching(url, true, &access))).unwrap_or_default()
 }
 
 /// `document.cookie = "…"` from a page's script.
 pub fn script_set(url: &str, top: &str, s: &str) {
+    if crate::process::remote_cookie_set(url, top, s) {
+        return;
+    }
     let access = access(url, top);
     if let (Some(c), Ok(mut j)) = (parse(s, url, true).and_then(|c| place(c, &access)), jar().lock()) {
         j.store(c, true);

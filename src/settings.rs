@@ -18,6 +18,8 @@ pub struct Settings {
     pub show_bookmarks_bar: bool,
     /// Draw with the graphics card (takes effect at the next start).
     pub use_gpu: bool,
+    /// Run each site's pages in their own sandboxed process (process.rs; next start).
+    pub site_processes: bool,
     /// "system" (desktop settings and the *_proxy variables), "none" or "manual".
     pub proxy_mode: String,
     /// For manual: http://host:port, https://… or socks5://host:port.
@@ -65,6 +67,7 @@ impl Default for Settings {
             send_gpc: true,
             show_bookmarks_bar: true,
             use_gpu: true,
+            site_processes: false,
             proxy_mode: "system".into(),
             proxy_url: String::new(),
             clear_on_exit: false,
@@ -126,6 +129,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "send_gpc" => s.send_gpc = on(v),
         "show_bookmarks_bar" => s.show_bookmarks_bar = on(v),
         "use_gpu" => s.use_gpu = on(v),
+        "site_processes" => s.site_processes = on(v),
         "proxy_mode" if matches!(v, "system" | "none" | "manual") => s.proxy_mode = v.to_string(),
         "proxy_url" => s.proxy_url = v.trim().replace(['\t', '\n'], ""),
         "clear_on_exit" => s.clear_on_exit = on(v),
@@ -222,6 +226,7 @@ fn save(s: &Settings) {
         s.cookies_session.join(" ")
     ));
     body.push_str(&format!("language\t{}\nhigh_contrast\t{}\n", s.language, b(s.high_contrast)));
+    body.push_str(&format!("site_processes\t{}\n", b(s.site_processes)));
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
         let _ = std::fs::rename(&tmp, &p);
@@ -371,6 +376,7 @@ pub fn page(query: &str) -> String {
         s.send_gpc = false;
         s.show_bookmarks_bar = false;
         s.use_gpu = false;
+        s.site_processes = false;
         s.clear_on_exit = false;
         s.reduce_motion = false;
         s.block_ads = false;
@@ -423,6 +429,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row field"><label>@@settings-sleep@@</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
 <p class="hint" style="margin-left:0">@@settings-sleep-hint@@</p>
 <div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> @@settings-gpu@@</label><p class="hint">@@settings-gpu-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="site_processes" value="1"{site_proc}> @@settings-site-processes@@</label><p class="hint">@@settings-site-processes-hint@@</p></div>
 </section>
 <section><h2>@@settings-privacy@@</h2>
 <div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> @@settings-tpc@@</label><p class="hint">@@settings-tpc-hint@@</p></div>
@@ -489,6 +496,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         gpc = check(s.send_gpc),
         bmbar = check(s.show_bookmarks_bar),
         gpu_on = check(s.use_gpu),
+        site_proc = check(s.site_processes),
         cookie_sites = esc(&crate::i18n::tf("settings-cookie-sites", &[("count", &crate::cookies::sites().len().to_string())])),
         cookie_rows = cookie_rows(&s),
         ck_allow = esc(&s.cookies_allow.join("\n")),

@@ -1132,10 +1132,18 @@ fn store_file(key: &str, dir: &str) -> Option<std::path::PathBuf> {
 /// "{}". The page's origin comes from the browser; any origin a script names is ignored.
 fn load_store(ctx: &Context, dir: &str) -> String {
     let Some(key) = page_ctx(ctx, PageCtx::storage_key).flatten() else { return "{}".into() };
+    load_store_key(&key, dir)
+}
+
+/// The saved store `dir` of the storage key `key` (in a site process: from the browser).
+pub fn load_store_key(key: &str, dir: &str) -> String {
+    if let Some(s) = crate::process::remote_store_load(key, dir) {
+        return s;
+    }
     if let Ok(Some(m)) = MEMORY_STORAGE.lock().as_deref() {
         return m.get(&format!("{dir}/{key}")).cloned().unwrap_or_else(|| "{}".into());
     }
-    store_file(&key, dir).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into())
+    store_file(key, dir).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into())
 }
 
 /// __storageLoad() -> this page's localStorage as JSON text.
@@ -1166,11 +1174,22 @@ fn save_store(ctx: &Context, dir: &str, json: String, quota: usize) -> bool {
         return false;
     }
     let Some(key) = page_ctx(ctx, PageCtx::storage_key).flatten() else { return false };
+    save_store_key(&key, dir, json, quota)
+}
+
+/// Save the store `dir` of the storage key `key` (in a site process: in the browser).
+pub fn save_store_key(key: &str, dir: &str, json: String, quota: usize) -> bool {
+    if json.len() > quota {
+        return false;
+    }
+    if let Some(ok) = crate::process::remote_store_save(key, dir, &json) {
+        return ok;
+    }
     if let Ok(Some(m)) = MEMORY_STORAGE.lock().as_deref_mut() {
         m.insert(format!("{dir}/{key}"), json);
         return true;
     }
-    let Some(path) = store_file(&key, dir) else { return false };
+    let Some(path) = store_file(key, dir) else { return false };
     if let Some(d) = path.parent() {
         let _ = std::fs::create_dir_all(d);
     }

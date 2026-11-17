@@ -33,6 +33,8 @@ pub enum Event {
     Keys { keys: Vec<(Key, bool, bool, bool)>, text: String },
     /// Focus moved out of the frame.
     Blur,
+    /// The frame's box changed size (a top-level page in a site process follows the window).
+    Resize { w: u32, h: u32 },
 }
 
 /// What a frame tells the window.
@@ -45,6 +47,11 @@ pub enum Update {
     NavigateTop(String),
     /// A link with target=_blank, or window.open during a click.
     OpenTab(String),
+    /// A form posted to the window (a top-level page in a site process): the address, the
+    /// body's content type, and the body.
+    NavigatePost(String, String, Vec<u8>),
+    /// The page's title changed (a top-level page in a site process).
+    Title(String),
 }
 
 /// Keys a frame may receive, by name (so they cross the process boundary).
@@ -73,12 +80,12 @@ pub fn for_frame(k: Key, ctrl: bool) -> bool {
     key_name(k).is_some() && (!ctrl || matches!(k, Key::A | Key::Z | Key::Y | Key::Left | Key::Right | Key::Home | Key::End | Key::Backspace | Key::Delete))
 }
 
-fn put(out: &mut Vec<u8>, b: &[u8]) {
+pub(crate) fn put(out: &mut Vec<u8>, b: &[u8]) {
     out.extend_from_slice(&(b.len() as u32).to_le_bytes());
     out.extend_from_slice(b);
 }
 
-fn get(r: &mut impl std::io::Read) -> std::io::Result<Vec<u8>> {
+pub(crate) fn get(r: &mut impl std::io::Read) -> std::io::Result<Vec<u8>> {
     let mut n = [0u8; 4];
     r.read_exact(&mut n)?;
     let n = u32::from_le_bytes(n) as usize;
@@ -99,7 +106,7 @@ fn read_f32s(b: &[u8]) -> Vec<f32> {
 }
 
 impl Event {
-    fn encode(&self) -> Vec<u8> {
+    pub(crate) fn encode(&self) -> Vec<u8> {
         let mut m = Vec::new();
         match self {
             Event::Mouse { x, y, down } => {
@@ -118,11 +125,15 @@ impl Event {
                 put(&mut m, text.as_bytes());
             }
             Event::Blur => put(&mut m, b"blur"),
+            Event::Resize { w, h } => {
+                put(&mut m, b"resize");
+                put(&mut m, &f32s(&[*w as f32, *h as f32]));
+            }
         }
         m
     }
 
-    fn decode(r: &mut impl std::io::Read) -> std::io::Result<Event> {
+    pub(crate) fn decode(r: &mut impl std::io::Read) -> std::io::Result<Event> {
         let kind = get(r)?;
         Ok(match kind.as_slice() {
             b"mouse" => {
@@ -154,13 +165,20 @@ impl Event {
                 Event::Keys { keys, text }
             }
             b"blur" => Event::Blur,
+            b"resize" => {
+                let v = read_f32s(&get(r)?);
+                if v.len() != 2 {
+                    return Err(std::io::Error::other("bad resize event"));
+                }
+                Event::Resize { w: (v[0] as u32).clamp(1, 8000), h: (v[1] as u32).clamp(1, 8000) }
+            }
             _ => return Err(std::io::Error::other("unknown event")),
         })
     }
 }
 
 impl Update {
-    fn encode(&self) -> Vec<u8> {
+    pub(crate) fn encode(&self) -> Vec<u8> {
         let mut m = Vec::new();
         match self {
             Update::Picture { img, scroll, max, inner } => {
@@ -176,11 +194,21 @@ impl Update {
                 put(&mut m, b"tab");
                 put(&mut m, u.as_bytes());
             }
+            Update::NavigatePost(u, ct, body) => {
+                put(&mut m, b"post");
+                put(&mut m, u.as_bytes());
+                put(&mut m, ct.as_bytes());
+                put(&mut m, body);
+            }
+            Update::Title(t) => {
+                put(&mut m, b"title");
+                put(&mut m, t.as_bytes());
+            }
         }
         m
     }
 
-    fn decode(r: &mut impl std::io::Read) -> std::io::Result<Update> {
+    pub(crate) fn decode(r: &mut impl std::io::Read) -> std::io::Result<Update> {
         let kind = get(r)?;
         Ok(match kind.as_slice() {
             b"picture" => {
@@ -194,6 +222,12 @@ impl Update {
             }
             b"top" => Update::NavigateTop(String::from_utf8_lossy(&get(r)?).to_string()),
             b"tab" => Update::OpenTab(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"post" => {
+                let u = String::from_utf8_lossy(&get(r)?).to_string();
+                let ct = String::from_utf8_lossy(&get(r)?).to_string();
+                Update::NavigatePost(u, ct, get(r)?)
+            }
+            b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
             _ => return Err(std::io::Error::other("unknown update")),
         })
     }
@@ -218,6 +252,10 @@ struct Host {
     shown: bool,
     /// The left button as last reported.
     last_down: bool,
+    /// Updates produced away from an input handler (a top-level page's navigations).
+    outbox: Vec<Update>,
+    /// The title last reported (top-level pages).
+    title: String,
 }
 
 impl Drop for Host {
@@ -243,6 +281,13 @@ fn load_page(job: &FrameJob, url: Option<(&str, Option<&forms::PostBody>)>) -> O
         },
     };
     match src {
+        // A top-level page (in a site process): no frame identity, no framing rules. The first
+        // load may be a form post the window handed over.
+        Some((u, post)) if job.top_level => {
+            let first = (url.is_none()).then(|| crate::process::take_post(&u)).flatten();
+            let p = crate::fetch_page(&u, post.or(first.as_ref()));
+            Some((crate::build_page(p), None))
+        }
         Some((u, post)) => {
             security::set_frame(&u, info.clone());
             let p = crate::fetch_page(&u, post);
@@ -291,6 +336,15 @@ impl Host {
     /// Open another document in the frame (a link, a form, a script setting location).
     fn navigate(&mut self, url: &str, post: Option<&forms::PostBody>) {
         if !security::page_may_navigate(&self.page.url, url) || url.starts_with("javascript:") {
+            return;
+        }
+        // A top-level page doesn't navigate itself: the window does (its address bar and
+        // history, and the right site's process for the new page).
+        if self.job.top_level {
+            self.outbox.push(match post {
+                Some(p) => Update::NavigatePost(url.to_string(), p.content_type.clone(), p.bytes.clone()),
+                None => Update::NavigateTop(url.to_string()),
+            });
             return;
         }
         if let Some(old) = self.registered.take() {
@@ -596,6 +650,12 @@ impl Host {
             Event::Wheel { x, y, dy } => self.wheel(x, y, dy),
             Event::Keys { keys, text } => self.keys(&keys, &text),
             Event::Blur => self.change_focus(None),
+            Event::Resize { w, h } => {
+                if (w, h) != (self.w, self.h) {
+                    (self.w, self.h) = (w, h);
+                    self.relayout();
+                }
+            }
         }
     }
 }
@@ -630,6 +690,8 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         registered,
         shown: true,
         last_down: false,
+        outbox: Vec::new(),
+        title: String::new(),
     };
     host.settle();
     host.relayout();
@@ -646,18 +708,18 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         let mut sink: Vec<Update> = Vec::new();
         match events.recv_timeout(wait) {
             Ok(ev) => {
-                let before = (host.scroll, host.page.url.clone());
+                let before = (host.scroll, host.page.url.clone(), host.w, host.h);
                 host.handle(ev, &mut |u| sink.push(u));
                 // More input waiting: take it all before drawing.
                 while let Ok(ev) = events.try_recv() {
                     host.handle(ev, &mut |u| sink.push(u));
                 }
-                changed |= before != (host.scroll, host.page.url.clone());
+                changed |= before != (host.scroll, host.page.url.clone(), host.w, host.h);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
         }
-        for u in sink {
+        for u in sink.drain(..) {
             if !out(u) {
                 return;
             }
@@ -679,6 +741,16 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         if js::take_dirty() {
             host.page.restyle();
             changed = true;
+        }
+        sink.extend(host.outbox.drain(..));
+        if host.job.top_level && host.page.title != host.title {
+            host.title = host.page.title.clone();
+            sink.push(Update::Title(host.title.clone()));
+        }
+        for u in sink.drain(..) {
+            if !out(u) {
+                return;
+            }
         }
         let it = host.page.images_tick(&host.lay, host.scroll, host.h as f32);
         changed |= it.relayout || it.repaint;
@@ -702,6 +774,8 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
 enum Sink {
     Thread(Sender<Event>),
     Process(u32),
+    /// A top-level page running in its site's process (process.rs).
+    Site(u32),
 }
 
 struct Live {
@@ -722,8 +796,10 @@ struct Live {
 
 impl Drop for Live {
     fn drop(&mut self) {
-        if let Sink::Process(id) = self.sink {
-            isolated::close(id);
+        match self.sink {
+            Sink::Process(id) => isolated::close(id),
+            Sink::Site(id) => crate::process::close(id),
+            Sink::Thread(_) => {}
         }
     }
 }
@@ -745,7 +821,9 @@ pub fn enabled() -> bool {
 pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option<image::RgbaImage> {
     let (w, h) = (job.w, job.h);
     let (utx, urx) = channel::<Update>();
-    let sink = if isolated::should_isolate(&job) {
+    let sink = if job.top_level {
+        Sink::Site(crate::process::open(&job, utx)?)
+    } else if isolated::should_isolate(&job) {
         Sink::Process(isolated::open(&job, utx)?)
     } else {
         let (etx, erx) = channel::<Event>();
@@ -783,6 +861,10 @@ pub struct Pumped {
     pub repaint: bool,
     pub navigate: Option<String>,
     pub open_tab: Option<String>,
+    /// A form a top-level page posted: (address, body).
+    pub post: Option<(String, forms::PostBody)>,
+    /// A top-level page's new title.
+    pub title: Option<String>,
 }
 
 /// Called every frame for the page in the window: claim its new frames, put their latest
@@ -809,6 +891,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 }
                 Update::NavigateTop(t) => out.navigate = Some(t),
                 Update::OpenTab(t) => out.open_tab = Some(t),
+                Update::NavigatePost(u, content_type, bytes) => out.post = Some((u, forms::PostBody { content_type, bytes })),
+                Update::Title(t) => out.title = Some(t),
             }
         }
         if let Some(img) = latest {
@@ -845,6 +929,30 @@ fn send(doc: u64, key: &str, ev: Event) {
                 let _ = tx.send(ev);
             }
             Sink::Process(id) => isolated::event(*id, &ev),
+            Sink::Site(id) => crate::process::event(*id, &ev),
+        }
+    }
+}
+
+/// The page `doc` is a top-level page running in a site process: the key of its frame (which
+/// gets the keyboard whenever the address bar doesn't have it).
+pub fn site_frame(doc: u64) -> Option<String> {
+    let live = LIVE.lock().ok()?;
+    live.iter().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_))).map(|f| f.key.clone())
+}
+
+/// Keep site-process pages the size of their box (the window, less the toolbar).
+pub fn fit(doc: u64, lay: &layout::Layout) {
+    let Ok(mut live) = LIVE.lock() else { return };
+    for f in live.iter_mut().filter(|f| f.doc == Some(doc)) {
+        let Sink::Site(id) = f.sink else { continue };
+        let size = lay.items.iter().find_map(|it| match it {
+            crate::paint::Item::Image { w, h, src, .. } if *src == f.key => Some((w.round().max(1.0) as u32, h.round().max(1.0) as u32)),
+            _ => None,
+        });
+        if let Some((w, h)) = size.filter(|&s| s != (f.w, f.h)) {
+            (f.w, f.h) = (w, h);
+            crate::process::event(id, &Event::Resize { w, h });
         }
     }
 }
@@ -1112,7 +1220,7 @@ pub mod isolated {
                         let w = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
                         let h = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
                         let (reply, _) = channel();
-                        let job = FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply };
+                        let job = FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply, top_level: false };
                         let (etx, erx) = channel();
                         frames.insert(id, etx);
                         let out = out.clone();

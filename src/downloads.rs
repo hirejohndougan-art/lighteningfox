@@ -91,6 +91,10 @@ fn unique(dir: &Path, name: &str) -> PathBuf {
 
 /// Start saving a response. `prefix` is any of the body already read (to look at its type).
 pub fn start(url: &str, name: &str, total: Option<u64>, prefix: Vec<u8>, mut body: impl Read + Send + 'static) -> u32 {
+    // A site process can't write files: the browser saves it (process.rs).
+    if crate::process::remote_download(url) {
+        return 0;
+    }
     let dir = folder();
     let _ = std::fs::create_dir_all(&dir);
     let path = unique(&dir, name);

@@ -223,7 +223,9 @@ pub struct Stream {
     pub status_text: String,
     /// Lower-case names; repeated headers (set-cookie) appear once per value.
     pub headers: Vec<(String, String)>,
-    pub body: reqwest::blocking::Response,
+    /// The body still to read (from the network, or handed over whole by the browser to a
+    /// site process).
+    pub body: Box<dyn std::io::Read + Send>,
 }
 
 impl Stream {
@@ -281,6 +283,10 @@ pub fn requests_since(since: Option<Instant>) -> Vec<Logged> {
 /// `[proxy]` or `[net]`. `timeout` covers the whole transfer (long for downloads).
 pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     let started = Instant::now();
+    // In a site process the browser makes the request (process.rs).
+    if let Some(r) = crate::process::remote_http(method, url, headers, body, timeout) {
+        return r.map(|raw| Stream { status: raw.status, status_text: raw.status_text, headers: raw.headers, body: Box::new(std::io::Cursor::new(raw.body)) });
+    }
     let r = open_inner(method, url, headers, body, timeout);
     log_request(method, url, started, &r);
     r
@@ -329,7 +335,7 @@ fn start(client: reqwest::blocking::Client, http3: bool, method: &str, url: &str
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or("").to_string(),
         headers,
-        body: resp,
+        body: Box::new(resp),
     })
 }
 
