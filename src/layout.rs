@@ -291,6 +291,7 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         widths_memo: HashMap::new(),
         measured: HashMap::new(),
         fitting: Vec::new(),
+        placed: Vec::new(),
     };
     crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
@@ -404,6 +405,57 @@ struct Ctx<'a> {
     /// Boxes whose content widths are being measured right now (they don't size themselves to
     /// fit while that happens: see block_fresh).
     fitting: Vec<NodeId>,
+    /// Cached boxes whose items are in `items`: (first item, end, entry, where it was put,
+    /// the items' fingerprint then). A parent's entry shares the ones still unchanged.
+    placed: Vec<PlacedEntry>,
+}
+
+/// A cached box's output as it went into the lists: where its items, links and hits start
+/// and end, its entry, where it was put, and their fingerprints then (relayout.rs).
+#[derive(Clone)]
+struct PlacedEntry {
+    at: [(usize, usize); 3],
+    entry: Rc<crate::relayout::Entry>,
+    x: f32,
+    y: f32,
+    sigs: [crate::relayout::Sig; 3],
+}
+
+/// One of a box's output lists for its cache entry: its own entries copied (each passed
+/// through `own`, which may drop one), and children still exactly as placed shared.
+fn pieces<T: crate::relayout::Out>(list: &[T], from: usize, kids: &[PlacedEntry], k: usize, x: f32, y: f32, sig: impl Fn(&[T], f32, f32) -> crate::relayout::Sig, mut own: impl FnMut(&T) -> Option<T>) -> Vec<crate::relayout::Piece<T>> {
+    use crate::relayout::Piece;
+    let mut out = Vec::new();
+    let mut run: Vec<T> = Vec::new();
+    let mut cursor = from;
+    let mut kid = kids.iter().peekable();
+    while cursor < list.len() {
+        if let Some(p) = kid.peek() {
+            let (a, b) = p.at[k];
+            if a == cursor && b > a && b <= list.len() && sig(&list[a..b], p.x, p.y).matches(&p.sigs[k]) {
+                if !run.is_empty() {
+                    out.push(Piece::Own(std::mem::take(&mut run)));
+                }
+                out.push(Piece::Shared(p.entry.clone(), p.x - x, p.y - y));
+                cursor = b;
+                kid.next();
+                continue;
+            }
+            if a <= cursor {
+                kid.next();
+                continue;
+            }
+        }
+        if let Some(mut it) = own(&list[cursor]) {
+            it.shift(-x, -y);
+            run.push(it);
+        }
+        cursor += 1;
+    }
+    if !run.is_empty() {
+        out.push(Piece::Own(run));
+    }
+    out
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -705,13 +757,13 @@ impl<'a> Ctx<'a> {
             if self.absorb_top == Some(id) {
                 self.absorb_top = None;
             }
-            self.items.extend(e.items.iter().map(|it| {
-                let mut it = it.clone();
-                shift_item(&mut it, x, y);
-                it
-            }));
-            self.links.extend(e.links.iter().map(|(r, l)| (Rect { x: r.x + x, y: r.y + y, ..*r }, l.clone())));
-            self.hits.extend(e.hits.iter().map(|(r, n)| (Rect { x: r.x + x, y: r.y + y, ..*r }, *n)));
+            let (i0, l0, h0) = (self.items.len(), self.links.len(), self.hits.len());
+            e.emit(x, y, &mut self.items);
+            e.emit(x, y, &mut self.links);
+            e.emit(x, y, &mut self.hits);
+            let sigs = [crate::relayout::sig(&self.items[i0..], x, y), crate::relayout::rect_sig(&self.links[l0..], x, y), crate::relayout::rect_sig(&self.hits[h0..], x, y)];
+            let at = [(i0, self.items.len()), (l0, self.links.len()), (h0, self.hits.len())];
+            self.placed.push(PlacedEntry { at, entry: e.clone(), x, y, sigs });
             if let Some(fs) = self.floats.last_mut() {
                 fs.extend(e.floats.iter().map(|&(x0, x1, y0, y1, left)| FloatBox { x0: x0 + x, x1: x1 + x, y0: y0 + y, y1: y1 + y, left }));
             }
@@ -724,24 +776,36 @@ impl<'a> Ctx<'a> {
         let floats_kept = self.floats.last().map_or(0, Vec::len) >= f0;
         if self.side_effects() == before && floats_kept && self.items.len() >= i0 && self.links.len() >= l0 && self.hits.len() >= h0 {
             let tree = self.tree;
-            let mut items = Vec::with_capacity(self.items.len() - i0);
-            for it in &self.items[i0..] {
+            // Own output is copied; children cached and still as placed are shared.
+            let mut kids: Vec<PlacedEntry> = self.placed.iter().filter(|p| p.at[0].0 >= i0).cloned().collect();
+            kids.sort_by_key(|p| p.at[0].0);
+            let mut sticky_generated = false;
+            let items = pieces(&self.items, i0, &kids, 0, x, y, crate::relayout::sig, |it| {
                 let mut it = it.clone();
                 match &mut it {
                     // Generated boxes are renumbered on every build: keep only DOM nodes' marks.
-                    Item::Mark { id, .. } if !tree.is_dom_node(*id) => continue,
-                    Item::StickyPush { id, .. } if !tree.is_dom_node(*id) => return out,
+                    Item::Mark { id, .. } if !tree.is_dom_node(*id) => return None,
+                    Item::StickyPush { id, .. } if !tree.is_dom_node(*id) => sticky_generated = true,
                     Item::ScrollArea { id, .. } => *id = tree.origin(*id),
                     _ => {}
                 }
-                shift_item(&mut it, -x, -y);
-                items.push(it);
+                Some(it)
+            });
+            if sticky_generated {
+                return out;
             }
-            let links = self.links[l0..].iter().map(|(r, l)| (Rect { x: r.x - x, y: r.y - y, ..*r }, l.clone())).collect();
-            let hits = self.hits[h0..].iter().map(|(r, n)| (Rect { x: r.x - x, y: r.y - y, ..*r }, tree.origin(*n))).collect();
+            kids.sort_by_key(|p| p.at[1].0);
+            let links = pieces(&self.links, l0, &kids, 1, x, y, crate::relayout::rect_sig, |l| Some(l.clone()));
+            kids.sort_by_key(|p| p.at[2].0);
+            let hits = pieces(&self.hits, h0, &kids, 2, x, y, crate::relayout::rect_sig, |(r, n)| Some((*r, tree.origin(*n))));
             // Floats it placed in the surrounding formatting context go back in with it.
             let floats = self.floats.last().map(|fs| fs[f0..].iter().map(|f| (f.x0 - x, f.x1 - x, f.y0 - y, f.y1 - y, f.left)).collect()).unwrap_or_default();
-            crate::relayout::store(key, crate::relayout::Entry::new(items, links, hits, floats, out));
+            let sigs = [crate::relayout::sig(&self.items[i0..], x, y), crate::relayout::rect_sig(&self.links[l0..], x, y), crate::relayout::rect_sig(&self.hits[h0..], x, y)];
+            let at = [(i0, self.items.len()), (l0, self.links.len()), (h0, self.hits.len())];
+            if let Some(entry) = crate::relayout::store(key, crate::relayout::Entry::new(items, links, hits, floats, out)) {
+                self.placed.retain(|p| p.at[0].0 < i0);
+                self.placed.push(PlacedEntry { at, entry, x, y, sigs });
+            }
         }
         out
     }
@@ -1495,6 +1559,7 @@ impl<'a> Ctx<'a> {
     /// Absolute boxes inside are placed against the detached box itself.
     fn detach(&mut self, f: impl FnOnce(&mut Self) -> (f32, f32)) -> Detached {
         let saved = (std::mem::take(&mut self.items), std::mem::take(&mut self.links), std::mem::take(&mut self.hits));
+        let saved_placed = std::mem::take(&mut self.placed);
         self.abs.push(Vec::new());
         self.floats.push(Vec::new());
         let saved_layers = std::mem::take(&mut self.layers);
@@ -1509,6 +1574,7 @@ impl<'a> Ctx<'a> {
         let items = merge_layers(std::mem::replace(&mut self.items, saved.0), mine);
         let links = std::mem::replace(&mut self.links, saved.1);
         let hits = std::mem::replace(&mut self.hits, saved.2);
+        self.placed = saved_placed;
         let baseline = items
             .iter()
             .filter_map(|it| if let Item::Text { y, .. } = it { Some(*y) } else { None })

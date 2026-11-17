@@ -87,18 +87,142 @@ pub fn fingerprints(tree: &BoxTree, focus: Option<NodeId>, host: Option<NodeId>)
 }
 
 /// What laying out one block box produced, relative to where it was placed.
+///
+/// Display items are kept as pieces: runs of the box's own items, and child boxes' entries
+/// shared by reference (moved to where the child sat) instead of copied again at every
+/// level of nesting.
 pub struct Entry {
-    pub items: Vec<Item>,
-    pub links: Vec<(Rect, String)>,
-    pub hits: Vec<(Rect, NodeId)>,
+    pub pieces: Vec<Piece<Item>>,
+    pub links: Vec<Piece<(Rect, String)>>,
+    pub hits: Vec<Piece<(Rect, NodeId)>>,
     /// Floats it added to the formatting context around it: (x0, x1, y0, y1, left).
     pub floats: Vec<(f32, f32, f32, f32, bool)>,
     /// Height and bottom margin, as `block` returns them.
     pub h: f32,
     pub mb: f32,
     /// Pass it was made or last used in (old entries are dropped; see `Cache::pins`).
-    pass: u64,
+    pass: std::cell::Cell<u64>,
+    /// What it holds itself (shared children count in their own entries).
     size: usize,
+}
+
+pub enum Piece<T> {
+    Own(Vec<T>),
+    /// A child box's entry, placed at this offset from the box's origin.
+    Shared(Rc<Entry>, f32, f32),
+}
+
+/// Something layout outputs that a cached box keeps: display items, links, hit areas.
+pub trait Out: Clone {
+    fn shift(&mut self, dx: f32, dy: f32);
+    fn list(e: &Entry) -> &[Piece<Self>];
+}
+
+impl Out for Item {
+    fn shift(&mut self, dx: f32, dy: f32) {
+        crate::layout::shift_item(self, dx, dy);
+    }
+    fn list(e: &Entry) -> &[Piece<Item>] {
+        &e.pieces
+    }
+}
+
+impl Out for (Rect, String) {
+    fn shift(&mut self, dx: f32, dy: f32) {
+        self.0.x += dx;
+        self.0.y += dy;
+    }
+    fn list(e: &Entry) -> &[Piece<Self>] {
+        &e.links
+    }
+}
+
+impl Out for (Rect, NodeId) {
+    fn shift(&mut self, dx: f32, dy: f32) {
+        self.0.x += dx;
+        self.0.y += dy;
+    }
+    fn list(e: &Entry) -> &[Piece<Self>] {
+        &e.hits
+    }
+}
+
+impl Entry {
+    /// Append the box's items (or links, or hits), moved by (dx, dy).
+    pub fn emit<T: Out>(&self, dx: f32, dy: f32, out: &mut Vec<T>) {
+        for p in T::list(self) {
+            match p {
+                Piece::Own(v) => out.extend(v.iter().map(|it| {
+                    let mut it = it.clone();
+                    it.shift(dx, dy);
+                    it
+                })),
+                Piece::Shared(e, ex, ey) => e.emit(dx + ex, dy + ey, out),
+            }
+        }
+    }
+}
+
+/// Fingerprint of a run of links or hits seen from (ox, oy): count and summed positions.
+pub fn rect_sig<T>(list: &[(Rect, T)], ox: f32, oy: f32) -> Sig {
+    let (mut sx, mut sy) = (0.0f64, 0.0f64);
+    for (r, _) in list {
+        sx += (r.x - ox) as f64 + r.w as f64;
+        sy += (r.y - oy) as f64 + r.h as f64;
+    }
+    Sig { n: list.len(), kinds: 0, sx, sy, text: 0 }
+}
+
+/// A cheap fingerprint of a run of display items as seen from (ox, oy): how many, their
+/// kinds in order, and the sums of their positions and text lengths. Layout moves, wraps,
+/// splices and reorders items it already placed; any of that changes this, so a parent
+/// box only shares a child's entry when the child's items are still exactly as placed.
+#[derive(Clone, Copy, PartialEq)]
+pub struct Sig {
+    n: usize,
+    kinds: u64,
+    sx: f64,
+    sy: f64,
+    text: usize,
+}
+
+pub fn sig(items: &[Item], ox: f32, oy: f32) -> Sig {
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    let (mut sx, mut sy, mut text) = (0.0f64, 0.0f64, 0usize);
+    for it in items {
+        std::mem::discriminant(it).hash(&mut h);
+        let p = match it {
+            Item::Rect { x, y, .. }
+            | Item::Text { x, y, .. }
+            | Item::Image { x, y, .. }
+            | Item::Mark { x, y, .. }
+            | Item::ScrollArea { x, y, .. }
+            | Item::Box { x, y, .. }
+            | Item::Ring { x, y, .. }
+            | Item::Shadow { x, y, .. }
+            | Item::ClipPush { x, y, .. }
+            | Item::TransformPush { x, y, .. } => Some((*x, *y)),
+            Item::StickyPush { y, .. } => Some((ox, *y)),
+            Item::EffectPush(fx) => Some((fx.x, fx.y)),
+            _ => None,
+        };
+        if let Some((x, y)) = p {
+            sx += (x - ox) as f64;
+            sy += (y - oy) as f64;
+        }
+        if let Item::Text { text: t, .. } = it {
+            text += t.len();
+        }
+    }
+    Sig { n: items.len(), kinds: h.finish(), sx, sy, text }
+}
+
+impl Sig {
+    /// Same items, allowing for float rounding in the sums.
+    pub fn matches(&self, o: &Sig) -> bool {
+        let tol = 0.01 * (self.n.max(1) as f64);
+        self.n == o.n && self.kinds == o.kinds && self.text == o.text && (self.sx - o.sx).abs() <= tol && (self.sy - o.sy).abs() <= tol
+    }
 }
 
 #[derive(Default)]
@@ -135,7 +259,7 @@ pub fn begin_pass(env: u64, styles: &[Rc<crate::style::Style>]) {
         let pass = c.pass;
         c.pins.push((pass, styles.to_vec()));
         c.pins.retain(|(p, _)| p + KEEP_PASSES > pass);
-        c.entries.retain(|_, e| e.pass + KEEP_PASSES > pass);
+        c.entries.retain(|_, e| e.pass.get() + KEEP_PASSES > pass);
         c.hits = 0;
         c.misses = 0;
     });
@@ -179,9 +303,7 @@ pub fn lookup(key: u64) -> Option<Rc<Entry>> {
         match c.entries.get_mut(&key) {
             Some(e) => {
                 // Used again: its styles are this pass's, which are pinned now.
-                if let Some(e) = Rc::get_mut(e) {
-                    e.pass = pass;
-                }
+                e.pass.set(pass);
                 let e = e.clone();
                 c.hits += 1;
                 Some(e)
@@ -195,22 +317,28 @@ pub fn lookup(key: u64) -> Option<Rc<Entry>> {
 }
 
 impl Entry {
-    pub fn new(items: Vec<Item>, links: Vec<(Rect, String)>, hits: Vec<(Rect, NodeId)>, floats: Vec<(f32, f32, f32, f32, bool)>, (h, mb): (f32, f32)) -> Entry {
-        let size = items.len() + links.len() + hits.len() + floats.len() + 1;
-        Entry { items, links, hits, floats, h, mb, pass: 0, size }
+    pub fn new(pieces: Vec<Piece<Item>>, links: Vec<Piece<(Rect, String)>>, hits: Vec<Piece<(Rect, NodeId)>>, floats: Vec<(f32, f32, f32, f32, bool)>, (h, mb): (f32, f32)) -> Entry {
+        fn own<T>(l: &[Piece<T>]) -> usize {
+            l.iter().map(|p| if let Piece::Own(v) = p { v.len() } else { 1 }).sum()
+        }
+        let size = own(&pieces) + own(&links) + own(&hits) + floats.len() + 1;
+        Entry { pieces, links, hits, floats, h, mb, pass: std::cell::Cell::new(0), size }
     }
 }
 
-pub fn store(key: u64, mut e: Entry) {
+/// Remember a box's layout; the entry is returned so a parent can share it.
+pub fn store(key: u64, e: Entry) -> Option<Rc<Entry>> {
     if !enabled() {
-        return;
+        return None;
     }
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
         let key = full_key(&c, key);
-        e.pass = c.pass;
-        c.entries.insert(key, Rc::new(e));
-    });
+        e.pass.set(c.pass);
+        let e = Rc::new(e);
+        c.entries.insert(key, e.clone());
+        Some(e)
+    })
 }
 
 /// (boxes reused, boxes laid out) in the last pass.
@@ -219,6 +347,17 @@ pub fn stats() -> (usize, usize) {
     CACHE.with(|c| {
         let c = c.borrow();
         (c.hits, c.misses)
+    })
+}
+
+/// (display items the cache holds itself, child entries it shares) — tests.
+#[cfg(test)]
+pub fn held() -> (usize, usize) {
+    CACHE.with(|c| {
+        let c = c.borrow();
+        let own = c.entries.values().map(|e| e.pieces.iter().map(|p| if let Piece::Own(v) = p { v.len() } else { 0 }).sum::<usize>()).sum();
+        let shared = c.entries.values().map(|e| e.pieces.iter().filter(|p| matches!(p, Piece::Shared(..))).count()).sum();
+        (own, shared)
     })
 }
 
@@ -351,6 +490,26 @@ mod tests {
         super::clear();
         let fresh = render(&dom, &[], fonts);
         same(&incremental, &fresh);
+    }
+
+    /// Nested boxes share their children's cached items instead of copying them at every
+    /// level, so the cache holds about one copy of the page's items, not one per level.
+    #[test]
+    fn nested_boxes_share_cached_items() {
+        let fonts = crate::load_fonts().expect("fonts");
+        super::clear();
+        let mut html = String::new();
+        for i in 0..40 {
+            html.push_str(&format!("<section><div><article><p>Item {i} with <b>some</b> words</p><p>more</p></article></div></section>"));
+        }
+        let dom = crate::html::parse(&html);
+        let lay = render(&dom, &[], fonts);
+        let (own, shared) = super::held();
+        assert!(shared > 100, "children are shared: {shared}");
+        assert!(own <= lay.items.len() * 3 / 2, "{own} items held for a page of {}", lay.items.len());
+        // And the page put back from the cache is the same page.
+        let again = render(&dom, &[], fonts);
+        same(&again, &lay);
     }
 
     /// A canvas, video or live frame redrawn at the same size changes no box: layout reads an
@@ -549,3 +708,4 @@ mod bench {
         }
     }
 }
+
