@@ -2282,7 +2282,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "height" => {
-            if let Some(l @ Len::Px(_)) = parse_len(&lower, fs) {
+            if let Some(l) = parse_len(&lower, fs) {
                 st.height = l
             }
         }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html style="height: 100%"><head><title>Percentage heights</title>
+<style>
+  body { height: 100%; margin: 0; font-family: sans-serif; font-size: 13px; }
+  .app { display: flex; height: 100%; }
+  .side { width: 150px; background: #1e293b; color: #e2e8f0; padding: 10px; }
+  .main { flex: 1; padding: 10px; background: #f8fafc; }
+  .box { height: 200px; background: #e2e8f0; position: relative; margin-bottom: 10px; display: flex; gap: 8px; align-items: flex-start; }
+  .half { height: 50%; width: 80px; background: #f97316; }
+  .full { height: 100%; width: 80px; background: #0ea5e9; }
+  .mixed { height: calc(100% - 40px); width: 80px; background: #a855f7; }
+  .minh { min-height: 75%; width: 80px; background: #22c55e; }
+  .maxh { height: 100%; max-height: 25%; width: 80px; background: #eab308; }
+  .abs { position: absolute; right: 8px; top: 10%; height: 80%; width: 60px; background: #ef4444; }
+  .auto { background: #cbd5e1; padding: 6px; }
+  .auto > div { height: 50%; background: #64748b; color: white; }
+</style></head>
+<body>
+  <div class="app">
+    <div class="side">Sidebar: height 100% of the window</div>
+    <div class="main">
+      <div class="box">
+        <div class="half">50%</div>
+        <div class="full">100%</div>
+        <div class="mixed">calc(100% - 40px)</div>
+        <div class="minh">min 75%</div>
+        <div class="maxh">max 25%</div>
+        <div class="abs">abs 80%</div>
+      </div>
+      <div class="auto">Parent with auto height: <div>50% acts as auto</div></div>
+    </div>
+  </div>
+</body></html>

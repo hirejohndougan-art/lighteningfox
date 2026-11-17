@@ -237,6 +237,7 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
         layers: Vec::new(),
         flow_child: false,
         absorb_top: None,
+        cb_heights: vec![Some(viewport_h)],
     };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // The page grows to contain floats that hang below the last block.
@@ -321,6 +322,9 @@ struct Ctx<'a> {
     flow_child: bool,
     /// A first child whose top margin its parent already took into its own.
     absorb_top: Option<NodeId>,
+    /// Content heights of the enclosing containing blocks, when definite (percentage
+    /// heights resolve against the innermost one; `None` makes them act as auto).
+    cb_heights: Vec<Option<f32>>,
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -595,6 +599,15 @@ impl<'a> Ctx<'a> {
         .max(0.0)
     }
 
+    /// A height-like length in px: percentages need a containing block of definite height.
+    fn definite_len(&self, l: Len) -> Option<f32> {
+        match l {
+            Len::Auto => None,
+            Len::Px(v) => Some(v),
+            Len::Pct(_) | Len::Mix(..) => self.cb_heights.last().copied().flatten().map(|ph| l.resolve(ph)),
+        }
+    }
+
     /// Lay out an element as a block box. Returns (outer height, bottom margin).
     fn block(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
         let flow = std::mem::replace(&mut self.flow_child, false);
@@ -717,6 +730,20 @@ impl<'a> Ctx<'a> {
         if top_coll {
             self.absorb_top = self.first_flow_block(id);
         }
+        // Heights: lengths, and percentages of a containing block whose height is definite.
+        let st = &self.styles[id];
+        let spec_h = self.definite_len(st.height).map(|h| h - vsizing);
+        let max_h = self.definite_len(st.max_height).map(|h| h - vsizing);
+        let min_h = self.definite_len(st.min_height).map(|h| h - vsizing);
+        let definite = match forced.1 {
+            Some(fh) => Some(fh - mt - mb - bt - pt - pb - bb),
+            None => spec_h.map(|h| match max_h {
+                Some(mx) => h.min(mx),
+                None => h,
+            }),
+        }
+        .map(|h| h.max(min_h.unwrap_or(0.0)).max(0.0));
+        self.cb_heights.push(definite);
         let (mut content_h, last_mb) = match replaced {
             Some((rw, rh)) => {
                 let src = self.replaced_src(id);
@@ -731,24 +758,11 @@ impl<'a> Ctx<'a> {
                 let stretch = self.styles[id].width != Len::Auto || forced.0.is_some();
                 (self.table_children(table.as_ref().unwrap(), cx, cy, w, stretch), 0.0)
             }
-            None if self.styles[id].grid.is_some() => {
-                let definite = match (forced.1, self.styles[id].height) {
-                    (Some(fh), _) => Some(fh - mt - mb - bt - pt - pb - bb),
-                    (None, Len::Px(h)) => Some(h - vsizing),
-                    _ => None,
-                };
-                (self.grid_children(id, cx, cy, w, definite), 0.0)
-            }
-            None if is_flex => {
-                let definite = match (forced.1, st.height) {
-                    (Some(fh), _) => Some(fh - mt - mb - bt - pt - pb - bb),
-                    (None, Len::Px(h)) => Some(h - vsizing),
-                    _ => None,
-                };
-                (self.flex_children(id, cx, cy, w, definite), 0.0)
-            }
+            None if self.styles[id].grid.is_some() => (self.grid_children(id, cx, cy, w, definite), 0.0),
+            None if is_flex => (self.flex_children(id, cx, cy, w, definite), 0.0),
             None => self.block_children(id, cx, cy, w, align),
         };
+        self.cb_heights.pop();
         if self.absorb_top.is_some_and(|c| self.dom.nodes[c].parent == Some(id)) {
             self.absorb_top = None;
         }
@@ -762,7 +776,7 @@ impl<'a> Ctx<'a> {
         let bottom_coll = !bfc
             && pb == 0.0
             && bb == 0.0
-            && st.height == Len::Auto
+            && spec_h.is_none()
             && matches!(st.min_height, Len::Auto | Len::Px(0.0))
             && forced.1.is_none()
             && st.aspect_ratio.is_none();
@@ -771,20 +785,20 @@ impl<'a> Ctx<'a> {
         }
         let st = &self.styles[id];
         let natural_h = content_h;
-        if let (Len::Auto, Some(r), None) = (st.height, st.aspect_ratio, replaced) {
+        if let (None, Some(r), None) = (spec_h, st.aspect_ratio, replaced) {
             // aspect-ratio gives an auto height from the width (content may still grow it).
             let h = if st.border_box { (w + pl + pr + bl + br) / r - vsizing } else { w / r };
             content_h = content_h.max(h);
         }
-        if let (Len::Px(h), None) = (st.height, replaced) {
+        if let (Some(h), None) = (spec_h, replaced) {
             // A clipping box keeps exactly its height; others grow to fit (for now).
-            content_h = if st.clip { h - vsizing } else { content_h.max(h - vsizing) };
+            content_h = if st.clip { h } else { content_h.max(h) };
         }
-        if let (Len::Px(mx), None) = (st.max_height, replaced) {
-            content_h = content_h.min(mx - vsizing);
+        if let (Some(mx), None) = (max_h, replaced) {
+            content_h = content_h.min(mx);
         }
-        if let Len::Px(mn) = st.min_height {
-            content_h = content_h.max(mn - vsizing);
+        if let Some(mn) = min_h {
+            content_h = content_h.max(mn);
         }
         content_h = content_h.max(0.0);
         if let Some(fh) = forced.1 {
@@ -1124,10 +1138,12 @@ impl<'a> Ctx<'a> {
                 let e = self.forced.entry(id).or_insert((None, None));
                 e.1 = Some((cb.h - vert(top) - vert(bottom)).max(0.0));
             }
+            self.cb_heights.push(Some(cb.h));
             let d = match self.forced.get(&id).copied() {
                 Some((Some(fw), fh)) => self.layout_at(id, fw, fh),
                 _ => self.layout_detached(id, cb.w),
             };
+            self.cb_heights.pop();
             self.forced.remove(&id);
             let fixed = self.styles[id].position == Position::Fixed;
             let x = match (left, right) {
@@ -1460,7 +1476,7 @@ impl<'a> Ctx<'a> {
             for (k, &i) in line.iter().enumerate() {
                 if let FlexItem::Node(n) = &items[i] {
                     let stretch = align_of(self, &items[i]) == AlignItems::Stretch;
-                    if stretch && self.styles[*n].height == Len::Auto && boxes[k].h < cross - 0.5 {
+                    if stretch && self.definite_len(self.styles[*n].height).is_none() && boxes[k].h < cross - 0.5 {
                         boxes[k] = self.layout_at(*n, sizes[k], Some(cross));
                     }
                 }
@@ -2151,7 +2167,7 @@ impl<'a> Ctx<'a> {
             match &items[p.item] {
                 FlexItem::Node(n) => {
                     let align = self.styles[*n].flex.align_self.unwrap_or(fl.align_items);
-                    let stretch = align == AlignItems::Stretch && self.styles[*n].height == Len::Auto;
+                    let stretch = align == AlignItems::Stretch && self.definite_len(self.styles[*n].height).is_none();
                     let d = self.layout_at(*n, iw, stretch.then_some(area_h));
                     let dy = match align {
                         AlignItems::Center => (area_h - d.h) / 2.0,
@@ -2320,8 +2336,8 @@ impl<'a> Ctx<'a> {
             l => Some(l.resolve(avail)),
         };
         let h = match st.height {
-            Len::Px(v) => Some(v),
-            _ => attr("height"),
+            Len::Auto => attr("height"),
+            l => self.definite_len(l).or_else(|| attr("height")),
         };
         let (mut w, mut h) = match (w, h, intrinsic) {
             (Some(w), Some(h), _) => (w, h),
