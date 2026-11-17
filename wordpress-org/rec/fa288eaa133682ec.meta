@@ -1,0 +1,13 @@
+GET https://wordpress.org/wp-content/plugins/gutenberg/build/modules/block-library/navigation/view.min.js?ver=459046a3816f848f72d6-20240308
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 20:17:38 GMT
+content-type: application/javascript
+last-modified: Thu, 12 Nov 2026 21:21:02 GMT
+vary: Accept-Encoding
+x-frame-options: SAMEORIGIN
+x-nc: HIT dca 2
+expires: Thu, 31 Dec 2037 23:55:55 GMT
+cache-control: max-age=315360000
+alt-svc: clear
+x-remembering: Eric Binnion <https://friendsofericbinnion.wordpress.com/>

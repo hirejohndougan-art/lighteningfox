@@ -1,0 +1,13 @@
+GET https://wordpress.org/wp-content/mu-plugins/pub-sync/blocks/time/build/view.js?ver=385bfe9134bf98c52dda
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 20:17:38 GMT
+content-type: application/javascript
+last-modified: Thu, 11 Jun 2026 16:48:52 GMT
+vary: Accept-Encoding
+x-frame-options: SAMEORIGIN
+x-nc: HIT dca 2
+expires: Thu, 31 Dec 2037 23:55:55 GMT
+cache-control: max-age=315360000
+alt-svc: clear
+x-remembering: Eric Binnion <https://friendsofericbinnion.wordpress.com/>
