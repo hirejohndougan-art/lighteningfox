@@ -7,6 +7,7 @@
 use ab_glyph::{Font as _, FontVec, PxScale, ScaleFont as _};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub const REGULAR: u8 = 0;
 pub const BOLD: u8 = 1;
@@ -14,6 +15,47 @@ pub const ITALIC: u8 = 2;
 pub const BOLD_ITALIC: u8 = 3;
 pub const MONO: u8 = 4;
 pub const MONO_BOLD: u8 = 5;
+/// Ids from here on are web fonts.
+pub const FIRST_WEB: u8 = 6;
+
+thread_local! {
+    /// The current page's @font-face families: name -> faces (weight range, italic, font id).
+    static FAMILIES: RefCell<HashMap<String, Vec<(u16, u16, bool, u8)>>> = RefCell::new(HashMap::new());
+}
+
+pub fn set_web_families(map: HashMap<String, Vec<(u16, u16, bool, u8)>>) {
+    FAMILIES.with(|f| *f.borrow_mut() = map);
+}
+
+/// Choose a font for a `font-family` list: the first named web font the page loaded,
+/// else the first generic family (monospace…), else the default sans-serif.
+pub fn resolve(family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {
+    let fallback = Fonts::pick(bold, italic, mono);
+    let Some(list) = family else { return fallback };
+    FAMILIES.with(|fams| {
+        let fams = fams.borrow();
+        for name in list.split(',') {
+            let name = name.trim().trim_matches(|c| c == '"' || c == '\'').trim();
+            if let Some(faces) = fams.get(name) {
+                let want = if bold { 700 } else { 400 };
+                // Prefer the right style, then the closest weight.
+                let best = faces.iter().min_by_key(|(lo, hi, it, _)| {
+                    let dist = if want < *lo { lo - want } else { want.saturating_sub(*hi) };
+                    ((*it != italic) as u32) * 10_000 + dist as u32
+                });
+                if let Some(&(_, _, _, id)) = best {
+                    return id;
+                }
+            }
+            match name {
+                "monospace" | "ui-monospace" => return Fonts::pick(bold, italic, true),
+                "sans-serif" | "serif" | "system-ui" | "ui-sans-serif" | "-apple-system" | "blinkmacsystemfont" | "cursive" | "fantasy" => return Fonts::pick(bold, italic, false),
+                _ => {}
+            }
+        }
+        fallback
+    })
+}
 
 const DIRS: &[&str] = &[
     "/usr/share/fonts/truetype/dejavu",
@@ -47,7 +89,10 @@ type Key = (u8, char, u16);
 pub struct Fonts {
     /// Index into `files` for each style slot (missing faces reuse the regular one).
     slots: [usize; 6],
-    files: Vec<FontVec>,
+    files: Vec<Rc<FontVec>>,
+    /// Web fonts added while browsing (ids 6 and up), each with the system style to use
+    /// for characters it doesn't have.
+    web: RefCell<Vec<(Rc<FontVec>, u8)>>,
     glyphs: RefCell<HashMap<Key, (Metrics, Vec<u8>)>>,
     advances: RefCell<HashMap<Key, f32>>,
 }
@@ -62,7 +107,7 @@ fn scale_for(font: &FontVec, size: f32) -> PxScale {
 
 impl Fonts {
     pub fn load() -> Result<Fonts, String> {
-        let mut files: Vec<FontVec> = Vec::new();
+        let mut files: Vec<Rc<FontVec>> = Vec::new();
         let mut slots = [0usize; 6];
         for (i, file) in FILES.iter().enumerate() {
             let path = DIRS.iter().map(|d| format!("{d}/{file}")).find(|p| std::path::Path::new(p).exists());
@@ -71,17 +116,47 @@ impl Fonts {
                     let bytes = std::fs::read(&p).map_err(|e| format!("{p}: {e}"))?;
                     let font = FontVec::try_from_vec(bytes).map_err(|e| format!("{p}: {e}"))?;
                     slots[i] = files.len();
-                    files.push(font);
+                    files.push(Rc::new(font));
                 }
                 None if i > 0 => slots[i] = slots[0],
                 None => return Err("DejaVu Sans not found. Install it (e.g. `sudo apt install fonts-dejavu-core`).".into()),
             }
         }
-        Ok(Fonts { slots, files, glyphs: RefCell::default(), advances: RefCell::default() })
+        Ok(Fonts { slots, files, web: RefCell::default(), glyphs: RefCell::default(), advances: RefCell::default() })
     }
 
-    fn font(&self, font: u8) -> &FontVec {
-        &self.files[self.slots[font as usize]]
+    /// The font file for an id; for a web font missing `c`, its system fallback.
+    fn font_for(&self, font: u8, c: Option<char>) -> Rc<FontVec> {
+        if (font as usize) < FIRST_WEB as usize {
+            return self.files[self.slots[font as usize]].clone();
+        }
+        let web = self.web.borrow();
+        match web.get((font - FIRST_WEB) as usize) {
+            Some((f, fallback)) => {
+                if c.is_some_and(|c| f.glyph_id(c).0 == 0) {
+                    self.files[self.slots[*fallback as usize]].clone()
+                } else {
+                    f.clone()
+                }
+            }
+            None => self.files[self.slots[0]].clone(),
+        }
+    }
+
+    fn font(&self, font: u8) -> Rc<FontVec> {
+        self.font_for(font, None)
+    }
+
+    /// Add a downloaded font (TrueType/OpenType data). Returns its id, or None if the data
+    /// isn't a usable font or there's no room for more.
+    pub fn add_web_font(&self, data: Vec<u8>, bold: bool, italic: bool) -> Option<u8> {
+        let font = FontVec::try_from_vec(data).ok()?;
+        let mut web = self.web.borrow_mut();
+        if web.len() >= (255 - FIRST_WEB) as usize {
+            return None;
+        }
+        web.push((Rc::new(font), Self::pick(bold, italic, false)));
+        Some(FIRST_WEB + web.len() as u8 - 1)
     }
 
     pub fn pick(bold: bool, italic: bool, mono: bool) -> u8 {
@@ -104,8 +179,8 @@ impl Fonts {
         if let Some(&a) = self.advances.borrow().get(&k) {
             return a;
         }
-        let f = self.font(font);
-        let sf = f.as_scaled(scale_for(f, size));
+        let f = self.font_for(font, Some(c));
+        let sf = f.as_scaled(scale_for(&f, size));
         let a = sf.h_advance(f.glyph_id(c));
         self.advances.borrow_mut().insert(k, a);
         a
@@ -117,7 +192,7 @@ impl Fonts {
 
     pub fn ascent(&self, font: u8, size: f32) -> f32 {
         let f = self.font(font);
-        f.as_scaled(scale_for(f, size)).ascent()
+        f.as_scaled(scale_for(&f, size)).ascent()
     }
 
     /// Calls `f` with the glyph's metrics and 8-bit coverage bitmap.
@@ -137,8 +212,8 @@ impl Fonts {
     }
 
     fn rasterize(&self, font: u8, c: char, size: f32) -> (Metrics, Vec<u8>) {
-        let fnt = self.font(font);
-        let scale = scale_for(fnt, size);
+        let fnt = self.font_for(font, Some(c));
+        let scale = scale_for(&fnt, size);
         let sf = fnt.as_scaled(scale);
         let id = fnt.glyph_id(c);
         let advance_width = sf.h_advance(id);

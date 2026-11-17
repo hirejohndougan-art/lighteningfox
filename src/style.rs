@@ -248,6 +248,8 @@ pub struct Style {
     pub bold: bool,
     pub italic: bool,
     pub mono: bool,
+    /// The `font-family` list, lower-case (web fonts are matched against it).
+    pub family: Option<Rc<str>>,
     pub underline: bool,
     pub text_align: Align,
     pub line_height: f32,
@@ -311,6 +313,7 @@ impl Default for Style {
             bold: false,
             italic: false,
             mono: false,
+            family: None,
             underline: false,
             text_align: Align::Left,
             line_height: 1.25,
@@ -363,6 +366,7 @@ impl Style {
             bold: parent.bold,
             italic: parent.italic,
             mono: parent.mono,
+            family: parent.family.clone(),
             underline: parent.underline,
             text_align: parent.text_align,
             line_height: parent.line_height,
@@ -1660,7 +1664,10 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "font-style" => st.italic = lower == "italic" || lower.starts_with("oblique"),
-        "font-family" => st.mono = lower.contains("mono") || lower.contains("courier") || lower.contains("consolas"),
+        "font-family" => {
+            st.mono = lower.contains("mono") || lower.contains("courier") || lower.contains("consolas");
+            st.family = Some(Rc::from(lower.as_str()));
+        }
         "font" => {
             // e.g. "italic bold 16px/1.5 Georgia, serif"
             let mut rest = lower.as_str();
@@ -1686,6 +1693,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 apply(st, parent, "line-height", lh);
             }
             st.mono = families.contains("mono") || families.contains("courier");
+            if !families.trim().is_empty() {
+                st.family = Some(Rc::from(families.trim()));
+            }
         }
         "line-height" => {
             st.line_height = if lower == "normal" {

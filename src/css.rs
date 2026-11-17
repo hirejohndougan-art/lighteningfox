@@ -3,6 +3,47 @@
 #[derive(Debug, Clone)]
 pub struct Stylesheet {
     pub rules: Vec<Rule>,
+    pub font_faces: Vec<FontFace>,
+}
+
+/// An `@font-face` rule: a downloadable font for a family name.
+#[derive(Debug, Clone)]
+pub struct FontFace {
+    /// Lower-case, without quotes.
+    pub family: String,
+    /// The raw `src` list: `url(…) format("woff2"), url(…) format("woff"), local(…)`.
+    pub src: String,
+    /// font-weight range it covers (a variable font covers e.g. 100–900).
+    pub weight: (u16, u16),
+    pub italic: bool,
+}
+
+impl FontFace {
+    /// The URL to download: the first WOFF2, else WOFF, else TrueType/OpenType source.
+    pub fn best_url(&self) -> Option<String> {
+        let mut found: Vec<(u8, String)> = Vec::new();
+        for part in split_top(&self.src, ',') {
+            let p = part.trim();
+            let Some(start) = p.find("url(") else { continue };
+            let rest = &p[start + 4..];
+            let Some(end) = rest.find(')') else { continue };
+            let url = rest[..end].trim().trim_matches(|c| c == '"' || c == '\'').to_string();
+            let lower = p.to_ascii_lowercase();
+            let fmt = lower.split("format(").nth(1).unwrap_or("");
+            let rank = if fmt.contains("woff2") || (fmt.is_empty() && url.to_ascii_lowercase().split('?').next().unwrap_or("").ends_with(".woff2")) {
+                0
+            } else if fmt.contains("woff") || fmt.is_empty() && url.to_ascii_lowercase().split('?').next().unwrap_or("").ends_with(".woff") {
+                1
+            } else if fmt.contains("truetype") || fmt.contains("opentype") || fmt.is_empty() {
+                2
+            } else {
+                continue; // svg, embedded-opentype: not supported
+            };
+            found.push((rank, url));
+        }
+        found.sort_by_key(|f| f.0);
+        found.into_iter().next().map(|f| f.1)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -61,8 +102,9 @@ impl Selector {
 pub fn parse(src: &str) -> Stylesheet {
     let clean = strip_comments(src);
     let mut rules = Vec::new();
-    parse_block(&clean, &mut rules);
-    Stylesheet { rules }
+    let mut font_faces = Vec::new();
+    parse_block(&clean, &mut rules, &mut font_faces);
+    Stylesheet { rules, font_faces }
 }
 
 /// Parse a declaration list like the `style=""` attribute.
@@ -88,7 +130,7 @@ pub fn parse_declarations(src: &str) -> Vec<Decl> {
         .collect()
 }
 
-fn parse_block(src: &str, rules: &mut Vec<Rule>) {
+fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>) {
     let b = src.as_bytes();
     let mut i = 0;
     while i < b.len() {
@@ -119,9 +161,30 @@ fn parse_block(src: &str, rules: &mut Vec<Rule>) {
         if let Some(at) = prelude.strip_prefix('@') {
             let lower = at.to_ascii_lowercase();
             if lower.starts_with("media") && media_matches(&lower[5..]) {
-                parse_block(body, rules);
+                parse_block(body, rules, faces);
             } else if lower.starts_with("supports") || lower.starts_with("layer") {
-                parse_block(body, rules);
+                parse_block(body, rules, faces);
+            } else if lower.starts_with("font-face") {
+                let decls = parse_declarations(body);
+                let get = |n: &str| decls.iter().rev().find(|d| d.name == n).map(|d| d.value.clone());
+                if let (Some(family), Some(src)) = (get("font-family"), get("src")) {
+                    let num = |w: &str| match w.trim() {
+                        "normal" => Some(400),
+                        "bold" => Some(700),
+                        n => n.parse::<f32>().ok().map(|v| v as u16),
+                    };
+                    let wv = get("font-weight").unwrap_or_else(|| "400".into()).to_ascii_lowercase();
+                    let mut ws = wv.split_whitespace().filter_map(num);
+                    let lo = ws.next().unwrap_or(400);
+                    let hi = ws.next().unwrap_or(lo).max(lo);
+                    let st = get("font-style").unwrap_or_default().to_ascii_lowercase();
+                    faces.push(FontFace {
+                        family: family.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_ascii_lowercase(),
+                        src,
+                        weight: (lo, hi),
+                        italic: st.starts_with("italic") || st.starts_with("oblique"),
+                    });
+                }
             }
             continue;
         }
@@ -372,6 +435,9 @@ fn parse_compound(chars: &[char], mut i: usize) -> Option<(Compound, usize)> {
 
 /// Make every `url(...)` in a stylesheet absolute, relative to the sheet's own URL.
 pub fn absolutize_urls(sheet: &mut Stylesheet, base: &str) {
+    for f in &mut sheet.font_faces {
+        f.src = rewrite_urls(&f.src, base);
+    }
     for rule in &mut sheet.rules {
         for d in &mut rule.decls {
             if d.value.contains("url(") {

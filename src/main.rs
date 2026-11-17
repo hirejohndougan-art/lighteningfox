@@ -97,6 +97,103 @@ struct Prepared {
     sheets: Vec<css::Stylesheet>,
     images: images::Images,
     scripts: HashMap<String, String>,
+    fonts: Vec<WebFont>,
+}
+
+/// A downloaded @font-face font. `data` is None when an earlier page already loaded it.
+struct WebFont {
+    family: String,
+    weight: (u16, u16),
+    italic: bool,
+    url: String,
+    data: Option<Vec<u8>>,
+}
+
+/// Font URLs already turned into fonts (shared with the loading threads, so they skip them).
+static LOADED_FONT_URLS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// WOFF2 and WOFF are compressed wrappers around TrueType/OpenType data.
+fn decode_font(bytes: Vec<u8>) -> Option<Vec<u8>> {
+    match bytes.get(..4) {
+        Some(b"wOF2") => wuff::decompress_woff2(&bytes).ok(),
+        Some(b"wOFF") => wuff::decompress_woff1(&bytes).ok(),
+        _ => Some(bytes),
+    }
+}
+
+/// Download the @font-face fonts the page's styles actually use (at most 24).
+fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url: &str) -> Vec<WebFont> {
+    let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<*const str> = std::collections::HashSet::new();
+    for st in styles {
+        if let Some(f) = &st.family {
+            if seen.insert(Rc::as_ptr(f)) {
+                for name in f.split(',') {
+                    used.insert(name.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_string());
+                }
+            }
+        }
+    }
+    let loaded = LOADED_FONT_URLS.lock().map(|l| l.clone()).unwrap_or_default();
+    let wanted: Vec<(&css::FontFace, String)> = sheets
+        .iter()
+        .flat_map(|s| &s.font_faces)
+        .filter(|f| used.contains(&f.family))
+        .filter_map(|f| f.best_url().map(|u| (f, u)))
+        .take(24)
+        .collect();
+    std::thread::scope(|scope| {
+        let jobs: Vec<_> = wanted
+            .iter()
+            .map(|(face, url)| {
+                let skip = loaded.contains(url);
+                scope.spawn(move || {
+                    let data = if skip {
+                        None
+                    } else {
+                        match net::fetch_sub_bytes(url, page_url) {
+                            Ok((_, b)) => decode_font(b),
+                            Err(e) => {
+                                eprintln!("[font] {url}: {e}");
+                                return None;
+                            }
+                        }
+                    };
+                    Some(WebFont { family: face.family.clone(), weight: face.weight, italic: face.italic, url: url.clone(), data })
+                })
+            })
+            .collect();
+        jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect()
+    })
+}
+
+thread_local! {
+    /// Web font URL -> font id, so a font shared by many pages is added once.
+    static FONT_IDS: RefCell<HashMap<String, u8>> = RefCell::new(HashMap::new());
+}
+
+/// Make the page's web fonts available to layout under their family names.
+fn install_fonts(fonts: Vec<WebFont>) {
+    let Some(registry) = FONTS.with(|c| c.get()) else { return };
+    let mut families: HashMap<String, Vec<(u16, u16, bool, u8)>> = HashMap::new();
+    for f in fonts {
+        let known = FONT_IDS.with(|m| m.borrow().get(&f.url).copied());
+        let id = match (known, f.data) {
+            (Some(id), _) => Some(id),
+            (None, Some(data)) => registry.add_web_font(data, f.weight.0 >= 600, f.italic).inspect(|&id| {
+                FONT_IDS.with(|m| m.borrow_mut().insert(f.url.clone(), id));
+                if let Ok(mut l) = LOADED_FONT_URLS.lock() {
+                    l.push(f.url.clone());
+                }
+            }),
+            (None, None) => None,
+        };
+        match id {
+            Some(id) => families.entry(f.family).or_default().push((f.weight.0, f.weight.1, f.italic, id)),
+            None => eprintln!("[font] {}: not a usable font", f.url),
+        }
+    }
+    font::set_web_families(families);
 }
 
 /// Fetch the page, its stylesheets, scripts and images, all in parallel where possible.
@@ -176,7 +273,8 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let styles = style::compute(&dom, &sheets);
     let bg_urls = background_urls(&styles);
     images.load_missing(&dom, &final_url, &bg_urls);
-    Prepared { url: final_url, dom, sheets, images, scripts }
+    let fonts = fetch_fonts(&sheets, &styles, &final_url);
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts }
 }
 
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
@@ -210,7 +308,8 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts } = p;
+    install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
     let has_scripts = dom.descendants(dom::Dom::ROOT).iter().any(|&n| match &dom.nodes[n].data {
@@ -1179,6 +1278,7 @@ mod screenshot_tests {
         ("tests/scroll-box.html", 900),
         ("tests/transforms.html", 900),
         ("tests/history.html", 800),
+        ("tests/webfonts.html", 900),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

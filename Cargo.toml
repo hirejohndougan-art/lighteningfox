@@ -10,6 +10,7 @@ png = "0.17"
 boa_engine = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 base64 = "0.22"
+wuff = "0.2"
 ab_glyph = "0.2"
 
 [profile.release]
