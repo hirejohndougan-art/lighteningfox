@@ -309,6 +309,13 @@ pub fn http(req: &Request) -> Result<Response, String> {
         let ty = guess_type(&abs);
         return Ok(Response { status: 200, status_text: "OK".into(), url: format!("file://{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
     }
+    // A page's ads and trackers are refused here, before anything goes out.
+    if let Some(page) = req.top {
+        let ty = if req.extra.iter().any(|(k, _)| k.eq_ignore_ascii_case("origin")) { crate::adblock::ResType::Xhr } else { crate::adblock::ResType::guess(url) };
+        if crate::adblock::should_block(url, page, ty) {
+            return Err(format!("{url}: blocked by the ad and tracker blocker"));
+        }
+    }
     // GETs may come from the disk cache (fresh), or be checked with the server (stale).
     let cacheable = req.method.eq_ignore_ascii_case("GET") && req.body.is_none();
     let lookup = if cacheable { crate::cache::lookup(url) } else { crate::cache::Lookup::Miss };

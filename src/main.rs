@@ -27,6 +27,7 @@ mod http;
 mod hsts;
 mod icon;
 mod tokenizer;
+mod adblock;
 mod chrome;
 mod favicon;
 mod devtools;
@@ -582,6 +583,8 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
     } else if url == "about:crash" {
         // Deliberately crash, to test crash reporting (like chrome://crash).
         panic!("about:crash was opened (a deliberate test crash)");
+    } else if let Some(q) = url.strip_prefix("about:blocking") {
+        ("about:blocking".to_string(), adblock::page(q))
     } else if let Some(q) = url.strip_prefix("about:settings") {
         ("about:settings".to_string(), settings::page(q))
     } else if let Some(q) = url.strip_prefix("about:downloads") {
@@ -788,7 +791,14 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
         .clamp(1.0, 2000.0) as u32;
         let src = match (dom.attr(id, "srcdoc"), dom.attr(id, "src").map(str::trim)) {
             (Some(doc), _) => FrameSrc::Doc { html: doc.to_string(), base: base.to_string() },
-            (None, Some(s)) if !s.is_empty() && s != "about:blank" && !s.starts_with("javascript:") => FrameSrc::Url(net::resolve(base, s)),
+            (None, Some(s)) if !s.is_empty() && s != "about:blank" && !s.starts_with("javascript:") => {
+                let u = net::resolve(base, s);
+                // Ad frames are blocked like any other ad request.
+                if adblock::should_block(&u, base, adblock::ResType::Subdocument) {
+                    continue;
+                }
+                FrameSrc::Url(u)
+            }
             // An empty frame shows nothing: the iframe's own background shows through.
             _ => continue,
         };
