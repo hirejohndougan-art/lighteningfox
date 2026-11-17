@@ -67,6 +67,7 @@ pub fn install(ctx: &mut Context) {
         ("__cvDataURL", 3, n_data_url),
         ("__cvInPath", 4, n_in_path),
         ("__cvColor", 1, n_color),
+        ("__cvDecodeInto", 2, n_decode_into),
     ];
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register canvas native");
@@ -274,9 +275,9 @@ fn shader<'a>(spec: &[f64], st: &State, pattern: Option<&'a Pixmap>) -> Option<S
         }
         3 => {
             let px = pattern?;
-            let mode = if p(1) != 0.0 || p(2) != 0.0 { SpreadMode::Repeat } else { SpreadMode::Pad };
+            let _ = p;
             let q = if st.smooth { FilterQuality::Bilinear } else { FilterQuality::Nearest };
-            Some(Pattern::new(px.as_ref(), mode, q, 1.0, st.ctm))
+            Some(Pattern::new(px.as_ref(), SpreadMode::Repeat, q, 1.0, st.ctm.pre_concat(pattern_matrix(spec))))
         }
         // Conic gradients: drawn with their first color for now.
         4 => Some(Shader::SolidColor(first_color(spec, 5))),
@@ -336,34 +337,207 @@ fn source_pixmap(store: &mut Store, kind: u8, key: &str) -> Option<Pixmap> {
     Some(pix)
 }
 
+/// Composite operations that change pixels outside the shape too (the shape is drawn over
+/// a transparent canvas-sized layer, which then replaces or masks everything).
+fn unbounded(b: BlendMode) -> bool {
+    matches!(b, BlendMode::SourceIn | BlendMode::SourceOut | BlendMode::DestinationIn | BlendMode::DestinationAtop | BlendMode::Source)
+}
+
+/// Multiply two masks together (both cover the whole canvas).
+fn intersect(a: &Mask, b: &Mask) -> Mask {
+    let mut out = a.clone();
+    for (x, y) in out.data_mut().iter_mut().zip(b.data()) {
+        *x = ((*x as u16 * *y as u16 + 127) / 255) as u8;
+    }
+    out
+}
+
 /// Draw with `f`, with a shadow underneath when the state has one. `f` draws into the
-/// pixmap it's given, through the mask and blend mode it's given.
-fn draw(cv: &mut Cv, st: &State, f: impl Fn(&mut Pixmap, Option<&Mask>, BlendMode)) {
+/// pixmap it's given, through the mask and blend mode it's given, moved by the transform it's
+/// given (applied after its own). `extra` narrows the clip for this one drawing.
+fn draw(cv: &mut Cv, st: &State, extra: Option<Mask>, f: impl Fn(&mut Pixmap, Option<&Mask>, BlendMode, Transform)) {
     cv.version += 1;
-    let Some((blur, dx, dy, color)) = st.shadow else {
-        f(&mut cv.pix, cv.clip.as_ref(), st.blend);
-        return;
-    };
     let (w, h) = (cv.pix.width(), cv.pix.height());
-    let Some(mut layer) = Pixmap::new(w, h) else { return };
-    f(&mut layer, None, BlendMode::SourceOver);
-    // The shadow: the shape's coverage in the shadow color, blurred, moved.
-    let mut alpha: Vec<f32> = layer.pixels().iter().map(|p| p.alpha() as f32 / 255.0).collect();
-    blur_alpha(&mut alpha, w as usize, h as usize, blur / 2.0);
-    if let Some(mut shadow) = Pixmap::new(w, h) {
-        for (d, a) in shadow.pixels_mut().iter_mut().zip(&alpha) {
-            let a = (a * color.alpha()).clamp(0.0, 1.0);
-            if a > 0.0 {
-                if let Some(c) = Color::from_rgba(color.red(), color.green(), color.blue(), a) {
-                    *d = c.premultiply().to_color_u8();
+    let combined = match (extra, cv.clip.as_ref()) {
+        (Some(e), Some(c)) => Some(intersect(&e, c)),
+        (Some(e), None) => Some(e),
+        (None, _) => None,
+    };
+    let clip = combined.as_ref().or(cv.clip.as_ref());
+    let id = Transform::identity();
+    if let Some((blur, dx, dy, color)) = st.shadow {
+        // The shadow: the shape drawn where the shadow falls (it may come from off the
+        // canvas), its coverage in the shadow color, blurred.
+        if let Some(mut layer) = Pixmap::new(w, h) {
+            f(&mut layer, None, BlendMode::SourceOver, Transform::from_translate(dx, dy));
+            let mut alpha: Vec<f32> = layer.pixels().iter().map(|p| p.alpha() as f32 / 255.0).collect();
+            blur_alpha(&mut alpha, w as usize, h as usize, blur / 2.0);
+            if let Some(mut shadow) = Pixmap::new(w, h) {
+                for (d, a) in shadow.pixels_mut().iter_mut().zip(&alpha) {
+                    let a = (a * color.alpha()).clamp(0.0, 1.0);
+                    if a > 0.0 {
+                        if let Some(c) = Color::from_rgba(color.red(), color.green(), color.blue(), a) {
+                            *d = c.premultiply().to_color_u8();
+                        }
+                    }
                 }
+                let pp = PixmapPaint { opacity: 1.0, blend_mode: st.blend, quality: FilterQuality::Nearest };
+                cv.pix.draw_pixmap(0, 0, shadow.as_ref(), &pp, id, clip);
             }
         }
-        let pp = PixmapPaint { opacity: 1.0, blend_mode: st.blend, quality: FilterQuality::Nearest };
-        cv.pix.draw_pixmap(dx.round() as i32, dy.round() as i32, shadow.as_ref(), &pp, Transform::identity(), cv.clip.as_ref());
     }
-    let pp = PixmapPaint { opacity: 1.0, blend_mode: st.blend, quality: FilterQuality::Nearest };
-    cv.pix.draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), cv.clip.as_ref());
+    if unbounded(st.blend) || st.shadow.is_some() && st.blend != BlendMode::SourceOver {
+        let Some(mut layer) = Pixmap::new(w, h) else { return };
+        f(&mut layer, None, BlendMode::SourceOver, id);
+        let pp = PixmapPaint { opacity: 1.0, blend_mode: st.blend, quality: FilterQuality::Nearest };
+        cv.pix.draw_pixmap(0, 0, layer.as_ref(), &pp, id, clip);
+    } else {
+        f(&mut cv.pix, clip, st.blend, id);
+    }
+}
+
+/// Radial (kind 2) and conic (kind 4) gradients, worked out per pixel of a w×h canvas as the
+/// canvas spec defines them (two circles; an angle sweep), into a pixmap. Linear gradients
+/// go to tiny-skia directly.
+fn gradient_pixmap(spec: &[f64], ctm: Transform, w: u32, h: u32) -> Option<Pixmap> {
+    let kind = spec.first().copied()? as u8;
+    let at = if kind == 2 { 7 } else { 4 };
+    let n = spec.get(at).copied().unwrap_or(0.0) as usize;
+    let mut stops: Vec<(f32, [f32; 4])> = Vec::new();
+    for k in 0..n {
+        let b = at + 1 + k * 5;
+        if b + 4 >= spec.len() + 1 {
+            break;
+        }
+        let c = rgba(spec, b + 1);
+        // Colors are blended before transparency is applied (as Chrome and Firefox do, so a
+        // fade to a transparent color keeps that color's hue).
+        stops.push((spec[b] as f32, [c.red(), c.green(), c.blue(), c.alpha()]));
+    }
+    if stops.is_empty() {
+        return None;
+    }
+    let color_at = |t: f32| -> [f32; 4] {
+        let t = t.clamp(0.0, 1.0);
+        if t <= stops[0].0 {
+            return stops[0].1;
+        }
+        for win in stops.windows(2) {
+            let ((o0, c0), (o1, c1)) = (win[0], win[1]);
+            if t <= o1 {
+                if o1 <= o0 {
+                    return c1;
+                }
+                let k = (t - o0) / (o1 - o0);
+                return [0, 1, 2, 3].map(|i| c0[i] + (c1[i] - c0[i]) * k);
+            }
+        }
+        stops[stops.len() - 1].1
+    };
+    let inv = ctm.invert()?;
+    let mut pix = Pixmap::new(w, h)?;
+    let g = |i: usize| spec.get(i).copied().unwrap_or(0.0);
+    let (x0, y0, r0, x1, y1, r1) = (g(1), g(2), g(3), g(4), g(5), g(6));
+    let (cdx, cdy, dr) = (x1 - x0, y1 - y0, r1 - r0);
+    let a = cdx * cdx + cdy * cdy - dr * dr;
+    let (angle, cx, cy) = (g(1), g(2), g(3));
+    let width = w as usize;
+    for (i, px) in pix.pixels_mut().iter_mut().enumerate() {
+        let (dx, dy) = ((i % width) as f32 + 0.5, (i / width) as f32 + 0.5);
+        let mut p = Point::from_xy(dx, dy);
+        inv.map_point(&mut p);
+        let (ux, uy) = (p.x as f64, p.y as f64);
+        let t = if kind == 2 {
+            // The largest ω with r(ω) ≥ 0 whose circle passes through the point.
+            let (pdx, pdy) = (ux - x0, uy - y0);
+            let b = pdx * cdx + pdy * cdy + r0 * dr;
+            let c = pdx * pdx + pdy * pdy - r0 * r0;
+            let ok = |om: f64| r0 + om * dr >= 0.0;
+            let om = if a.abs() < 1e-9 {
+                if b.abs() < 1e-12 {
+                    None
+                } else {
+                    Some(c / (2.0 * b)).filter(|&o| ok(o))
+                }
+            } else {
+                let disc = b * b - a * c;
+                if disc < 0.0 {
+                    None
+                } else {
+                    let sq = disc.sqrt();
+                    let (o1, o2) = ((b + sq) / a, (b - sq) / a);
+                    let (hi, lo) = if o1 > o2 { (o1, o2) } else { (o2, o1) };
+                    if ok(hi) {
+                        Some(hi)
+                    } else if ok(lo) {
+                        Some(lo)
+                    } else {
+                        None
+                    }
+                }
+            };
+            match om {
+                Some(o) => o as f32,
+                None => continue,
+            }
+        } else {
+            let mut t = ((uy - cy).atan2(ux - cx) - angle) / std::f64::consts::TAU;
+            t -= t.floor();
+            t as f32
+        };
+        let [r, gg, b, al] = color_at(t);
+        let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+        let al8 = q(al);
+        let (r, gg, b) = (r * al, gg * al, b * al);
+        if let Some(c) = tiny_skia::PremultipliedColorU8::from_rgba(q(r).min(al8), q(gg).min(al8), q(b).min(al8), al8) {
+            *px = c;
+        }
+    }
+    Some(pix)
+}
+
+/// The paint for a fill/stroke style, and whether it paints anything at all (a zero-length
+/// linear gradient or two identical circles paint nothing). `pre` is a gradient worked out
+/// per pixel, with the transform from its pixels to the drawing's own space.
+fn style_paint<'a>(spec: &[f64], st: &State, pattern: Option<&'a Pixmap>, pre: Option<(&'a Pixmap, Transform)>) -> Option<Paint<'a>> {
+    match spec.first().copied().unwrap_or(0.0) as u8 {
+        1 if spec.get(1) == spec.get(3) && spec.get(2) == spec.get(4) => return None,
+        2 if spec.get(1) == spec.get(4) && spec.get(2) == spec.get(5) && spec.get(3) == spec.get(6) => return None,
+        _ => {}
+    }
+    if let Some((px, t)) = pre {
+        let mut shader = Pattern::new(px.as_ref(), SpreadMode::Pad, FilterQuality::Nearest, 1.0, t);
+        shader.apply_opacity(st.alpha);
+        return Some(Paint { shader, blend_mode: st.blend, anti_alias: true, force_hq_pipeline: false });
+    }
+    paint_of(spec, st, pattern)
+}
+
+/// For a pattern that doesn't repeat both ways: the area (canvas pixels) it covers.
+fn pattern_band(spec: &[f64], ctm: Transform, src: &Pixmap, w: u32, h: u32) -> Option<Mask> {
+    let (rx, ry) = (spec.get(1).copied().unwrap_or(1.0) != 0.0, spec.get(2).copied().unwrap_or(1.0) != 0.0);
+    if rx && ry {
+        return None;
+    }
+    let big = 1.0e5f32;
+    let (iw, ih) = (src.width() as f32, src.height() as f32);
+    let (x0, x1) = if rx { (-big, big) } else { (0.0, iw) };
+    let (y0, y1) = if ry { (-big, big) } else { (0.0, ih) };
+    let mut m = Mask::new(w, h)?;
+    if let Some(r) = Rect::from_ltrb(x0, y0, x1, y1) {
+        m.fill_path(&PathBuilder::from_rect(r), FillRule::Winding, true, ctm.pre_concat(pattern_matrix(spec)));
+    }
+    Some(m)
+}
+
+/// A pattern's own transform (setTransform), from its style array.
+fn pattern_matrix(spec: &[f64]) -> Transform {
+    if spec.len() >= 9 {
+        let g = |i: usize| spec[i] as f32;
+        Transform::from_row(g(3), g(4), g(5), g(6), g(7), g(8))
+    } else {
+        Transform::identity()
+    }
 }
 
 /// Three box blurs approximate a Gaussian of standard deviation `sigma`.
@@ -443,12 +617,15 @@ fn n_fill(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let Some(path) = build_path(&path) else { return Ok(JsValue::undefined()) };
     let mut s = store(ctx);
     let pattern = if spec.first() == Some(&3.0) { source_pixmap(&mut s, pkind as u8, &pkey) } else { None };
-    let Some(paint) = paint_of(&spec, &st, pattern.as_ref()) else { return Ok(JsValue::undefined()) };
+    let Some((w, h)) = s.canvases.get(&id).map(|c| (c.pix.width(), c.pix.height())) else { return Ok(JsValue::undefined()) };
+    let grad = if matches!(spec.first().map(|v| *v as u8), Some(2 | 4)) { gradient_pixmap(&spec, st.ctm, w, h) } else { None };
+    let band = pattern.as_ref().and_then(|p| pattern_band(&spec, st.ctm, p, w, h));
+    let Some(paint) = style_paint(&spec, &st, pattern.as_ref(), grad.as_ref().map(|g| (g, Transform::identity()))) else { return Ok(JsValue::undefined()) };
     if let Some(cv) = s.canvases.get_mut(&id) {
-        draw(cv, &st, |pix, mask, blend| {
+        draw(cv, &st, band, |pix, mask, blend, off| {
             let mut p = paint.clone();
             p.blend_mode = blend;
-            pix.fill_path(&path, &p, rule, Transform::identity(), mask);
+            pix.fill_path(&path, &p, rule, off, mask);
         });
     }
     drop(s);
@@ -499,12 +676,15 @@ fn n_stroke(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
     let mut s = store(ctx);
     // Patterns and gradients are given in user space: drawn through the same transform.
     let pattern = if spec.first() == Some(&3.0) { source_pixmap(&mut s, pkind as u8, &pkey) } else { None };
-    let Some(paint) = paint_of(&spec, &user, pattern.as_ref()) else { return Ok(JsValue::undefined()) };
+    let Some((w, h)) = s.canvases.get(&id).map(|c| (c.pix.width(), c.pix.height())) else { return Ok(JsValue::undefined()) };
+    let grad = if matches!(spec.first().map(|v| *v as u8), Some(2 | 4)) { gradient_pixmap(&spec, st.ctm, w, h) } else { None };
+    let band = pattern.as_ref().and_then(|p| pattern_band(&spec, st.ctm, p, w, h));
+    let Some(paint) = style_paint(&spec, &user, pattern.as_ref(), grad.as_ref().map(|g| (g, inv))) else { return Ok(JsValue::undefined()) };
     if let Some(cv) = s.canvases.get_mut(&id) {
-        draw(cv, &st, |pix, mask, blend| {
+        draw(cv, &st, band, |pix, mask, blend, off| {
             let mut p = paint.clone();
             p.blend_mode = blend;
-            pix.stroke_path(&user_path, &p, &stroke, st.ctm, mask);
+            pix.stroke_path(&user_path, &p, &stroke, off.pre_concat(st.ctm), mask);
         });
     }
     drop(s);
@@ -652,12 +832,18 @@ fn n_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let place = Transform::from_row(squeeze / scale, 0.0, 0.0, 1.0 / scale, g(0, 0.0) + left - pad / scale * squeeze, g(1, 0.0) + top_of_baseline - (pad + ascent) / scale);
     let to_canvas = st.ctm.pre_concat(place);
     let user = State { ctm: Transform::identity(), ..state(&floats(a, 6, ctx)) };
-    let Some(paint) = paint_of(&spec, &user, None) else { return Ok(JsValue::undefined()) };
+    let (cw, ch) = match store(ctx).canvases.get(&id) {
+        Some(c) => (c.pix.width(), c.pix.height()),
+        None => return Ok(JsValue::undefined()),
+    };
+    let per_pixel = matches!(spec.first().map(|v| *v as u8), Some(2 | 4));
+    let grad = if per_pixel { gradient_pixmap(&spec, st.ctm, cw, ch) } else { None };
+    let Some(paint) = style_paint(&spec, &user, None, grad.as_ref().and_then(|g| to_canvas.invert().map(|t| (g, t)))) else { return Ok(JsValue::undefined()) };
     let Some(mut layer) = Pixmap::new(tw, th) else { return Ok(JsValue::undefined()) };
     let mut p = paint.clone();
     p.blend_mode = BlendMode::SourceOver;
-    // Gradients are given in user space: map them into the text pixmap's frame.
-    if let Some(inv) = place.invert() {
+    // Linear gradients are given in user space: map them into the text pixmap's frame.
+    if let (false, Some(inv)) = (per_pixel, place.invert()) {
         p.shader.transform(inv);
     }
     if let Some(r) = Rect::from_xywh(0.0, 0.0, tw as f32, th as f32) {
@@ -666,9 +852,9 @@ fn n_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let quality = FilterQuality::Bilinear;
     let mut s = store(ctx);
     if let Some(cv) = s.canvases.get_mut(&id) {
-        draw(cv, &st, |pix, m, blend| {
+        draw(cv, &st, None, |pix, m, blend, off| {
             let pp = PixmapPaint { opacity: 1.0, blend_mode: blend, quality };
-            pix.draw_pixmap(0, 0, layer.as_ref(), &pp, to_canvas, m);
+            pix.draw_pixmap(0, 0, layer.as_ref(), &pp, off.pre_concat(to_canvas), m);
         });
     }
     drop(s);
@@ -721,13 +907,13 @@ fn n_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     // Image pixel → user space → canvas.
     let img_to_user = Transform::from_row(kx, 0.0, 0.0, ky, dx - sx * kx, dy - sy * ky);
     let quality = if st.smooth { FilterQuality::Bilinear } else { FilterQuality::Nearest };
-    let shader = Pattern::new(src.as_ref(), SpreadMode::Pad, quality, st.alpha, st.ctm.pre_concat(img_to_user));
+    let shader = Pattern::new(src.as_ref(), SpreadMode::Pad, quality, st.alpha, img_to_user);
     let paint = Paint { shader, blend_mode: st.blend, anti_alias: true, force_hq_pipeline: false };
     if let Some(cv) = s.canvases.get_mut(&id) {
-        draw(cv, &st, |pix, m, blend| {
+        draw(cv, &st, None, |pix, m, blend, off| {
             let mut p = paint.clone();
             p.blend_mode = blend;
-            pix.fill_rect(dest, &p, st.ctm, m);
+            pix.fill_rect(dest, &p, off.pre_concat(st.ctm), m);
         });
     }
     drop(s);
@@ -883,4 +1069,33 @@ fn n_color(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
         Some(c) => JsArray::from_iter([c.r, c.g, c.b, c.a].map(|v| JsValue::from(v as u32)), ctx).into(),
         None => JsValue::null(),
     })
+}
+
+/// __cvDecodeInto(id, bytes) -> [w, h] or null: decode an image file (PNG, JPEG, GIF, WebP…)
+/// into a canvas's bitmap, for createImageBitmap(blob).
+fn n_decode_into(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = id_of(a, ctx);
+    let bytes = match a.get(1).and_then(|v| v.as_object()) {
+        Some(o) => match boa_engine::object::builtins::JsUint8Array::from_object(o.clone()) {
+            Ok(arr) => arr.to_vec(ctx).unwrap_or_default(),
+            Err(_) => Vec::new(),
+        },
+        None => Vec::new(),
+    };
+    let Ok(img) = image::load_from_memory(&bytes) else { return Ok(JsValue::null()) };
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE || w as u64 * h as u64 > MAX_PIXELS {
+        return Ok(JsValue::null());
+    }
+    let Some(mut pix) = Pixmap::new(w, h) else { return Ok(JsValue::null()) };
+    for (dst, s) in pix.pixels_mut().iter_mut().zip(rgba.pixels()) {
+        let [r, g, b, al] = s.0;
+        *dst = tiny_skia::ColorU8::from_rgba(r, g, b, al).premultiply();
+    }
+    let mut st = store(ctx);
+    let version = st.canvases.get(&id).map_or(1, |c| c.version + 1);
+    st.canvases.insert(id, Cv { pix, clip: None, saved: Vec::new(), version, published: 0 });
+    drop(st);
+    Ok(JsArray::from_iter([JsValue::from(w), JsValue::from(h)], ctx).into())
 }

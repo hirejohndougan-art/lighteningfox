@@ -9,7 +9,7 @@
     "source-over": 0, "source-in": 1, "source-out": 2, "source-atop": 3, "destination-over": 4, "destination-in": 5,
     "destination-out": 6, "destination-atop": 7, lighter: 8, copy: 9, xor: 10, multiply: 11, screen: 12, overlay: 13,
     darken: 14, lighten: 15, "color-dodge": 16, "color-burn": 17, "hard-light": 18, "soft-light": 19, difference: 20,
-    exclusion: 21, hue: 22, saturation: 23, color: 24, luminosity: 25,
+    exclusion: 21, hue: 22, saturation: 23, color: 24, luminosity: 25, clear: 26,
   };
   const CAPS = { butt: 0, round: 1, square: 2 };
   const JOINS = { miter: 0, round: 1, bevel: 2 };
@@ -19,10 +19,33 @@
 
   // ---- colors (parsed by the browser's own CSS color parser)
   const colorCache = new Map();
+  // rgb()/hsl() in the exact CSS syntax (stylesheets are more forgiving than canvas must be).
+  const NUM = "[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?";
+  const re = (body) => new RegExp("^(?:" + body + ")$", "i");
+  const R_NUM = re(NUM), R_PCT = re(NUM + "%"), R_NP = re(NUM + "|" + NUM + "%"), R_NPN = re(NUM + "|" + NUM + "%|none");
+  const R_ANG = re(NUM + "(?:deg|rad|grad|turn)?"), R_ANGN = re(NUM + "(?:deg|rad|grad|turn)?|none");
+  function strictColor(s) {
+    const m = /^(rgba?|hsla?)\(([\s\S]*)\)$/i.exec(s);
+    if (!m) return true;
+    const hsl = m[1].toLowerCase().startsWith("hsl"), body = m[2].trim();
+    if (body.includes(",")) {
+      const p = body.split(",").map((x) => x.trim());
+      if (p.length !== 3 && p.length !== 4) return false;
+      if (p.length === 4 && !R_NP.test(p[3])) return false;
+      if (hsl) return R_ANG.test(p[0]) && R_PCT.test(p[1]) && R_PCT.test(p[2]);
+      const three = p.slice(0, 3);
+      return three.every((x) => R_NUM.test(x)) || three.every((x) => R_PCT.test(x));
+    }
+    const parts = body.split("/").map((x) => x.trim());
+    if (parts.length > 2 || (parts.length === 2 && !R_NPN.test(parts[1]))) return false;
+    const v = parts[0].split(/\s+/);
+    if (v.length !== 3) return false;
+    return hsl ? R_ANGN.test(v[0]) && R_NPN.test(v[1]) && R_NPN.test(v[2]) : v.every((x) => R_NPN.test(x));
+  }
   function parseColor(s) {
     s = String(s).trim();
     if (colorCache.has(s)) return colorCache.get(s);
-    const c = __cvColor(s);
+    const c = strictColor(s) ? __cvColor(s) : null;
     const out = c ? [c[0] / 255, c[1] / 255, c[2] / 255, c[3] / 255] : null;
     if (colorCache.size > 500) colorCache.clear();
     colorCache.set(s, out);
@@ -31,7 +54,10 @@
   function serializeColor(c) {
     const r = Math.round(c[0] * 255), gg = Math.round(c[1] * 255), b = Math.round(c[2] * 255);
     if (c[3] >= 1) return "#" + [r, gg, b].map((v) => v.toString(16).padStart(2, "0")).join("");
-    let a = Math.round(c[3] * 1000) / 1000;
+    // The shortest alpha that maps back to the same byte (128 → 0.5).
+    const a8 = Math.round(c[3] * 255);
+    let a = Math.round((a8 / 255) * 100) / 100;
+    if (Math.round(a * 255) !== a8) a = Math.round((a8 / 255) * 1000) / 1000;
     return `rgba(${r}, ${gg}, ${b}, ${a})`;
   }
 
@@ -406,22 +432,49 @@
     }
   }
   class CanvasPattern {
-    constructor(src, rep) { this.__src = src; this.__rep = rep; }
-    setTransform() {}
-  }
-  class ImageData {
-    constructor(a, b, c) {
-      if (typeof a === "number" || typeof a === "string") {
-        const w = a >>> 0, h = b >>> 0;
-        if (!w || !h) throw new DOMException("ImageData: zero size", "IndexSizeError");
-        this.data = new Uint8ClampedArray(w * h * 4); this.width = w; this.height = h;
-      } else {
-        const data = a, w = b >>> 0;
-        if (!w || data.length % (4 * w)) throw new DOMException("ImageData: bad size", "IndexSizeError");
-        this.data = data; this.width = w; this.height = c != null ? c >>> 0 : data.length / 4 / w;
-      }
-      this.colorSpace = "srgb";
+    constructor(src, rep) { this.__src = src; this.__rep = rep; this.__m = null; }
+    setTransform(t) {
+      if (t === undefined) { this.__m = null; return; }
+      const d = DOMMatrix.fromMatrix(t);
+      const m = [d.a, d.b, d.c, d.d, d.e, d.f];
+      if (m.every(isFinite)) this.__m = m;
     }
+  }
+  const DATA = Symbol("data");
+  class ImageData {
+    constructor(a, b, c, d) {
+      if (arguments.length < 2) throw new TypeError("ImageData: not enough arguments");
+      let data, w, h, settings;
+      if (a instanceof Uint8ClampedArray) {
+        data = a;
+        if (!data.length || data.length % 4) throw new DOMException("ImageData: data length must be a multiple of 4", "InvalidStateError");
+        w = b >>> 0;
+        if (!w) throw new DOMException("ImageData: zero width", "IndexSizeError");
+        const pixels = data.length / 4;
+        if (pixels % w) throw new DOMException("ImageData: data doesn't fit the width", "IndexSizeError");
+        h = pixels / w;
+        if (c !== undefined && (c === null || typeof c !== "object")) {
+          if (c >>> 0 !== h) throw new DOMException("ImageData: data doesn't fit the height", "IndexSizeError");
+          settings = d;
+        } else settings = c;
+      } else if (a !== null && typeof a === "object") {
+        throw new TypeError("ImageData: data must be a Uint8ClampedArray");
+      } else {
+        w = a >>> 0; h = b >>> 0; settings = c;
+        if (!w || !h) throw new DOMException("ImageData: zero size", "IndexSizeError");
+        if (w * h * 4 > 0x7fffffff) throw new RangeError("ImageData: too large");
+        data = new Uint8ClampedArray(w * h * 4);
+      }
+      const fmt = settings && settings.pixelFormat;
+      if (fmt !== undefined && fmt !== "rgba-unorm8") throw new TypeError("ImageData: only rgba-unorm8 pixels are supported");
+      const cs = settings && settings.colorSpace;
+      this[DATA] = { data, width: w, height: h, colorSpace: cs === "display-p3" ? "display-p3" : "srgb", pixelFormat: "rgba-unorm8" };
+    }
+    get data() { return this[DATA].data; }
+    get width() { return this[DATA].width; }
+    get height() { return this[DATA].height; }
+    get colorSpace() { return this[DATA].colorSpace; }
+    get pixelFormat() { return this[DATA].pixelFormat; }
   }
   class TextMetrics {}
 
@@ -434,6 +487,7 @@
     if (typeof img === "object" && img.nodeType === 1) {
       const tag = img.localName;
       if (tag === "canvas") {
+        if (!contexts.has(img.__id) && canvasDim(img, "width", 300) && canvasDim(img, "height", 150)) getContext.call(img, "2d");
         const s = __cvSourceSize(1, String(img.__id));
         return s ? [1, String(img.__id), s[0], s[1]] : null;
       }
@@ -506,9 +560,9 @@
     get globalCompositeOperation() { return this.__s.op; }
     set globalCompositeOperation(v) { if (v in OPS) this.__s.op = v; }
     get fillStyle() { return styleOut(this.__s.fill); }
-    set fillStyle(v) { const s = styleIn(v); if (s) this.__s.fill = s; }
+    set fillStyle(v) { const s = styleIn(v, this.__canvas); if (s) this.__s.fill = s; }
     get strokeStyle() { return styleOut(this.__s.stroke); }
-    set strokeStyle(v) { const s = styleIn(v); if (s) this.__s.stroke = s; }
+    set strokeStyle(v) { const s = styleIn(v, this.__canvas); if (s) this.__s.stroke = s; }
     get lineWidth() { return this.__s.lineWidth; }
     set lineWidth(v) { v = +v; if (v > 0 && isFinite(v)) this.__s.lineWidth = v; }
     get lineCap() { return this.__s.cap; }
@@ -540,7 +594,7 @@
     get shadowBlur() { return this.__s.shadowBlur; }
     set shadowBlur(v) { v = +v; if (v >= 0 && isFinite(v)) this.__s.shadowBlur = v; }
     get shadowColor() { return serializeColor(this.__s.shadowColor); }
-    set shadowColor(v) { const c = parseColor(v); if (c) this.__s.shadowColor = c; }
+    set shadowColor(v) { const c = styleIn(String(v), this.__canvas); if (Array.isArray(c)) this.__s.shadowColor = c; }
     get shadowOffsetX() { return this.__s.shadowX; }
     set shadowOffsetX(v) { v = +v; if (isFinite(v)) this.__s.shadowX = v; }
     get shadowOffsetY() { return this.__s.shadowY; }
@@ -580,7 +634,7 @@
       if (st instanceof CanvasGradient) return [new Float64Array(st.__array()), 0, ""];
       if (st instanceof CanvasPattern) {
         const r = st.__rep;
-        return [new Float64Array([3, r === "repeat" || r === "repeat-x" ? 1 : 0, r === "repeat" || r === "repeat-y" ? 1 : 0]), st.__src[0], st.__src[1]];
+        return [new Float64Array([3, r === "repeat" || r === "repeat-x" ? 1 : 0, r === "repeat" || r === "repeat-y" ? 1 : 0, ...(st.__m || [1, 0, 0, 1, 0, 0])]), st.__src[0], st.__src[1]];
       }
       return [new Float64Array([0, ...st]), 0, ""];
     }
@@ -676,8 +730,19 @@
     createPattern(img, rep) {
       rep = rep == null || rep === "" ? "repeat" : String(rep);
       if (!["repeat", "repeat-x", "repeat-y", "no-repeat"].includes(rep)) throw new DOMException("createPattern: bad repetition", "SyntaxError");
-      const src = sourceOf(img);
-      return src ? new CanvasPattern(src, rep) : null;
+      if (img && img.nodeType === 1 && img.localName === "canvas" && (canvasDim(img, "width", 300) === 0 || canvasDim(img, "height", 150) === 0)) {
+        throw new DOMException("createPattern: the canvas has no pixels", "InvalidStateError");
+      }
+      let src = sourceOf(img);
+      if (!src) return null;
+      // A canvas pattern is a copy of the canvas as it is now.
+      if (src[0] === 1) {
+        const copy = document.createElement("canvas");
+        copy.__offscreenSize = [src[2], src[3]];
+        getContext.call(copy, "2d").drawImage(img, 0, 0);
+        src = [1, String(copy.__id), src[2], src[3]];
+      }
+      return new CanvasPattern(src, rep);
     }
 
     // ---- text
@@ -726,36 +791,50 @@
       else r = a.map(Number);
       __cvImage(this.__canvas.__id, kind, key, new Float64Array(r), this.__state());
     }
-    createImageData(a, b) {
+    createImageData(a, b, settings) {
+      if (!(this instanceof CanvasRenderingContext2D)) throw new TypeError("createImageData: illegal invocation");
       if (a instanceof ImageData) return new ImageData(a.width, a.height);
-      const w = Math.abs(a | 0), h = Math.abs(b | 0);
+      if (arguments.length < 2 || a === null || typeof a === "object") throw new TypeError("createImageData: needs an ImageData or a width and height");
+      if (!fin(a, b)) throw new TypeError("createImageData: non-finite value");
+      const w = Math.abs(Math.trunc(+a)), h = Math.abs(Math.trunc(+b));
       if (!w || !h) throw new DOMException("createImageData: zero size", "IndexSizeError");
-      return new ImageData(w, h);
+      return new ImageData(w, h, settings);
     }
     getImageData(x, y, w, h) {
+      if (!(this instanceof CanvasRenderingContext2D)) throw new TypeError("getImageData: illegal invocation");
       if (!fin(x, y, w, h)) throw new TypeError("getImageData: non-finite value");
-      if (!(w | 0) || !(h | 0)) throw new DOMException("getImageData: zero size", "IndexSizeError");
+      [x, y, w, h] = [x, y, w, h].map((v) => Math.trunc(+v));
+      if (!w || !h) throw new DOMException("getImageData: zero size", "IndexSizeError");
       this.__check();
       if (w < 0) { x += w; w = -w; }
       if (h < 0) { y += h; h = -h; }
-      w = Math.ceil(w); h = Math.ceil(h);
+      if (w * h * 4 > 0x7fffffff) throw new RangeError("getImageData: too large");
       const data = __cvGetData(this.__canvas.__id, x, y, w, h);
       return new ImageData(data, w, h);
     }
     putImageData(img, dx, dy, ...dirty) {
       if (!(img instanceof ImageData)) throw new TypeError("putImageData: not ImageData");
-      if (!fin(dx, dy)) return;
+      if (!fin(dx, dy, ...dirty)) throw new TypeError("putImageData: non-finite value");
       this.__check();
-      const data = img.data instanceof Uint8ClampedArray ? img.data : new Uint8ClampedArray(img.data);
-      __cvPutData(this.__canvas.__id, data, img.width, img.height, +dx, +dy, dirty.length === 4 ? new Float64Array(dirty.map(Number)) : null);
+      __cvPutData(this.__canvas.__id, img.data, img.width, img.height, Math.trunc(+dx), Math.trunc(+dy), dirty.length === 4 ? new Float64Array(dirty.map((v) => Math.trunc(+v))) : null);
     }
   }
   Object.assign(CanvasRenderingContext2D.prototype, pathMethods);
   // The path methods mutate the current path through the current transform.
 
-  function styleIn(v) {
+  function styleIn(v, canvas) {
     if (v instanceof CanvasGradient || v instanceof CanvasPattern) return v;
-    if (typeof v === "string" || (v && typeof v === "object" && typeof v.toString === "function")) return parseColor(String(v));
+    if (typeof v === "string" || (v && typeof v === "object" && typeof v.toString === "function")) {
+      const str = String(v).trim();
+      // currentColor is the canvas element's color now (black when it isn't in a document).
+      if (/^currentcolor$/i.test(str)) {
+        try {
+          if (canvas && canvas.isConnected && typeof getComputedStyle === "function") return parseColor(getComputedStyle(canvas).color) || [0, 0, 0, 1];
+        } catch (e) {}
+        return [0, 0, 0, 1];
+      }
+      return parseColor(str);
+    }
     return null;
   }
   function styleOut(v) { return Array.isArray(v) ? serializeColor(v) : v; }
@@ -871,7 +950,16 @@
           b.__ctx.putImageData(img, 0, 0);
           return resolve(b);
         }
-        if (img instanceof Blob) return reject(new DOMException("createImageBitmap: Blob sources are not supported yet", "InvalidStateError"));
+        if (typeof Blob === "function" && img instanceof Blob) {
+          return img.arrayBuffer().then((buf) => {
+            const b = new ImageBitmap(0, 0);
+            const size = __cvDecodeInto(b.__bitmap.__id, new Uint8Array(buf));
+            if (!size) throw new DOMException("createImageBitmap: the image can't be decoded", "InvalidStateError");
+            b.__bitmap.__offscreenSize = [size[0], size[1]];
+            b.__ctx.__size = [size[0], size[1]];
+            resolve(b);
+          }).catch(reject);
+        }
         const src = sourceOf(img);
         if (!src) return reject(new DOMException("createImageBitmap: image not loaded", "InvalidStateError"));
         const [sx, sy, sw, sh] = a.length >= 4 ? a.map(Number) : [0, 0, src[2], src[3]];
