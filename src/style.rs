@@ -1106,10 +1106,36 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             order += 1;
         }
         matched.sort_by_key(|m| (m.important, m.origin, m.layer, m.spec, m.order));
-        // Custom properties first, so normal properties can use them via var().
+        // Custom properties first, so normal properties can use them via var(). They may refer
+        // to each other in any order (`--b: var(--a)` before `--a` is declared), so all of this
+        // element's are gathered first and then resolved against each other and the inherited
+        // ones. `initial` makes one unset (var() then takes its fallback).
+        let mut declared: Vec<(&str, &str)> = Vec::new();
         for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
-            let value = substitute_vars(&m.decl.value, &st.vars, 0);
-            Rc::make_mut(&mut st.vars).insert(m.decl.name.clone(), value);
+            declared.retain(|(n, _)| *n != m.decl.name.as_str());
+            declared.push((m.decl.name.as_str(), m.decl.value.as_str()));
+        }
+        if !declared.is_empty() {
+            let mut raw: HashMap<String, String> = (*st.vars).clone();
+            for (n, v) in &declared {
+                if v.trim().eq_ignore_ascii_case("initial") {
+                    raw.remove(*n);
+                } else {
+                    raw.insert(n.to_string(), v.to_string());
+                }
+            }
+            let vars = Rc::make_mut(&mut st.vars);
+            for (n, _) in &declared {
+                match raw.get(*n) {
+                    Some(v) => {
+                        let value = substitute_vars(v, &raw, 0);
+                        vars.insert(n.to_string(), value);
+                    }
+                    None => {
+                        vars.remove(*n);
+                    }
+                }
+            }
         }
         // HTML attributes like bgcolor and cellpadding beat the browser defaults
         // but lose to the page's own CSS, so they go in between.
@@ -1711,6 +1737,29 @@ pub fn computed_json(st: &Style, size: Option<(f32, f32)>) -> String {
             o.push(',');
         }
         o.push_str(&format!("{:?}:{:?}", k, v));
+    }
+    // Custom properties, for getPropertyValue("--name"): their values as written, with var()
+    // already substituted.
+    let json = |s: &str| {
+        let mut q = String::from("\"");
+        for c in s.chars() {
+            match c {
+                '"' => q.push_str("\\\""),
+                '\\' => q.push_str("\\\\"),
+                c if (c as u32) < 0x20 => q.push_str(&format!("\\u{:04x}", c as u32)),
+                c => q.push(c),
+            }
+        }
+        q.push('"');
+        q
+    };
+    for (k, v) in st.vars.iter() {
+        if o.len() > 1 {
+            o.push(',');
+        }
+        o.push_str(&json(k));
+        o.push(':');
+        o.push_str(&json(v.trim()));
     }
     o.push('}');
     o

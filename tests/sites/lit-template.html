@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- MDN (2026-11): Lit builds each component's template with template.innerHTML and walks
+     template.content; and MDN's colors are custom properties declared in any order
+     (--b: var(--a) before --a), read back with getPropertyValue("--name"). -->
+<html><head><title>Templates and custom properties</title>
+<style>:root { --b: var(--a) } :root { --a: rgb(0, 128, 0) } #v { color: var(--b) } :root { --gone: red } #u { --gone: initial; color: var(--gone, rgb(0, 0, 255)) }</style></head>
+<body><p id="v">v</p><p id="u">u</p><p id="out"></p>
+<script>
+  const t = document.createElement("template");
+  t.innerHTML = '<slot name="a" ?hidden$lit$="x"></slot><!--?lit$1$-->';
+  const kids = t.content.childNodes.length;
+  const names = t.content.firstChild.getAttributeNames().join("/");
+  const back = t.innerHTML;
+  const cs = getComputedStyle(document.getElementById("v"));
+  document.getElementById("out").textContent = [kids, t.childNodes.length, names, back === '<slot name="a" ?hidden$lit$="x"></slot><!--?lit$1$-->', cs.color, cs.getPropertyValue("--a"), getComputedStyle(document.getElementById("u")).color].join(";");
+</script></body></html>

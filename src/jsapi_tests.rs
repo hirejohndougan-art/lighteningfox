@@ -423,3 +423,10 @@ fn namespaced_attributes_and_lookups() {
         "#x,#x,false,1,urn:a,urn:q,p,true,NamespaceError,false,abc,1,1,1,http://www.w3.org/1999/xhtml"
     );
 }
+
+#[test]
+fn template_inner_html_and_custom_property_order() {
+    let _serial = serial();
+    let _page = open("tests/sites/lit-template.html");
+    assert_eq!(text_of("out"), "2;0;name/?hidden$lit$;true;rgb(0, 128, 0);rgb(0, 128, 0);rgb(0, 0, 255)");
+}

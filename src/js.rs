@@ -583,6 +583,20 @@ fn n_set_html(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     if let Some(id) = valid(id) {
         let frag = parse_fragment(&markup);
         with_dom_mut(|d| {
+            // A <template>'s innerHTML goes into its content fragment (Lit and other template
+            // libraries build their templates this way).
+            let id = if d.tag(id) == Some("template") {
+                match d.template_contents.get(&id) {
+                    Some(&c) => c,
+                    None => {
+                        let c = d.create(NodeData::Fragment);
+                        d.template_contents.insert(id, c);
+                        c
+                    }
+                }
+            } else {
+                id
+            };
             d.remove_children(id);
             d.graft(&frag, Dom::ROOT, id);
         });
@@ -1553,7 +1567,7 @@ impl Js {
                         .and_then(|o| o.get(js_string!("stack"), &mut self.ctx).ok())
                         .filter(|v| v.is_string())
                         .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
-                        .map(|s| format!("\n{}", s.lines().take(6).collect::<Vec<_>>().join("\n")))
+                        .map(|s| format!("\n{}", s.lines().take(8).collect::<Vec<_>>().join("\n")))
                         .unwrap_or_default();
                     log!("[js error] Uncaught (in promise): {msg}{stack}");
                 }

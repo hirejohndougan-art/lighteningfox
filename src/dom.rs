@@ -140,6 +140,8 @@ impl Dom {
     /// Serialize a node's children back to HTML (innerHTML).
     pub fn inner_html(&self, id: NodeId) -> String {
         let mut out = String::new();
+        // A <template>'s markup is its content fragment's.
+        let id = if self.tag(id) == Some("template") { self.template_contents.get(&id).copied().unwrap_or(id) } else { id };
         for &c in &self.nodes[id].children {
             self.outer_html_into(c, &mut out);
         }
