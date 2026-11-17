@@ -383,7 +383,11 @@ impl Fonts {
         let f = self.font_for(font, Some(c));
         let sf = f.as_scaled(scale_for(&f, size));
         let a = sf.h_advance(f.glyph_id(c));
-        self.advances.borrow_mut().insert(k, a);
+        let mut cache = self.advances.borrow_mut();
+        if cache.len() > 100_000 {
+            cache.clear();
+        }
+        cache.insert(k, a);
         a
     }
 

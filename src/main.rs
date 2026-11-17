@@ -52,6 +52,7 @@ mod js;
 mod jsnest;
 mod jsmodules;
 mod domindex;
+mod memory;
 mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
@@ -2065,6 +2066,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     if i == active {
                         closed.push(page.url.clone());
+                        if closed.len() > 25 {
+                            closed.remove(0);
+                        }
                         if let Some(j) = page.js.as_ref() {
                             js::forget(j);
                         }
@@ -2079,6 +2083,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     } else {
                         if let Some(slot) = tabs.remove(i) {
                             closed.push(slot.url.clone());
+                            if closed.len() > 25 {
+                                closed.remove(0);
+                            }
                             if let Some(j) = slot.saved.as_ref().and_then(|sv| sv.page.js.as_ref()) {
                                 js::forget(j);
                             }
@@ -3637,6 +3644,27 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
                 if freed {
                     log!("[tabs] put background tabs to sleep");
+                    release_free_memory();
+                    dirty = true;
+                }
+            }
+            // Short of memory: put the background tab unseen the longest to sleep (one a second).
+            if memory::under_pressure() {
+                let oldest = tabs
+                    .iter_mut()
+                    .flatten()
+                    .filter(|s| s.saved.is_some() && s.loading.is_none() && s.pending.is_none())
+                    .min_by_key(|s| s.last_seen);
+                if let Some(slot) = oldest {
+                    let sv = slot.saved.take().expect("saved");
+                    if let Some(j) = sv.page.js.as_ref() {
+                        js::forget(j);
+                    }
+                    slot.url = sv.current.url.clone();
+                    slot.back = sv.back;
+                    slot.forward = sv.forward;
+                    drop(sv.page);
+                    log!("[tabs] low on memory ({} MB used): put a background tab to sleep", memory::rss_mb());
                     release_free_memory();
                     dirty = true;
                 }
