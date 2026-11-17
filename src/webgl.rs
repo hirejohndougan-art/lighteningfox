@@ -99,6 +99,8 @@ struct ULoc {
     ty: Ty,
     count: u32,
     is_array: bool,
+    /// A uniform block member: (block index, std140 offset, array stride). No location.
+    block: Option<(u32, u32, u32)>,
     /// (stage: 0 vertex / 1 fragment, first slot)
     slots: Vec<(u8, u32)>,
 }
@@ -285,6 +287,8 @@ pub struct Gl {
     colorspace: u32,
     hints: HashMap<u32, u32>,
     seed: u32,
+    /// WEBGL_compressed_texture_s3tc (and _srgb) enabled.
+    s3tc: bool,
 }
 
 fn fb_fmt(alpha: bool) -> Fmt {
@@ -354,6 +358,7 @@ impl Gl {
             colorspace: 0x9244,
             hints: HashMap::new(),
             seed,
+            s3tc: false,
         };
         gl.alloc_default();
         gl
@@ -922,7 +927,7 @@ impl Gl {
                             }
                             x.slots.push((stage, u.slot));
                         }
-                        None => uniforms.push(ULoc { name: u.name.clone(), ty: u.ty.clone(), count: u.count, is_array: u.is_array, slots: vec![(stage, u.slot)] }),
+                        None => uniforms.push(ULoc { name: u.name.clone(), ty: u.ty.clone(), count: u.count, is_array: u.is_array, block: None, slots: vec![(stage, u.slot)] }),
                     }
                 }
             }
@@ -997,6 +1002,16 @@ impl Gl {
                 }
             }
             let _ = v2;
+            // Block members are active uniforms too (without locations).
+            for (bi, b) in blocks.iter().enumerate() {
+                let (stage, idx) = b.stages[0];
+                let c = if stage == 0 { &vs } else { &fs };
+                for (name, el, _, count, off, stride) in &c.blocks[idx].members {
+                    let arr = *count > 1;
+                    let name = if arr { format!("{name}[0]") } else { name.clone() };
+                    uniforms.push(ULoc { name, ty: el.clone(), count: *count, is_array: arr, block: Some((bi as u32, *off, if arr { *stride } else { 0 })), slots: Vec::new() });
+                }
+            }
             let nb = blocks.len();
             Ok(Linked { vs_mem: vs.mem.clone(), fs_mem: fs.mem.clone(), vs, fs, uniforms, attribs, vary, outs, out_names, blocks, block_binding: vec![0; nb] })
         })();
@@ -1238,7 +1253,10 @@ impl Gl {
                 self.error(INVALID_OPERATION);
                 return None;
             }
-            let a = f.color[(rb - COLOR_ATTACHMENT0) as usize]?;
+            let Some(a) = f.color[(rb - COLOR_ATTACHMENT0) as usize] else {
+                self.error(INVALID_OPERATION);
+                return None;
+            };
             let img = self.att_image(&a)?;
             (img, img.w, img.h)
         };
@@ -1287,6 +1305,33 @@ impl Gl {
         }
         out
     }
+}
+
+/// Is `ty` a pixel type texImage accepts in this WebGL version?
+fn valid_pixel_type(ty: u32, v2: bool) -> bool {
+    if v2 {
+        matches!(ty, e::BYTE | e::UNSIGNED_BYTE | e::SHORT | e::UNSIGNED_SHORT | e::INT | e::UNSIGNED_INT | e::HALF_FLOAT | e::FLOAT | 0x8363 | 0x8033 | 0x8034 | 0x84FA | 0x8368 | 0x8C3B | 0x8C3E | 0x8DAD)
+    } else {
+        matches!(ty, e::UNSIGNED_BYTE | e::UNSIGNED_SHORT | e::UNSIGNED_INT | e::FLOAT | e::HALF_FLOAT_OES | 0x8363 | 0x8033 | 0x8034 | 0x84FA)
+    }
+}
+
+/// Check texture dimensions against the limits for `target` at `level`.
+fn size_ok(target: u32, level: i32, w: i32, h: i32, d: i32) -> bool {
+    let max2 = MAX_TEXTURE_SIZE as i32;
+    let max3 = 2048;
+    let (mw, md) = match target {
+        e::TEXTURE_3D => (max3, max3),
+        e::TEXTURE_2D_ARRAY => (max2, 2048),
+        _ => (max2, 1),
+    };
+    let levels = 31 - (mw as u32).leading_zeros() as i32;
+    if level < 0 || level > levels {
+        return false;
+    }
+    let lw = mw >> level;
+    let ld = if target == e::TEXTURE_3D { md >> level } else { md };
+    w >= 0 && h >= 0 && d >= 0 && w <= lw && h <= lw && d <= ld.max(1)
 }
 
 fn type_size(ty: u32) -> u32 {
@@ -1547,6 +1592,8 @@ pub fn install(ctx: &mut Context) {
         ("__glBlitFramebuffer", 11, n_blit_framebuffer),
         ("__glBindSampler", 3, n_bind_sampler),
         ("__glSamplerParam", 4, n_sampler_param),
+        ("__glEnableExt", 2, n_enable_ext),
+        ("__glCompressedTexImage", 11, n_compressed_tex_image),
         ("__glGetSamplerParam", 3, n_get_sampler_param),
     ];
     for (name, len, f) in natives {
@@ -2010,8 +2057,14 @@ fn n_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         if level < 0 || w < 0 || h < 0 || d < 0 || border != 0 && sub == 0 {
             return gl.error(INVALID_VALUE);
         }
-        let Some((id, face)) = gl.image_target(target) else { return };
         let v2 = gl.v2;
+        if !valid_pixel_type(ty, v2) {
+            return gl.error(INVALID_ENUM);
+        }
+        if sub != 1 && !size_ok(target, level, w, h, if sub == 2 { d } else { 1 }) {
+            return gl.error(INVALID_VALUE);
+        }
+        let Some((id, face)) = gl.image_target(target) else { return };
         let mut unpack = Unpack { ..gl.unpack };
         let bytes: Option<Vec<u8>> = if has_data {
             let Some(b) = data.as_ref() else { return gl.error(INVALID_VALUE) };
@@ -2062,7 +2115,7 @@ fn n_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         if fmt.depth && !v2 && target != e::TEXTURE_2D {
             return gl.error(INVALID_OPERATION);
         }
-        if w as u32 > MAX_TEXTURE_SIZE || h as u32 > MAX_TEXTURE_SIZE || (target != e::TEXTURE_2D && !is3d && w != h) {
+        if target != e::TEXTURE_2D && !is3d && w != h {
             return gl.error(INVALID_VALUE);
         }
         if gl.texture(id).is_some_and(|t| t.immutable) {
@@ -2120,7 +2173,11 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         }
     };
     with_gl(a, ctx, |gl| {
-        let Some((w, h, rgba)) = src else { return gl.error(INVALID_VALUE) };
+        // An image that hasn't loaded uploads nothing (and isn't an error).
+        let Some((w, h, rgba)) = src else { return };
+        if !valid_pixel_type(ty, gl.v2) {
+            return gl.error(INVALID_ENUM);
+        }
         if rgba.len() < (w * h * 4) as usize {
             return gl.error(INVALID_VALUE);
         }
@@ -2177,7 +2234,11 @@ fn n_tex_storage(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         if levels < 1 || w < 1 || h < 1 {
             return gl.error(INVALID_VALUE);
         }
-        let Some(fmt) = tex::sized_format(internal, gl.v2) else { return gl.error(INVALID_ENUM) };
+        let compressed = if gl.s3tc { tex::compressed_format(internal).map(|c| c.0) } else { None };
+        let Some(fmt) = tex::sized_format(internal, gl.v2).or(compressed) else { return gl.error(INVALID_ENUM) };
+        if target == e::TEXTURE_3D && (fmt.depth || fmt.stencil || compressed.is_some()) {
+            return gl.error(INVALID_OPERATION);
+        }
         let v2 = gl.v2;
         let Some(t) = gl.texture_mut(id) else { return };
         if t.immutable {
@@ -2236,11 +2297,40 @@ fn n_copy_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<J
             }
             return;
         }
-        let fmt = match internal {
-            e::RGBA | e::RGB | e::ALPHA | e::LUMINANCE | e::LUMINANCE_ALPHA => tex::texture_format(internal, internal, e::UNSIGNED_BYTE, false),
-            _ => tex::sized_format(internal, v2),
+        let is_unsized = matches!(internal, e::RGBA | e::RGB | e::ALPHA | e::LUMINANCE | e::LUMINANCE_ALPHA);
+        let fmt = if is_unsized { tex::texture_format(internal, internal, e::UNSIGNED_BYTE, false) } else { tex::sized_format(internal, v2) };
+        let Some(mut fmt) = fmt else { return gl.error(INVALID_ENUM) };
+        if src_fmt.is_integer() != fmt.is_integer() || fmt.depth {
+            return gl.error(INVALID_OPERATION);
+        }
+        // Channels the copy keeps (r g b a by layout).
+        let keep: [bool; 4] = match fmt.layout {
+            e::RGBA => [true; 4],
+            e::RGB => [true, true, true, false],
+            e::RG => [true, true, false, false],
+            e::RED | e::LUMINANCE => [true, false, false, false],
+            e::ALPHA => [false, false, false, true],
+            _ => [true, false, false, true],
         };
-        let Some(fmt) = fmt else { return gl.error(INVALID_ENUM) };
+        if src_fmt.layout == e::RGB && keep[3] {
+            return gl.error(INVALID_OPERATION);
+        }
+        if is_unsized {
+            // The effective format: the source's component sizes.
+            for c in 0..4 {
+                fmt.bits[c] = if keep[c] { src_fmt.bits[c] } else { 0 };
+            }
+            if src_fmt.bits[..4].iter().any(|&b| b != 8 && b != 0) {
+                fmt.num = src_fmt.num;
+            }
+        } else if v2 {
+            // A sized copy must match the source's component sizes.
+            for c in 0..4 {
+                if keep[c] && fmt.bits[c] != src_fmt.bits[c] && !(matches!(fmt.layout, e::LUMINANCE | e::ALPHA | e::LUMINANCE_ALPHA)) {
+                    return gl.error(INVALID_OPERATION);
+                }
+            }
+        }
         if (fmt.layout == e::RGBA || fmt.layout == e::ALPHA || fmt.layout == e::LUMINANCE_ALPHA) && src_fmt.layout == e::RGB && !v2 {
             return gl.error(INVALID_OPERATION);
         }
@@ -2623,6 +2713,9 @@ fn n_get_frag_data_location(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> Js
 /// Find a uniform by name: "u", "a", "a[0]", "a[2]", "s.f", "s[1].f". Returns (index, element).
 fn find_uniform(l: &Linked, name: &str) -> Option<(usize, u32)> {
     for (i, u) in l.uniforms.iter().enumerate() {
+        if u.block.is_some() {
+            continue;
+        }
         if u.name == name {
             return Some((i, 0));
         }
@@ -2754,7 +2847,7 @@ fn n_uniform(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
             return gl.error(INVALID_OPERATION);
         }
         let Some(l) = gl.program_mut(p).and_then(|x| x.linked.as_mut()) else { return gl.error(INVALID_OPERATION) };
-        let Some(un) = l.uniforms.get(idx).cloned() else { return gl.error(INVALID_OPERATION) };
+        let Some(un) = l.uniforms.get(idx).cloned().filter(|u| u.block.is_none()) else { return gl.error(INVALID_OPERATION) };
         let (base, cols, rows) = (kind / 100, (kind / 10) % 10, kind % 10);
         let comps = (cols * rows) as usize;
         // Type check.
@@ -2823,7 +2916,7 @@ fn n_get_uniform(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
             return None;
         };
         let un = l.uniforms.get(idx)?;
-        let (stage, slot) = un.slots[0];
+        let (stage, slot) = *un.slots.first()?;
         let mem = if stage == 0 { &l.vs_mem } else { &l.fs_mem };
         let size = un.ty.size() as usize;
         let at = slot as usize + el as usize * size;
@@ -2933,8 +3026,10 @@ fn n_uniform_block(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
                     v.push(match y {
                         0x8A37 => gl_type(&un.ty) as i32,
                         0x8A38 => un.count as i32,
-                        0x8A3A => -1,
-                        0x8A3B | 0x8A3C | 0x8A3D => -1,
+                        0x8A3A => un.block.map_or(-1, |b| b.0 as i32),
+                        0x8A3B => un.block.map_or(-1, |b| b.1 as i32),
+                        0x8A3C => un.block.map_or(-1, |b| b.2 as i32),
+                        0x8A3D => un.block.map_or(-1, |_| if matches!(un.ty, Ty::Mat(..)) { 16 } else { 0 }),
                         0x8A3E => 0,
                         _ => {
                             gl.error(INVALID_ENUM);
@@ -4095,6 +4190,68 @@ fn n_get_sampler_param(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResul
     })
     .flatten();
     Ok(r.unwrap_or(JsValue::null()))
+}
+
+fn n_enable_ext(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let name = string(a, 1, ctx);
+    with_gl(a, ctx, |gl| {
+        if name.starts_with("WEBGL_compressed_texture_s3tc") {
+            gl.s3tc = true;
+        }
+    });
+    undef()
+}
+
+/// __glCompressedTexImage(cid, target, level, internal, w, h, d, border, data, sub, [x, y, z])
+fn n_compressed_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (target, level, internal) = (u(a, 1, ctx), int(a, 2, ctx), u(a, 3, ctx));
+    let (w, h, d, border) = (int(a, 4, ctx), int(a, 5, ctx), int(a, 6, ctx).max(1), int(a, 7, ctx));
+    let data = view_bytes(a.get(8), ctx);
+    let sub = boolean(a, 9);
+    let offs: Vec<i32> = a
+        .get(10)
+        .and_then(|v| v.as_object())
+        .and_then(|o| JsArray::from_object(o.clone()).ok())
+        .map(|arr| (0..3).map(|i| arr.get(i, ctx).ok().and_then(|v| v.to_number(ctx).ok()).unwrap_or(0.0) as i32).collect())
+        .unwrap_or(vec![0, 0, 0]);
+    with_gl(a, ctx, |gl| {
+        let Some((fmt, _)) = tex::compressed_format(internal).filter(|_| gl.s3tc) else { return gl.error(INVALID_ENUM) };
+        if level < 0 || w < 0 || h < 0 || border != 0 || !size_ok(target, level, w, h, 1) {
+            return gl.error(INVALID_VALUE);
+        }
+        let Some(data) = data else { return gl.error(INVALID_VALUE) };
+        let Some((id, face)) = gl.image_target(target) else { return };
+        let v2 = gl.v2;
+        let _ = v2;
+        if tex::compressed_size(internal, w as u32, h as u32) != Some(data.len() / d as usize) {
+            return gl.error(INVALID_VALUE);
+        }
+        let Some(px) = tex::decode_s3tc(&data, w as u32, h as u32, internal) else { return gl.error(INVALID_VALUE) };
+        if sub {
+            let Some(t) = gl.texture_mut(id) else { return };
+            let Some(Some(img)) = t.faces.get_mut(face).and_then(|f| f.get_mut(level as usize)) else { return gl.error(INVALID_OPERATION) };
+            let (x, y) = (offs[0], offs[1]);
+            if img.fmt.internal != internal || x % 4 != 0 || y % 4 != 0 || (w % 4 != 0 && x + w != img.w as i32) || (h % 4 != 0 && y + h != img.h as i32) {
+                return gl.error(INVALID_OPERATION);
+            }
+            if x < 0 || y < 0 || x + w > img.w as i32 || y + h > img.h as i32 {
+                return gl.error(INVALID_VALUE);
+            }
+            for yy in 0..h {
+                for xx in 0..w {
+                    img.px[((y + yy) as u32 * img.w + (x + xx) as u32) as usize] = px[(yy * w + xx) as usize];
+                }
+            }
+            return;
+        }
+        if let Some(t) = gl.texture_mut(id) {
+            if t.immutable {
+                return gl.error(INVALID_OPERATION);
+            }
+            t.set_level(face, level as usize, Image { w: w as u32, h: h as u32, d: 1, fmt, px, st: Vec::new() });
+        }
+    });
+    undef()
 }
 
 #[cfg(test)]

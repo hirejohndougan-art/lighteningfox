@@ -230,6 +230,16 @@
 
   P.getContextAttributes = function () { return this.__lost ? null : Object.assign({}, this.__attrs, { antialias: false }); };
   P.isContextLost = function () { return this.__lost; };
+  // HDR output tone mapping: only "standard" output exists here, but the setting is kept.
+  P.drawingBufferToneMapping = function (opts) {
+    if (opts !== undefined && opts !== null) {
+      if (typeof opts !== "object") throw new TypeError("drawingBufferToneMapping: expected a dictionary");
+      const m = opts.mode === undefined ? "standard" : String(opts.mode);
+      if (m !== "standard" && m !== "extended") throw new TypeError("drawingBufferToneMapping: bad mode '" + m + "'");
+      this.__toneMapping = m;
+    }
+    return { mode: this.__toneMapping || "standard" };
+  };
   P.getError = function () { return __glError(this.__cid); };
   P.finish = function () {};
   P.flush = function () {};
@@ -240,9 +250,11 @@
     "EXT_shader_texture_lod", "EXT_sRGB", "EXT_texture_filter_anisotropic", "OES_element_index_uint", "OES_fbo_render_mipmap",
     "OES_standard_derivatives", "OES_texture_float", "OES_texture_float_linear", "OES_texture_half_float",
     "OES_texture_half_float_linear", "OES_vertex_array_object", "WEBGL_color_buffer_float", "WEBGL_depth_texture",
-    "WEBGL_draw_buffers", "WEBGL_lose_context", "KHR_parallel_shader_compile"];
+    "WEBGL_draw_buffers", "WEBGL_lose_context", "KHR_parallel_shader_compile", "WEBGL_compressed_texture_s3tc",
+    "WEBGL_compressed_texture_s3tc_srgb"];
   const EXT2 = ["EXT_color_buffer_float", "EXT_color_buffer_half_float", "EXT_float_blend", "EXT_texture_filter_anisotropic",
-    "OES_texture_float_linear", "WEBGL_lose_context", "KHR_parallel_shader_compile", "OES_draw_buffers_indexed"];
+    "OES_texture_float_linear", "WEBGL_lose_context", "KHR_parallel_shader_compile", "OES_draw_buffers_indexed",
+    "WEBGL_compressed_texture_s3tc", "WEBGL_compressed_texture_s3tc_srgb"];
   P.getSupportedExtensions = function () { return (this.__v2 ? EXT2 : EXT1).slice(); };
   P.getExtension = function (name) {
     name = String(name);
@@ -279,6 +291,16 @@
       case "WEBGL_color_buffer_float": x = { RGBA32F_EXT: 0x8814, FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT: 0x8211, UNSIGNED_NORMALIZED_EXT: 0x8c17 }; break;
       case "EXT_color_buffer_half_float": x = { RGBA16F_EXT: 0x881a, RGB16F_EXT: 0x881b, FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE_EXT: 0x8211, UNSIGNED_NORMALIZED_EXT: 0x8c17 }; break;
       case "KHR_parallel_shader_compile": x = { COMPLETION_STATUS_KHR: 0x91b1 }; break;
+      case "WEBGL_compressed_texture_s3tc":
+        x = { COMPRESSED_RGB_S3TC_DXT1_EXT: 0x83f0, COMPRESSED_RGBA_S3TC_DXT1_EXT: 0x83f1, COMPRESSED_RGBA_S3TC_DXT3_EXT: 0x83f2, COMPRESSED_RGBA_S3TC_DXT5_EXT: 0x83f3 };
+        __glEnableExt(this.__cid, real);
+        this.__compressed = [0x83f0, 0x83f1, 0x83f2, 0x83f3].concat(this.__compressed || []);
+        break;
+      case "WEBGL_compressed_texture_s3tc_srgb":
+        x = { COMPRESSED_SRGB_S3TC_DXT1_EXT: 0x8c4c, COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT: 0x8c4d, COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT: 0x8c4e, COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: 0x8c4f };
+        __glEnableExt(this.__cid, real);
+        this.__compressed = (this.__compressed || []).concat([0x8c4c, 0x8c4d, 0x8c4e, 0x8c4f]);
+        break;
       case "WEBGL_lose_context":
         x = {
           loseContext: () => {
@@ -346,7 +368,6 @@
       if (tag === "img" || tag === "image") return [0, String(src.__id), null, 0, 0];
       if (tag === "video") return null;
     }
-    if (src && typeof src === "object" && "width" in src && "height" in src && src.data) return [2, "", src.data, src.width, src.height];
     throw new TypeError("texImage: unsupported image source");
   }
   P.__texSource = function (target, level, internal, format, type, src, sub, offs, is3d) {
@@ -388,7 +409,30 @@
   };
   P.copyTexSubImage2D = function (t, level, xo, yo, x, y, w, h) { __glCopyTexImage(this.__cid, t, level, 0, x, y, w, h, true, [xo, yo, 0]); };
   P.copyTexSubImage3D = function (t, level, xo, yo, zo, x, y, w, h) { __glCopyTexImage(this.__cid, t, level, 0, x, y, w, h, true, [xo, yo, zo]); };
-  P.compressedTexImage2D = P.compressedTexSubImage2D = P.compressedTexImage3D = P.compressedTexSubImage3D = function () { this.__err(0x500); };
+  const view = (v, off, len) => {
+    if (!isView(v)) throw new TypeError("compressed data must be an ArrayBufferView");
+    const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    const es = v.BYTES_PER_ELEMENT || 1;
+    return off || len ? u8.subarray((off || 0) * es, len ? ((off || 0) + len) * es : undefined) : u8;
+  };
+  P.compressedTexImage2D = function (t, level, internal, w, h, border, data, off, len) {
+    if (arguments.length < 7) throw new TypeError("compressedTexImage2D: not enough arguments");
+    if (typeof data === "number") return this.__err(0x502);
+    __glCompressedTexImage(this.__cid, t, level, internal, w, h, 1, border, view(data, off, len), false, [0, 0, 0]);
+  };
+  P.compressedTexSubImage2D = function (t, level, x, y, w, h, format, data, off, len) {
+    if (arguments.length < 8) throw new TypeError("compressedTexSubImage2D: not enough arguments");
+    if (typeof data === "number") return this.__err(0x502);
+    __glCompressedTexImage(this.__cid, t, level, format, w, h, 1, 0, view(data, off, len), true, [x, y, 0]);
+  };
+  P.compressedTexImage3D = function (t, level, internal, w, h, d, border, data) {
+    if (arguments.length < 8) throw new TypeError("compressedTexImage3D: not enough arguments");
+    this.__err(0x500);
+  };
+  P.compressedTexSubImage3D = function (t, level, x, y, z, w, h, d, format, data) {
+    if (arguments.length < 10) throw new TypeError("compressedTexSubImage3D: not enough arguments");
+    this.__err(0x500);
+  };
 
   // ---- samplers (WebGL 2)
   P.createSampler = function () { return this.__new(7); };
@@ -580,6 +624,7 @@
     if (this.__lost) return null;
     const r = __glGetParameter(this.__cid, p);
     if (OBJ_PARAMS.has(p)) return this.__obj(r);
+    if (p === 0x86a3) return new Uint32Array(this.__compressed || []);
     if (p === 0x0c23 && Array.isArray(r)) return r;
     return r;
   };

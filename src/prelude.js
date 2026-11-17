@@ -1328,6 +1328,27 @@
     Object.defineProperty(C, "name", { value: name });
     g[name] = C;
   }
+  // Legacy factories: new Image(w, h) and new Option(text, value, defaultSelected, selected).
+  if (typeof g.Image !== "function") {
+    g.Image = function Image(w, h) {
+      const img = document.createElement("img");
+      if (w !== undefined) img.setAttribute("width", String(w >>> 0));
+      if (h !== undefined) img.setAttribute("height", String(h >>> 0));
+      return img;
+    };
+    g.Image.prototype = g.HTMLImageElement.prototype;
+  }
+  if (typeof g.Option !== "function") {
+    g.Option = function Option(text, value, defaultSelected, selected) {
+      const o = document.createElement("option");
+      if (text !== undefined) o.textContent = String(text);
+      if (value !== undefined) o.setAttribute("value", String(value));
+      if (defaultSelected) o.setAttribute("selected", "");
+      if (selected) o.selected = true;
+      return o;
+    };
+    g.Option.prototype = g.HTMLOptionElement.prototype;
+  }
   const svgSet = new Set(SVG_TAGS);
   const isSvg = (x) => isEl(x) && svgSet.has((x.localName || x.tagName).toLowerCase());
   // The hot read-only DOM members as native functions (dom_classes.rs), replacing the

@@ -1051,3 +1051,113 @@ impl TexEnv for Sampler<'_> {
         }
     }
 }
+
+// ---------------------------------------------------------------- compressed textures (S3TC)
+
+pub const COMPRESSED_RGB_S3TC_DXT1: u32 = 0x83F0;
+pub const COMPRESSED_RGBA_S3TC_DXT1: u32 = 0x83F1;
+pub const COMPRESSED_RGBA_S3TC_DXT3: u32 = 0x83F2;
+pub const COMPRESSED_RGBA_S3TC_DXT5: u32 = 0x83F3;
+pub const COMPRESSED_SRGB_S3TC_DXT1: u32 = 0x8C4C;
+pub const COMPRESSED_SRGB_ALPHA_S3TC_DXT1: u32 = 0x8C4D;
+pub const COMPRESSED_SRGB_ALPHA_S3TC_DXT3: u32 = 0x8C4E;
+pub const COMPRESSED_SRGB_ALPHA_S3TC_DXT5: u32 = 0x8C4F;
+
+/// The storage format and block size (bytes per 4×4 block) of a compressed format.
+pub fn compressed_format(internal: u32) -> Option<(Fmt, usize)> {
+    let (layout, block) = match internal {
+        COMPRESSED_RGB_S3TC_DXT1 | COMPRESSED_SRGB_S3TC_DXT1 => (e::RGB, 8),
+        COMPRESSED_RGBA_S3TC_DXT1 | COMPRESSED_SRGB_ALPHA_S3TC_DXT1 => (e::RGBA, 8),
+        COMPRESSED_RGBA_S3TC_DXT3 | COMPRESSED_RGBA_S3TC_DXT5 | COMPRESSED_SRGB_ALPHA_S3TC_DXT3 | COMPRESSED_SRGB_ALPHA_S3TC_DXT5 => (e::RGBA, 16),
+        _ => return None,
+    };
+    Some((Fmt { internal, layout, num: Num::Unorm(8), depth: false, stencil: false, bits: [5, 6, 5, if layout == e::RGBA { 8 } else { 0 }, 0, 0] }, block))
+}
+
+/// The byte size compressed data of this format must have for a w×h image.
+pub fn compressed_size(internal: u32, w: u32, h: u32) -> Option<usize> {
+    let (_, block) = compressed_format(internal)?;
+    Some(w.div_ceil(4) as usize * h.div_ceil(4) as usize * block)
+}
+
+fn rgb565(c: u16) -> [f32; 3] {
+    [((c >> 11) & 31) as f32 / 31.0, ((c >> 5) & 63) as f32 / 63.0, (c & 31) as f32 / 31.0]
+}
+
+/// Decode S3TC (DXT1/3/5) blocks into texels (GL row order: the first block row is row 0).
+pub fn decode_s3tc(data: &[u8], w: u32, h: u32, internal: u32) -> Option<Vec<[f32; 4]>> {
+    let (fmt, block) = compressed_format(internal)?;
+    if data.len() < compressed_size(internal, w, h)? {
+        return None;
+    }
+    let (bw, bh) = (w.div_ceil(4) as usize, h.div_ceil(4) as usize);
+    let mut px = vec![[0.0f32, 0.0, 0.0, 1.0]; (w * h) as usize];
+    let dxt1_alpha = matches!(internal, COMPRESSED_RGBA_S3TC_DXT1 | COMPRESSED_SRGB_ALPHA_S3TC_DXT1);
+    for by in 0..bh {
+        for bx in 0..bw {
+            let b = &data[(by * bw + bx) * block..(by * bw + bx + 1) * block];
+            let (alpha, color) = if block == 16 { (&b[..8], &b[8..]) } else { (&b[..0], b) };
+            let c0 = u16::from_le_bytes([color[0], color[1]]);
+            let c1 = u16::from_le_bytes([color[2], color[3]]);
+            let (p0, p1) = (rgb565(c0), rgb565(c1));
+            let mut pal = [[p0[0], p0[1], p0[2], 1.0], [p1[0], p1[1], p1[2], 1.0], [0.0; 4], [0.0; 4]];
+            if c0 > c1 || block == 16 {
+                for k in 0..3 {
+                    pal[2][k] = (2.0 * p0[k] + p1[k]) / 3.0;
+                    pal[3][k] = (p0[k] + 2.0 * p1[k]) / 3.0;
+                }
+                pal[2][3] = 1.0;
+                pal[3][3] = 1.0;
+            } else {
+                for k in 0..3 {
+                    pal[2][k] = (p0[k] + p1[k]) / 2.0;
+                }
+                pal[2][3] = 1.0;
+                pal[3] = [0.0, 0.0, 0.0, if dxt1_alpha { 0.0 } else { 1.0 }];
+            }
+            let bits = u32::from_le_bytes([color[4], color[5], color[6], color[7]]);
+            // DXT5 alpha palette.
+            let mut apal = [0.0f32; 8];
+            let mut abits = 0u64;
+            if matches!(internal, COMPRESSED_RGBA_S3TC_DXT5 | COMPRESSED_SRGB_ALPHA_S3TC_DXT5) {
+                let (a0, a1) = (alpha[0] as f32 / 255.0, alpha[1] as f32 / 255.0);
+                apal[0] = a0;
+                apal[1] = a1;
+                if alpha[0] > alpha[1] {
+                    for k in 1..7 {
+                        apal[k + 1] = ((7 - k) as f32 * a0 + k as f32 * a1) / 7.0;
+                    }
+                } else {
+                    for k in 1..5 {
+                        apal[k + 1] = ((5 - k) as f32 * a0 + k as f32 * a1) / 5.0;
+                    }
+                    apal[6] = 0.0;
+                    apal[7] = 1.0;
+                }
+                for k in 0..6 {
+                    abits |= (alpha[2 + k] as u64) << (8 * k);
+                }
+            }
+            for y in 0..4 {
+                for x in 0..4 {
+                    let (px_x, px_y) = (bx * 4 + x, by * 4 + y);
+                    if px_x >= w as usize || px_y >= h as usize {
+                        continue;
+                    }
+                    let i = y * 4 + x;
+                    let mut c = pal[((bits >> (2 * i)) & 3) as usize];
+                    match internal {
+                        COMPRESSED_RGBA_S3TC_DXT3 | COMPRESSED_SRGB_ALPHA_S3TC_DXT3 => {
+                            let nib = (alpha[i / 2] >> ((i % 2) * 4)) & 15;
+                            c[3] = nib as f32 / 15.0;
+                        }
+                        COMPRESSED_RGBA_S3TC_DXT5 | COMPRESSED_SRGB_ALPHA_S3TC_DXT5 => c[3] = apal[((abits >> (3 * i)) & 7) as usize],
+                        _ => {}
+                    }
+                    px[px_y * w as usize + px_x] = expand(&fmt, c);
+                }
+            }
+        }
+    }
+    Some(px)
+}
