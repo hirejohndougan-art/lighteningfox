@@ -684,6 +684,7 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
             "" | "px" => n,
             "dppx" | "x" => n,
             "dpi" => n / 96.0,
+            "dpcm" => n * 2.54 / 96.0,
             _ => n,
         })
     };

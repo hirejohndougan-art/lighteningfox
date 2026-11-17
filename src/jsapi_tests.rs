@@ -715,3 +715,14 @@ fn text_and_comment_nodes_have_child_node_methods() {
     let _page = open("tests/sites/childnode-text.html");
     assert_eq!(text_of("out"), "a2<b></b>1<!--c-->x<u></u>Z<i></i> function");
 }
+
+/// matchMedia gives the stylesheet's answer: resolution queries included (The Guardian's
+/// cards use `not all and (min-resolution: 0.001dpcm)` to pick out Safari).
+#[test]
+fn match_media_agrees_with_stylesheets() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(&mut page, "[matchMedia('not all and (min-resolution:0.001dpcm)').matches, matchMedia('(min-resolution: 1dppx)').matches, matchMedia('(min-width: 1px)').matches, matchMedia('print').matches].join(',')");
+    assert_eq!(r.trim_matches('"'), "false,true,true,false");
+}
+

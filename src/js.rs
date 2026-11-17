@@ -375,6 +375,13 @@ fn n_doctype(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     })
 }
 
+/// `__mediaMatches(query)`: does a media query list match the window now? The same answer
+/// stylesheets get (matchMedia).
+fn n_media_matches(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let q = a.first().cloned().unwrap_or_default().to_string(ctx)?.to_std_string_escaped();
+    Ok(JsValue::from(crate::css::media_matches(&q.to_ascii_lowercase())))
+}
+
 fn n_type(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     Ok(JsValue::from(valid(id).map_or(0, |id| {
@@ -1405,6 +1412,7 @@ impl Js {
         let natives: &[(&str, usize, fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>)] = &[
             ("__type", 1, n_type),
             ("__doctype", 1, n_doctype),
+            ("__mediaMatches", 1, n_media_matches),
             ("__attachShadow", 2, n_attach_shadow),
             ("__templateContent", 1, n_template_content),
             ("__idList", 0, n_id_list),

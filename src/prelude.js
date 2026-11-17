@@ -1653,34 +1653,8 @@
       return new Proxy(cs, { get(t, k) { if (k in t || typeof k !== "string") return t[k]; return get(k); } });
     },
     matchMedia: (q) => {
-      // Width, height, orientation and preference queries, joined with "and" / ",".
-      const test = (part) => {
-        part = part.trim().toLowerCase();
-        if (!part || part === "all" || part === "screen") return true;
-        if (part === "print" || part === "speech") return false;
-        const m = /^\(\s*([a-z-]+)\s*(?::\s*([^)]+))?\)$/.exec(part);
-        if (!m) return /^only\s+screen$/.test(part);
-        const [, f, raw] = m, v = (raw || "").trim();
-        const px = parseFloat(v) * (/em$/.test(v) ? 16 : 1);
-        switch (f) {
-          case "min-width": return g.innerWidth >= px;
-          case "max-width": return g.innerWidth <= px;
-          case "min-height": return g.innerHeight >= px;
-          case "max-height": return g.innerHeight <= px;
-          case "orientation": return v === (g.innerWidth >= g.innerHeight ? "landscape" : "portrait");
-          case "prefers-color-scheme": return v === "light";
-          case "prefers-reduced-motion": return v === "no-preference";
-          case "hover": case "any-hover": return v === "hover";
-          case "pointer": case "any-pointer": return v === "fine";
-          case "color": return true;
-          default: return false;
-        }
-      };
-      const matches = String(q).split(",").some((alt) => {
-        const not = /^\s*not\s+/i.test(alt);
-        const r = alt.replace(/^\s*(not|only)\s+/i, "").split(/\s+and\s+/i).every(test);
-        return not ? !r : r;
-      });
+      // The same answer stylesheets get (css.rs): width, height, resolution, preferences…
+      const matches = __mediaMatches(String(q));
       return { matches, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } };
     },
     localStorage: storage(true), sessionStorage: storage(false),
