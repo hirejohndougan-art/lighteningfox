@@ -418,7 +418,9 @@ out as a box positioned over the SVG. Check with `tests/inline-svg.html` and new
 screenshot tests the same unless more correct.
 
 ### X19. Layout memory: incremental box tree, shared cached items
-**Status:** claimed by chat-nsX16 2026-11-17 15:10
+**Status:** done
+**Done:** (2) cache entries keep their own items, links and hits and refer to their cached children's entries (moved to where they sat) instead of copying them again at every level; a child is shared only when its output is still exactly as placed (a fingerprint of count, kinds, positions and text). The cache now holds about 1.2x the page's items instead of about 3x (test `nested_boxes_share_cached_items`). (1) layout keeps the last box tree with a hash of what it was built from (node data, structure, namespaces, picked files, style identities) and reuses it when nothing changed (test `unchanged_inputs_reuse_the_tree`). Measured on a generated 20,000-node page (24,019 nodes, 44,028 items): RSS after layout 76 → 73 MB, the cache's share about 10 → 6 MB; peak RSS of `--png` 170 → 163–165 MB (most of the peak is the 1024x16000 screenshot and its encode buffer, about 110 MB); React 56.6 → 56.8 MB and Bootstrap 41.0 → 41.5 MB (the same within noise). Unchanged relayout of the big page 14.8 → 9.7 ms; `relayout_timing` unchanged: Bootstrap 0.08 → 0.04 ms, grid 0.05 → 0.03 ms, full layouts about the same.
+**Left undone:** the box tree is reused only when nothing it's made of changed; a DOM edit or restyle still rebuilds it in full (patching just the changed subtrees needs anonymous, marker and pseudo boxes rebuilt per subtree, and their ids are renumbered on every build). Keeping the last tree doesn't lower peak memory (it costs what the per-layout copy did), it saves the time. The `--png` peak could drop about 50 MB by encoding the screenshot without the whole-image RGB copy in `save_png`.
 **After:** —
 **Checklist:** none
 **Files:** `src/boxtree.rs`, `src/relayout.rs`, `src/layout.rs` (the parts that call them)
