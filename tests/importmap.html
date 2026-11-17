@@ -1,0 +1,20 @@
+<!doctype html>
+<title>import maps</title>
+<script type="importmap">
+{
+  "imports": { "dep": "./importmap/dep.js", "lib/": "./importmap/lib/", "scoped": "./importmap/scoped.js" },
+  "scopes": { "./importmap/": { "dep": "./importmap/dep-scoped.js" } }
+}
+</script>
+<script type="importmap">{ "imports": { "dep": "./nope.js", "late": "./importmap/dep.js" } }</script>
+<p id="a">fail</p><p id="b">fail</p><p id="c">fail</p><p id="d">fail</p><p id="e">fail</p>
+<script type="module">
+import { name } from "dep";
+import { util } from "lib/util.js";
+import { name as scoped } from "scoped";
+document.getElementById("a").textContent = name;
+document.getElementById("b").textContent = util;
+document.getElementById("c").textContent = scoped;
+document.getElementById("d").textContent = import.meta.resolve("dep").endsWith("/importmap/dep.js") ? "resolve ok" : "fail";
+import("late").then(m => document.getElementById("e").textContent = "dynamic " + m.name);
+</script>

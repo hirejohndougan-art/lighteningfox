@@ -172,3 +172,16 @@ fn geolocation() {
     }
     assert_eq!(text_of("out"), "error 1 User denied Geolocation");
 }
+
+#[test]
+fn import_maps() {
+    let _serial = serial();
+    let _page = open("tests/importmap.html");
+    assert_eq!(text_of("a"), "dep via import map");
+    assert_eq!(text_of("b"), "lib/ prefix");
+    // A scope remaps "dep" for modules inside importmap/.
+    assert_eq!(text_of("c"), "scoped dep");
+    assert_eq!(text_of("d"), "resolve ok");
+    // A second map adds "late" but can't override the first map's "dep".
+    assert_eq!(text_of("e"), "dynamic dep via import map");
+}

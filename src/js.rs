@@ -1556,10 +1556,14 @@ impl Js {
         let (ty, src, inline) = with_dom(|d| {
             (d.attr(id, "type").unwrap_or("").to_ascii_lowercase(), d.attr(id, "src").map(String::from), d.text_content(id))
         });
+        if ty.trim() == "importmap" {
+            self.run_import_map(id, base_url);
+            return;
+        }
         let is_module = ty.trim() == "module";
         let is_js = ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript");
         if !is_js && !is_module {
-            return; // JSON, templates, import maps: not scripts
+            return; // JSON, templates and other data blocks: not scripts
         }
         // `nomodule` scripts are fallbacks for browsers without modules; this one has them.
         if !is_module && with_dom(|d| d.attr(id, "nomodule").is_some()) {
@@ -1602,6 +1606,23 @@ impl Js {
             self.run_module(&code, &url, &label);
         } else {
             self.eval(&code, &label);
+        }
+    }
+
+    /// `<script type="importmap">`: add its entries to the page's import map.
+    fn run_import_map(&mut self, id: NodeId, base_url: &str) {
+        let (src, text, nonce) = with_dom(|d| (d.attr(id, "src").is_some(), d.text_content(id), d.attr(id, "nonce").map(String::from)));
+        if src {
+            log!("[js error] import map #{id}: external import maps (src) aren't supported by browsers; put the map inline");
+            return;
+        }
+        let policy = page_ctx(&self.ctx, |p| p.policy.clone());
+        if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &text, nonce.as_deref())) {
+            return;
+        }
+        if let Err(crate::importmap::MapError(kind, msg)) = crate::importmap::register(&mut self.ctx, &text, base_url) {
+            self.stats.errors += 1;
+            log!("[js error] import map #{id}: {kind}: {msg}");
         }
     }
 

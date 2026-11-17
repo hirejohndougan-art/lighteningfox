@@ -2,7 +2,8 @@
 //!
 //! Boa parses, links and runs modules; this loader finds them. A specifier is resolved
 //! against the importing module's URL (kept as the module's "path"), or the page's URL for
-//! classic scripts and inline modules. Each URL is fetched and parsed once per page, so
+//! classic scripts and inline modules, after the page's import map (`importmap.rs`) has had
+//! its say. Each URL is fetched and parsed once per page, so
 //! every import of the same URL gets the same module, as the spec requires.
 
 use crate::net;
@@ -17,17 +18,6 @@ use std::rc::Rc;
 pub struct Loader {
     /// Modules already loaded, by absolute URL.
     cache: RefCell<HashMap<String, Module>>,
-}
-
-/// Resolve a module specifier. Like browsers (without import maps), only URLs and paths
-/// starting with `/`, `./` or `../` are allowed; bare names like `"react"` are an error.
-pub fn resolve_specifier(base: &str, spec: &str) -> Option<String> {
-    let has_scheme = spec.split_once(':').is_some_and(|(s, _)| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c)));
-    if has_scheme || spec.starts_with('/') || spec.starts_with("./") || spec.starts_with("../") {
-        Some(net::resolve(base, spec))
-    } else {
-        None
-    }
 }
 
 /// The URL a module was loaded from, as kept in its path.
@@ -65,11 +55,8 @@ impl ModuleLoader for Loader {
         let page = crate::js::page_url(ctx);
         let base = module_url(referrer.path()).unwrap_or_else(|| page.clone());
         let spec = request.specifier().to_std_string_escaped();
-        let Some(url) = resolve_specifier(&base, &spec) else {
-            return Err(JsNativeError::typ()
-                .with_message(format!("Failed to resolve module specifier \"{spec}\": relative references must start with \"/\", \"./\" or \"../\""))
-                .into());
-        };
+        // Through the page's import map (if any), then as a URL or path.
+        let url = crate::importmap::resolve_in(ctx, &base, &spec).map_err(|m| JsNativeError::typ().with_message(m))?;
         if let Some(policy) = crate::security::policy_for(&page) {
             if !policy.csp.allows_url(crate::security::Dest::Script, &url, None, true) {
                 return Err(JsNativeError::typ().with_message(format!("module {url} blocked by Content Security Policy")).into());
@@ -83,15 +70,26 @@ impl ModuleLoader for Loader {
         let url = module_url(module.path()).unwrap_or_else(|| crate::js::page_url(context));
         let url = url.split('#').next().unwrap_or("").to_string();
         let _ = import_meta.set(boa_engine::js_string!("url"), JsString::from(url.as_str()), false, context);
+        // import.meta.resolve(specifier): what an import of it from this module would load.
+        let resolve = boa_engine::NativeFunction::from_copy_closure_with_captures(
+            |_, args, base: &JsString, ctx| {
+                let spec = args.first().cloned().unwrap_or_default().to_string(ctx)?.to_std_string_escaped();
+                crate::importmap::resolve_in(ctx, &base.to_std_string_escaped(), &spec)
+                    .map(|u| boa_engine::JsValue::from(JsString::from(u.as_str())))
+                    .map_err(|m| JsNativeError::typ().with_message(m).into())
+            },
+            JsString::from(module_url(module.path()).unwrap_or_else(|| crate::js::page_url(context)).as_str()),
+        );
+        let f = boa_engine::object::FunctionObjectBuilder::new(context.realm(), resolve).name(boa_engine::js_string!("resolve")).length(1).build();
+        let _ = import_meta.set(boa_engine::js_string!("resolve"), f, false, context);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn specifiers() {
+        let resolve_specifier = |base: &str, spec: &str| crate::importmap::resolve(&Default::default(), base, spec).ok();
         let base = "https://example.com/js/app.js";
         assert_eq!(resolve_specifier(base, "./a.js").as_deref(), Some("https://example.com/js/a.js"));
         assert_eq!(resolve_specifier(base, "../b.js").as_deref(), Some("https://example.com/b.js"));

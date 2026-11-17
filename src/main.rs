@@ -63,6 +63,7 @@ mod page_images;
 mod js;
 mod jsnest;
 mod jsmodules;
+mod importmap;
 mod domindex;
 mod dom_classes;
 mod memory;
