@@ -66,6 +66,32 @@ def ref_test(base, rel, ref, tmp):
     return rel, same, None
 
 
+def make_any_wrappers(root, d):
+    """WPT's server turns foo.any.js / foo.window.js into a foo.any.html page; write those."""
+    made = []
+    for name in sorted(os.listdir(os.path.join(root, d))):
+        m = re.match(r"(.+)\.(any|window)\.js$", name)
+        if not m:
+            continue
+        src = open(os.path.join(root, d, name), encoding="utf-8", errors="replace").read()
+        metas = re.findall(r"^//\s*META:\s*(\w+)=(.*)$", src, re.M)
+        globals_ = ",".join(v for k, v in metas if k == "global")
+        if m.group(2) == "any" and globals_ and "window" not in globals_ and "default" not in globals_:
+            continue
+        scripts = "".join(f'<script src="{v.strip()}"></script>\n' for k, v in metas if k == "script")
+        page = (
+            "<!doctype html>\n<meta charset=utf-8>\n"
+            "<script>self.GLOBAL={isWindow:()=>true,isWorker:()=>false,isShadowRealm:()=>false};</script>\n"
+            '<script src="/resources/testharness.js"></script>\n<script src="/resources/testharnessreport.js"></script>\n'
+            f'{scripts}<div id=log></div>\n<script src="{name}"></script>\n'
+        )
+        out = os.path.join(root, d, f"{m.group(1)}.{m.group(2)}.html")
+        with open(out, "w") as f:
+            f.write(page)
+        made.append(out)
+    return made
+
+
 def classify(root, rel):
     text = open(os.path.join(root, rel), encoding="utf-8", errors="replace").read()
     m = re.search(r'<link[^>]+rel=["\']?match["\']?[^>]*>', text, re.I)
@@ -92,6 +118,7 @@ def main():
     base = f"http://127.0.0.1:{serve(root)}"
     jobs = []
     for d in dirs:
+        make_any_wrappers(root, d)
         for name in sorted(os.listdir(os.path.join(root, d))):
             if not re.search(r"\.(html?|xhtml)$", name) or "-ref." in name or name.endswith("-notref.html"):
                 continue

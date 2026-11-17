@@ -1,0 +1,71 @@
+<!doctype html><title>IndexedDB</title><pre id=out>running…</pre>
+<script>
+const log = [];
+const out = (s) => { log.push(s); document.getElementById('out').textContent = log.join("\n"); };
+const wrap = (r) => new Promise((ok, bad) => { r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); });
+(async () => {
+  try {
+    await wrap(indexedDB.deleteDatabase("t"));
+    const open = indexedDB.open("t", 2);
+    let upgraded = null;
+    open.onupgradeneeded = (e) => {
+      upgraded = e.oldVersion + "->" + e.newVersion;
+      const db = open.result;
+      const s = db.createObjectStore("people", { keyPath: "id", autoIncrement: true });
+      s.createIndex("byName", "name");
+      s.createIndex("byEmail", "email", { unique: true });
+      s.createIndex("byTag", "tags", { multiEntry: true });
+      db.createObjectStore("kv");
+    };
+    const db = await wrap(open);
+    out("upgrade " + upgraded + ", version " + db.version + ", stores " + [...db.objectStoreNames].join(","));
+    let tx = db.transaction(["people", "kv"], "readwrite");
+    const ended = new Promise((r) => (tx.onabort = tx.oncomplete = r));
+    const p = tx.objectStore("people");
+    const ids = await Promise.all([
+      wrap(p.add({ name: "Ada", email: "a@x", tags: ["math", "code"], born: new Date(1815, 11, 10) })),
+      wrap(p.add({ name: "Grace", email: "g@x", tags: ["code", "navy"] })),
+      wrap(p.add({ name: "Alan", email: "t@x", tags: ["math"] })),
+    ]);
+    out("ids " + ids.join(","));
+    const kv = tx.objectStore("kv");
+    await wrap(kv.put(new Map([["a", 1]]), "map"));
+    await wrap(kv.put(42, [1, "x"]));
+    try { await wrap(p.add({ name: "Dup", email: "a@x" })); out("unique: NOT enforced"); } catch (e) { out("unique: " + e.name); }
+    await ended;
+    out("first tx ended: " + (tx.error ? "aborted " + tx.error.name : "complete"));
+    // the failing add aborted the transaction, so nothing above was kept
+    tx = db.transaction("people", "readwrite");
+    const ended2 = new Promise((r) => (tx.oncomplete = r));
+    const p2 = tx.objectStore("people");
+    for (const n of ["Ada", "Grace", "Alan", "Barbara"]) await wrap(p2.put({ name: n, email: n + "@x", tags: n === "Alan" ? ["math"] : ["code"] }));
+    await ended2;
+    const ro = db.transaction("people").objectStore("people");
+    out("count " + (await wrap(ro.count())));
+    out("byName Grace -> id " + (await wrap(ro.index("byName").get("Grace"))).id);
+    out("byTag code -> " + (await wrap(ro.index("byTag").getAll("code"))).map((x) => x.name).join(","));
+    out("range ids 2..3 -> " + (await wrap(ro.getAll(IDBKeyRange.bound(2, 3)))).map((x) => x.name).join(","));
+    const names = [];
+    await new Promise((done) => {
+      const c = ro.index("byName").openCursor(null, "prev");
+      c.onsuccess = () => { const cur = c.result; if (!cur) return done(); names.push(cur.key); cur.continue(); };
+    });
+    out("cursor prev " + names.join(","));
+    const tx3 = db.transaction("people", "readwrite");
+    const ended3 = new Promise((r) => (tx3.oncomplete = r));
+    await new Promise((done) => {
+      const c = tx3.objectStore("people").openCursor();
+      c.onsuccess = () => { const cur = c.result; if (!cur) return done(); if (cur.value.name === "Alan") cur.delete(); else { const v = cur.value; v.name = v.name.toUpperCase(); cur.update(v); } cur.continue(); };
+    });
+    await ended3;
+    out("after cursor edit " + (await wrap(db.transaction("people").objectStore("people").getAll())).map((x) => x.name).join(","));
+    const k = await wrap(db.transaction("kv", "readwrite").objectStore("kv").put("v", new Date(0)));
+    out("date key " + (k instanceof Date) + ", cmp " + indexedDB.cmp([1], "z") + "," + indexedDB.cmp(1, new Date(0)));
+    const tx4 = db.transaction("kv", "readwrite"); tx4.objectStore("kv").put("gone", "x"); tx4.abort();
+    await new Promise((r) => setTimeout(r, 20));
+    out("aborted put kept? " + ((await wrap(db.transaction("kv").objectStore("kv").get("x"))) !== undefined));
+    out("databases " + JSON.stringify(await indexedDB.databases()));
+    out("DONE");
+  } catch (e) { out("FAILED: " + e.name + ": " + e.message); }
+})();
+</script>

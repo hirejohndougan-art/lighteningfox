@@ -140,6 +140,7 @@ pub fn clear_data(everything: bool) -> String {
     crate::cookies::clear();
     if let Some(d) = crate::cookies::profile_dir() {
         let _ = std::fs::remove_dir_all(d.join("storage"));
+        let _ = std::fs::remove_dir_all(d.join("indexeddb"));
     }
     let freed = crate::cache::clear();
     if everything {

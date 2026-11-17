@@ -836,12 +836,17 @@ fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
 
 /// Where a site's localStorage lives: one JSON file per origin in the profile folder.
 fn storage_file(origin: &str) -> Option<std::path::PathBuf> {
+    store_file(origin, "storage")
+}
+
+/// A per-origin file under `<profile>/<dir>/`.
+fn store_file(origin: &str, dir: &str) -> Option<std::path::PathBuf> {
     if origin.is_empty() || origin == "null" && !cfg!(test) {
         // Local files share one store, like other browsers' "file://" origin.
     }
     let key: String = origin.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
     let key = if key.is_empty() { "file".to_string() } else { key };
-    crate::cookies::profile_dir().map(|d| d.join("storage").join(format!("{key}.json")))
+    crate::cookies::profile_dir().map(|d| d.join(dir).join(format!("{key}.json")))
 }
 
 /// __storageLoad(origin) -> the saved JSON object text, or "{}".
@@ -855,10 +860,29 @@ fn n_storage_load(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsV
 fn n_storage_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let origin = arg_str(a, 0, ctx)?;
     let json = arg_str(a, 1, ctx)?;
-    if json.len() > 5 * 1024 * 1024 {
-        return Ok(JsValue::from(false));
+    Ok(JsValue::from(save_store(storage_file(&origin), &json, 5 * 1024 * 1024)))
+}
+
+/// __idbLoad(origin) -> the site's IndexedDB databases as JSON text, or "{}".
+fn n_idb_load(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let origin = arg_str(a, 0, ctx)?;
+    let text = store_file(&origin, "indexeddb").and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into());
+    Ok(JsValue::from(JsString::from(text)))
+}
+
+/// __idbSave(origin, json) -> false when over the 100 MB per-site quota or unwritable.
+fn n_idb_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let origin = arg_str(a, 0, ctx)?;
+    let json = arg_str(a, 1, ctx)?;
+    Ok(JsValue::from(save_store(store_file(&origin, "indexeddb"), &json, 100 * 1024 * 1024)))
+}
+
+/// Write a store file atomically, readable only by you.
+fn save_store(path: Option<std::path::PathBuf>, json: &str, quota: usize) -> bool {
+    if json.len() > quota {
+        return false;
     }
-    let Some(path) = storage_file(&origin) else { return Ok(JsValue::from(false)) };
+    let Some(path) = path else { return false };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -871,10 +895,12 @@ fn n_storage_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsV
         }
         std::fs::rename(&tmp, &path).is_ok()
     };
-    Ok(JsValue::from(ok))
+    ok
 }
 
 const PRELUDE: &str = include_str!("prelude.js");
+const BLOB: &str = include_str!("blob.js");
+const INDEXEDDB: &str = include_str!("indexeddb.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
@@ -919,6 +945,8 @@ impl Js {
             ("__open", 1, n_open),
             ("__storageLoad", 1, n_storage_load),
             ("__storageSave", 2, n_storage_save),
+            ("__idbLoad", 1, n_idb_load),
+            ("__idbSave", 2, n_idb_save),
             ("__netStart", 8, n_net_start),
             ("__resolve", 2, n_resolve),
             ("__rect", 1, n_rect),
@@ -945,6 +973,12 @@ impl Js {
         ctx.eval(Source::from_bytes(globals.as_bytes())).expect("globals");
         if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
             log!("[ironswift] prelude failed: {e}");
+        }
+        if let Err(e) = ctx.eval(Source::from_bytes(BLOB.as_bytes())) {
+            log!("[ironswift] Blob setup failed: {e}");
+        }
+        if let Err(e) = ctx.eval(Source::from_bytes(INDEXEDDB.as_bytes())) {
+            log!("[ironswift] IndexedDB setup failed: {e}");
         }
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch }
     }
