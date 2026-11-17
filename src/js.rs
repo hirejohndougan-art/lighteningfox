@@ -1411,6 +1411,10 @@ impl Js {
         // Keep runaway scripts from freezing the browser.
         ctx.runtime_limits_mut().set_loop_iteration_limit(200_000_000);
         ctx.runtime_limits_mut().set_recursion_limit(2_000);
+        // Boa's value stack held only 10,240 slots: a few hundred frames of a big function, so
+        // React's commit on the New York Times stopped with "maximum stack size" (2026-11). The
+        // recursion limit above still stops runaway recursion; this is ~16 MB at most.
+        ctx.runtime_limits_mut().set_stack_size_limit(1 << 20);
         let natives: &[(&str, usize, fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>)] = &[
             ("__type", 1, n_type),
             ("__doctype", 1, n_doctype),

@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): React's commit recursed through a deep page with big
+     functions and hit Boa's tiny value-stack limit ("reached the maximum stack size"). Browsers
+     allow thousands of such frames. -->
+<html><head><title>Deep recursion with many locals</title></head>
+<body><p id="out"></p>
+<script>
+  function walk(n) {
+    const a = [n, n + 1, n + 2], b = { n }, c = a.map((x) => x * 2), d = String(n), e = c.length, f = b.n;
+    const g = n % 3, h = n % 5, i = n % 7, j = d.length, k = e + f, l = g + h + i + j + k;
+    return n === 0 ? 0 : walk(n - 1) + (l > -1 ? 1 : 0);
+  }
+  let r;
+  try { r = walk(1500); } catch (e) { r = String(e); }
+  document.getElementById("out").textContent = String(r);
+</script></body></html>

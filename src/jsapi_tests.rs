@@ -746,3 +746,9 @@ fn match_media_agrees_with_stylesheets() {
     assert_eq!(r.trim_matches('"'), "false,true,true,false");
 }
 
+#[test]
+fn deep_recursion_with_many_locals() {
+    let _serial = serial();
+    let _page = open("tests/sites/deep-frames.html");
+    assert_eq!(text_of("out"), "1500");
+}
