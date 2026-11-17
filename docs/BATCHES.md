@@ -1,5 +1,8 @@
 # Work batches
 
+**New work is claimed one task at a time in `docs/TASKS.md`.** Batches J, K and M below are
+still running with the chats that hold them.
+
 The remaining build-checklist tasks, split into batches so up to 10 chats can work at once
 without editing the same code. Each chat takes **one batch at a time**.
 
@@ -221,7 +224,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 
 ## K. CSS (§4)
 **Status:** claimed by css-chat 2026-11-17 02:40 (the old section 4 chat switched to batch A work and finished)
-**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10); selector matching speed (04:40). Tick only the rest.
+**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10); selector matching speed (04:40); restyle only what changed (04:45). Tick only the rest.
 **Start after:** —
 **Main files:** `src/css.rs`, `src/style.rs`, `src/grid.rs` (grid extras)
 
@@ -290,7 +293,7 @@ overhead is the next runtime target (spread over many 1–2% pieces). Details in
 - Not in this batch: the baseline JIT (only after the whole app is built)
 
 ## N. Big restructurings (one chat at a time, after the others)
-**Status:** free
+**Status:** split into single tasks in `docs/TASKS.md` (T01–T13); claim there
 **Start after:** B, C, D, E, F, G, H, I, K, L
 **Main files:** most of `src/`
 
