@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html><head><title>Canvas 2D</title>
+<style>
+  body { font-family: sans-serif; margin: 12px; background: #f8fafc; }
+  canvas { background: white; border: 1px solid #cbd5e1; margin: 0 8px 8px 0; vertical-align: top; }
+  p { margin: 4px 0 10px; font-size: 13px; color: #334155; }
+</style></head>
+<body>
+  <canvas id="shapes" width="260" height="180"></canvas>
+  <canvas id="text" width="260" height="180"></canvas>
+  <canvas id="chart" width="260" height="180"></canvas>
+  <canvas id="pixels" width="260" height="180"></canvas>
+  <canvas id="images" width="260" height="180"></canvas>
+  <canvas id="small" width="60" height="40" style="width: 120px; height: 80px"></canvas>
+  <p id="out">script did not run</p>
+  <img id="pic" src="img/sample.png" style="display:none">
+<script>
+const log = [];
+// 1. Shapes: rects, arcs, rounded rects, curves, strokes with caps, joins and dashes, clips.
+{
+  const c = document.getElementById("shapes").getContext("2d");
+  c.fillStyle = "#f97316"; c.fillRect(10, 10, 60, 40);
+  c.strokeStyle = "rgb(15 23 42)"; c.lineWidth = 3; c.strokeRect(80, 10, 60, 40);
+  c.beginPath(); c.arc(185, 30, 22, 0, Math.PI * 2); c.fillStyle = "hsl(200 90% 45%)"; c.fill();
+  c.beginPath(); c.roundRect(10, 60, 80, 40, 12); c.fillStyle = "rgba(34,197,94,0.8)"; c.fill();
+  c.beginPath(); c.moveTo(100, 100); c.bezierCurveTo(120, 50, 160, 130, 180, 70); c.quadraticCurveTo(200, 40, 240, 90);
+  c.lineWidth = 4; c.lineCap = "round"; c.strokeStyle = "#a855f7"; c.stroke();
+  c.setLineDash([8, 4]); c.lineWidth = 2; c.strokeStyle = "#0f172a";
+  c.beginPath(); c.moveTo(10, 120); c.lineTo(250, 120); c.stroke(); c.setLineDash([]);
+  c.lineJoin = "round"; c.lineWidth = 8; c.strokeStyle = "#ef4444";
+  c.beginPath(); c.moveTo(20, 170); c.lineTo(50, 135); c.lineTo(80, 170); c.stroke();
+  c.save(); c.beginPath(); c.arc(170, 150, 25, 0, Math.PI * 2); c.clip();
+  for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? "#facc15" : "#1d4ed8"; c.fillRect(140 + i * 8, 120, 8, 60); }
+  c.restore();
+  c.save(); c.translate(225, 150); c.rotate(Math.PI / 6); c.fillStyle = "#14b8a6"; c.fillRect(-15, -15, 30, 30); c.restore();
+  log.push("shapes");
+}
+// 2. Text: fonts, alignment, baselines, gradients, measureText.
+{
+  const c = document.getElementById("text").getContext("2d");
+  c.font = "bold 22px sans-serif"; c.fillStyle = "#0f172a"; c.fillText("Ironswift canvas", 10, 30);
+  c.font = "14px serif"; c.textAlign = "center"; c.fillText("centered at 130", 130, 55);
+  c.strokeStyle = "#e2e8f0"; c.lineWidth = 1; c.beginPath(); c.moveTo(130, 40); c.lineTo(130, 175); c.stroke();
+  c.textAlign = "right"; c.fillText("right-aligned", 130, 75);
+  c.textAlign = "left"; c.textBaseline = "top"; c.fillText("top baseline", 130, 85);
+  const g = c.createLinearGradient(10, 0, 250, 0); g.addColorStop(0, "#ef4444"); g.addColorStop(0.5, "#eab308"); g.addColorStop(1, "#3b82f6");
+  c.textBaseline = "alphabetic"; c.font = "italic bold 28px sans-serif"; c.fillStyle = g; c.fillText("Gradient text", 10, 140);
+  c.save(); c.translate(230, 175); c.rotate(-Math.PI / 2); c.font = "12px monospace"; c.fillStyle = "#64748b"; c.fillText("rotated", 0, 0); c.restore();
+  c.font = "12px sans-serif"; c.fillStyle = "#334155"; c.fillText("width of 'Hello': " + Math.round(c.measureText("Hello").width), 10, 170);
+  log.push("text " + Math.round(c.measureText("Hello").width));
+}
+// 3. A bar chart like chart libraries draw: gradients, shadows, paths.
+{
+  const c = document.getElementById("chart").getContext("2d");
+  const data = [42, 75, 58, 90, 66, 30];
+  const bg = c.createLinearGradient(0, 0, 0, 180); bg.addColorStop(0, "#eff6ff"); bg.addColorStop(1, "#ffffff");
+  c.fillStyle = bg; c.fillRect(0, 0, 260, 180);
+  c.strokeStyle = "#cbd5e1"; c.lineWidth = 1;
+  for (let y = 30; y <= 150; y += 30) { c.beginPath(); c.moveTo(20, y + 0.5); c.lineTo(250, y + 0.5); c.stroke(); }
+  c.shadowColor = "rgba(0,0,0,0.25)"; c.shadowBlur = 6; c.shadowOffsetY = 3;
+  data.forEach((v, i) => {
+    const bar = c.createLinearGradient(0, 150 - v * 1.3, 0, 150); bar.addColorStop(0, "#60a5fa"); bar.addColorStop(1, "#1d4ed8");
+    c.fillStyle = bar; c.beginPath(); c.roundRect(30 + i * 36, 150 - v * 1.3, 24, v * 1.3, [6, 6, 0, 0]); c.fill();
+  });
+  c.shadowColor = "transparent";
+  const r = c.createRadialGradient(215, 40, 2, 215, 40, 26); r.addColorStop(0, "#fde68a"); r.addColorStop(1, "rgba(245,158,11,0)");
+  c.fillStyle = r; c.beginPath(); c.arc(215, 40, 26, 0, Math.PI * 2); c.fill();
+  c.globalCompositeOperation = "multiply"; c.fillStyle = "#f472b6"; c.beginPath(); c.arc(60, 60, 30, 0, Math.PI * 2); c.fill();
+  c.globalCompositeOperation = "source-over";
+  log.push("chart");
+}
+// 4. Pixels: putImageData, getImageData read back, Path2D, isPointInPath, evenodd.
+{
+  const c = document.getElementById("pixels").getContext("2d");
+  const img = c.createImageData(100, 60);
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 100; x++) {
+    const i = (y * 100 + x) * 4; img.data[i] = x * 2.5; img.data[i + 1] = y * 4; img.data[i + 2] = 160; img.data[i + 3] = 255;
+  }
+  c.putImageData(img, 10, 10);
+  const back = c.getImageData(10, 10, 1, 1).data;
+  const star = new Path2D("M 190 15 L 202 50 L 238 50 L 209 72 L 220 106 L 190 85 L 160 106 L 171 72 L 142 50 L 178 50 Z");
+  c.fillStyle = "#eab308"; c.fill(star, "evenodd"); c.strokeStyle = "#854d0e"; c.lineWidth = 1.5; c.stroke(star);
+  const ring = new Path2D(); ring.arc(60, 130, 35, 0, Math.PI * 2); ring.arc(60, 130, 18, 0, Math.PI * 2);
+  c.fillStyle = "#8b5cf6"; c.fill(ring, "evenodd");
+  c.font = "12px sans-serif"; c.fillStyle = "#0f172a";
+  c.fillText("in star: " + c.isPointInPath(star, 190, 60) + ", in hole: " + c.isPointInPath(ring, 60, 130, "evenodd"), 110, 140);
+  c.fillText("pixel read: " + back[0] + "," + back[1] + "," + back[2], 110, 160);
+  log.push("pixels " + back.join(","));
+}
+// 5. drawImage from another canvas, scaled and cropped, and an ellipse; toDataURL.
+{
+  const c = document.getElementById("images").getContext("2d");
+  const src = document.getElementById("shapes");
+  c.drawImage(src, 0, 0, 130, 90);
+  c.drawImage(src, 100, 0, 160, 120, 135, 5, 120, 90);
+  c.imageSmoothingEnabled = false; c.drawImage(src, 0, 0, 40, 30, 10, 100, 80, 60);
+  c.beginPath(); c.ellipse(190, 140, 50, 22, Math.PI / 8, 0, Math.PI * 2); c.lineWidth = 3; c.strokeStyle = "#0ea5e9"; c.stroke();
+  const url = document.getElementById("small").toDataURL();
+  log.push("dataURL " + url.slice(0, 22));
+}
+// 6. A small canvas scaled up by CSS.
+{
+  const c = document.getElementById("small").getContext("2d");
+  c.fillStyle = "#22c55e"; c.beginPath(); c.arc(30, 20, 15, 0, Math.PI * 2); c.fill();
+}
+document.getElementById("out").textContent = "ran: " + log.join(" | ");
+</script>
+</body></html>

@@ -64,6 +64,7 @@ mod jsapi_tests;
 mod layout;
 mod library;
 mod cache;
+mod canvas;
 mod channels;
 mod clipboard;
 mod downloads;
@@ -507,6 +508,10 @@ impl Page {
             if self.sheets.iter().any(|s| s.rules.iter().any(|r| r.media.is_some())) {
                 self.restyle();
             }
+        }
+        if let Some(js) = &self.js {
+            js.publish_canvases(&mut self.images);
+            canvas::set_images(self.images.share());
         }
         let mut lay = js::with_dom(|d| match d.composed() {
             Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
@@ -1114,6 +1119,9 @@ fn build_page(p: Prepared) -> Page {
                 style::without_visited(|| style::compute(c.as_ref().unwrap_or(d), &sheets))
             })
         })));
+    }
+    if has_scripts {
+        canvas::set_images(images.share());
     }
     let js = has_scripts.then(|| {
         let mut js = js::Js::with_policy(&url, policy.clone());
@@ -4558,6 +4566,7 @@ mod screenshot_tests {
     const PAGES: &[(&str, usize)] = &[
         ("about:home", 1024),
         ("tests/images.html", 1024),
+        ("tests/canvas.html", 860),
         ("tests/css3.html", 900),
         ("tests/backgrounds.html", 1024),
         ("tests/inline-block.html", 900),

@@ -157,6 +157,14 @@ impl Images {
         }
         let (w, h) = rgba.dimensions();
         self.by_src.insert(key.to_string(), Arc::new(Img { w, h, data: Data::Pixels(Arc::new(rgba)) }));
+        // A redrawn picture (a canvas) must not show an old scaled copy.
+        let mut cache = self.cache.borrow_mut();
+        let stale: Vec<Key> = cache.map.keys().filter(|k| k.0 == key).cloned().collect();
+        for k in stale {
+            if let Some(c) = cache.map.remove(&k) {
+                cache.bytes -= c.img.as_raw().len();
+            }
+        }
     }
 
     /// A copy sharing the downloaded images (cheap), for laying the page out on demand.

@@ -585,7 +585,7 @@ impl<'a> Ctx<'a> {
             || st.display == Display::InlineBlock
             || st.multicol.is_some_and(|m| m.count.is_some() || m.width.is_some())
             || self.dom.nodes[id].parent == Some(Dom::ROOT)
-            || matches!(self.dom.tag(id), Some("img" | "iframe" | "input" | "select" | "textarea" | "button"))
+            || matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "input" | "select" | "textarea" | "button"))
     }
 
     /// The first in-flow child, if it is a block with nothing but whitespace before it.
@@ -680,7 +680,7 @@ impl<'a> Ctx<'a> {
         };
         let mut constrained = st.width != Len::Auto;
         // A block-level <img> takes the image's size instead of its children's.
-        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
+        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
         if let Some((rw, _)) = replaced {
             w = rw;
             constrained = true;
@@ -2549,6 +2549,8 @@ impl<'a> Ctx<'a> {
     fn replaced_src(&self, id: NodeId) -> String {
         if self.dom.tag(id) == Some("iframe") {
             frame_key(self.dom, id)
+        } else if self.dom.tag(id) == Some("canvas") {
+            format!("canvas:{id}")
         } else {
             // srcset / <picture> pick the picture (srcset.rs).
             crate::srcset::current_src(self.dom, id).unwrap_or_default()
@@ -2597,7 +2599,15 @@ impl<'a> Ctx<'a> {
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
         let st = &self.styles[id];
         // An iframe is 300×150 unless sized; its content doesn't change that.
-        let intrinsic = if self.dom.tag(id) == Some("iframe") { Some((300.0, 150.0)) } else { self.image_size(id) };
+        // A canvas is its width and height attributes (300×150 by default), like its bitmap.
+        let canvas_dim = |a: &str, d: f32| self.dom.attr(id, a).and_then(|v| v.trim().split(|c: char| !c.is_ascii_digit()).next().and_then(|n| n.parse::<f32>().ok())).unwrap_or(d);
+        let intrinsic = if self.dom.tag(id) == Some("iframe") {
+            Some((300.0, 150.0))
+        } else if self.dom.tag(id) == Some("canvas") {
+            Some((canvas_dim("width", 300.0), canvas_dim("height", 150.0)))
+        } else {
+            self.image_size(id)
+        };
         let attr = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok());
         let w = match st.width {
             Len::Auto => attr("width"),
@@ -2699,7 +2709,12 @@ impl<'a> Ctx<'a> {
                 }
                 match tag.as_str() {
                     "br" => return out.push(Tok::Break { node: id }),
-                    "img" | "iframe" if !(tag == "iframe" && self.styles[id].display == Display::InlineBlock) => {
+                    // A picture with its own border, padding, margin or background is laid
+                    // out as a little block, which draws those.
+                    "img" | "canvas" if self.inline_box_edges(id, avail).is_some() || self.styles[id].border[0] > 0.0 || self.styles[id].border[2] > 0.0 => {
+                        return out.push(Tok::InlineBlock { node: id, link: link.map(String::from) });
+                    }
+                    "img" | "iframe" | "canvas" if !(tag != "img" && self.styles[id].display == Display::InlineBlock) => {
                         match self.replaced_size(id, avail) {
                             Some((w, h)) => {
                                 let src = Some(self.replaced_src(id));
@@ -3263,7 +3278,8 @@ impl<'a> Ctx<'a> {
                         } else if let Some(src) = loaded {
                             let src = src.to_string();
                             self.push_image(*node, r.x, r.y, r.w, r.h, src);
-                        } else {
+                        } else if !src.as_deref().is_some_and(|s| s.starts_with("canvas:")) {
+                            // (A canvas nothing has drawn on is simply transparent.)
                             let c = Color { r: 200, g: 200, b: 200, a: 255 };
                             self.items.push(Item::Rect { x: r.x, y: r.y, w: r.w, h: r.h, color: c });
                         }

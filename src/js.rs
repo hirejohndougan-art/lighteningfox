@@ -1337,6 +1337,8 @@ impl Js {
         if let Err(e) = ctx.eval_cached(PRELUDE.as_bytes()) {
             log!("[ironswift] prelude failed: {e}");
         }
+        // <canvas> 2D drawing (canvas.rs, canvas.js) and the DOMMatrix family.
+        crate::canvas::install(&mut ctx);
         if let Err(e) = ctx.eval_cached(BLOB.as_bytes()) {
             log!("[ironswift] Blob setup failed: {e}");
         }
@@ -1460,6 +1462,11 @@ impl Js {
                 None
             }
         }
+    }
+
+    /// Hand canvases drawn on since last time to the page's images (before a layout).
+    pub fn publish_canvases(&self, images: &mut crate::images::Images) {
+        crate::canvas::publish(&self.ctx, images);
     }
 
     /// The answer to permission requests `ids` (from the prompt, or automatic).
