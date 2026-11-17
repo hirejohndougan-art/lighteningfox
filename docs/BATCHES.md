@@ -162,18 +162,23 @@ Left undone:
 - wss: was tested only against a local server; no live TLS WebSocket test from this sandbox.
 
 ## I. Accessibility and languages (all of §15)
-**Status:** claimed by a11y-chat 2026-11-17 02:30
-**Checklist:** already ticked (03:45): accessibility tree, screen readers (AT-SPI), high contrast, translated UI, Intl. Tick only the rest.
-**Split (two chats ended up on this batch):** a11y-chat does the screen-reader bridge
-(AT-SPI/AccessKit), high contrast (pages and the browser's own UI) and translating the rest of
-about:settings. The other chat (already did the tree, Intl, translated UI and page keyboard
-navigation) does the right-to-left browser UI and keyboard control of the browser's toolbar,
-tabs, menus and panels. a11y-chat marks the batch done and updates the checklist when both are finished.
-**a11y-chat's part is finished (03:55):** AT-SPI bridge (`src/a11y_bridge.rs`, tested live with
-at-spi2), high contrast for pages and the browser UI (`src/contrast.rs`), about:settings translated.
-Left: the other chat's right-to-left UI and keyboard control of the browser UI. Whoever finishes
-last sets this batch to `done`. Small gap: status lines from `updates.rs`, `blocklist.rs` and
-`permissions.rs` on about:settings are still English only.
+**Status:** done
+**Checklist:** all seven ticked (keyboard navigation and right-to-left UI ticked last).
+**Split (two chats ended up on this batch):** one chat did the accessibility tree
+(`src/a11y.rs`, `ironswift --a11y`), Intl (`src/intl.js` on Boa's ICU), the translated UI
+(`src/i18n.rs`, `locales/`), keyboard navigation of pages (`src/keynav.rs`), the right-to-left
+browser UI (`src/rtl.rs`, `Canvas::mirror`, bidi-ordered UI text) and keyboard control of the
+browser UI (`src/uikeys.rs`: F6 cycle, toolbar/tabs/bookmarks/prompt focus ring, Shift+F10 or
+Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI bridge
+(`src/a11y_bridge.rs`, tested live with at-spi2), high contrast for pages and the browser UI
+(`src/contrast.rs`) and translated about:settings.
+**Left undone:**
+- Status lines from `updates.rs`, `blocklist.rs` and `permissions.rs` on about:settings are still
+  English only.
+- Translations exist for English, Spanish, French, German, Arabic and Hebrew only.
+- `Intl` gaps are filled by `src/intl.js` with small tables: currency symbols, DisplayNames and
+  RelativeTimeFormat are complete only for common codes and for en/es/fr/de.
+- Page text (not the browser UI) still has no bidi reordering; that belongs to layout/fonts.
 
 - Accessibility tree built from the DOM and ARIA attributes
 - Expose it to Linux screen readers through AT-SPI (AccessKit)
