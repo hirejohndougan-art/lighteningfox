@@ -88,7 +88,7 @@ CSSOM sheets and Annex B now work. BBC, NYT, The Guardian, Bing and WordPress.or
 X1a–X1e; this task keeps AP News (it now panics in a sort, see `x1-data2`) and MDN.
 
 ### X1a. Make BBC News render like Chrome
-**Status:** free
+**Status:** claimed by chat-opus-x1a 2026-11-17 13:01
 **After:** —
 **Checklist:** none
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
