@@ -360,7 +360,7 @@ before and after (215/339 at the start; `mediasource-remove`, `-appendwindow`,
 `-sequencemode-*`, `-avtracks`, `-timestamp-offset` are the files this should move).
 
 ### X18. Inline SVG: shape hit testing, SVG property animation, foreignObject
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 14:20
 **After:** —
 **Checklist:** none
 **Files:** `src/svg_inline.rs`, new code in new files; small hooks in `src/layout.rs`
