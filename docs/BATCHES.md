@@ -147,7 +147,7 @@ Left undone:
 - Right-to-left browser UI
 
 ## J. Windowing and platforms
-**Status:** free
+**Status:** claimed by effects-chat 2026-11-17 03:20
 **Start after:** A, E (both touch the window loop and builds)
 **Main files:** `src/main.rs` window setup, `src/gpu.rs`, `Cargo.toml`, CI
 
