@@ -17,14 +17,6 @@ pub struct Raw {
     /// Lower-case names; repeated headers (set-cookie) appear once per value.
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
-    /// HTTP/1.1, HTTP/2 or HTTP/3 (for diagnostics).
-    pub version: String,
-}
-
-impl Raw {
-    pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
-    }
 }
 
 /// The largest body kept in memory (bigger things are downloads).
@@ -229,7 +221,6 @@ fn note_alt_svc(url: &str, alt_svc: &str) {
 pub struct Stream {
     pub status: u16,
     pub status_text: String,
-    pub version: String,
     /// Lower-case names; repeated headers (set-cookie) appear once per value.
     pub headers: Vec<(String, String)>,
     pub body: reqwest::blocking::Response,
@@ -245,18 +236,13 @@ impl Stream {
         let mut bytes = Vec::new();
         use std::io::Read;
         self.body.take(MAX_BODY).read_to_end(&mut bytes).map_err(|e| format!("[net] {url}: {e}"))?;
-        Ok(Raw { status: self.status, status_text: self.status_text, headers: self.headers, body: bytes, version: self.version })
+        Ok(Raw { status: self.status, status_text: self.status_text, headers: self.headers, body: bytes })
     }
 }
 
-/// Send one request (no redirects followed) and read the whole response. Errors start with a
-/// tag the error pages read: `[dns]`, `[timeout]`, `[cert]`, `[refused]`, `[proxy]` or `[net]`.
-pub fn send(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>) -> Result<Raw, String> {
-    open(method, url, headers, body, Duration::from_secs(30))?.read_all(url)
-}
-
-/// Send one request and return the response before reading its body. `timeout` covers the
-/// whole transfer (long for downloads).
+/// Send one request (no redirects followed) and return the response before reading its body.
+/// Errors start with a tag the error pages read: `[dns]`, `[timeout]`, `[cert]`, `[refused]`,
+/// `[proxy]` or `[net]`. `timeout` covers the whole transfer (long for downloads).
 pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     if h3_known(url) {
         match client(true).and_then(|c| start(c, true, method, url, headers, body, timeout)) {
@@ -299,7 +285,6 @@ fn start(client: reqwest::blocking::Client, http3: bool, method: &str, url: &str
     Ok(Stream {
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or("").to_string(),
-        version: format!("{:?}", resp.version()),
         headers,
         body: resp,
     })

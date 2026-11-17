@@ -2,24 +2,6 @@
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Ironswift/0.1";
 
-/// Fetch a page (a top-level document) as text. Returns (final URL after redirects, body).
-pub fn fetch(url: &str) -> Result<(String, String), String> {
-    let r = load(url, None, None)?;
-    let text = decode_html(&r.body, r.header("content-type"));
-    Ok((r.url, text))
-}
-
-/// POST a form (application/x-www-form-urlencoded) as a page navigation.
-pub fn post_form(url: &str, body: &str) -> Result<(String, String), String> {
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        // Local files can't take a POST; show them as a GET with the data in the query.
-        return fetch(&format!("{}?{body}", url.split('?').next().unwrap_or(url)));
-    }
-    let r = load(url, Some(body), None)?;
-    let text = decode_html(&r.body, r.header("content-type"));
-    Ok((r.url, text))
-}
-
 /// Fetch something a page uses (stylesheet, script, image) as text. `page` is the page's URL,
 /// which decides whether cookies go along (only to the page's own site).
 pub fn fetch_sub(url: &str, page: &str) -> Result<(String, String), String> {

@@ -134,6 +134,11 @@ fn esc(s: &str) -> String {
 /// are off simply aren't in it.
 pub fn page(query: &str) -> String {
     let mut saved = false;
+    let mut cleared = String::new();
+    if query.trim_start_matches('?') == "clear_cache" {
+        let freed = crate::cache::clear();
+        cleared = format!("<p class=\"saved\">Cached files cleared ({:.1} MB freed).</p>", freed as f64 / 1_048_576.0);
+    }
     if query.contains("save=1") {
         let mut s = get();
         // Unchecked boxes are absent from a form submission.
@@ -172,7 +177,7 @@ input[type=text],input[type=number],select{{font-size:14px;padding:5px 8px}} inp
 .saved{{background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px}}
 button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:15px}}
 </style></head><body>
-<h1>Settings</h1><p class="sub">Saved on this computer only.</p>{saved}
+<h1>Settings</h1><p class="sub">Saved on this computer only.</p>{saved}{cleared}
 <form action="about:settings" method="get"><input type="hidden" name="save" value="1">
 <section><h2>Startup and search</h2>
 <div class="row field"><label>Home page</label><input type="text" name="home" value="{home}"></div>
@@ -190,10 +195,23 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row"><label><input type="checkbox" name="strip_tracking" value="1"{strip}> Remove tracking tags from links</label><p class="hint">utm_source, fbclid, gclid and similar.</p></div>
 <div class="row"><label><input type="checkbox" name="send_gpc" value="1"{gpc}> Send Global Privacy Control</label><p class="hint">Asks sites not to sell or share your data.</p></div>
 </section>
+<section><h2>Network</h2>
+<div class="row field"><label>Proxy</label><select name="proxy_mode">{proxy_opts}</select></div>
+<div class="row field"><label>Proxy address (for "Use this proxy")</label><input type="text" name="proxy_url" value="{proxy_url}" placeholder="http://proxy.example.com:8080 or socks5://127.0.0.1:1080"></div>
+<p class="hint" style="margin-left:0">"System settings" follows your desktop's proxy and the http_proxy / https_proxy / no_proxy variables. Secure sites are checked against your computer's certificate store.</p>
+<div class="row"><a href="about:settings?clear_cache">Clear cached files</a> <span class="hint">({cache_mb} MB saved so pages load faster)</span></div>
+</section>
 <button type="submit">Save settings</button></form>
 <p class="sub" style="margin-top:20px"><a href="about:history">History</a> · <a href="about:bookmarks">Bookmarks</a></p>
 </body></html>"#,
         saved = if saved { "<p class=\"saved\">Settings saved.</p>" } else { "" },
+        cleared = cleared,
+        proxy_opts = [("system", "System settings"), ("none", "No proxy"), ("manual", "Use this proxy")]
+            .iter()
+            .map(|(k, n)| format!("<option value=\"{k}\"{}>{n}</option>", if *k == s.proxy_mode { " selected" } else { "" }))
+            .collect::<String>(),
+        proxy_url = esc(&s.proxy_url),
+        cache_mb = format!("{:.1}", crate::cache::size() as f64 / 1_048_576.0),
         home = esc(&s.home),
         engines = engines,
         restore = check(s.restore_tabs),

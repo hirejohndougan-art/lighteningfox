@@ -700,12 +700,44 @@ fn load(url: &str) -> Page {
 }
 
 fn error_page(url: &str, err: &str) -> String {
-    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;");
+    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let host = url::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_else(|| url.to_string());
+    let tag = err.strip_prefix('[').and_then(|r| r.split_once(']')).map_or("net", |(t, _)| t);
+    let (title, explain, tips): (String, String, &[&str]) = match tag {
+        "dns" => (
+            "This site can't be found".into(),
+            format!("No address was found for <b>{}</b>.", esc(&host)),
+            &["Check the spelling of the address.", "Check that you're connected to the internet.", "The site may no longer exist."],
+        ),
+        "timeout" => (
+            "The site took too long to answer".into(),
+            format!("<b>{}</b> didn't respond in time.", esc(&host)),
+            &["Try again in a moment; the site may be busy.", "Check your internet connection."],
+        ),
+        "cert" => (
+            "This connection isn't secure".into(),
+            format!("<b>{}</b> sent a security certificate Ironswift can't trust, so the page wasn't loaded. Someone could be trying to read or change what you send.", esc(&host)),
+            &["If this is your own or your company's site, its certificate may have expired or not be installed.", "Don't enter passwords or payment details on this site."],
+        ),
+        "refused" => (
+            "The site refused to connect".into(),
+            format!("<b>{}</b> isn't accepting connections.", esc(&host)),
+            &["The site may be down or not running on this port.", "Try again later."],
+        ),
+        "proxy" => ("Couldn't connect through the proxy".into(), "The proxy server didn't let the request through.".into(), &["Check the proxy in Settings (Network)."]),
+        "type" => ("Ironswift can't show this file".into(), "This kind of file can't be shown in a tab.".into(), &[]),
+        _ => ("Couldn't load this page".into(), format!("Something went wrong loading <b>{}</b>.", esc(&host)), &["Check your internet connection.", "Try again with ↻."]),
+    };
+    let tips: String = tips.iter().map(|t| format!("<li>{t}</li>")).collect();
+    // The technical detail, without the tag.
+    let detail = err.split_once("] ").map_or(err, |(_, d)| d);
     format!(
-        "<html><body style='font-family:sans-serif;margin:60px;color:#333'><h1>Couldn't load this page</h1>\
-         <p><b>{}</b></p><p style='color:#a00'>{}</p></body></html>",
+        "<!DOCTYPE html><html><head><title>{title}</title></head><body style='font-family:sans-serif;margin:60px auto;max-width:640px;padding:0 24px;color:#334155'>\
+         <h1 style='color:#1f2937'>{title}</h1><p style='font-size:17px'>{explain}</p><ul style='line-height:1.7'>{tips}</ul>\
+         <p><a href=\"{}\">Try again</a> · <a href=\"about:settings\">Settings</a></p>\
+         <details><summary style='color:#64748b'>Details</summary><p style='color:#64748b;font-size:13px'>{}</p></details></body></html>",
         esc(url),
-        esc(err)
+        esc(detail)
     )
 }
 
