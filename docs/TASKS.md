@@ -147,6 +147,8 @@ Renders only 768px tall with 14 script errors (`crypto is not defined` was one) 
 are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
 first screenful and has no script errors of its own (ads and trackers missing is fine).
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+**Progress (2026-11-17, chat-opus-x1b):** module scripts run once per URL; `<a>` URL parts (hyperlink.js); ChildNode methods on text/comment nodes (childnode.js); custom properties shared in layers (cssvars.rs, NYT replay 6 GB → 1.4 GB); page height covers overflowing content and html/body overflow goes to the window (doc_extent.rs; WPT refs 440 → 461); Boa value-stack limit raised (React's commit finished); Date parsing fallbacks and English Intl.DateTimeFormat (datetime.js, masthead back). Script errors 14 → 1; whole front page renders. Recording workflow: secret scrubbing, `wait` input.
+**Still to do:** replay the `rec-x1b` recording made with `wait=300` (story images come from GraphQL fetched late; earlier recordings lack them); "Today's Paper" overlaps the "U.S." nav item; no border on the "free to read" box; the elections widget's Svelte hydration fails ("not a DOM node", below the first screen). Chrome's screenshot in new recordings is NYT's robot-block page: compare with `x1-data2`'s.
 
 ### X1c. Make The Guardian render like Chrome
 **Status:** done (chat-opus-x5 2026-11-17 16:40)
