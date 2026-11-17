@@ -319,6 +319,27 @@ pub fn protect_site_renderer() -> bool {
     true
 }
 
+/// Lock down a media decoder (`ffmpeg`/`ffprobe` started for a site process, media_broker.rs),
+/// which parses untrusted files: no network, no writing, read-only system files. It may still
+/// start a program, once: itself (`--media-decoder` runs this, then the decoder).
+pub fn protect_media_decoder() -> bool {
+    if std::env::var("IRONSWIFT_NO_SANDBOX").is_ok_and(|v| v == "1") {
+        return true;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let read: Vec<String> = ["/usr", "/lib", "/lib64", "/lib32", "/etc", "/opt", "/proc/self", "/sys/devices/system/cpu", "/dev/urandom", "/dev/null", "/nix/store"].iter().map(|s| s.to_string()).collect();
+        if let Err(e) = imp::landlock(&read, &[]) {
+            log!("[sandbox] media decoder: {e}; continuing with the system-call filter only");
+        }
+        if let Err(e) = imp::seccomp(false, true) {
+            log!("[sandbox] media decoder: {e}");
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     /// Run the frame renderer's lockdown in a child process and check what it can still do.
@@ -353,6 +374,40 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
         assert!(text.contains("SITE-CHILD-OK"), "{text}");
+    }
+
+    /// A media decoder can't write files or reach the network, but can read system files and
+    /// start the decoder program.
+    #[test]
+    fn media_decoder_lockdown() {
+        let exe = std::env::current_exe().unwrap();
+        if std::env::var("IRONSWIFT_SANDBOX_CHILD").is_ok() {
+            return;
+        }
+        let out = std::process::Command::new(exe)
+            .args(["--exact", "sandbox::tests::media_child_body", "--nocapture", "--include-ignored"])
+            .env("IRONSWIFT_SANDBOX_CHILD", "1")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        assert!(text.contains("MEDIA-CHILD-OK"), "{text}");
+    }
+
+    #[test]
+    #[ignore]
+    fn media_child_body() {
+        if std::env::var("IRONSWIFT_SANDBOX_CHILD").is_err() {
+            return;
+        }
+        let tmp = std::env::temp_dir().join(format!("ironswift-media-sbx-{}", std::process::id()));
+        assert!(super::protect_media_decoder());
+        assert!(std::fs::write(&tmp, b"x").is_err(), "writing should be refused");
+        assert!(std::net::TcpStream::connect("127.0.0.1:9").is_err());
+        assert!(std::net::UdpSocket::bind("127.0.0.1:0").is_err(), "UDP should be refused");
+        assert!(std::fs::read_dir("/usr").is_ok(), "system files stay readable");
+        assert!(std::process::Command::new("/bin/true").status().is_ok_and(|s| s.success()), "the decoder can be started");
+        println!("MEDIA-CHILD-OK");
     }
 
     #[test]

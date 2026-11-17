@@ -131,6 +131,7 @@ mod svg_inline;
 mod svg_hit;
 mod svg_foreign;
 mod site_snapshot;
+mod media_broker;
 mod pseudo;
 mod textedit;
 mod transform;
@@ -1363,6 +1364,7 @@ fn browser_main() {
                 }
                 return;
             }
+            "--media-decoder" => media_broker::run_decoder(&args[i + 1..]),
             "--frame-renderer" => {
                 isolated::serve(args.get(i + 1).map_or("", String::as_str));
                 return;

@@ -258,15 +258,17 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     // processes would otherwise never write it, and pages would lose their system fonts).
     let _ = crate::sysfonts::index();
     let exe = std::env::current_exe().ok()?;
-    let mut child = std::process::Command::new(exe)
-        .arg("--site-renderer")
-        .arg(site)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .map_err(|e| log!("[process] couldn't start the process for {site}: {e}"))
-        .ok()?;
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("--site-renderer").arg(site).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::inherit());
+    // A socket for asking the browser to start media decoders (media_broker.rs).
+    let media = crate::media_broker::pair();
+    if let Some((_, child_end)) = &media {
+        crate::media_broker::pass_to(&mut cmd, child_end);
+    }
+    let mut child = cmd.spawn().map_err(|e| log!("[process] couldn't start the process for {site}: {e}")).ok()?;
+    if let Some((mine, _child_end)) = media {
+        crate::media_broker::serve(mine, site.to_string());
+    }
     let stdin = Arc::new(Mutex::new(child.stdin.take()?));
     let mut stdout = child.stdout.take()?;
     let key = NEXT_PROC.fetch_add(1, Ordering::SeqCst);

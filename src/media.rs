@@ -25,7 +25,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use crate::media_broker::{Input, Proc, Prog};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, OnceLock};
@@ -66,12 +67,20 @@ fn ffprobe() -> Option<&'static Path> {
 }
 
 /// Can media play at all here?
+pub(crate) fn ffmpeg_path() -> Option<PathBuf> {
+    ffmpeg().map(Path::to_path_buf)
+}
+
+pub(crate) fn ffprobe_path() -> Option<PathBuf> {
+    ffprobe().map(Path::to_path_buf)
+}
+
 pub fn available() -> bool {
     ffmpeg().is_some() && ffprobe().is_some()
 }
 
 /// The program that takes raw 16-bit stereo sound on its standard input and plays it.
-fn sound_sink() -> Option<Command> {
+pub(crate) fn sound_sink() -> Option<Command> {
     static S: OnceLock<Option<(PathBuf, Vec<String>)>> = OnceLock::new();
     let (prog, args) = S
         .get_or_init(|| {
@@ -87,10 +96,6 @@ fn sound_sink() -> Option<Command> {
     let mut c = Command::new(prog);
     c.args(args);
     Some(c)
-}
-
-fn quiet(c: &mut Command) -> &mut Command {
-    c.stdin(Stdio::null()).stderr(Stdio::null())
 }
 
 // ---------------------------------------------------------------- probing
@@ -159,16 +164,13 @@ pub fn parse_probe(out: &str) -> Option<Info> {
     (info.video || info.audio).then_some(info)
 }
 
-fn probe(file: &Path) -> Result<Info, String> {
-    let prog = ffprobe().ok_or("ffprobe isn't installed")?;
-    let out = quiet(Command::new(prog).args(["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,avg_frame_rate,r_frame_rate,duration", "-of", "compact"]).arg(file))
-        .stdout(Stdio::piped())
-        .output()
-        .map_err(|e| format!("ffprobe: {e}"))?;
-    parse_probe(&String::from_utf8_lossy(&out.stdout)).ok_or_else(|| "not a media file this browser can play".to_string())
+fn probe(src: &Src) -> Result<Info, String> {
+    let mut args: Vec<String> = ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,avg_frame_rate,r_frame_rate,duration", "-of", "compact"].map(String::from).to_vec();
+    args.push(src.path());
+    let p = crate::media_broker::spawn(Prog::Ffprobe, &args, src.input_whole(), true, || Some(Command::new(ffprobe()?))).ok_or("ffprobe isn't installed")?;
+    parse_probe(&String::from_utf8_lossy(&p.output())).ok_or_else(|| "not a media file this browser can play".to_string())
 }
 
-/// The size frames are decoded at: the video's own, scaled down to at most MAX_FRAME_W wide.
 pub fn frame_size(info: &Info) -> (u32, u32) {
     let (w, h) = (info.width.max(1), info.height.max(1));
     if w <= MAX_FRAME_W {
@@ -207,49 +209,96 @@ impl Drop for TempFile {
     }
 }
 
+/// Keep downloaded media where the decoders can read it: a temp file, or in memory in a site
+/// process (which can't write files; its decoders read it as their standard input).
+fn keep_download(bytes: &[u8]) -> std::io::Result<Stored> {
+    if crate::media_broker::remote_decoders() {
+        return Ok(Stored::Mem(Arc::new(crate::media_broker::mem_file(bytes)?)));
+    }
+    let file = TempFile(temp_path());
+    std::fs::write(&file.0, bytes)?;
+    Ok(Stored::Temp(file))
+}
+
 fn temp_path() -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
     std::env::temp_dir().join(format!("ironswift-media-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)))
 }
 
-/// Where a decoder reads the media: a downloaded file, or a Media Source Extensions
-/// SourceBuffer's segments, written into its standard input from media time `t` on.
+/// Where a decoder reads the media: a downloaded file (on disk, or in memory in a site
+/// process, which can't write files), or a Media Source Extensions SourceBuffer's segments,
+/// written into its standard input from media time `t` on.
 #[derive(Clone)]
 enum Src {
     File(PathBuf),
+    Mem(Arc<std::fs::File>),
     Feed(Arc<crate::mse::Feed>),
 }
 
-impl Src {
-    /// Add the input to an ffmpeg command line starting at media time `t`. A feed also
-    /// needs `feed_input` once the process is running.
-    fn input(&self, cmd: &mut Command, t: f64) {
+/// A downloaded media file: deleted when the element lets go of it.
+enum Stored {
+    Temp(TempFile),
+    Mem(Arc<std::fs::File>),
+}
+
+impl Stored {
+    fn src(&self) -> Src {
         match self {
-            Src::File(p) => {
-                cmd.args(["-ss", &format!("{:.3}", t.max(0.0)), "-i"]).arg(p);
-            }
+            Stored::Temp(t) => Src::File(t.0.clone()),
+            Stored::Mem(f) => Src::Mem(f.clone()),
+        }
+    }
+}
+
+impl Src {
+    /// The whole file's name for the decoder (an in-memory file is its standard input).
+    fn path(&self) -> String {
+        match self {
+            Src::File(p) => p.display().to_string(),
+            _ => "/dev/stdin".into(),
+        }
+    }
+
+    /// The decoder's standard input when it reads the whole file.
+    fn input_whole(&self) -> Input<'_> {
+        match self {
+            Src::Mem(f) => Input::File(f),
+            _ => Input::Null,
+        }
+    }
+
+    /// The ffmpeg arguments that read the input from media time `t`. A feed also needs
+    /// `feed_input` once the process is running.
+    fn input_args(&self, t: f64) -> Vec<String> {
+        match self {
+            Src::File(_) | Src::Mem(_) => vec!["-ss".into(), format!("{:.3}", t.max(0.0)), "-i".into(), self.path()],
             Src::Feed(f) => {
                 // On a pipe, -ss counts from the first segment written. (`-ss 0` on a WebM pipe
                 // holds every frame back until the input ends, so it's left out.) A small
                 // probe: the page may not have appended the next seconds yet.
                 let skip = t - f.start_for(t).unwrap_or(t);
                 // Frame threading holds a frame per thread back until more input comes.
-                cmd.args(["-probesize", "4096", "-analyzeduration", "0", "-thread_type", "slice"]);
+                let mut a: Vec<String> = ["-probesize", "4096", "-analyzeduration", "0", "-thread_type", "slice"].map(String::from).to_vec();
                 if skip > 0.001 {
-                    cmd.args(["-ss", &format!("{skip:.3}")]);
+                    a.extend(["-ss".into(), format!("{skip:.3}")]);
                 }
-                cmd.args(["-i", "-"]);
+                a.extend(["-i".into(), "-".into()]);
+                a
             }
         }
     }
 
-    /// The decoder's standard input: the feed's pipe, or nothing.
-    fn stdin(&self) -> Stdio {
-        if matches!(self, Src::Feed(_)) { Stdio::piped() } else { Stdio::null() }
+    /// The decoder's standard input: the feed's pipe, the in-memory file, or nothing.
+    fn input(&self) -> Input<'_> {
+        match self {
+            Src::Feed(_) => Input::Pipe,
+            Src::Mem(f) => Input::File(f),
+            Src::File(_) => Input::Null,
+        }
     }
 
     /// Start writing a feed into the running decoder; set the flag to stop.
-    fn feed_input(&self, child: &mut Child, t: f64) -> Option<Arc<AtomicBool>> {
+    fn feed_input(&self, child: &mut Proc, t: f64) -> Option<Arc<AtomicBool>> {
         let Src::Feed(f) = self else { return None };
         let stdin = child.stdin.take()?;
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -265,16 +314,15 @@ fn stop_feed(stop: &Option<Arc<AtomicBool>>) {
     }
 }
 
-fn kill(c: &mut Child) {
-    let _ = c.kill();
-    let _ = c.wait();
+fn kill(c: &mut Proc) {
+    c.kill();
 }
 
 type Frame = (f64, image::RgbaImage);
 
 /// An ffmpeg turning the video from time `start` on into RGBA frames, a few frames ahead.
 struct VideoDecoder {
-    child: Child,
+    child: Proc,
     rx: Receiver<Frame>,
     pending: Option<Frame>,
     fps: f64,
@@ -285,24 +333,10 @@ impl VideoDecoder {
     fn start(src: &Src, info: &Info, start: f64) -> Option<VideoDecoder> {
         let (w, h) = frame_size(info);
         let fps = info.fps.clamp(1.0, MAX_FPS);
-        let mut cmd = Command::new(ffmpeg()?);
-        cmd.args(["-nostdin", "-loglevel", "error"]);
-        src.input(&mut cmd, start);
-        let mut child = quiet(cmd.args([
-            "-an",
-            "-sn",
-            "-vf",
-            &format!("fps={fps},scale={w}:{h}"),
-            "-f",
-            "rawvideo",
-            "-pix_fmt",
-            "rgba",
-            "-",
-        ]))
-        .stdin(src.stdin())
-        .stdout(Stdio::piped())
-        .spawn()
-        .ok()?;
+        let mut args: Vec<String> = vec!["-nostdin".into(), "-loglevel".into(), "error".into()];
+        args.extend(src.input_args(start));
+        args.extend(["-an", "-sn", "-vf", &format!("fps={fps},scale={w}:{h}"), "-f", "rawvideo", "-pix_fmt", "rgba", "-"].map(String::from));
+        let mut child = crate::media_broker::spawn(Prog::Ffmpeg, &args, src.input(), true, || Some(Command::new(ffmpeg()?)))?;
         let feed = src.feed_input(&mut child, start);
         let mut out = child.stdout.take()?;
         let (tx, rx) = mpsc::sync_channel::<Frame>(3);
@@ -350,7 +384,7 @@ impl VideoDecoder {
 impl VideoDecoder {
     /// Has the decoder run out (end of its input) with nothing left to show?
     fn finished(&mut self) -> bool {
-        self.pending.is_none() && matches!(self.child.try_wait(), Ok(Some(_))) && matches!(self.rx.try_recv(), Err(mpsc::TryRecvError::Disconnected))
+        self.pending.is_none() && self.child.exited() && matches!(self.rx.try_recv(), Err(mpsc::TryRecvError::Disconnected))
     }
 }
 
@@ -364,28 +398,24 @@ impl Drop for VideoDecoder {
 /// An ffmpeg decoding the sound from `start` on, piped (with the volume applied) into the
 /// sound server's player.
 struct SoundOut {
-    decoder: Child,
-    sink: Child,
+    decoder: Proc,
+    sink: Proc,
     feed: Option<Arc<AtomicBool>>,
 }
 
 impl SoundOut {
     fn start(src: &Src, start: f64, rate: f64, volume: Arc<AtomicU32>) -> Option<SoundOut> {
-        let mut sink = sound_sink()?.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().ok()?;
-        let mut cmd = Command::new(ffmpeg()?);
-        cmd.args(["-nostdin", "-loglevel", "error"]);
-        src.input(&mut cmd, start);
-        cmd.args(["-vn", "-sn"]);
+        let mut sink = crate::media_broker::spawn(Prog::Sink, &[], Input::Pipe, false, sound_sink)?;
+        let mut args: Vec<String> = vec!["-nostdin".into(), "-loglevel".into(), "error".into()];
+        args.extend(src.input_args(start));
+        args.extend(["-vn".into(), "-sn".into()]);
         if let Some(af) = atempo(rate) {
-            cmd.args(["-af", &af]);
+            args.extend(["-af".into(), af]);
         }
-        cmd.args(["-f", "s16le", "-ac", "2", "-ar", &RATE.to_string(), "-"]);
-        let mut decoder = match quiet(&mut cmd).stdin(src.stdin()).stdout(Stdio::piped()).spawn() {
-            Ok(c) => c,
-            Err(_) => {
-                kill(&mut sink);
-                return None;
-            }
+        args.extend(["-f", "s16le", "-ac", "2", "-ar", &RATE.to_string(), "-"].map(String::from));
+        let Some(mut decoder) = crate::media_broker::spawn(Prog::Ffmpeg, &args, src.input(), true, || Some(Command::new(ffmpeg()?))) else {
+            kill(&mut sink);
+            return None;
         };
         let feed = src.feed_input(&mut decoder, start);
         let (Some(mut pcm), Some(mut play)) = (decoder.stdout.take(), sink.stdin.take()) else {
@@ -439,7 +469,7 @@ pub fn apply_volume(pcm: &mut [u8], v: f32) {
 // ---------------------------------------------------------------- per-element state
 
 enum Loaded {
-    Ok(TempFile, Info),
+    Ok(Stored, Info),
     Failed(u8, String),
 }
 
@@ -464,7 +494,7 @@ const F_ERROR: u32 = 32;
 struct Media {
     load: Option<Receiver<Loaded>>,
     poster_rx: Option<Receiver<Option<image::RgbaImage>>>,
-    file: Option<TempFile>,
+    file: Option<Stored>,
     info: Option<Info>,
     error: Option<(u8, String)>,
     poster: Option<Arc<image::RgbaImage>>,
@@ -499,7 +529,7 @@ impl Media {
                 match done {
                     Loaded::Ok(file, info) => {
                         if info.video {
-                            self.video = VideoDecoder::start(&Src::File(file.0.clone()), &info, 0.0);
+                            self.video = VideoDecoder::start(&file.src(), &info, 0.0);
                             self.waiting_for = Some(0.0);
                         }
                         self.file = Some(file);
@@ -535,7 +565,7 @@ impl Media {
     fn sources(&self) -> (Option<Src>, Option<Src>) {
         match (&self.feeds, &self.file) {
             (Some((v, a)), _) => (v.clone().map(Src::Feed), a.clone().map(Src::Feed)),
-            (None, Some(f)) => (Some(Src::File(f.0.clone())), Some(Src::File(f.0.clone()))),
+            (None, Some(f)) => (Some(f.src()), Some(f.src())),
             (None, None) => (None, None),
         }
     }
@@ -684,16 +714,13 @@ fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
             let done = match crate::net::fetch_sub_bytes(&url, &page, crate::security::Dest::Media) {
                 Err(e) => Loaded::Failed(2, e),
                 Ok((_, bytes)) if bytes.len() > MAX_BYTES => Loaded::Failed(2, "too big".into()),
-                Ok((_, bytes)) => {
-                    let file = TempFile(temp_path());
-                    match std::fs::write(&file.0, &bytes) {
-                        Err(e) => Loaded::Failed(2, e.to_string()),
-                        Ok(()) => match probe(&file.0) {
-                            Ok(info) => Loaded::Ok(file, info),
-                            Err(e) => Loaded::Failed(4, e),
-                        },
-                    }
-                }
+                Ok((_, bytes)) => match keep_download(&bytes) {
+                    Err(e) => Loaded::Failed(2, e.to_string()),
+                    Ok(file) => match probe(&file.src()) {
+                        Ok(info) => Loaded::Ok(file, info),
+                        Err(e) => Loaded::Failed(4, e),
+                    },
+                },
             };
             let _ = tx.send(done);
         })
@@ -1151,22 +1178,27 @@ mod tests {
             eprintln!("this ffmpeg can't encode VP8; skipping");
             return;
         }
-        let info = probe(&file.0).expect("probe");
-        assert!(info.video && !info.audio);
-        assert_eq!((info.width, info.height), (64, 48));
-        assert!((info.duration - 2.0).abs() < 0.2, "{}", info.duration);
-        let mut dec = VideoDecoder::start(&Src::File(file.0.clone()), &info, 1.0).expect("decoder");
-        let t0 = std::time::Instant::now();
-        let frame = loop {
-            if let Some(f) = dec.take_due(1.0) {
-                break f;
-            }
-            assert!(t0.elapsed().as_secs() < 20, "no frame");
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        };
-        assert!((frame.0 - 1.0).abs() < 1e-9);
-        let p = frame.1.get_pixel(32, 24);
-        assert!(p[0] > 200 && p[1] < 60 && p[2] < 60, "{p:?}");
+        // From the file on disk, and from an in-memory copy read as the decoder's standard
+        // input (how site processes keep downloads: media_broker.rs).
+        let mem = Src::Mem(Arc::new(crate::media_broker::mem_file(&std::fs::read(&file.0).unwrap()).unwrap()));
+        for src in [Src::File(file.0.clone()), mem] {
+            let info = probe(&src).expect("probe");
+            assert!(info.video && !info.audio);
+            assert_eq!((info.width, info.height), (64, 48));
+            assert!((info.duration - 2.0).abs() < 0.2, "{}", info.duration);
+            let mut dec = VideoDecoder::start(&src, &info, 1.0).expect("decoder");
+            let t0 = std::time::Instant::now();
+            let frame = loop {
+                if let Some(f) = dec.take_due(1.0) {
+                    break f;
+                }
+                assert!(t0.elapsed().as_secs() < 20, "no frame");
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            assert!((frame.0 - 1.0).abs() < 1e-9);
+            let p = frame.1.get_pixel(32, 24);
+            assert!(p[0] > 200 && p[1] < 60 && p[2] < 60, "{p:?}");
+        }
     }
 
     #[test]
