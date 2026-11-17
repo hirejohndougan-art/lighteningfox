@@ -161,3 +161,6 @@ settings-cookies-blocked = ‏{ $site } אינו יכול עוד להשתמש ב
 settings-cookies-session-set = העוגיות של { $site } יימחקו בסגירת Ironswift.
 settings-cookies-default = ‏{ $site } כפוף לכללי העוגיות הרגילים.
 settings-permissions-reset = ההרשאות של { $site } אופסו.
+
+## Find bar label
+find-label = חיפוש

@@ -247,6 +247,36 @@ fn button_at(x: f32, y: f32) -> Option<usize> {
     }
     BUTTONS.iter().position(|(bx, _)| x >= *bx && x < bx + BTN_W)
 }
+/// Everything in the browser UI the keyboard can reach (uikeys.rs), in order, as boxes in
+/// left-to-right UI coordinates: a permission prompt's buttons, back, forward, reload, the
+/// downloads chip, the star, the bookmarks, the tabs and the new-tab button.
+fn ui_targets(fonts: &Fonts, w: f32, tabs: usize, bookmarks: &[library::Bookmark], downloads: bool, prompt: Option<&permissions::Prompt>) -> Vec<uikeys::Target> {
+    let mut t: Vec<uikeys::Target> = Vec::new();
+    if let Some(p) = prompt {
+        t.extend(p.button_boxes().into_iter().map(|b| (b.0, b.1, b.2, b.3)));
+    }
+    for (bx, _) in BUTTONS {
+        t.push((bx, TAB_H + 4.0, BTN_W, TOOL_H - 8.0));
+    }
+    if downloads {
+        t.push((w - 8.0 - STAR_W - DL_W, TAB_H + 4.0, DL_W, TOOL_H - 8.0));
+    }
+    t.push((w - 8.0 - STAR_W, TAB_H + 4.0, STAR_W, TOOL_H - 8.0));
+    if !bookmarks.is_empty() {
+        let rects = bookmark_rects(fonts, w, bookmarks);
+        let more = rects.len() < bar_items(bookmarks).len();
+        t.extend(rects.into_iter().map(|(x, cw)| (x, TOOL_BOTTOM as f32 + 2.0, cw, BOOK_H - 6.0)));
+        if more {
+            t.push((w - 8.0 - BOOK_MORE_W, TOOL_BOTTOM as f32 + 2.0, BOOK_MORE_W, BOOK_H - 6.0));
+        }
+    }
+    let rects = tab_rects(w, tabs);
+    let end = rects.last().map_or(6.0, |&(tx, tw)| tx + tw);
+    t.extend(rects.into_iter().map(|(tx, tw)| (tx, 5.0, (tw - 2.0).max(1.0), TAB_H - 5.0)));
+    t.push((end + 4.0, 7.0, NEW_TAB_W, TAB_H - 12.0));
+    t
+}
+
 /// What's under the mouse in the tab strip.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum TabHit {
@@ -1909,6 +1939,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // becomes a click at its middle (window coordinates) on the next mouse pass.
     let mut focus_visible = false;
     let mut key_click: Option<(f32, f32)> = None;
+    // Keyboard focus in the browser UI (an index into ui_targets), and where the mouse was
+    // last frame (menus follow the mouse only when it moves, so arrow keys can drive them).
+    let mut ui_focus: Option<usize> = None;
+    let mut last_mouse = (f32::NAN, f32::NAN);
     let mut dropdown: Option<Dropdown> = None;
     // A form control's validation message, shown after a blocked submission.
     let mut bubble: Option<formui::Bubble> = None;
@@ -2524,17 +2558,77 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if r.changed || r.moved || r.enter {
                 dirty = true;
             }
-            if escape {
+            if escape || presses.iter().any(|p| p.key == Key::F6) {
                 editing = false;
                 address = page.url.clone();
                 suggestions.clear();
                 dirty = true;
+                // F6 goes on from the address bar to the toolbar.
+                if !escape {
+                    ui_focus = Some(0);
+                }
             }
         } else if !finding {
             stop_key = escape;
             for p in &presses {
                 let (key, ctrl, alt) = (p.key, p.ctrl, p.alt);
                 let before = scroll;
+                // An open menu or downloads panel takes the arrow keys, Enter and Space.
+                if ctx_menu.is_some() || dl_panel.is_some() {
+                    let (rows, hover, center) = match (&ctx_menu, &dl_panel) {
+                        (Some(m), _) => (m.actionable(), m.hover, m.hover.and_then(|r| m.row_center(r))),
+                        (None, Some(m)) => (m.actionable(), m.hover, m.hover.and_then(|r| m.row_center(r))),
+                        _ => (Vec::new(), None, None),
+                    };
+                    let moved = match key {
+                        Key::Down => Some(uikeys::menu_step(&rows, hover, 1)),
+                        Key::Up => Some(uikeys::menu_step(&rows, hover, -1)),
+                        Key::Home => Some(uikeys::menu_step(&rows, None, 1)),
+                        Key::End => Some(uikeys::menu_step(&rows, None, -1)),
+                        _ => None,
+                    };
+                    if let Some(h) = moved {
+                        if let Some(m) = ctx_menu.as_mut() {
+                            m.hover = h;
+                        } else if let Some(m) = dl_panel.as_mut() {
+                            m.hover = h;
+                        }
+                        dirty = true;
+                        continue;
+                    }
+                    if matches!(key, Key::Enter | Key::NumPadEnter | Key::Space) {
+                        key_click = center;
+                        continue;
+                    }
+                }
+                // Keyboard focus in the toolbar (reached with F6).
+                if let Some(i) = ui_focus {
+                    let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), perm_queue.first());
+                    let i = i.min(targets.len().saturating_sub(1));
+                    match key {
+                        Key::Right | Key::Left | Key::Tab => {
+                            // "Next" goes the way the UI reads.
+                            let forward = match key {
+                                Key::Tab => !p.shift,
+                                Key::Right => !rtl::on(),
+                                _ => rtl::on(),
+                            };
+                            ui_focus = uikeys::step(Some(i), targets.len(), forward);
+                        }
+                        Key::Enter | Key::NumPadEnter | Key::Space => {
+                            if let Some(&t) = targets.get(i) {
+                                key_click = Some(uikeys::click_point(t, w as f32));
+                            }
+                        }
+                        Key::Escape | Key::F6 => {
+                            ui_focus = None;
+                            focus_visible = focused.is_some();
+                        }
+                        _ => {}
+                    }
+                    dirty = true;
+                    continue;
+                }
                 // Keys for the focused control come first.
                 if let Some(f) = focused {
                     let kind = js::with_dom(|d| forms::control(d, f));
@@ -2679,6 +2773,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         dirty = true;
                     }
                     Key::Backspace => navigate = Some(Go::Back),
+                    // Shift+F10 or the Menu key: the right-click menu for the focused element
+                    // (or the page), ready for the arrow keys.
+                    Key::Menu | Key::F10 if key == Key::Menu || p.shift => {
+                        let at = focused
+                            .and_then(|f| js::with_dom(|d| keynav::element_rect(&lay, d, f)))
+                            .map(|(r, fixed)| keynav::center_on_screen(r, fixed, bar_h() as f32, scroll))
+                            .unwrap_or((40.0, bar_h() as f32 + 40.0));
+                        let mut m = context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), at.0, at.1, at.1 - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32);
+                        m.hover = uikeys::menu_step(&m.actionable(), None, 1);
+                        ctx_menu = Some(m);
+                        dirty = true;
+                    }
                     Key::Left if alt => navigate = Some(Go::Back),
                     Key::Right if alt => navigate = Some(Go::Forward),
                     _ => {}
@@ -2763,7 +2869,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 || (editing && !suggestions.is_empty() && my < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H)
                 || folder_menu.is_some()
                 || perm_queue.first().is_some_and(|p| p.contains(w as f32 - mx, my));
-            let mx = if over_ui && synthetic.is_none() { rtl::ui_x(mx, w as f32) } else { mx };
+            let mx = if over_ui { rtl::ui_x(mx, w as f32) } else { mx };
+            // Menus follow the mouse only when it moves (so arrow keys can drive them); a real
+            // click ends keyboard focus in the toolbar.
+            let mouse_moved = (mx, my) != last_mouse;
+            last_mouse = (mx, my);
+            if down && !was_down && synthetic.is_none() && ui_focus.take().is_some() {
+                dirty = true;
+            }
             let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
                 sugg_hover = sh;
@@ -2872,7 +2985,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 dirty = true;
             }
             for (open, m) in [(ctx_menu.is_some(), 0), (dl_panel.is_some(), 1)] {
-                if !open {
+                if !open || !(mouse_moved || down) {
                     continue;
                 }
                 let row = if m == 0 { ctx_menu.as_ref().unwrap().row_at(mx, my) } else { dl_panel.as_ref().unwrap().row_at(mx, my) };
@@ -3823,6 +3936,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 contrast::recolor_rect(&mut canvas, 0, 0, w, bar_h());
                 canvas.buf.clone()
             });
+            if let Some(i) = ui_focus {
+                let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), perm_queue.first());
+                if let Some(&t) = targets.get(i.min(targets.len().saturating_sub(1))) {
+                    uikeys::draw_ring(&mut canvas, t);
+                }
+            }
             if let Some(menu) = &folder_menu {
                 rtl::begin(&mut canvas);
                 draw_folder_menu(&mut canvas, fonts, menu, &bm_list);

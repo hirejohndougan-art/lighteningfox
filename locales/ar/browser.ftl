@@ -163,3 +163,6 @@ settings-cookies-blocked = لم يعد بإمكان { $site } استخدام م�
 settings-cookies-session-set = ستُحذف ملفات تعريف الارتباط لـ { $site } عند إغلاق Ironswift.
 settings-cookies-default = يتبع { $site } القواعد العادية لملفات تعريف الارتباط.
 settings-permissions-reset = أُعيد ضبط أذونات { $site }.
+
+## Find bar label
+find-label = بحث

@@ -167,3 +167,6 @@ settings-cookies-blocked = { $site } ya no puede usar cookies (se borraron las s
 settings-cookies-session-set = Las cookies de { $site } se borrarán al cerrar Ironswift.
 settings-cookies-default = { $site } sigue las reglas normales de cookies.
 settings-permissions-reset = Permisos de { $site } restablecidos.
+
+## Find bar label
+find-label = Buscar

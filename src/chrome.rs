@@ -330,7 +330,7 @@ impl Find {
         let y = h - FIND_H;
         canvas.fill_rect(0.0, y, w, FIND_H, Color::rgb(236, 236, 240));
         canvas.fill_rect(0.0, y, w, 1.0, Color::rgb(200, 200, 205));
-        canvas.draw_text(fonts, 12.0, y + 25.0, "Find", font::REGULAR, 13.0, Color::rgb(70, 70, 80));
+        canvas.draw_text(fonts, 12.0, y + 25.0, &crate::i18n::t("find-label"), font::REGULAR, 13.0, Color::rgb(70, 70, 80));
         let fx = 52.0;
         let fw = (w * 0.4).clamp(180.0, 420.0);
         let none = !self.query.is_empty() && self.matches.is_empty();
