@@ -50,3 +50,11 @@ Full runs on the 2-core build machine. Each row is one change in `vendor/boa`.
 | Change | Richards | DeltaBlue | Crypto | RayTrace | EarleyBoyer | RegExp | Splay | NavierStokes | Score |
 |---|---|---|---|---|---|---|---|---|---|
 | Boa 0.22.0 as released | 139 | 127 | 150 | 220 | 269 | 38.5 | 632 | 366 | 231 |
+| Boa 0.22.0 as released (rerun 2026-11-17 04:20, same session as next row) | 126 | 121 | 162 | 230 | 248 | 37.4 | 548 | 317 | 217 |
+| Batch M runtime changes 1–7 + parser/compiler changes (`vendor/boa/IRONSWIFT.md`) | 170 | 158 | 152 | 237 | 292 | 38.3 | 544 | 384 | 238 |
+
+Run-to-run noise on this machine is about ±10% per benchmark, so compare rows from the same
+session. Instruction counts (valgrind, in `vendor/boa/IRONSWIFT.md`) are steadier: every
+benchmark now does 2–15% less work than stock. SplayLatency, which scores GC pauses, was
+1093 vs 1145 stock: the bigger GC heap (change 1) makes each pause a little longer. A
+generational or incremental collector is the fix if pauses become a problem on real pages.
