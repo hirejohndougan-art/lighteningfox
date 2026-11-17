@@ -410,7 +410,7 @@ out as a box positioned over the SVG. Check with `tests/inline-svg.html` and new
 screenshot tests the same unless more correct.
 
 ### X19. Layout memory: incremental box tree, shared cached items
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 15:10
 **After:** —
 **Checklist:** none
 **Files:** `src/boxtree.rs`, `src/relayout.rs`, `src/layout.rs` (the parts that call them)
