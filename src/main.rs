@@ -1,10 +1,10 @@
-//! Swiftiron — a web browser engine written from scratch in Rust.
+//! Ironswift — a web browser engine written from scratch in Rust.
 //!
 //! Pipeline: fetch -> HTML parse (DOM) -> CSS parse -> style cascade -> layout -> paint.
 //!
 //! Usage:
-//!   swiftiron [URL or file]                  open a window
-//!   swiftiron URL --png out.png [--width N]  render to an image (no window needed)
+//!   ironswift [URL or file]                  open a window
+//!   ironswift URL --png out.png [--width N]  render to an image (no window needed)
 
 /// Print a message to the terminal and keep it in the debug log (about:log).
 macro_rules! log {
@@ -299,9 +299,9 @@ fn load_session() -> Option<(Vec<(String, String)>, usize)> {
     })
 }
 
-/// How long a background tab may go unseen before it sleeps (SWIFTIRON_TAB_SLEEP_SECONDS overrides).
+/// How long a background tab may go unseen before it sleeps (IRONSWIFT_TAB_SLEEP_SECONDS overrides).
 fn sleep_after() -> Option<std::time::Duration> {
-    if let Some(secs) = std::env::var("SWIFTIRON_TAB_SLEEP_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()) {
+    if let Some(secs) = std::env::var("IRONSWIFT_TAB_SLEEP_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()) {
         return Some(std::time::Duration::from_secs(secs));
     }
     let m = settings::get().sleep_minutes;
@@ -347,7 +347,7 @@ const START_PAGE: &str = include_str!("start.html");
 /// The start page, with the app icon put in as a data: URL.
 fn start_page() -> String {
     use base64::Engine;
-    let icon = base64::engine::general_purpose::STANDARD.encode(include_bytes!("../assets/icon/png/swiftiron-128.png"));
+    let icon = base64::engine::general_purpose::STANDARD.encode(include_bytes!("../assets/icon/png/ironswift-128.png"));
     START_PAGE.replace("{{ICON}}", &format!("data:image/png;base64,{icon}"))
 }
 
@@ -716,7 +716,7 @@ fn main() {
         i += 1;
     }
     let rss = || std::fs::read_to_string("/proc/self/statm").ok().and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0) * 4 / 1024;
-    let probe = std::env::var("SWIFTIRON_MEM_PROBE").is_ok();
+    let probe = std::env::var("IRONSWIFT_MEM_PROBE").is_ok();
     if probe {
         log!("[mem] start: {} MB", rss());
     }
@@ -1014,7 +1014,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         None if explicit => start,
         None => &home,
     };
-    let mut window = Window::new("Swiftiron", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
+    let mut window = Window::new("Ironswift", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
             log!("Could not open a window: {e}");
             std::process::exit(1);
@@ -1065,9 +1065,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // Bumped whenever the layout is replaced: the stored page tiles are then out of date.
     let mut page_version: u64 = 1;
     let mut page_tiles = tiles::PageTiles::default();
-    let use_tiles = std::env::var("SWIFTIRON_TILES").map_or(true, |v| v != "0");
-    // SWIFTIRON_FRAME_STATS=1: print how long drawing takes, every 60 frames.
-    let frame_stats = std::env::var("SWIFTIRON_FRAME_STATS").is_ok_and(|v| v == "1");
+    let use_tiles = std::env::var("IRONSWIFT_TILES").map_or(true, |v| v != "0");
+    // IRONSWIFT_FRAME_STATS=1: print how long drawing takes, every 60 frames.
+    let frame_stats = std::env::var("IRONSWIFT_FRAME_STATS").is_ok_and(|v| v == "1");
     let mut draw_times: Vec<f64> = Vec::new();
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
@@ -1078,7 +1078,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
     let mut dropdown: Option<Dropdown> = None;
-    window.set_title(&format!("{} — Swiftiron", if page.title.is_empty() { &page.url } else { &page.title }));
+    window.set_title(&format!("{} — Ironswift", if page.title.is_empty() { &page.url } else { &page.title }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
     // (its own slot holds None).
@@ -1176,7 +1176,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
             scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
-            window.set_title(&format!("{} — Swiftiron", page.label()));
+            window.set_title(&format!("{} — Ironswift", page.label()));
             dirty = true;
         }};
     }
@@ -1957,7 +1957,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             navigate = None;
             loading = None;
             address = page.url.clone();
-            window.set_title(&format!("{} — Swiftiron", if page.title.is_empty() { &page.url } else { &page.title }));
+            window.set_title(&format!("{} — Ironswift", if page.title.is_empty() { &page.url } else { &page.title }));
             dirty = true;
         }
         // History changes from scripts (pushState, location.hash, history.back…).
@@ -2050,7 +2050,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             std::thread::spawn(move || {
                 let _ = tx.send((g, fetch_page(&t, post.as_deref())));
             });
-            window.set_title(&format!("Loading {target} — Swiftiron"));
+            window.set_title(&format!("Loading {target} — Ironswift"));
             address = target;
             editing = false;
             loading = Some(Loading { generation, kind, started: Instant::now() });
@@ -2103,7 +2103,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             // A URL with a #fragment opens scrolled to it.
             scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             address = page.url.clone();
-            window.set_title(&format!("{} — Swiftiron", page.label()));
+            window.set_title(&format!("{} — Ironswift", page.label()));
             dirty = true;
         }
         // Once a second: put long-unseen background tabs to sleep, and save the session.
@@ -2482,10 +2482,10 @@ mod screenshot_tests {
     #[test]
     fn pages_match_reference_images() {
         // Keep test runs out of the real profile (cookies, localStorage), starting fresh each time.
-        let profile = std::env::temp_dir().join(format!("swiftiron-test-{}", std::process::id()));
+        let profile = std::env::temp_dir().join(format!("ironswift-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&profile);
         // SAFETY: set before any other thread starts in this test.
-        unsafe { std::env::set_var("SWIFTIRON_PROFILE", &profile) };
+        unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
         let fonts = load_fonts().expect("fonts");
         let update = std::env::var("UPDATE_REFERENCES").is_ok();
         std::fs::create_dir_all("tests/reference").unwrap();

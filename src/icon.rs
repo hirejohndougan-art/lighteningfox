@@ -16,9 +16,9 @@ pub fn set_window_icon(window: &mut minifb::Window) {
         // _NET_WM_ICON: for each size, width, height, then ARGB pixels (one per 32-bit "long").
         let mut data: Vec<u64> = Vec::new();
         for bytes in [
-            &include_bytes!("../assets/icon/png/swiftiron-32.png")[..],
-            &include_bytes!("../assets/icon/png/swiftiron-64.png")[..],
-            &include_bytes!("../assets/icon/png/swiftiron-128.png")[..],
+            &include_bytes!("../assets/icon/png/ironswift-32.png")[..],
+            &include_bytes!("../assets/icon/png/ironswift-64.png")[..],
+            &include_bytes!("../assets/icon/png/ironswift-128.png")[..],
         ] {
             let Ok(img) = image::load_from_memory(bytes) else { continue };
             let img = img.to_rgba8();

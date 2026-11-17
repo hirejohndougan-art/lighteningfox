@@ -1,6 +1,6 @@
 # Conformance
 
-How closely Swiftiron follows the web standards, measured with the official test suites. These
+How closely Ironswift follows the web standards, measured with the official test suites. These
 are a baseline to measure progress against, not a finish line: each fix should move a number.
 
 ## Results (16 November 2026)
@@ -8,7 +8,7 @@ are a baseline to measure progress against, not a finish line: each fix should m
 | Suite | What it checks | Result |
 |---|---|---|
 | **Test262** | The JavaScript language (Boa 0.22, our engine) | **51,225 of 53,578 passed (95.6%)**; 572 failed, 1,781 skipped as features Boa hasn't built |
-| **HTML parsing** (WPT `html/syntax/parsing`, the html5lib tree-construction tests) | The exact tree built from tricky or broken markup | 376 of 1,944 exact (19.3%); 757 (38.9%) if comment and doctype nodes, which Swiftiron doesn't keep yet, are ignored |
+| **HTML parsing** (WPT `html/syntax/parsing`, the html5lib tree-construction tests) | The exact tree built from tricky or broken markup | 376 of 1,944 exact (19.3%); 757 (38.9%) if comment and doctype nodes, which Ironswift doesn't keep yet, are ignored |
 | **DOM** (WPT `dom/nodes`) | `Node`, `Element`, `Document` and friends | 1,234 of 5,457 subtests (22.6%) |
 | **CSS selectors** (WPT `css/selectors`) | Selector matching | 323 of 660 script subtests; 30 of 135 reference pages |
 | **Flexbox** (WPT `css/css-flexbox`) | Flex layout | 223 of 894 reference pages; 61 of 398 script subtests |

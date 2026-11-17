@@ -62,7 +62,7 @@ pub fn install_panic_hook() {
             .map(|l| l.iter().rev().take(200).rev().map(|(t, s)| format!("{} {s}", clock(*t))).collect())
             .unwrap_or_default();
         let report = format!(
-            "Swiftiron crash report\n\
+            "Ironswift crash report\n\
              version: {}\ntime (UTC seconds): {when}\nOS: {} {}\nthread: {thread}\n\n\
              What went wrong: {what}\nWhere: {place}\nPage: {}\n\n\
              Last log lines:\n{}\n\nStack:\n{trace}\n",

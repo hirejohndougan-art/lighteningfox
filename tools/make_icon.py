@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make Swiftiron's app icons from the artwork in assets/icon/swiftiron-source.jpg.
+"""Make Ironswift's app icons from the artwork in assets/icon/ironswift-source.jpg.
 
     python3 tools/make_icon.py
 
@@ -16,7 +16,7 @@ from PIL import Image, ImageFilter
 from scipy import ndimage
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-SRC = os.path.join(ROOT, "assets", "icon", "swiftiron-source.jpg")
+SRC = os.path.join(ROOT, "assets", "icon", "ironswift-source.jpg")
 OUT = os.path.join(ROOT, "assets", "icon")
 SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024]
 
@@ -72,10 +72,10 @@ def main():
             # Small sizes lose detail when shrunk: a light sharpen keeps the shape readable.
             im = im.filter(ImageFilter.UnsharpMask(radius=0.6, percent=60, threshold=1))
         if n < 1024:
-            im.save(os.path.join(OUT, "png", f"swiftiron-{n}.png"), optimize=True)
+            im.save(os.path.join(OUT, "png", f"ironswift-{n}.png"), optimize=True)
         images[n] = im
-    images[1024].save(os.path.join(OUT, "swiftiron.png"), optimize=True)
-    images[256].save(os.path.join(OUT, "swiftiron.ico"), sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
+    images[1024].save(os.path.join(OUT, "ironswift.png"), optimize=True)
+    images[256].save(os.path.join(OUT, "ironswift.ico"), sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
 
     # Preview: every size on light and dark backgrounds.
     shown = [16, 24, 32, 48, 64, 128, 256]

@@ -100,7 +100,7 @@ fn recordable(url: &str) -> bool {
 
 /// Record a visit (or update the title of the latest one).
 pub fn visit(url: &str, title: &str) {
-    if !recordable(url) || std::env::var("SWIFTIRON_PRIVATE").is_ok_and(|v| v == "1") {
+    if !recordable(url) || std::env::var("IRONSWIFT_PRIVATE").is_ok_and(|v| v == "1") {
         return;
     }
     let Ok(mut l) = lib().lock() else { return };

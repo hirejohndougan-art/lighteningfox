@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Swiftiron
+Name=Ironswift
 GenericName=Web Browser
 Comment=A light, fast web browser built from scratch in Rust
-Exec=swiftiron %u
-Icon=swiftiron
+Exec=ironswift %u
+Icon=ironswift
 Terminal=false
 StartupNotify=true
 Categories=Network;WebBrowser;

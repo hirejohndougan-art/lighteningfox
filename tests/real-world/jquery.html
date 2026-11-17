@@ -4,7 +4,7 @@
 <body><h1 id="title">jQuery test</h1><div class="box" id="a">Box A</div><div class="box">Box B</div><ul id="list"></ul><p id="out"></p>
 <script>
 $(function () {
-  $("#title").text("jQuery " + $.fn.jquery + " running in Swiftiron");
+  $("#title").text("jQuery " + $.fn.jquery + " running in Ironswift");
   $(".box").addClass("hl").first().append(" <b>(first, highlighted)</b>");
   ["one", "two", "three"].forEach((t) => $("<li>").text("item " + t).appendTo("#list"));
   $("#list li:last-child").css("color", "rebeccapurple");

@@ -1,6 +1,6 @@
 //! Conformance runners for the official test suites (run from the command line):
 //!
-//!   swiftiron --conformance-html5lib <dir with *.dat>
+//!   ironswift --conformance-html5lib <dir with *.dat>
 //!
 //! The html5lib tree-construction tests are the HTML-parsing part of the Web Platform Tests
 //! (wpt/html/syntax/parsing/resources/*.dat). Each test gives markup and the exact tree a
@@ -45,7 +45,7 @@ fn parse_dat(text: &str) -> Vec<Case> {
     out
 }
 
-/// Expected trees list doctype and comment nodes, which Swiftiron doesn't keep yet;
+/// Expected trees list doctype and comment nodes, which Ironswift doesn't keep yet;
 /// this removes them to measure the element/text structure alone.
 fn without_doctype_and_comments(tree: &str) -> String {
     tree.lines().filter(|l| !l.trim_start_matches('|').trim_start().starts_with("<!")).collect::<Vec<_>>().join("\n")

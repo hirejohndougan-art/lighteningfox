@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run Test262 (the official JavaScript conformance suite) against the Boa version Swiftiron uses.
+# Run Test262 (the official JavaScript conformance suite) against the Boa version Ironswift uses.
 # Downloads Boa and the Test262 commit that Boa pins into ./conformance (about 400 MB), builds
 # Boa's test runner, and prints the totals. Takes 20–40 minutes.
 set -e

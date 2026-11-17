@@ -1,4 +1,4 @@
-// Swiftiron's testharnessreport.js: replaces the WPT one in a local checkout so results
+// Ironswift's testharnessreport.js: replaces the WPT one in a local checkout so results
 // come out on the console, where tools/wpt.py reads them.
 setup({ output: false, explicit_timeout: true });
 add_completion_callback(function (tests, status) {

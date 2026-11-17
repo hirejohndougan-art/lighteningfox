@@ -1,6 +1,6 @@
-# Swiftiron architecture
+# Ironswift architecture
 
-Swiftiron is one Rust program (about 15,000 lines) that does every stage of showing a web page
+Ironswift is one Rust program (about 15,000 lines) that does every stage of showing a web page
 itself. External crates only handle plumbing: a window (`minifb`), HTTP and TLS (`ureq`/`rustls`),
 image and font decoding (`image`, `ab_glyph`, `wuff`), text shaping (`rustybuzz`), the GPU
 (`wgpu`) and the JavaScript language (`boa_engine`).
@@ -63,7 +63,7 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
 - **Navigation**: `Go::To/Back/Forward/Reload`, same-document moves (`#fragment`, `pushState`) and
   form submission (`forms.rs`).
 
-## Storage (all in the profile folder, `~/.local/share/swiftiron`)
+## Storage (all in the profile folder, `~/.local/share/ironswift`)
 
 | File | What |
 |---|---|
@@ -80,19 +80,19 @@ Files are written privately (mode 600) and atomically (write a temporary file, t
 
 | Variable | Effect |
 |---|---|
-| `SWIFTIRON_PROFILE=dir` | Use another profile folder (tests use a temporary one) |
-| `SWIFTIRON_PRIVATE=1` | Don't record history |
-| `SWIFTIRON_GPU=0` / `=1` | Turn GPU drawing off / allow software GPU adapters |
-| `SWIFTIRON_TILES=0` | Paint the whole page every frame (no tile cache) |
-| `SWIFTIRON_FRAME_STATS=1` | Print drawing times every 60 frames |
-| `SWIFTIRON_TAB_SLEEP_SECONDS=n` | Put background tabs to sleep after n seconds |
-| `SWIFTIRON_THIRD_PARTY_COOKIES=1`, `SWIFTIRON_KEEP_TRACKING_PARAMS=1` | Relax the privacy defaults |
-| `SWIFTIRON_MEM_PROBE=1` | Print memory use after each startup stage |
+| `IRONSWIFT_PROFILE=dir` | Use another profile folder (tests use a temporary one) |
+| `IRONSWIFT_PRIVATE=1` | Don't record history |
+| `IRONSWIFT_GPU=0` / `=1` | Turn GPU drawing off / allow software GPU adapters |
+| `IRONSWIFT_TILES=0` | Paint the whole page every frame (no tile cache) |
+| `IRONSWIFT_FRAME_STATS=1` | Print drawing times every 60 frames |
+| `IRONSWIFT_TAB_SLEEP_SECONDS=n` | Put background tabs to sleep after n seconds |
+| `IRONSWIFT_THIRD_PARTY_COOKIES=1`, `IRONSWIFT_KEEP_TRACKING_PARAMS=1` | Relax the privacy defaults |
+| `IRONSWIFT_MEM_PROBE=1` | Print memory use after each startup stage |
 
 ## Command line
 
 ```sh
-swiftiron [url]                              # open a window
-swiftiron --png out.png [--width 1024] url   # render a page to a PNG and exit (used by the tests)
-swiftiron --conformance-html5lib dir         # run the HTML-parsing conformance tests
+ironswift [url]                              # open a window
+ironswift --png out.png [--width 1024] url   # render a page to a PNG and exit (used by the tests)
+ironswift --conformance-html5lib dir         # run the HTML-parsing conformance tests
 ```

@@ -1,4 +1,4 @@
-// Swiftiron DOM bindings.
+// Ironswift DOM bindings.
 // The Rust side exposes a handful of primitives (__tag, __children, __append, ...)
 // that work on node ids. Everything web pages see (document, Element, events,
 // timers...) is built here in JavaScript on top of them.

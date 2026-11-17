@@ -173,7 +173,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <section><h2>Memory</h2>
 <div class="row field"><label>Put background tabs to sleep after (minutes, 0 = never)</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
 <p class="hint" style="margin-left:0">A sleeping tab frees its page and reloads when you come back to it.</p>
-<div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> Draw with the graphics card</label><p class="hint">Smoother scrolling and less work for the processor; the graphics driver uses about 40–70 MB more memory. Takes effect the next time Swiftiron starts.</p></div>
+<div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> Draw with the graphics card</label><p class="hint">Smoother scrolling and less work for the processor; the graphics driver uses about 40–70 MB more memory. Takes effect the next time Ironswift starts.</p></div>
 </section>
 <section><h2>Privacy</h2>
 <div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> Allow third-party cookies</label><p class="hint">Off by default: sites embedded in other sites (ad and tracking networks) get no cookies.</p></div>
