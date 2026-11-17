@@ -731,6 +731,28 @@ A **Theme** setting with three choices: **System** (the default), **Light** and 
 - Screenshot tests for the browser UI and the start page in both themes; a test page with
   `prefers-color-scheme` rules.
 
+### O9. Android version
+**Status:** free
+**After:** —
+**Checklist:** §18 "Android"
+**Files:** `Cargo.toml`, `#[cfg]` gates, `src/platform.rs`, `src/media.rs`, `src/sysfonts.rs`, new `mobile/android/`, `.github/workflows/`
+Doesn't wait for X21, but X21 is also gating Linux-only code: pull first and use its
+`cfg(target_os = "linux")` gates rather than adding a second set.
+
+- Build for Android with winit's `android-activity` and wgpu (Vulkan, GLES fallback); package
+  an APK/AAB with `cargo-apk` or `xbuild`, signed, built in CI.
+- Android versions of the Linux-only parts: fonts from `/system/fonts` and `fonts.xml` instead of
+  fontconfig; video and audio through MediaCodec/AAudio (the NDK) instead of the ffmpeg program;
+  location, notifications and permission prompts through Android's APIs; the accessibility tree
+  through AccessKit's Android backend; per-site processes as isolated services, keeping seccomp.
+- A touch UI: address bar at the top or bottom (a setting), tab switcher, tap targets of 48 dp,
+  pinch-zoom, scrolling with momentum, pull to refresh, long-press menus, the on-screen keyboard
+  without covering the focused field, and the back button/gesture.
+- Mobile page behavior: honor `<meta name="viewport">`, send a mobile user agent, touch and
+  pointer events, `device-width` media queries.
+- Test on an emulator in CI (screenshot tests) and on one real phone; run `tools/site_check.py`
+  with a mobile viewport.
+
 ## Features the major browsers have (added by John 2026-11-17)
 
 Build checklist §19 (site features) and §20 (browser features). Site features come first:
@@ -887,13 +909,13 @@ second page.
 A DNS setting: system (default), or DNS over HTTPS with a choice of providers or a custom
 address, falling back to the system when it fails, unless set to strict.
 
-### B9. Mobile versions (Android, then iOS)
+### B9. iOS version
 **Status:** free
-**After:** X21
-**Checklist:** §20 "Mobile versions"
-**Files:** `Cargo.toml`, `src/platform.rs`, new `mobile/`
-After the Windows and macOS builds: an Android build (winit and wgpu support it) with a touch
-UI, then iOS (only allowed in the EU with a different engine, so check Apple's terms first).
+**After:** O9, X21
+**Checklist:** §20 "iOS version"
+**Files:** `Cargo.toml`, `src/platform.rs`, `mobile/`
+Reuse O9's touch UI. Apple allows browsers with their own engine only in the EU, so check
+Apple's terms first and write down what they require before building.
 
 ## Not for the chats
 
