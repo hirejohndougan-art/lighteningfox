@@ -301,7 +301,6 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         subgrid: HashMap::new(),
         vertical_avail: Vec::new(),
         widths_memo: HashMap::new(),
-        fitting: std::collections::HashSet::new(),
         fit_between: std::collections::HashSet::new(),
         measured: HashMap::new(),
         fitting: Vec::new(),
@@ -415,9 +414,6 @@ struct Ctx<'a> {
     /// subtree out twice, and nested flex items and table cells measure again inside that,
     /// so without this the work doubles with every level of nesting.
     widths_memo: HashMap<(NodeId, Option<u32>, Option<u32>), (f32, f32)>,
-    /// Boxes whose fit-content / min-content / max-content width is being measured (their
-    /// own measuring pass lays them out at an auto width).
-    fitting: std::collections::HashSet<NodeId>,
     /// Absolute boxes with a content-keyword width placed between `left` and `right`: the
     /// forced width is the space to fit in, not the box's own width.
     fit_between: std::collections::HashSet<NodeId>,
@@ -922,9 +918,8 @@ impl<'a> Ctx<'a> {
         let avail = if between { forced.0.unwrap_or(avail) } else { avail };
         let forced = if between { (None, forced.1) } else { forced };
         if kw != 0 && forced.0.is_none() && !self.fitting.contains(&id) {
-            self.fitting.insert(id);
+            // content_widths marks the box as fitting, so measuring it lays it out at auto width.
             let (mn, mx) = self.content_widths(id);
-            self.fitting.remove(&id);
             let outer = match kw {
                 2 => mx,
                 3 => mn,
