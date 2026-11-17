@@ -99,7 +99,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §3 Clicking and scrolling inside an `<iframe>`
 
 ## G. JavaScript APIs, part 1
-**Status:** free
+**Status:** claimed by jsapi-chat 2026-11-17 02:25
 **Start after:** —
 **Main files:** `src/js.rs`, `src/prelude.js` (add new APIs in new `src/*.js` files where possible)
 
