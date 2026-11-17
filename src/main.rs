@@ -60,6 +60,7 @@ mod entities;
 mod conformance;
 mod crashlog;
 mod settings;
+mod contrast;
 mod security;
 mod sysfonts;
 mod text;

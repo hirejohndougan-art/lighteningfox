@@ -331,6 +331,7 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
         None => (f.trim(), None),
     };
     let reduced = crate::settings::get().reduce_motion;
+    let contrast = crate::settings::get().high_contrast;
     match (name, value) {
         ("min-width", Some(v)) => px(v).is_some_and(|v| w >= v),
         ("max-width", Some(v)) => px(v).is_some_and(|v| w <= v),
@@ -347,9 +348,11 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
         ("prefers-color-scheme", Some(v)) => v == "light",
         ("prefers-reduced-motion", Some(v)) => (v == "reduce") == reduced,
         ("prefers-reduced-motion", None) => reduced,
-        ("prefers-contrast", Some(v)) => v == "no-preference",
+        ("prefers-contrast", Some(v)) => if contrast { v == "more" || v == "custom" } else { v == "no-preference" },
+        ("prefers-contrast", None) => contrast,
+        ("forced-colors", None) => contrast,
         ("prefers-reduced-transparency", Some(v)) => v == "no-preference",
-        ("forced-colors", Some(v)) => v == "none",
+        ("forced-colors", Some(v)) => v == if contrast { "active" } else { "none" },
         ("hover" | "any-hover", Some(v)) => v == "hover",
         ("pointer" | "any-pointer", Some(v)) => v == "fine",
         ("hover" | "any-hover" | "pointer" | "any-pointer" | "color" | "width" | "height" | "orientation", None) => true,

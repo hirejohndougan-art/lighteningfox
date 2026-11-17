@@ -862,6 +862,9 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         styles[id] = st;
     }
     crate::anim::end_pass();
+    if crate::settings::get().high_contrast {
+        crate::contrast::force_colors(dom, &mut styles);
+    }
     styles
 }
 
