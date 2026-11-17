@@ -333,9 +333,9 @@ top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`.
 "stuck frame" stop working per process.
 
 ### X15. Turn site processes on by default
-**Status:** blocked: video and audio don't play in site processes (X23)
-**Progress:** `--png` of an http(s) page goes through a site process with `IRONSWIFT_SITE_PROCESS=1` (`src/site_snapshot.rs`); `tools/site_process_check.py` draws every screenshot test page both ways. Fixed: site processes had no system fonts with a fresh profile (the browser now writes the font list they read). 43 of 45 pages identical; animated images differ only because site processes animate (snapshots freeze); `media.html` shows "This video can't be played". Memory: about 50-70 MB per site process on top of the browser (in `docs/ARCHITECTURE.md`). `site_check.py --tracker` needs internet access, so it wasn't run here; John runs the live-site check after the default changes.
-**After:** X13, X14, X23
+**Status:** blocked: O3 first (window features that don't work in site processes yet); O3's owner turns the default on
+**Progress:** (chat-nsX16; X23 since fixed video and audio, so all 45 screenshot pages are identical both ways) `--png` of an http(s) page goes through a site process with `IRONSWIFT_SITE_PROCESS=1` (`src/site_snapshot.rs`); `tools/site_process_check.py` draws every screenshot test page both ways. Fixed: site processes had no system fonts with a fresh profile (the browser now writes the font list they read). 43 of 45 pages identical; animated images differ only because site processes animate (snapshots freeze); `media.html` shows "This video can't be played". Memory: about 50-70 MB per site process on top of the browser (in `docs/ARCHITECTURE.md`). `site_check.py --tracker` needs internet access, so it wasn't run here; John runs the live-site check after the default changes.
+**After:** X13, X14, X23, O3
 **Checklist:** §21 "Site processes on by default" (required fix-up)
 **Files:** `src/settings.rs` (the `site_processes` default), `docs/`
 Make `site_processes` default to on once WebSockets and per-site frames work in them. Run the
@@ -344,7 +344,9 @@ memory cost in the docs. John runs the live-site check on his computer afterward
 
 
 ### X23. Video and audio in site processes
-**Status:** claimed by chat-nsX16 2026-11-17 16:35
+**Status:** done
+**Done:** a site process keeps downloaded media in an in-memory file and asks the browser over a Unix socket handed down at start (`src/media_broker.rs`) to start `ffmpeg`, `ffprobe` or the sound player — by name, never a path — and gets the program's pipes back (SCM_RIGHTS); media.rs reads them as before. The browser starts decoders through `ironswift --media-decoder`, which locks them down first (`sandbox::protect_media_decoder`: no network, no writing, read-only system files; test `media_decoder_lockdown`), and stops a site process's programs when it goes away. `tools/site_process_check.py`: 45 of 45 screenshot pages identical in-process and in a site process (`media.html` included). In-process playback unchanged: media tests (decoding now also tested from an in-memory file), WPT `media-source` 284/424, `media-elements` 223/285 (one pitch subtest flips between runs with the old binary too).
+**Left undone:** sound wasn't heard here (no sound player installed); its path is the same pipe hand-off as video.
 **After:** —
 **Checklist:** §21 "Video and audio in site processes" (required fix-up)
 **Files:** `src/media.rs` (starting the decoders), `src/process.rs` / `src/sandbox.rs` (small hooks), new code in new files
