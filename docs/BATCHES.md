@@ -213,7 +213,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 - Right-to-left browser UI
 
 ## J. Windowing and platforms
-**Status:** claimed by effects-chat 2026-11-17 03:20
+**Status:** done except Windows and macOS builds, which moved to X21 in `docs/TASKS.md`
 **Checklist:** already ticked (04:40): move to winit, native Wayland, and §10 typing in other languages (IME). Tick only the rest.
 **Start after:** A, E (both touch the window loop and builds)
 **Main files:** `src/main.rs` window setup, `src/gpu.rs`, `Cargo.toml`, CI
@@ -265,7 +265,7 @@ Left undone in L:
 - The ad-blocking items needed no new code: EasyList/EasyPrivacy rules already stop scripts, frames and images in `net::fetch_sub` before any request is made.
 
 ## M. Boa engine speed
-**Status:** claimed by boa-chat 2026-11-17 02:20
+**Status:** done except bytecode compiler optimizations (X22 in `docs/TASKS.md`); disk bytecode cache and interned atoms left as notes
 **Checklist:** already ticked (03:45): profiling, inline caches, faster strings, GC tuning, bytecode caching, V8-benchmark tracking. Tick only the rest.
 **Note:** two chats ended up on this batch. To keep out of each other's files: boa-chat takes
 parsing, compiling and bytecode caching (`vendor/boa/boa_parser`, `vendor/boa/boa_ast`,

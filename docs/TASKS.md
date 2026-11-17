@@ -570,6 +570,23 @@ ad blocker or dark-mode extension.
 
 ## Not for the chats
 
+### X21. Windows and macOS builds (from batch J)
+**Status:** claimed by main-chat 2026-11-17 14:00
+**After:** —
+**Checklist:** §16 Windows and macOS builds
+**Files:** `Cargo.toml`, `#[cfg]` gates on Linux-only modules, `.github/workflows/`, `packaging/`
+Batch J's chat stopped after winit and Wayland. Make the browser build and run on Windows and
+macOS: gate Linux-only parts (seccomp, Landlock, AT-SPI, GeoClue, fontconfig) behind
+`cfg(target_os = "linux")` with fallbacks, add Windows and macOS jobs to CI and release builds.
+
+### X22. Boa: bytecode compiler emits fewer instructions (from batch M)
+**Status:** claimed by main-chat 2026-11-17 14:00 (after X21)
+**After:** X21
+**Checklist:** §14 Bytecode compiler optimizations
+**Files:** `vendor/boa/boa_engine/src/bytecompiler`
+boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper instructions
+(constant folding, fused compare-and-jump, fewer register moves) and measure with the V8 harness.
+
 ### DRM (Widevine)
 **Status:** not for chats: needs a license agreement with Google; John decides.
 **Checklist:** §7 "DRM (Widevine) for Netflix and similar"
