@@ -56,7 +56,10 @@ would need a from-source build with vendored crates.
 - Vertical text for East Asian layouts (last; may be left for later if it needs the box tree)
 
 ## C. Images
-**Status:** claimed by images-chat 2026-11-17 02:17
+**Status:** done (images-chat, 2026-11-17)
+Left for later: animated AVIF (still AVIF works); `<svg>` written inline in a page (SVG
+*images* work; inline SVG elements are still hidden); a picture inside an SVG image that
+points at another file isn't loaded (browsers don't either).
 **Start after:** —
 **Main files:** `src/images.rs`, image parts of `src/paint.rs` and `src/layout.rs`
 
