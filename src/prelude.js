@@ -26,7 +26,20 @@
   }
   globalThis.__wrapFn = wrap;
   const idOf = (n) => (n && n.__id !== undefined ? n.__id : -1);
-  const attrName = (el, n) => (n = String(n), el.namespaceURI === "http://www.w3.org/1999/xhtml" ? n.replace(/[A-Z]+/g, (c) => c.toLowerCase()) : n);
+  // ASCII-lowercase on HTML elements. Most names have no capitals at all: skip the regex then
+  // (this runs on every getAttribute/setAttribute, className included).
+  const attrName = (el, n) => {
+    n = String(n);
+    if (n === n.toLowerCase() || el.namespaceURI !== "http://www.w3.org/1999/xhtml") return n;
+    return n.replace(/[A-Z]+/g, (c) => c.toLowerCase());
+  };
+  // Valid attribute names seen so far, so the check's regex runs once per name.
+  const validAttrNames = new Set();
+  const checkAttrName = (n) => {
+    if (validAttrNames.has(n)) return;
+    if (!/^[^\t\n\f\r \0\/=>]+$/.test(n)) throw new DOMException("'" + n + "' is not a valid attribute name.", "InvalidCharacterError");
+    if (validAttrNames.size < 4096) validAttrNames.add(n);
+  };
   const kebab = (k) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 
   // ------------------------------------------------------------ events
@@ -323,7 +336,7 @@
     getAttribute(n) { return __getAttr(this.__id, attrName(this, n)); }
     setAttribute(n, v) {
       n = String(n);
-      if (!/^[^\t\n\f\r \0\/=>]+$/.test(n)) throw new DOMException("'" + n + "' is not a valid attribute name.", "InvalidCharacterError");
+      checkAttrName(n);
       __setAttr(this.__id, attrName(this, n), String(v));
     }
     removeAttribute(n) { __removeAttr(this.__id, attrName(this, n)); }
@@ -713,7 +726,7 @@
     createElement(t) {
       t = String(t);
       if (!__validName(t)) throw new DOMException("'" + t + "' is not a valid element name.", "InvalidCharacterError");
-      return wrap(__create(t.replace(/[A-Z]+/g, (c) => c.toLowerCase())));
+      return wrap(__create(t === t.toLowerCase() ? t : t.replace(/[A-Z]+/g, (c) => c.toLowerCase())));
     }
     createElementNS(ns, t) {
       t = String(t);
