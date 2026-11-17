@@ -1,0 +1,22 @@
+<!doctype html>
+<title>Geolocation</title>
+<p id="out">waiting</p>
+<p id="watch"></p>
+<p id="types"></p>
+<p id="bad"></p>
+<script>
+const geo = navigator.geolocation;
+geo.getCurrentPosition(
+  (p) => {
+    const c = p.coords;
+    out.textContent = [c.latitude, c.longitude, c.accuracy, c.altitude, c.speed, typeof p.timestamp,
+      p instanceof GeolocationPosition, c instanceof GeolocationCoordinates, Object.keys(p.toJSON().coords).length].join(",");
+  },
+  (e) => { out.textContent = "error " + e.code + " " + e.message; },
+  { enableHighAccuracy: true }
+);
+let n = 0;
+const w = geo.watchPosition((p) => { n++; watch.textContent = "watched " + n; geo.clearWatch(w); });
+types.textContent = [typeof w, w > 0, GeolocationPositionError.TIMEOUT, geo instanceof Geolocation].join(",");
+try { geo.getCurrentPosition(null); bad.textContent = "no error"; } catch (e) { bad.textContent = e.name; }
+</script>

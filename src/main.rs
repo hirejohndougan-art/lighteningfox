@@ -74,6 +74,7 @@ mod cache;
 mod canvas;
 mod media;
 mod channels;
+mod geo;
 mod clipboard;
 mod downloads;
 mod entities;

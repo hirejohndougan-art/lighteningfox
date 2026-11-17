@@ -48,11 +48,12 @@ pub fn install(ctx: &mut Context) {
 pub fn take_events(epoch: u64) -> Vec<String> {
     let mut v = crate::worker::take_events(epoch);
     v.extend(crate::websocket::take_events(epoch));
+    v.extend(crate::geo::take_events(epoch));
     v
 }
 
 pub fn busy() -> bool {
-    crate::worker::busy() || crate::websocket::busy()
+    crate::worker::busy() || crate::websocket::busy() || crate::geo::busy()
 }
 
 /// Should a headless render keep waiting? (A worker has a timer due soon.)
@@ -64,6 +65,7 @@ pub fn settling() -> bool {
 pub fn page_gone(epoch: u64) {
     crate::worker::page_gone(epoch);
     crate::websocket::page_gone(epoch);
+    crate::geo::page_gone(epoch);
 }
 
 fn epoch(ctx: &Context) -> u64 {

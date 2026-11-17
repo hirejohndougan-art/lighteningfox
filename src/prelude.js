@@ -1630,23 +1630,104 @@
       return Promise.resolve(new PermissionStatus(name));
     },
   };
-  // Location: asked for, but Ironswift has no location service yet, so an allowed request
-  // reports "position unavailable" (code 2) rather than a made-up place.
-  class GeolocationPositionError { constructor(code, message) { this.code = code; this.message = message; } }
-  GeolocationPositionError.PERMISSION_DENIED = 1; GeolocationPositionError.POSITION_UNAVAILABLE = 2; GeolocationPositionError.TIMEOUT = 3;
-  let watchSeq = 0;
-  const locate = (ok, err) => {
+  // Location: asked for first; once the site is allowed, positions come from GeoClue (the
+  // desktop's location service, see src/geo.rs) through __geoStart → __geoDone / __geoFail.
+  class GeolocationPositionError {
+    constructor(code, message) { this.code = code; this.message = message; }
+    get [Symbol.toStringTag]() { return "GeolocationPositionError"; }
+  }
+  for (const [k, v] of [["PERMISSION_DENIED", 1], ["POSITION_UNAVAILABLE", 2], ["TIMEOUT", 3]]) {
+    Object.defineProperty(GeolocationPositionError, k, { value: v, enumerable: true });
+    Object.defineProperty(GeolocationPositionError.prototype, k, { value: v, enumerable: true });
+  }
+  class GeolocationCoordinates {
+    constructor(c) {
+      for (const k of ["accuracy", "latitude", "longitude", "altitude", "altitudeAccuracy", "heading", "speed"]) {
+        Object.defineProperty(this, k, { value: c[k] === undefined ? null : c[k], enumerable: true });
+      }
+    }
+    toJSON() {
+      const o = {};
+      for (const k of ["accuracy", "latitude", "longitude", "altitude", "altitudeAccuracy", "heading", "speed"]) o[k] = this[k];
+      return o;
+    }
+  }
+  class GeolocationPosition {
+    constructor(p) {
+      Object.defineProperty(this, "coords", { value: new GeolocationCoordinates(p), enumerable: true });
+      Object.defineProperty(this, "timestamp", { value: p.timestamp, enumerable: true });
+    }
+    toJSON() { return { coords: this.coords.toJSON(), timestamp: this.timestamp }; }
+  }
+  // Requests waiting for an answer: id → { ok, err, once, timer }.
+  const geoReqs = new Map();
+  let geoSeq = 0;
+  const geoFinish = (id) => {
+    const r = geoReqs.get(id);
+    if (!r) return null;
+    if (r.timer) clearTimeout(r.timer);
+    r.timer = null;
+    if (r.once) geoReqs.delete(id);
+    return r;
+  };
+  const geoCall = (f, arg) => { try { f(arg); } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); } };
+  g.__geoDone = function (id, p) {
+    const r = geoFinish(id);
+    if (!r) return;
+    geoCall(r.ok, new GeolocationPosition(p));
+    // A watch waits again for the next position, with the same timeout.
+    if (!r.once && geoReqs.has(id)) geoArm(id, r, r.timeout);
+  };
+  g.__geoFail = function (id, code, msg) {
+    const r = geoReqs.get(id);
+    if (!r) return;
+    geoReqs.delete(id);
+    if (r.timer) clearTimeout(r.timer);
+    if (typeof r.err === "function") geoCall(r.err, new GeolocationPositionError(code, msg));
+  };
+  const geoOpts = (o) => {
+    o = o == null ? {} : o;
+    const ms = (v, d) => { v = v === undefined ? d : Math.floor(Number(v)); return Number.isFinite(v) ? Math.min(Math.max(v, 0), 0xFFFFFFFF) : (v > 0 ? 0xFFFFFFFF : 0); };
+    return { high: !!o.enableHighAccuracy, timeout: ms(o.timeout, 0xFFFFFFFF), maxAge: ms(o.maximumAge, 0) };
+  };
+  // Arm the timeout for one wait for a position (it counts from when the site is allowed).
+  const geoArm = (id, r, timeout) => {
+    if (timeout >= 0xFFFFFFFF) return;
+    r.timer = setTimeout(() => {
+      r.timer = null;
+      if (!geoReqs.has(id)) return;
+      if (r.once) { geoReqs.delete(id); __geoStop(id); }
+      if (typeof r.err === "function") geoCall(r.err, new GeolocationPositionError(3, "Timeout expired"));
+    }, timeout);
+  };
+  const geoRequest = (ok, err, options, once) => {
+    if (typeof ok !== "function") throw new TypeError("Geolocation: the success callback isn't a function");
+    const o = geoOpts(options);
+    const id = ++geoSeq;
+    const r = { ok, err, once, timer: null, timeout: o.timeout };
+    geoReqs.set(id, r);
     permAsk("geolocation").then((granted) => {
-      if (typeof err !== "function") return;
-      err(granted ? new GeolocationPositionError(2, "No location service is available")
-                  : new GeolocationPositionError(1, "User denied Geolocation"));
+      if (!geoReqs.has(id)) return; // cleared while asking
+      if (!granted) { g.__geoFail(id, 1, "User denied Geolocation"); return; }
+      if (!__geoStart(id, once, o.high, o.maxAge)) return; // fails through __geoFail
+      // (An answer from the last position is delivered before any timer runs.)
+      geoArm(id, r, o.timeout);
     });
+    return id;
   };
-  navigator.geolocation = {
-    getCurrentPosition(ok, err) { locate(ok, err); },
-    watchPosition(ok, err) { locate(ok, err); return ++watchSeq; },
-    clearWatch() {},
-  };
+  class Geolocation {
+    getCurrentPosition(ok, err, options) { geoRequest(ok, err, options, true); }
+    watchPosition(ok, err, options) { return geoRequest(ok, err, options, false); }
+    clearWatch(id) {
+      const r = geoReqs.get(id);
+      if (!r || r.once) return;
+      if (r.timer) clearTimeout(r.timer);
+      geoReqs.delete(id);
+      __geoStop(id);
+    }
+  }
+  Object.assign(g, { Geolocation, GeolocationPosition, GeolocationCoordinates, GeolocationPositionError });
+  navigator.geolocation = new Geolocation();
   // Notifications: shown on the desktop once the site is allowed.
   class Notification extends EventTarget {
     constructor(title, opts) {

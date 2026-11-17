@@ -1374,6 +1374,7 @@ impl Js {
             }
         }
         crate::channels::install(&mut ctx);
+        crate::geo::install(&mut ctx);
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
 

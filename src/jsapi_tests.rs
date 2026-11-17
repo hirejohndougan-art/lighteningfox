@@ -135,3 +135,28 @@ fn developer_console_runs_code() {
     assert!(html.contains("&gt; 1 + 2") && html.contains("action=\"about:devtools-run\""));
     if let Ok(p) = std::env::var("DEVTOOLS_DUMP") { std::fs::write(p, &html).unwrap(); }
 }
+
+#[test]
+fn geolocation() {
+    let _serial = serial();
+    let _geo = crate::geo::TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    // SAFETY: tests only read this variable; no other test sets it.
+    unsafe { std::env::set_var("IRONSWIFT_FAKE_LOCATION", "29.4608,-95.0513,30") };
+    let url = crate::net::normalize_input("tests/geolocation.html");
+    let profile = std::env::temp_dir().join(format!("ironswift-jsapi-{}", std::process::id()));
+    // SAFETY: as in open().
+    unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
+    crate::permissions::set(&url, crate::permissions::Kind::Location, true);
+    let _page = open("tests/geolocation.html");
+    assert_eq!(text_of("out"), "29.4608,-95.0513,30,,,number,true,true,7");
+    assert_eq!(text_of("watch"), "watched 1");
+    assert_eq!(text_of("types"), "number,true,3,true");
+    assert_eq!(text_of("bad"), "TypeError");
+    crate::permissions::set(&url, crate::permissions::Kind::Location, false);
+    // Denied: the error callback gets PERMISSION_DENIED.
+    let mut page = open("tests/geolocation.html");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_secs(1));
+    }
+    assert_eq!(text_of("out"), "error 1 User denied Geolocation");
+}
