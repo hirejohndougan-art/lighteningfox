@@ -1059,6 +1059,11 @@ impl Parser {
                 }
                 _ => break,
             };
+            if q.storage == Storage::Const && st == Storage::In {
+                // "const in" on a function parameter.
+                self.p += 1;
+                continue;
+            }
             if q.storage != Storage::None {
                 // "centroid in" etc. handled above; two storage qualifiers is an error.
                 return self.err("too many storage qualifiers");
@@ -1731,5 +1736,7 @@ mod tests {
         assert!(parse("void main() { float x = ; }", &[]).is_err());
         assert!(parse("void main() { gl_FragColor = vec4(1.0) }", &[]).is_err());
         assert!(parse("#version 300 es\nout vec4 c; void main() { c = vec4(1.0); }", &[]).is_ok());
+        // three.js writes `const in` on parameters.
+        assert!(parse("float f(const in float x) { return x; } void main() {}", &[]).is_ok());
     }
 }
