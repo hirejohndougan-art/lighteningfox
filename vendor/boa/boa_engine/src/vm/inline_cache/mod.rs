@@ -27,6 +27,41 @@ pub(crate) struct CacheEntry {
     pub(crate) slot: Slot,
 }
 
+/// Ironswift: one link of a cached prototype chain: an object's shape when the lookup was cached.
+#[derive(Clone, Debug, Trace, Finalize)]
+pub(crate) struct ChainLink {
+    pub(crate) shape: WeakShape,
+    #[unsafe_ignore_trace]
+    pub(crate) addr: usize,
+}
+
+impl ChainLink {
+    pub(crate) fn new(shape: &Shape) -> Self {
+        Self { shape: shape.into(), addr: shape.to_addr_usize() }
+    }
+
+    /// Whether `shape` is still the shape this link recorded.
+    #[inline]
+    pub(crate) fn matches(&self, shape: &Shape) -> bool {
+        self.addr == shape.to_addr_usize() && self.shape.points_to(shape) == Some(true)
+    }
+}
+
+/// Ironswift: a cached lookup that found the property two or more prototypes up the chain.
+/// Boa's own entries only cover the object itself and its direct prototype. Valid while the
+/// receiver and every prototype up to the holder have the same shapes and no unique shape has
+/// changed in place (`shape_epoch`).
+#[derive(Clone, Debug, Trace, Finalize)]
+pub(crate) struct DeepEntry {
+    pub(crate) receiver: ChainLink,
+    /// Shapes of the prototypes, nearest first; the last one holds the property.
+    pub(crate) chain: Vec<ChainLink>,
+    #[unsafe_ignore_trace]
+    pub(crate) slot: Slot,
+    #[unsafe_ignore_trace]
+    pub(crate) epoch: u64,
+}
+
 /// An inline cache entry for a property access.
 #[derive(Clone, Debug, Trace, Finalize)]
 pub(crate) struct InlineCache {
@@ -39,6 +74,9 @@ pub(crate) struct InlineCache {
     /// Whether this access site has seen too many shapes and should no longer be cached.
     #[unsafe_ignore_trace]
     pub(crate) megamorphic: Cell<bool>,
+
+    /// Ironswift: a deep prototype lookup (see [`DeepEntry`]).
+    pub(crate) deep: GcRefCell<Option<Box<DeepEntry>>>,
 }
 
 impl fmt::Display for InlineCache {
@@ -62,6 +100,7 @@ impl InlineCache {
             name,
             entries: GcRefCell::new(ArrayVec::new()),
             megamorphic: Cell::new(false),
+            deep: GcRefCell::new(None),
         }
     }
 

@@ -76,8 +76,20 @@ changes.
    Building a 2 MB string with 200,000 `+=` went from 80 s to 1.4 s. Flattening and dropping
    use an explicit stack, so million-deep ropes are fine.
 
+6. **Deep prototype caches (`vm/inline_cache`, `vm/opcode/get/property.rs`,
+   `object/shape`).** Boa only cached properties found on the object or its direct prototype;
+   methods inherited two or more levels up (class hierarchies, `Object.prototype` methods on
+   instances) always took the slow path. Each cache site can now remember one deeper lookup:
+   the shape of the receiver and of every prototype up to the holder. A per-thread counter
+   (`shape_epoch`) goes up whenever a unique shape changes in place, since those keep their
+   address; a hit needs the same shapes and the same counter. Proxies and other exotic
+   objects are never cached this way. `deep_prototype_cache_invalidation` tests shadowing,
+   deletes, prototype swaps, getters and proxies along the chain.
+
 Changes 1–4 together, instructions per benchmark vs Boa 0.22.0: Richards −9%, DeltaBlue −7%,
 RayTrace −6%, Splay −8%, EarleyBoyer −8%, RegExp −1%, NavierStokes +1%, Crypto +1%.
+With change 6 as well: Richards −10%, DeltaBlue −13%, RayTrace −6%, Splay −7%, EarleyBoyer
+−15%, RegExp −3%, NavierStokes +1%, Crypto +1%.
 
 ## Testing changes
 

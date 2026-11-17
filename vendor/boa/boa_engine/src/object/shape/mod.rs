@@ -237,6 +237,25 @@ pub(crate) enum WeakShape {
     Shared(WeakSharedShape),
 }
 
+thread_local! {
+    /// Ironswift: goes up whenever any unique shape changes in place (unique shapes keep their
+    /// address when a property is added, so an address alone can't tell a cached lookup that a
+    /// prototype changed). Deep prototype caches remember it and are ignored once it moves.
+    static SHAPE_EPOCH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Ironswift: the current unique-shape version (see `SHAPE_EPOCH`).
+#[inline]
+pub(crate) fn shape_epoch() -> u64 {
+    SHAPE_EPOCH.with(std::cell::Cell::get)
+}
+
+/// Ironswift: records that a unique shape changed.
+#[inline]
+pub(crate) fn bump_shape_epoch() {
+    SHAPE_EPOCH.with(|e| e.set(e.get().wrapping_add(1)));
+}
+
 impl WeakShape {
     /// Return location in memory of the [`Shape`].
     ///

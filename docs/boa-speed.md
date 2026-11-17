@@ -23,6 +23,26 @@ to run.
 
     tools/profile_js.sh tools/bench/v8/splay.js     # uses perf if installed, else valgrind
 
+To profile a whole page load instead (DOM, layout and scripts together):
+
+    valgrind --tool=callgrind ./target/release/ironswift --png out.png tests/real-world/react.html
+    callgrind_annotate --inclusive=no callgrind.out.* | head -60
+
+### What the profiles show (2026-11-17)
+
+- **Real pages (React 18, Vue 3, jQuery in `tests/real-world`):** loading is dominated by
+  *parsing*: the lexer and its token buffer, `malloc`/`free`/`memcpy` while building the syntax
+  tree, parse errors created and thrown away during backtracking
+  (`drop_glue::<boa_parser::error::Error>`, ~1.5%), keyword lookups (`phf` map, ~1.2%) and
+  `Sym::to_js_string` while compiling. Running the libraries' setup code is a small share.
+  So page-load speed mostly comes from the parser and compiler work (parse/compile tables in
+  `vendor/boa/IRONSWIFT.md`).
+- **Script-heavy work (the V8 suite, app logic after load):** property reads (`get_by_name` and
+  the inline cache), reference-count updates when values are copied and dropped, function call
+  setup (`push_frame`, `function_call`, `handle_return`) and `this` lookups. Inline caches,
+  borrowed objects, cross-crate inlining and deep prototype caches address the first two.
+  Function call overhead is the next big target.
+
 ## Scores
 
 Full runs on the 2-core build machine. Each row is one change in `vendor/boa`.

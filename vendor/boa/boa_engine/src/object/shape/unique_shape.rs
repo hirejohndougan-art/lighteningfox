@@ -49,6 +49,7 @@ impl UniqueShape {
         property_table: PropertyTableInner,
         prototype: JsPrototype,
     ) {
+        super::bump_shape_epoch(); // Ironswift: invalidates deep prototype caches
         *self.inner.property_table.borrow_mut() = property_table;
         *self.inner.prototype.borrow_mut() = prototype;
     }
@@ -65,6 +66,7 @@ impl UniqueShape {
 
     /// Inserts a new property into the [`UniqueShape`].
     pub(crate) fn insert_property_transition(&self, key: TransitionKey) -> Self {
+        super::bump_shape_epoch(); // Ironswift: invalidates deep prototype caches
         let mut property_table = self.property_table().borrow_mut();
         property_table.insert(key.property_key, key.attributes);
         self.clone()
@@ -74,6 +76,7 @@ impl UniqueShape {
     ///
     /// This will cause the current shape to be invalidated, and a new [`UniqueShape`] will be returned.
     pub(crate) fn remove_property_transition(&self, key: &PropertyKey) -> Self {
+        super::bump_shape_epoch(); // Ironswift: invalidates deep prototype caches
         let mut property_table = self.property_table().borrow_mut();
         let Some((index, _attributes)) = property_table.map.remove(key) else {
             return self.clone();
@@ -136,6 +139,7 @@ impl UniqueShape {
         &self,
         key: &TransitionKey,
     ) -> ChangeTransition<Shape> {
+        super::bump_shape_epoch(); // Ironswift: invalidates deep prototype caches
         let mut property_table = self.property_table().borrow_mut();
         let Some((index, slot)) = property_table.map.get_mut(&key.property_key) else {
             unreachable!("Attribute change can only happen on existing property")
@@ -220,6 +224,7 @@ impl UniqueShape {
     ///
     /// This will cause the current shape to be invalidated, and a new [`UniqueShape`] will be returned.
     pub(crate) fn change_prototype_transition(&self, prototype: JsPrototype) -> Self {
+        super::bump_shape_epoch(); // Ironswift: invalidates deep prototype caches
         let mut property_table = self.inner.property_table.borrow_mut();
 
         // We need to create a new unique shape,

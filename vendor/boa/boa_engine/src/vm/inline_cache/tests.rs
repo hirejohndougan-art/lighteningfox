@@ -465,3 +465,58 @@ fn test_megamorphic_inline_cache() -> JsResult<()> {
 
     Ok(())
 }
+
+/// Ironswift: deep prototype caches must notice every change along the chain.
+#[test]
+fn deep_prototype_cache_invalidation() {
+    let context = &mut Context::default();
+    let src = r#"
+function check(c, m) { if (!c) throw new Error("FAIL: " + m); }
+function A() {} A.prototype.f = function () { return "A"; }; A.prototype.v = 1;
+function B() {} B.prototype = Object.create(A.prototype);
+function C() {} C.prototype = Object.create(B.prototype);
+var c = new C();
+function get(o) { return o.v; }
+function call(o) { return o.f(); }
+for (var i = 0; i < 50; i++) { check(get(c) === 1, "base"); check(call(c) === "A", "call"); }
+// value changes on the holder are seen
+A.prototype.v = 2; check(get(c) === 2, "holder value");
+// shadow in the middle prototype
+B.prototype.v = 3; check(get(c) === 3, "shadow middle");
+delete B.prototype.v; check(get(c) === 2, "unshadow middle");
+// shadow on the receiver
+c.v = 4; check(get(c) === 4, "own"); delete c.v; check(get(c) === 2, "own removed");
+// delete from holder
+delete A.prototype.v; check(get(c) === undefined, "deleted");
+A.prototype.v = 5; check(get(c) === 5, "re-added");
+// prototype swap in the chain
+Object.setPrototypeOf(B.prototype, { v: 6 }); check(get(c) === 6, "swap");
+Object.setPrototypeOf(B.prototype, A.prototype); check(get(c) === 5, "swap back");
+// getter on a deep prototype, with receiver
+Object.defineProperty(A.prototype, "g", { get: function () { return this.tag; }, configurable: true });
+c.tag = "me"; function gg(o) { return o.g; }
+for (var j = 0; j < 5; j++) check(gg(c) === "me", "getter receiver");
+Object.defineProperty(A.prototype, "g", { value: 7, configurable: true }); check(gg(c) === 7, "getter -> data");
+// built-ins: toString lives on Object.prototype, 2+ levels from instances
+function ts(o) { return o.hasOwnProperty("x"); }
+for (var k = 0; k < 5; k++) check(ts(c) === false, "builtin");
+// polymorphic receivers through the same site
+var objs = [new C(), Object.create(c), { v: 9 }, Object.create(Object.create({ v: 10 }))];
+for (var r = 0; r < 3; r++) { check(get(objs[0]) === 5 && get(objs[1]) === 5 && get(objs[2]) === 9 && get(objs[3]) === 10, "poly " + r); }
+// proxy in the chain is never cached
+var hits = 0; var p = new Proxy({}, { get: function (t, k) { hits++; return 11; } });
+var viaProxy = Object.create(Object.create(p));
+for (var q = 0; q < 3; q++) check(get(viaProxy) === 11, "proxy");
+check(hits === 3, "proxy hits " + hits);
+// dictionary-mode receiver (many props) still correct
+var d = Object.create(c); for (var z = 0; z < 100; z++) d["p" + z] = z;
+check(get(d) === 5, "dict"); d.v = 12; check(get(d) === 12, "dict own");
+// string primitives (prototype chain String.prototype -> Object.prototype)
+function hop(s) { return s.hasOwnProperty; }
+for (var w = 0; w < 3; w++) check(hop("abc") === Object.prototype.hasOwnProperty, "primitive");
+
+"#;
+    context
+        .eval(Source::from_bytes(src))
+        .expect("deep prototype cache script should pass");
+}
