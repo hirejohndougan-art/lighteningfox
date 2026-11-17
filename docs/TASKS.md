@@ -92,7 +92,8 @@ and other binary files (most of the canvas `drawImage`-from-`fetch` WPT failures
 bytes; `text()` and `json()` decode them.
 
 ### X3. Import maps
-**Status:** claimed by chat-opus-x3 2026-11-17 05:01
+**Status:** done
+**Left undone:** `integrity` entries are parsed but not checked against downloads (subresource integrity isn't enforced for any script yet); scripts inserted by JavaScript after load (including import maps) still don't run, as before.
 **After:** —
 **Checklist:** none
 **Files:** the ES-module loader in `src/js.rs` / its JS file
