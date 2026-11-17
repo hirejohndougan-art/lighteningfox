@@ -169,6 +169,11 @@ Left undone:
 about:settings. The other chat (already did the tree, Intl, translated UI and page keyboard
 navigation) does the right-to-left browser UI and keyboard control of the browser's toolbar,
 tabs, menus and panels. a11y-chat marks the batch done and updates the checklist when both are finished.
+**a11y-chat's part is finished (03:55):** AT-SPI bridge (`src/a11y_bridge.rs`, tested live with
+at-spi2), high contrast for pages and the browser UI (`src/contrast.rs`), about:settings translated.
+Left: the other chat's right-to-left UI and keyboard control of the browser UI. Whoever finishes
+last sets this batch to `done`. Small gap: status lines from `updates.rs`, `blocklist.rs` and
+`permissions.rs` on about:settings are still English only.
 
 - Accessibility tree built from the DOM and ARIA attributes
 - Expose it to Linux screen readers through AT-SPI (AccessKit)
