@@ -315,7 +315,7 @@
   }
 
   class Element extends Node {
-    get tagName() { return __tag(this.__id).toUpperCase(); }
+    get tagName() { const t = __tag(this.__id); return this.namespaceURI === "http://www.w3.org/1999/xhtml" ? t.toUpperCase() : t; }
     get nodeName() { return this.tagName; }
     get localName() { return __tag(this.__id); }
     getAttribute(n) { return __getAttr(this.__id, String(n).toLowerCase()); }

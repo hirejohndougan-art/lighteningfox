@@ -7,6 +7,9 @@ Script tests (testharness.js) report pass/fail per subtest. Reference tests (<li
 pass when the test page and its reference render to identical pixels (800x600, like WPT).
 Needs a WPT checkout; the script swaps in tools/testharnessreport.js and serves the files on
 localhost.
+
+WPT_TIMEOUT=60 gives each page 60 seconds instead of 30; WPT_DETAILS=out.json writes every
+subtest's result.
 """
 import concurrent.futures, functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading
 

@@ -311,3 +311,34 @@ fn scripts_the_page_inserts_run() {
     let _page = open("tests/sites/dynamic-scripts.html");
     assert_eq!(text_of("out"), "inline true;async true;innerHTML true;load 1 ext;runs 1;error");
 }
+
+/// `document.body = …` (HTML: replace the body, or add one under <html>) and
+/// `createElementNS` for SVG and MathML (in their namespaces, names kept as written).
+#[test]
+fn document_body_setter_and_create_element_ns() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r#"(() => {
+            const out = [];
+            try { document.body = document.createElement("div"); } catch (e) { out.push(e.name); }
+            try { document.body = null; } catch (e) { out.push(e.name); }
+            const nb = document.createElement("body");
+            nb.id = "fresh";
+            document.body = nb;
+            out.push(document.body.id, document.querySelectorAll("body").length, nb.parentNode === document.documentElement);
+            document.body = nb;
+            out.push(document.querySelectorAll("body").length);
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+            const math = document.createElementNS("http://www.w3.org/1998/Math/MathML", "mi");
+            out.push(svg.namespaceURI, grad.localName, grad.tagName, math.namespaceURI);
+            return out.join(",");
+        })()"#,
+    );
+    assert_eq!(
+        r.trim_matches('"'),
+        "HierarchyRequestError,HierarchyRequestError,fresh,1,true,1,http://www.w3.org/2000/svg,linearGradient,linearGradient,http://www.w3.org/1998/Math/MathML"
+    );
+}

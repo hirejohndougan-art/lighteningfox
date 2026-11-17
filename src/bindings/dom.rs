@@ -203,8 +203,11 @@ pub fn is_equal_node(this: Option<NodeId>, other: Option<NodeId>) -> bool {
 
 // ------------------------------------------------------------ Element
 
+/// DOM: the qualified name, uppercased only for HTML elements (SVG's `linearGradient` and
+/// MathML names keep their case).
 pub fn tag_name(this: Option<NodeId>) -> String {
-    tag(this).to_uppercase()
+    let html = this.is_none_or(|id| with_dom(|d| d.ns_of(id) == Ns::Html));
+    if html { tag(this).to_uppercase() } else { tag(this) }
 }
 
 pub fn local_name(this: Option<NodeId>) -> String {
