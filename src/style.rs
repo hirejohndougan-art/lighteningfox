@@ -739,8 +739,13 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
     // Rules whose selectors end in a pseudo-element, per stylesheet.
     let mut pseudo_index: HashMap<*const Stylesheet, Vec<PseudoRule>> = HashMap::new();
+    // Rules filed by id/class/tag, and each element's ancestor bloom filter (see selmatch.rs).
+    let mut rule_index: HashMap<*const Stylesheet, crate::selmatch::SheetIndex> = HashMap::new();
+    let mut blooms: Vec<crate::selmatch::Bloom> = vec![[0; 4]; dom.nodes.len()];
+    let mut candidates: Vec<u32> = Vec::new();
     for sheet in std::iter::once(&ua).chain(sheets.iter()).chain(scoped.values().flat_map(|(a, b)| [a, b])) {
         pseudo_index.insert(sheet as *const Stylesheet, pseudo_rules(sheet));
+        rule_index.insert(sheet as *const Stylesheet, crate::selmatch::SheetIndex::new(sheet));
     }
     let layers = crate::cascade::LayerOrder::new(std::iter::once(&ua).chain(sheets.iter()));
     ACTIVE_RULES.with(|a| a.set(sheets.iter().any(|sh| sh.rules.iter().any(|r| r.selectors.iter().any(|s| s.parts.iter().any(|p| p.pseudo.iter().any(|x| x == "active")))))));
@@ -750,6 +755,8 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     while let Some(id) = stack.pop() {
         stack.extend(dom.nodes[id].children.iter().rev().copied());
         let parent = dom.nodes[id].parent.unwrap_or(0);
+        blooms[id] = crate::selmatch::child_bloom(dom, parent, &blooms[parent]);
+        let bloom = blooms[id];
         let parent_style = styles[parent].clone();
         let NodeData::Element { tag, attrs } = &dom.nodes[id].data else {
             // Text inherits everything it uses from its parent.
@@ -788,7 +795,15 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                     order += 1;
                 }
             }
-            for rule in &sheet.rules {
+            match rule_index.get(&(sheet as *const Stylesheet)) {
+                Some(ix) => ix.candidates(dom, id, &mut candidates),
+                None => {
+                    candidates.clear();
+                    candidates.extend(0..sheet.rules.len() as u32);
+                }
+            }
+            for &ri in &candidates {
+                let rule = &sheet.rules[ri as usize];
                 if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) {
                     continue;
                 }
@@ -797,7 +812,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 }
                 let mut best: Option<(u32, u32, u32)> = None;
                 let mut only_visited = true;
-                for s in rule.selectors.iter().filter(|s| matches(dom, id, s)) {
+                for s in rule.selectors.iter().filter(|s| crate::selmatch::may_match(s, &bloom) && matches(dom, id, s)) {
                     best = best.max(Some(s.specificity()));
                     only_visited &= uses_visited(s);
                 }
