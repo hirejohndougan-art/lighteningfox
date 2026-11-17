@@ -86,7 +86,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §8 Smooth scrolling at 60 frames per second
 
 ## F. Forms and iframes
-**Status:** free
+**Status:** claimed by forms-chat 2026-11-17 02:22
 **Start after:** —
 **Main files:** `src/forms.rs`, `src/textedit.rs`, form parts of `src/main.rs`
 
