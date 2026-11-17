@@ -922,6 +922,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // Bookmarks bar: the list, and which chip the mouse is over (usize::MAX = "»").
     let mut bm_list: Vec<library::Bookmark>;
     let mut bm_hover: Option<usize> = None;
+    // Dragging a tab along the strip: where the press started (x), and whether it has moved enough to count.
+    let mut tab_drag: Option<(f32, bool)> = None;
     let mut hovered: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
     // so a stopped or superseded load is ignored when it arrives.
@@ -1433,6 +1435,26 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 tab_hover = th;
                 dirty = true;
             }
+            // Tab dragging: once the mouse has moved a few pixels, the active tab follows it.
+            if !down {
+                tab_drag = None;
+            } else if let Some((x0, moving)) = tab_drag {
+                if moving || (mx - x0).abs() > 6.0 {
+                    tab_drag = Some((x0, true));
+                    let rects = tab_rects(w as f32, tabs.len());
+                    let target = match rects.iter().position(|&(tx, tw)| mx >= tx && mx < tx + tw) {
+                        Some(t) => t,
+                        None if mx < rects.first().map_or(0.0, |r| r.0) => 0,
+                        None => tabs.len() - 1,
+                    };
+                    if target != active && tab_cmd.is_none() {
+                        let slot = tabs.remove(active);
+                        tabs.insert(target, slot);
+                        active = target;
+                        dirty = true;
+                    }
+                }
+            }
             // Which bookmarks-bar chip is under the mouse.
             let bh = (my >= TOOL_BOTTOM as f32 && my < bar_h() as f32)
                 .then(|| {
@@ -1521,6 +1543,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 library::toggle_bookmark(&page.url, &page.title);
                 dirty = true;
             } else if down && !was_down && my < TAB_H {
+                if matches!(th, Some(TabHit::Tab(_))) {
+                    tab_drag = Some((mx, false));
+                }
                 tab_cmd = match th {
                     Some(TabHit::Tab(i)) => Some(TabCmd::Switch(i)),
                     Some(TabHit::Close(i)) => Some(TabCmd::Close(i)),
