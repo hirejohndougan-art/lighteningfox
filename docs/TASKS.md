@@ -172,7 +172,7 @@ that misses a change, anonymous boxes, `display: contents`), add tests for each 
 fix them. Check memory use and speed on a large page against the version before T01.
 
 ### R5. Security review of the per-site processes
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 12:05
 **After:** —
 **Checklist:** none
 **Files:** `src/process.rs`, `src/sandbox.rs`, the IPC code
