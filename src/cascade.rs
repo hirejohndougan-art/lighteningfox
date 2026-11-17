@@ -15,6 +15,7 @@ pub fn is_inherited(name: &str) -> bool {
             | "direction" | "white-space" | "visibility" | "cursor" | "list-style" | "list-style-type" | "list-style-position" | "border-spacing" | "border-collapse"
             | "text-shadow" | "letter-spacing" | "word-spacing" | "quotes" | "word-break" | "overflow-wrap" | "word-wrap" | "hyphens" | "tab-size" | "caption-side"
             | "empty-cells" | "text-decoration-color" | "text-rendering" | "-webkit-font-smoothing" | "text-wrap" | "text-wrap-mode" | "text-wrap-style"
+            | "writing-mode" | "-webkit-writing-mode" | "text-orientation" | "-webkit-text-orientation" | "text-combine-upright" | "-webkit-text-combine"
     )
 }
 
@@ -61,6 +62,9 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
             dst.align_logical = src.align_logical;
         }
         "direction" => dst.rtl = src.rtl,
+        "writing-mode" => dst.vertical.mode = src.vertical.mode,
+        "text-orientation" => dst.vertical.orient = src.vertical.orient,
+        "text-combine-upright" | "text-combine" => dst.vertical.combine = src.vertical.combine,
         "white-space" => {
             dst.pre = src.pre;
             dst.text = src.text.clone();

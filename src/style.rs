@@ -396,6 +396,8 @@ pub struct Style {
     pub align_logical: u8,
     /// Right-to-left writing direction (`direction: rtl` or `dir="rtl"`).
     pub rtl: bool,
+    /// writing-mode, text-orientation, text-combine-upright (vertical.rs).
+    pub vertical: crate::vertical::Vertical,
     pub line_height: f32,
     pub pre: bool,
     pub list_style: ListStyle,
@@ -533,6 +535,7 @@ impl Default for Style {
             text_align: Align::Left,
             align_logical: 1,
             rtl: false,
+            vertical: crate::vertical::Vertical::default(),
             line_height: 1.25,
             pre: false,
             list_style: ListStyle::Disc,
@@ -617,6 +620,7 @@ impl Style {
             text_align: parent.text_align,
             align_logical: parent.align_logical,
             rtl: parent.rtl,
+            vertical: parent.vertical.inherit(),
             line_height: parent.line_height,
             pre: parent.pre,
             list_style: parent.list_style,
@@ -1594,6 +1598,7 @@ pub fn computed_json(st: &Style, size: Option<(f32, f32)>) -> String {
         ("cursor".into(), ["auto", "pointer", "text", "default", "default", "move"][st.cursor.min(5) as usize].into()),
         ("white-space".into(), if st.pre { "pre" } else { "normal" }.into()),
     ];
+    m.extend(st.vertical.computed());
     for i in 0..4 {
         m.push((format!("margin-{}", sides[i]), len(st.margin[i])));
         m.push((format!("padding-{}", sides[i]), len(st.padding[i])));
@@ -2791,6 +2796,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 "end" => 2,
                 _ => 0,
             };
+        }
+        "writing-mode" | "-webkit-writing-mode" | "text-orientation" | "-webkit-text-orientation" | "text-combine-upright" | "-webkit-text-combine" => {
+            st.vertical.apply(name, &lower);
         }
         "direction" => match lower.as_str() {
             "rtl" => st.rtl = true,

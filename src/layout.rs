@@ -285,6 +285,7 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         absorb_top: None,
         cb_heights: vec![Some(viewport_h)],
         subgrid: HashMap::new(),
+        vertical_avail: Vec::new(),
     };
     crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
@@ -384,6 +385,9 @@ struct Ctx<'a> {
     /// Content heights of the enclosing containing blocks, when definite (percentage
     /// heights resolve against the innermost one; `None` makes them act as auto).
     cb_heights: Vec<Option<f32>>,
+    /// The width available to each enclosing vertical root (vertical.rs), for horizontal
+    /// boxes inside vertical text.
+    vertical_avail: Vec<f32>,
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -524,7 +528,7 @@ struct Detached {
     baseline: f32,
 }
 
-fn shift_item(it: &mut Item, dx: f32, dy: f32) {
+pub(crate) fn shift_item(it: &mut Item, dx: f32, dy: f32) {
     match it {
         Item::Rect { x, y, .. }
         | Item::Text { x, y, .. }
@@ -913,6 +917,14 @@ impl<'a> Ctx<'a> {
                 let stretch = self.styles[id].width != Len::Auto || forced.0.is_some();
                 (self.table_children(table.as_ref().unwrap(), cx, cy, w, stretch), 0.0)
             }
+            None if self.horizontal_in_vertical(id) => {
+                let auto_w = self.styles[id].width == Len::Auto && forced.0.is_none();
+                (self.horizontal_children(id, cx, cy, &mut w, auto_w, definite, align), 0.0)
+            }
+            None if self.vertical_root(id) => {
+                let auto_w = self.styles[id].width == Len::Auto && forced.0.is_none();
+                (self.vertical_children(id, cx, cy, &mut w, auto_w, definite, align), 0.0)
+            }
             None if self.styles[id].grid.is_some() => (self.grid_children(id, cx, cy, w, definite), 0.0),
             None if is_flex => (self.flex_children(id, cx, cy, w, definite), 0.0),
             None if self.columns_of(id, w).is_some() => (self.multicol(id, cx, cy, w, align), 0.0),
@@ -1157,6 +1169,87 @@ impl<'a> Ctx<'a> {
         }
         let mb_out = if bottom_coll { Margins::of(mb).add(last_mb).total() } else { mb };
         (mt_eff + box_h + mb_out, mb_out)
+    }
+
+    /// A box whose writing mode turns vertical here (its parent's is horizontal).
+    fn vertical_root(&self, id: NodeId) -> bool {
+        self.styles[id].vertical.is_vertical() && self.dom.nodes[id].parent.is_none_or(|p| !self.styles[p].vertical.is_vertical())
+    }
+
+    /// The content of a vertical root (vertical.rs): laid out as horizontal lines whose length
+    /// is the box's height (its own, else the window's), then turned onto the page. Sets the
+    /// content width (an auto width fits the columns) and returns the content height.
+    fn vertical_children(&mut self, id: NodeId, cx: f32, cy: f32, w: &mut f32, auto_w: bool, definite: Option<f32>, align: Align) -> f32 {
+        let line_len = definite.unwrap_or_else(|| self.cb_heights.first().copied().flatten().unwrap_or(600.0)).max(1.0);
+        let start = (self.items.len(), self.links.len(), self.hits.len());
+        self.floats.push(Vec::new());
+        self.cb_heights.push(None);
+        self.vertical_avail.push(*w);
+        let (block_size, _) = self.block_children(id, cx, cy, line_len, align);
+        self.vertical_avail.pop();
+        self.cb_heights.pop();
+        self.floats.pop();
+        if auto_w {
+            *w = block_size.max(0.0);
+        }
+        // Without a height, the box is as tall as its longest column.
+        let used = match definite {
+            Some(h) => h,
+            None => (self.content_right(&self.items[start.0..], false) - cx).clamp(0.0, line_len),
+        };
+        let turn = crate::vertical::Turn { mode: self.styles[id].vertical.mode, cx, cy, w: *w };
+        crate::vertical::convert(&mut self.items, start.0, turn, self.styles[id].vertical, self.fonts, self.measuring);
+        let map = |r: &mut Rect| {
+            let (x, y, w, h) = turn.rect(r.x, r.y, r.w, r.h);
+            *r = Rect { x, y, w, h };
+        };
+        self.links[start.1..].iter_mut().for_each(|(r, _)| map(r));
+        self.hits[start.2..].iter_mut().for_each(|(r, _)| map(r));
+        used
+    }
+
+    /// A horizontal block inside vertical text (an orthogonal flow back to horizontal).
+    fn horizontal_in_vertical(&self, id: NodeId) -> bool {
+        !self.styles[id].vertical.is_vertical() && self.dom.nodes[id].parent.is_some_and(|p| self.styles[p].vertical.is_vertical()) && !self.vertical_avail.is_empty()
+    }
+
+    /// The content of a horizontal block inside vertical text: laid out as usual (its width
+    /// its own, else fitted to its content within the vertical root's width), and fenced so
+    /// the vertical root moves it into place without turning it. In the vertical root's
+    /// logical layout it is as wide as it is tall: sets `w` to its height and returns its width.
+    fn horizontal_children(&mut self, id: NodeId, cx: f32, cy: f32, w: &mut f32, auto_w: bool, definite: Option<f32>, align: Align) -> f32 {
+        let avail = self.vertical_avail.last().copied().unwrap_or(800.0).max(1.0);
+        let st = &self.styles[id];
+        let mut width = if auto_w { avail } else { self.definite_len(st.width).unwrap_or(avail) };
+        let start = (self.items.len(), self.links.len(), self.hits.len());
+        self.items.push(Item::Mark { id: crate::vertical::FENCE_OPEN, x: cx, y: cy, w: 0.0, h: 0.0 });
+        let saved = std::mem::take(&mut self.vertical_avail);
+        let mut lay = |cx_: &mut Self, width: f32| {
+            cx_.floats.push(Vec::new());
+            let (h, _) = cx_.block_children(id, cx, cy, width, align);
+            cx_.floats.pop();
+            h
+        };
+        let mut height = lay(self, width);
+        if auto_w {
+            let right = (self.content_right(&self.items[start.0..], false) - cx).ceil();
+            if right > 0.0 && right < width - 0.5 {
+                self.items.truncate(start.0 + 1);
+                self.links.truncate(start.1);
+                self.hits.truncate(start.2);
+                width = right;
+                height = lay(self, width);
+            }
+        }
+        self.vertical_avail = saved;
+        let height = definite.unwrap_or(height);
+        if let Item::Mark { w, h, .. } = &mut self.items[start.0] {
+            *w = height;
+            *h = width;
+        }
+        self.items.push(Item::Mark { id: crate::vertical::FENCE_CLOSE, x: 0.0, y: 0.0, w: 0.0, h: 0.0 });
+        *w = height;
+        width
     }
 
     /// Page-area bounding box of the paint items from index `from` on, at least `base`.
@@ -1404,7 +1497,23 @@ impl<'a> Ctx<'a> {
     /// Rightmost edge of the content drawn in a detached box (text, images, inner boxes).
     fn content_right(&self, items: &[Item], skip_first_boxes: bool) -> f32 {
         let mut right = 0.0f32;
+        let mut sideways = false;
         for (i, it) in items.iter().enumerate() {
+            // Sideways text in vertical writing (vertical.rs) counts where it's drawn.
+            match it {
+                Item::TransformPush { m, x, y, w, h } if crate::vertical::is_text_turn(m) => {
+                    let (bx, _, bw, _) = crate::transform::bounds(m, *x, *y, *w, *h);
+                    right = right.max(bx + bw);
+                    sideways = true;
+                    continue;
+                }
+                Item::TransformPop if sideways => {
+                    sideways = false;
+                    continue;
+                }
+                _ if sideways => continue,
+                _ => {}
+            }
             let r = match it {
                 Item::Text { x, text, font, size, .. } => x + self.fonts.width(*font, text, *size),
                 Item::Image { x, w, .. } => x + w,
@@ -3091,6 +3200,14 @@ impl<'a> Ctx<'a> {
     /// time, so it's measured that way too).
     fn word_width(&self, node: NodeId, text: &str) -> f32 {
         let (font, size) = self.font_of(node);
+        let v = self.styles[node].vertical;
+        if v.combines() {
+            // text-combine-upright: the run fits one upright em in its column.
+            return size;
+        }
+        if v.is_vertical() && text.chars().any(|c| v.upright(c)) {
+            return crate::vertical::advance(self.fonts, v, font, size, text);
+        }
         let ls = self.styles[node].text.letter_spacing;
         if ls == 0.0 {
             return self.fonts.width(font, text, size);
@@ -3382,6 +3499,7 @@ impl<'a> Ctx<'a> {
                                 // already resolved, and shaping a mixed run would reverse it.
                                 (Some((n, end)), Some(Item::Text { text: t, .. }))
                                     if n == *node
+                                        && !s.vertical.combines()
                                         && !s.underline
                                         && !s.line_through
                                         && !s.overline
@@ -3394,7 +3512,7 @@ impl<'a> Ctx<'a> {
                                     true
                                 }
                                 // A piece of the same word (split where a line could break).
-                                (Some((n, end)), Some(Item::Text { text: t, .. })) if *glue && n == *node && (px - end).abs() < 0.5 => {
+                                (Some((n, end)), Some(Item::Text { text: t, .. })) if *glue && n == *node && !s.vertical.combines() && (px - end).abs() < 0.5 => {
                                     t.push_str(text);
                                     true
                                 }
@@ -3404,7 +3522,11 @@ impl<'a> Ctx<'a> {
                                 if s.text_shadow.is_some() {
                                     shadowed.push((self.items.len(), *node));
                                 }
-                                self.items.push(Item::Text { x: px, y: baseline, text: text.clone(), font, size, color: s.color });
+                                let text = match crate::vertical::mark(s.vertical) {
+                                    Some(m) => format!("{m}{text}"),
+                                    None => text.clone(),
+                                };
+                                self.items.push(Item::Text { x: px, y: baseline, text, font, size, color: s.color });
                             }
                             let deco = s.underline || s.line_through || s.overline;
                             last_text = if deco { None } else { Some((*node, px + p.w)) };

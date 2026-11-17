@@ -394,6 +394,11 @@ impl Fonts {
     pub fn width(&self, font: u8, text: &str, size: f32) -> f32 {
         // Plain ASCII without kerning pairs is the common case; everything goes through the
         // shaper so kerning, ligatures and fallback fonts measure the way they draw.
+        if !text.is_ascii() && text.contains(is_marker) {
+            // Layout's internal markers (vertical.rs) take no room.
+            let plain: String = text.chars().filter(|&c| !is_marker(c)).collect();
+            return self.shape(font, &plain, size).width;
+        }
         self.shape(font, text, size).width
     }
 
@@ -401,6 +406,17 @@ impl Fonts {
         let f = self.font(font);
         f.as_scaled(scale_for(&f, size)).ascent()
     }
+
+    /// How far the font reaches below the baseline (a positive distance).
+    pub fn descent(&self, font: u8, size: f32) -> f32 {
+        let f = self.font(font);
+        -f.as_scaled(scale_for(&f, size)).descent()
+    }
+}
+
+/// The Unicode noncharacters U+FDD0–U+FDEF, which layout uses as internal markers.
+fn is_marker(c: char) -> bool {
+    ('\u{FDD0}'..='\u{FDEF}').contains(&c)
 }
 
 impl Fonts {

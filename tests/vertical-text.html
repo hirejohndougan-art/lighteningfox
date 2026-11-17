@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Vertical text</title>
+<style>
+body { font-family: sans-serif; margin: 16px; }
+.row { display: flex; gap: 24px; align-items: flex-start; }
+.rl { writing-mode: vertical-rl; height: 240px; border: 2px solid #446; padding: 8px; background: #f4f1e8; font-size: 20px; line-height: 1.6; }
+.lr { writing-mode: vertical-lr; height: 240px; border: 2px solid #464; padding: 8px; background: #eef6ee; font-size: 20px; line-height: 1.6; }
+.tcy { text-combine-upright: all; }
+.up { text-orientation: upright; }
+h2 { writing-mode: vertical-rl; font-size: 18px; margin: 0; color: #833; border-right: 4px solid #833; padding-right: 4px; }
+.box { display: inline-block; background: #fdd; border: 1px solid #c88; }
+</style></head>
+<body>
+<div class="row">
+  <h2>縦書きの見出し</h2>
+  <div class="rl"><p style="margin:0">吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。</p><p style="margin:0">令和<span class="tcy">12</span>年<span class="tcy">3</span>月。Ironswift は Rust で書かれた。</p></div>
+  <div class="lr">first line of Latin text<br>二行目は日本語です。<br><span class="box">箱</span>三行目</div>
+  <div class="rl up">ABC 漢字 123</div>
+  <div class="rl" style="width:60px">固定幅の縦書きボックスです。文字がはみ出します。</div>
+</div>
+<p>Horizontal text after the vertical boxes continues normally.</p>
+</body></html>

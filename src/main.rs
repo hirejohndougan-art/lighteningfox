@@ -66,6 +66,7 @@ mod jsmodules;
 mod importmap;
 mod domindex;
 mod dom_classes;
+mod vertical;
 mod memory;
 mod userinput;
 #[cfg(test)]
@@ -4696,6 +4697,7 @@ mod screenshot_tests {
         ("tests/real-world/jquery.html", 1024),
         ("tests/real-world/bootstrap.html", 1024),
         ("tests/media.html", 1024),
+        ("tests/vertical-text.html", 1024),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
