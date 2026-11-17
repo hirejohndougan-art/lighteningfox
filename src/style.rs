@@ -384,6 +384,10 @@ pub struct Style {
     pub counters: Option<Rc<[(u8, Rc<str>)]>>,
     /// Styles of this element's ::before, ::after, ::marker and ::placeholder.
     pub pseudo: Option<Rc<Pseudos>>,
+    /// A query container (`container-type`: 1 inline-size, 2 size) and its names.
+    pub container: Option<(u8, Rc<str>)>,
+    /// `appearance: none`: form controls drop their built-in decorations.
+    pub appearance_none: bool,
 }
 
 /// The pseudo-element styles an element has rules for.
@@ -480,6 +484,8 @@ impl Default for Style {
             content: None,
             counters: None,
             pseudo: None,
+            container: None,
+            appearance_none: false,
         }
     }
 }
@@ -574,6 +580,8 @@ button { display: inline-block; font-size: 13.33px; padding: 2px 8px; border: 1p
 struct Matched<'a> {
     important: bool,
     origin: u8, // 0 = UA, 1 = author, 2 = inline
+    /// Cascade layer rank (see `cascade::LayerOrder::key`).
+    layer: u32,
     spec: (u32, u32, u32),
     order: usize,
     decl: &'a Decl,
@@ -685,6 +693,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     for sheet in std::iter::once(&ua).chain(sheets.iter()).chain(scoped.values().flat_map(|(a, b)| [a, b])) {
         pseudo_index.insert(sheet as *const Stylesheet, pseudo_rules(sheet));
     }
+    let layers = crate::cascade::LayerOrder::new(std::iter::once(&ua).chain(sheets.iter()));
     crate::anim::begin_pass(sheets);
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
@@ -720,13 +729,20 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) || !matches(dom, id, &pr.sel) {
                     continue;
                 }
+                if rule.container.as_deref().is_some_and(|c| !crate::cascade::matches(dom, &styles, id, c)) {
+                    continue;
+                }
                 for d in &rule.decls {
-                    pmatched[pr.kind].push(Matched { important: d.important, origin, spec: pr.spec, order, decl: d });
+                    let layer = layers.key(rule.layer.as_ref(), d.important);
+                    pmatched[pr.kind].push(Matched { important: d.important, origin, layer, spec: pr.spec, order, decl: d });
                     order += 1;
                 }
             }
             for rule in &sheet.rules {
                 if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) {
+                    continue;
+                }
+                if rule.container.as_deref().is_some_and(|c| !crate::cascade::matches(dom, &styles, id, c)) {
                     continue;
                 }
                 let best = rule
@@ -737,7 +753,8 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                     .max();
                 if let Some(spec) = best {
                     for d in &rule.decls {
-                        matched.push(Matched { important: d.important, origin, spec, order, decl: d });
+                        let layer = layers.key(rule.layer.as_ref(), d.important);
+                        matched.push(Matched { important: d.important, origin, layer, spec, order, decl: d });
                         order += 1;
                     }
                 }
@@ -769,10 +786,10 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         let mut st = Style::inherit(&parent_style);
         let inline = dom.attr(id, "style").map(css::parse_declarations).unwrap_or_default();
         for d in &inline {
-            matched.push(Matched { important: d.important, origin: 2, spec: (9, 9, 9), order, decl: d });
+            matched.push(Matched { important: d.important, origin: 2, layer: layers.key(None, d.important), spec: (9, 9, 9), order, decl: d });
             order += 1;
         }
-        matched.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
+        matched.sort_by_key(|m| (m.important, m.origin, m.layer, m.spec, m.order));
         // Custom properties first, so normal properties can use them via var().
         for m in matched.iter().filter(|m| m.decl.name.starts_with("--")) {
             let value = substitute_vars(&m.decl.value, &st.vars, 0);
@@ -786,12 +803,20 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 presentational_hints(dom, id, &mut st, &parent_style);
                 hinted = true;
             }
-            if m.decl.value.contains("var(") {
-                let value = substitute_vars(&m.decl.value, &st.vars, 0);
-                apply(&mut st, &parent_style, &m.decl.name, &value);
-            } else {
-                apply(&mut st, &parent_style, &m.decl.name, &m.decl.value);
+            let value = if m.decl.value.contains("var(") { substitute_vars(&m.decl.value, &st.vars, 0) } else { m.decl.value.clone() };
+            let kw = value.trim().to_ascii_lowercase();
+            if css::is_wide_keyword(&kw) {
+                // `revert` in the page's CSS goes back to the browser's own rule for it.
+                let ua_value = (kw.starts_with("revert") && m.origin > 0)
+                    .then(|| matched.iter().filter(|u| u.origin == 0 && !u.important && u.decl.name == m.decl.name).next_back().map(|u| u.decl.value.clone()))
+                    .flatten();
+                match ua_value {
+                    Some(v) => apply(&mut st, &parent_style, &m.decl.name, &v),
+                    None => crate::cascade::apply_keyword(&mut st, &parent_style, &m.decl.name, if kw.starts_with("revert") { "unset" } else { &kw }),
+                }
+                continue;
             }
+            apply(&mut st, &parent_style, &m.decl.name, &value);
         }
         if !hinted {
             presentational_hints(dom, id, &mut st, &parent_style);
@@ -843,7 +868,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 if pm.is_empty() {
                     continue;
                 }
-                pm.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
+                pm.sort_by_key(|m| (m.important, m.origin, m.layer, m.spec, m.order));
                 let p = cascade_pseudo(&st, &pm);
                 let slot = match k {
                     0 => &mut ps.before,
@@ -890,9 +915,7 @@ fn pseudo_rules(sheet: &Stylesheet) -> Vec<PseudoRule> {
             if lc.pseudo.iter().any(|p| p.starts_with("::")) {
                 continue;
             }
-            let mut spec = sel.specificity();
-            spec.1 -= 1;
-            spec.2 += 1;
+            let spec = sel.specificity();
             out.push(PseudoRule { rule: i, kind, sel: stripped, spec });
         }
     }
@@ -1841,36 +1864,50 @@ pub(crate) fn parse_bg_size(v: &str, fs: f32) -> BgSize {
 
 /// `center`, `top right`, `50% 20px`, `right 10px top` (simplified) -> (x, y)
 pub(crate) fn parse_bg_pos(v: &str, fs: f32) -> (Len, Len) {
+    // 1–4 values: `center`, `10px 20%`, `right 12px center`, `right 10px bottom 5px`.
     let words: Vec<&str> = v.split_whitespace().collect();
+    let kw = |w: &str| matches!(w, "left" | "right" | "top" | "bottom" | "center");
     let mut x = None;
     let mut y = None;
-    for w in &words {
-        match *w {
-            "left" => x = Some(Len::Pct(0.0)),
-            "right" => x = Some(Len::Pct(100.0)),
-            "top" => y = Some(Len::Pct(0.0)),
-            "bottom" => y = Some(Len::Pct(100.0)),
-            "center" => {
-                if x.is_none() {
-                    x = Some(Len::Pct(50.0));
-                } else if y.is_none() {
-                    y = Some(Len::Pct(50.0));
-                }
+    let mut centers = 0;
+    let mut i = 0;
+    let mut plain: Vec<Len> = Vec::new();
+    while i < words.len() {
+        let w = words[i];
+        if kw(w) {
+            // An edge keyword followed by a length: an offset from that edge.
+            let off = words.get(i + 1).filter(|n| !kw(n)).and_then(|n| parse_len(n, fs));
+            if off.is_some() {
+                i += 1;
             }
-            t => {
-                if let Some(l) = parse_len(t, fs) {
-                    if x.is_none() {
-                        x = Some(l);
-                    } else if y.is_none() {
-                        y = Some(l);
-                    }
-                }
+            let from_end = |o: Option<Len>| match o {
+                None => Len::Pct(100.0),
+                Some(Len::Px(p)) => Len::Mix(-p, 100.0),
+                Some(Len::Pct(p)) => Len::Pct(100.0 - p),
+                Some(Len::Mix(p, q)) => Len::Mix(-p, 100.0 - q),
+                Some(other) => other,
+            };
+            match w {
+                "left" => x = Some(off.unwrap_or(Len::Pct(0.0))),
+                "right" => x = Some(from_end(off)),
+                "top" => y = Some(off.unwrap_or(Len::Pct(0.0))),
+                "bottom" => y = Some(from_end(off)),
+                _ => centers += 1,
             }
+        } else if let Some(l) = parse_len(w, fs) {
+            plain.push(l);
+        }
+        i += 1;
+    }
+    // Plain lengths (two-value syntax) fill x then y; `center` fills whatever is left.
+    for l in plain {
+        if x.is_none() {
+            x = Some(l);
+        } else if y.is_none() {
+            y = Some(l);
         }
     }
-    if words.len() == 1 && words[0] == "center" {
-        return (Len::Pct(50.0), Len::Pct(50.0));
-    }
+    let _ = centers;
     (x.unwrap_or(Len::Pct(50.0)), y.unwrap_or(Len::Pct(50.0)))
 }
 
@@ -2292,6 +2329,29 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "content" => st.content = Some(v.into()),
+        "appearance" | "-webkit-appearance" | "-moz-appearance" => st.appearance_none = lower == "none",
+        "container-type" | "container-name" | "container" => {
+            let (mut kind, mut names) = st.container.clone().map(|(k, n)| (k, n.to_string())).unwrap_or((0, String::new()));
+            let (n, t) = match name {
+                "container-type" => (None, Some(lower.as_str())),
+                "container-name" => (Some(v), None),
+                _ => match v.split_once('/') {
+                    Some((n, t)) => (Some(n.trim()), Some(t.trim())),
+                    None => (Some(v), Some("normal")),
+                },
+            };
+            if let Some(t) = t {
+                kind = match t.trim().to_ascii_lowercase().as_str() {
+                    "inline-size" => 1,
+                    "size" => 2,
+                    _ => 0,
+                };
+            }
+            if let Some(n) = n {
+                names = if n.eq_ignore_ascii_case("none") { String::new() } else { n.to_string() };
+            }
+            st.container = (kind > 0).then(|| (kind, names.into()));
+        }
         "counter-reset" | "counter-set" | "counter-increment" => {
             let kind = match name {
                 "counter-reset" => 0,

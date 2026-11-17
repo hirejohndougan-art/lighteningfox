@@ -1988,9 +1988,9 @@ impl<'a> Ctx<'a> {
                 items.push(Item::ClipPush { x, y, w: (w - arrow).max(0.0), h: lh, radius: 0.0 });
                 items.push(Item::Text { x, y: baseline(y), text: label, font, size, color: st.color });
                 items.push(Item::ClipPop);
-                // A small downward triangle at the right.
+                // A small downward triangle at the right (unless the page draws its own).
                 let (ax, ay) = (x + w - arrow * 0.75, (y + lh / 2.0 - 2.0).round());
-                for row in 0..4 {
+                for row in (0..4).filter(|_| !st.appearance_none) {
                     let r = row as f32;
                     items.push(Item::Rect { x: (ax + r).round(), y: ay + r, w: 8.0 - 2.0 * r, h: 1.0, color: st.color });
                 }

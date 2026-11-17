@@ -6,6 +6,10 @@ pub struct Stylesheet {
     pub font_faces: Vec<FontFace>,
     /// `@keyframes` rules, for CSS animations.
     pub keyframes: Vec<crate::anim::Keyframes>,
+    /// `@import` rules: sheets to load ahead of this one's rules (see `load_imports`).
+    pub imports: Vec<Import>,
+    /// Cascade layer names in the order they were first declared.
+    pub layers: Vec<std::sync::Arc<str>>,
 }
 
 /// An `@font-face` rule: a downloadable font for a family name.
@@ -55,6 +59,18 @@ pub struct Rule {
     /// The @media condition the rule sits in (nested ones joined with " && "), checked
     /// against the window each time styles are computed.
     pub media: Option<std::sync::Arc<str>>,
+    /// The cascade layer it's in (`@layer a.b`), by full name; None = not in a layer.
+    pub layer: Option<std::sync::Arc<str>>,
+    /// The `@container` conditions it sits in (nested ones joined with " && ").
+    pub container: Option<std::sync::Arc<str>>,
+}
+
+/// An `@import` rule: the sheet to load in its place.
+#[derive(Debug, Clone)]
+pub struct Import {
+    pub url: String,
+    pub media: Option<std::sync::Arc<str>>,
+    pub layer: Option<std::sync::Arc<str>>,
 }
 
 #[derive(Debug, Clone)]
@@ -97,130 +113,433 @@ impl Selector {
         let mut s = (0, 0, 0);
         for p in &self.parts {
             s.0 += p.id.is_some() as u32;
-            s.1 += (p.classes.len() + p.attrs.len() + p.pseudo.len()) as u32;
+            for ps in &p.pseudo {
+                if ps.starts_with("where(") {
+                    continue;
+                }
+                // :is(), :not(), :has(): the most specific selector in the list.
+                let arg = ["is(", "not(", "has(", "matches(", "-webkit-any("].iter().find_map(|f| ps.strip_prefix(f)).and_then(|a| a.strip_suffix(')'));
+                match arg {
+                    Some(a) => {
+                        let best = parse_selector_list(a.trim_start_matches(['>', '+', '~'])).iter().map(|s| s.specificity()).max().unwrap_or((0, 0, 0));
+                        s.0 += best.0;
+                        s.1 += best.1;
+                        s.2 += best.2;
+                    }
+                    None if ps.starts_with("::") => s.2 += 1,
+                    None => s.1 += 1,
+                }
+            }
+            s.1 += (p.classes.len() + p.attrs.len()) as u32;
             s.2 += p.tag.is_some() as u32;
         }
         s
     }
 }
 
+/// The parsing state for one stylesheet.
+struct Builder<'a> {
+    src: &'a [char],
+    rules: Vec<Rule>,
+    faces: Vec<FontFace>,
+    imports: Vec<Import>,
+    /// Layer names in the order they first appear (this decides which layer wins).
+    layers: Vec<std::sync::Arc<str>>,
+    anon: usize,
+}
+
+/// Where a rule sits: inside which @media, @layer, @container and (for nested rules)
+/// which parent selectors.
+#[derive(Clone, Default)]
+struct Scope {
+    media: Option<std::sync::Arc<str>>,
+    layer: Option<std::sync::Arc<str>>,
+    container: Option<std::sync::Arc<str>>,
+    parent: Option<std::rc::Rc<Vec<String>>>,
+}
+
 pub fn parse(src: &str) -> Stylesheet {
-    let clean = strip_comments(src);
-    let mut rules = Vec::new();
-    let mut font_faces = Vec::new();
-    parse_block(&clean, &mut rules, &mut font_faces, None);
-    let keyframes = if clean.contains("keyframes") { crate::anim::find_keyframes(&clean) } else { Vec::new() };
-    Stylesheet { rules, font_faces, keyframes }
+    let chars = crate::csssyntax::preprocess(src);
+    let items = crate::csssyntax::parse_stylesheet(&chars);
+    let mut b = Builder { src: &chars, rules: Vec::new(), faces: Vec::new(), imports: Vec::new(), layers: Vec::new(), anon: 0 };
+    let mut imports_allowed = true;
+    for item in items {
+        // @import only counts before every other rule (except @charset and @layer statements).
+        let is_import = matches!(&item, crate::csssyntax::Item::AtRule(n, _, None) if n == "import");
+        if is_import && imports_allowed {
+            if let crate::csssyntax::Item::AtRule(_, prelude, _) = &item {
+                b.import(prelude);
+            }
+            continue;
+        }
+        let keeps = matches!(&item, crate::csssyntax::Item::AtRule(n, _, None) if n == "charset" || n == "layer");
+        if !keeps {
+            imports_allowed = false;
+        }
+        b.item(item, &Scope::default());
+    }
+    let keyframes = if src.contains("keyframes") { crate::anim::find_keyframes(&strip_comments(src)) } else { Vec::new() };
+    Stylesheet { rules: b.rules, font_faces: b.faces, keyframes, imports: b.imports, layers: b.layers }
 }
 
 /// Parse a declaration list like the `style=""` attribute.
 pub fn parse_declarations(src: &str) -> Vec<Decl> {
-    // Inline style attributes can carry comments too.
-    let cleaned;
-    let src = if src.contains("/*") {
-        cleaned = strip_comments(src);
-        cleaned.as_str()
-    } else {
-        src
-    };
-    split_top(src, ';')
+    let chars = crate::csssyntax::preprocess(src);
+    let cvs = crate::csssyntax::Parser::new(&chars).component_values();
+    decls_of(&chars, crate::csssyntax::block_contents(cvs))
+}
+
+fn decls_of(src: &[char], items: Vec<crate::csssyntax::Item>) -> Vec<Decl> {
+    items
         .into_iter()
-        .filter_map(|d| {
-            let (name, value) = d.split_once(':')?;
-            let name = name.trim();
-            // Custom property names are case-sensitive; everything else isn't.
-            let name = if name.starts_with("--") { name.to_string() } else { name.to_ascii_lowercase() };
-            let mut value = value.trim().to_string();
-            // `!important`, with or without space after the `!`.
-            let lower = value.to_ascii_lowercase();
-            let bang = lower.rfind('!').filter(|&p| lower[p + 1..].trim() == "important");
-            let important = bang.is_some();
-            if let Some(p) = bang {
-                value.truncate(p);
-                value = value.trim().to_string();
+        .filter_map(|it| match it {
+            crate::csssyntax::Item::Decl(name, value, important) => {
+                // Custom property names are case-sensitive; everything else isn't.
+                let name = if name.starts_with("--") { name } else { name.to_ascii_lowercase() };
+                let value = crate::csssyntax::text(src, &value);
+                (!value.is_empty() && !name.is_empty()).then_some(Decl { name, value, important })
             }
-            if name.is_empty() || value.is_empty() {
-                return None;
-            }
-            Some(Decl { name, value, important })
+            _ => None,
         })
         .collect()
 }
 
-fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>, media: Option<&std::sync::Arc<str>>) {
-    let b = src.as_bytes();
-    let mut i = 0;
-    while i < b.len() {
-        while i < b.len() && (b[i] as char).is_whitespace() {
-            i += 1;
-        }
-        if i >= b.len() {
-            break;
-        }
-        // Find the end of the prelude: '{' or ';' (for statement at-rules like @import).
-        let start = i;
-        while i < b.len() && b[i] != b'{' && b[i] != b';' {
-            i += 1;
-        }
-        if i >= b.len() {
-            break;
-        }
-        let prelude = src[start..i].trim();
-        if b[i] == b';' {
-            i += 1;
-            continue;
-        }
-        let body_start = i + 1;
-        let body_end = matching_brace(b, i);
-        let body = &src[body_start..body_end.min(src.len())];
-        i = body_end + 1;
-
-        if let Some(at) = prelude.strip_prefix('@') {
-            let lower = at.to_ascii_lowercase();
-            if lower.starts_with("media") {
-                let cond = lower[5..].trim();
-                // Print-only rules can never apply on screen: drop them now.
-                if !media_possible(cond) {
-                    continue;
-                }
-                let joined: std::sync::Arc<str> = match media {
-                    Some(outer) => format!("{outer} && {cond}").into(),
-                    None => cond.into(),
-                };
-                parse_block(body, rules, faces, Some(&joined));
-            } else if lower.starts_with("supports") || lower.starts_with("layer") {
-                parse_block(body, rules, faces, media);
-            } else if lower.starts_with("font-face") {
-                let decls = parse_declarations(body);
-                let get = |n: &str| decls.iter().rev().find(|d| d.name == n).map(|d| d.value.clone());
-                if let (Some(family), Some(src)) = (get("font-family"), get("src")) {
-                    let num = |w: &str| match w.trim() {
-                        "normal" => Some(400),
-                        "bold" => Some(700),
-                        n => n.parse::<f32>().ok().map(|v| v as u16),
-                    };
-                    let wv = get("font-weight").unwrap_or_else(|| "400".into()).to_ascii_lowercase();
-                    let mut ws = wv.split_whitespace().filter_map(num);
-                    let lo = ws.next().unwrap_or(400);
-                    let hi = ws.next().unwrap_or(lo).max(lo);
-                    let st = get("font-style").unwrap_or_default().to_ascii_lowercase();
-                    faces.push(FontFace {
-                        family: family.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_ascii_lowercase(),
-                        src,
-                        weight: (lo, hi),
-                        italic: st.starts_with("italic") || st.starts_with("oblique"),
-                    });
-                }
-            }
-            continue;
-        }
-        let selectors: Vec<Selector> = split_top(prelude, ',').iter().filter_map(|s| parse_selector(s)).collect();
-        if selectors.is_empty() {
-            continue;
-        }
-        rules.push(Rule { selectors, decls: parse_declarations(body), media: media.cloned() });
+fn join(outer: &Option<std::sync::Arc<str>>, inner: &str) -> std::sync::Arc<str> {
+    match outer {
+        Some(o) => format!("{o} && {inner}").into(),
+        None => inner.into(),
     }
 }
+
+impl Builder<'_> {
+    fn text(&self, cvs: &[crate::csssyntax::Cv]) -> String {
+        crate::csssyntax::text(self.src, cvs)
+    }
+
+    fn layer_name(&mut self, scope: &Scope, name: &str) -> std::sync::Arc<str> {
+        let name = name.trim();
+        let full: std::sync::Arc<str> = match (&scope.layer, name.is_empty()) {
+            (Some(outer), false) => format!("{outer}.{name}").into(),
+            (None, false) => name.into(),
+            (outer, true) => {
+                self.anon += 1;
+                match outer {
+                    Some(o) => format!("{o}.\u{0}anon{}", self.anon).into(),
+                    None => format!("\u{0}anon{}", self.anon).into(),
+                }
+            }
+        };
+        // Declaring "a.b" also declares "a" (before it).
+        let mut prefix = String::new();
+        for part in full.split('.') {
+            if !prefix.is_empty() {
+                prefix.push('.');
+            }
+            prefix.push_str(part);
+            if !self.layers.iter().any(|l| **l == *prefix) {
+                self.layers.push(prefix.as_str().into());
+            }
+        }
+        full
+    }
+
+    fn import(&mut self, prelude: &[crate::csssyntax::Cv]) {
+        use crate::csssyntax::{Cv, Token};
+        let mut url = None;
+        let mut layer = None;
+        let mut rest = Vec::new();
+        let mut supported = true;
+        for cv in prelude {
+            match cv {
+                Cv::Tok(t) if url.is_none() && matches!(t.t, Token::Url(_) | Token::Str(_)) => {
+                    if let Token::Url(u) | Token::Str(u) = &t.t {
+                        url = Some(u.clone());
+                    }
+                }
+                Cv::Func(n, args, _) if url.is_none() && n.eq_ignore_ascii_case("url") => {
+                    url = args.iter().find_map(|a| match a.token() {
+                        Some(Token::Str(u)) => Some(u.clone()),
+                        _ => None,
+                    });
+                }
+                Cv::Tok(t) if url.is_some() && rest.is_empty() && matches!(&t.t, Token::Ident(i) if i.eq_ignore_ascii_case("layer")) => {
+                    layer = Some(self.layer_name(&Scope::default(), ""));
+                }
+                Cv::Func(n, args, _) if url.is_some() && rest.is_empty() && n.eq_ignore_ascii_case("layer") => {
+                    let name = self.text(args);
+                    layer = Some(self.layer_name(&Scope::default(), &name));
+                }
+                Cv::Func(n, args, _) if url.is_some() && rest.is_empty() && n.eq_ignore_ascii_case("supports") => {
+                    let cond = self.text(args);
+                    // supports(display: grid) holds a declaration without parentheses.
+                    supported = supports(&format!("({cond})")) || supports(&cond);
+                }
+                Cv::Tok(t) if matches!(t.t, Token::Whitespace) && rest.is_empty() => {}
+                _ if url.is_some() => rest.push(cv.clone()),
+                _ => {}
+            }
+        }
+        let media = self.text(&rest).to_ascii_lowercase();
+        if let (Some(url), true) = (url, supported) {
+            if media.is_empty() || media_possible(&media) {
+                self.imports.push(Import { url, media: (!media.is_empty()).then(|| media.into()), layer });
+            }
+        }
+    }
+
+    fn item(&mut self, item: crate::csssyntax::Item, scope: &Scope) {
+        use crate::csssyntax::Item;
+        match item {
+            Item::Qualified(prelude, block) => {
+                let sel_text = self.text(&prelude);
+                let sels: Vec<String> = match &scope.parent {
+                    Some(parents) => split_top(&sel_text, ',').iter().map(|s| nest(parents, s.trim())).collect(),
+                    None => split_top(&sel_text, ',').iter().map(|s| s.trim().to_string()).collect(),
+                };
+                let selectors: Vec<Selector> = sels.iter().filter_map(|s| parse_selector(s)).collect();
+                // One bad selector drops the whole rule, as in browsers.
+                if selectors.is_empty() || selectors.len() != sels.len() {
+                    return;
+                }
+                let contents = crate::csssyntax::block_contents(block);
+                let (decls, nested): (Vec<_>, Vec<_>) = contents.into_iter().partition(|i| matches!(i, Item::Decl(..)));
+                let decls = decls_of(self.src, decls);
+                if !decls.is_empty() || nested.is_empty() {
+                    self.rules.push(Rule { selectors, decls, media: scope.media.clone(), layer: scope.layer.clone(), container: scope.container.clone() });
+                }
+                if !nested.is_empty() {
+                    let inner = Scope { parent: Some(std::rc::Rc::new(sels)), ..scope.clone() };
+                    for n in nested {
+                        self.item(n, &inner);
+                    }
+                }
+            }
+            Item::Decl(..) => {
+                // Declarations straight inside a nested @media etc.: they belong to the parent selector.
+                if let Some(parents) = &scope.parent {
+                    let selectors: Vec<Selector> = parents.iter().filter_map(|s| parse_selector(s)).collect();
+                    let decls = decls_of(self.src, vec![item]);
+                    if !selectors.is_empty() && !decls.is_empty() {
+                        self.rules.push(Rule { selectors, decls, media: scope.media.clone(), layer: scope.layer.clone(), container: scope.container.clone() });
+                    }
+                }
+            }
+            Item::AtRule(name, prelude, block) => {
+                let pre = self.text(&prelude);
+                match (name.as_str(), block) {
+                    ("media", Some(block)) => {
+                        let cond = pre.to_ascii_lowercase();
+                        // Print-only rules can never apply on screen: drop them now.
+                        if !media_possible(&cond) {
+                            return;
+                        }
+                        let inner = Scope { media: Some(join(&scope.media, &cond)), ..scope.clone() };
+                        self.block(block, &inner);
+                    }
+                    ("supports", Some(block)) => {
+                        if supports(&pre) {
+                            self.block(block, scope);
+                        }
+                    }
+                    ("layer", Some(block)) => {
+                        let layer = self.layer_name(scope, &pre);
+                        let inner = Scope { layer: Some(layer), ..scope.clone() };
+                        self.block(block, &inner);
+                    }
+                    ("layer", None) => {
+                        for name in pre.split(',') {
+                            if !name.trim().is_empty() {
+                                self.layer_name(scope, name);
+                            }
+                        }
+                    }
+                    ("container", Some(block)) => {
+                        let inner = Scope { container: Some(join(&scope.container, pre.trim())), ..scope.clone() };
+                        self.block(block, &inner);
+                    }
+                    ("scope" | "starting-style" | "document" | "-moz-document", Some(_)) => {}
+                    ("font-face", Some(block)) => {
+                        let decls = decls_of(self.src, crate::csssyntax::block_contents(block));
+                        self.font_face(decls);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// The contents of a conditional group rule (@media, @supports, @layer, @container).
+    fn block(&mut self, block: Vec<crate::csssyntax::Cv>, scope: &Scope) {
+        let items = if scope.parent.is_some() { crate::csssyntax::block_contents(block) } else { crate::csssyntax::rule_list(block, false) };
+        for it in items {
+            self.item(it, scope);
+        }
+    }
+
+    fn font_face(&mut self, decls: Vec<Decl>) {
+        let get = |n: &str| decls.iter().rev().find(|d| d.name == n).map(|d| d.value.clone());
+        if let (Some(family), Some(src)) = (get("font-family"), get("src")) {
+            let num = |w: &str| match w.trim() {
+                "normal" => Some(400),
+                "bold" => Some(700),
+                n => n.parse::<f32>().ok().map(|v| v as u16),
+            };
+            let wv = get("font-weight").unwrap_or_else(|| "400".into()).to_ascii_lowercase();
+            let mut ws = wv.split_whitespace().filter_map(num);
+            let lo = ws.next().unwrap_or(400);
+            let hi = ws.next().unwrap_or(lo).max(lo);
+            let st = get("font-style").unwrap_or_default().to_ascii_lowercase();
+            self.faces.push(FontFace {
+                family: family.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_ascii_lowercase(),
+                src,
+                weight: (lo, hi),
+                italic: st.starts_with("italic") || st.starts_with("oblique"),
+            });
+        }
+    }
+}
+
+/// A nested selector's full form: `&` stands for the parent selectors; without one, it's
+/// a descendant of them.
+fn nest(parents: &[String], sel: &str) -> String {
+    let parent = if parents.len() == 1 { parents[0].clone() } else { format!(":is({})", parents.join(", ")) };
+    if sel.contains('&') {
+        sel.replace('&', &parent)
+    } else {
+        format!("{parent} {sel}")
+    }
+}
+
+// ---------------------------------------------------------------- @supports
+
+/// Does an `@supports` condition hold? `(prop: value)`, `not`, `and`, `or`,
+/// `selector(…)`, `font-tech(…)`, `font-format(…)`.
+pub fn supports(cond: &str) -> bool {
+    let c = cond.trim();
+    if c.is_empty() {
+        return false;
+    }
+    let lower = c.to_ascii_lowercase();
+    if let Some(rest) = lower.strip_prefix("not ").or_else(|| lower.strip_prefix("not(").map(|_| &lower[3..])) {
+        return !supports(rest);
+    }
+    // Split on top-level `and` / `or`.
+    let parts = split_words(c);
+    if parts.len() > 1 {
+        let mut result = supports(&parts[0]);
+        let mut i = 1;
+        while i + 1 < parts.len() {
+            let op = parts[i].to_ascii_lowercase();
+            let v = supports(&parts[i + 1]);
+            result = if op == "or" { result || v } else { result && v };
+            i += 2;
+        }
+        return result;
+    }
+    if let Some(inner) = c.strip_prefix('(').and_then(|r| r.strip_suffix(')')) {
+        let inner = inner.trim();
+        if inner.starts_with('(') || inner.to_ascii_lowercase().starts_with("not ") || inner.to_ascii_lowercase().starts_with("selector(") {
+            return supports(inner);
+        }
+        let Some((prop, value)) = inner.split_once(':') else { return false };
+        return property_supported(prop.trim(), value.trim());
+    }
+    if let Some(arg) = lower.strip_prefix("selector(").and_then(|r| r.strip_suffix(')')) {
+        let sels = parse_selector_list(arg);
+        return !sels.is_empty() && sels.iter().all(|s| s.parts.iter().all(|p| p.pseudo.iter().all(|ps| known_pseudo(ps))));
+    }
+    if let Some(arg) = lower.strip_prefix("font-format(").and_then(|r| r.strip_suffix(')')) {
+        return matches!(arg.trim(), "woff" | "woff2" | "truetype" | "opentype");
+    }
+    false
+}
+
+/// Split a condition into operands and `and`/`or` words at the top level.
+fn split_words(c: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut depth = 0;
+    let mut cur = String::new();
+    let chars: Vec<char> = c.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '(' {
+            depth += 1;
+        } else if ch == ')' {
+            depth -= 1;
+        }
+        if depth == 0 && ch.is_whitespace() {
+            let rest: String = chars[i + 1..].iter().take(4).collect::<String>().to_ascii_lowercase();
+            for op in ["and", "or"] {
+                if rest.starts_with(op) && chars.get(i + 1 + op.len()).is_some_and(|c| c.is_whitespace() || *c == '(') {
+                    out.push(std::mem::take(&mut cur).trim().to_string());
+                    out.push(op.to_string());
+                    i += 1 + op.len();
+                    break;
+                }
+            }
+        }
+        if i < chars.len() {
+            cur.push(chars[i]);
+        }
+        i += 1;
+    }
+    if !cur.trim().is_empty() {
+        out.push(cur.trim().to_string());
+    }
+    out
+}
+
+fn known_pseudo(p: &str) -> bool {
+    let name = p.split('(').next().unwrap_or(p).trim_start_matches(':');
+    matches!(
+        name,
+        "link" | "any-link" | "visited" | "root" | "first-child" | "last-child" | "only-child" | "first-of-type" | "last-of-type" | "only-of-type" | "empty"
+            | "checked" | "focus" | "focus-visible" | "focus-within" | "placeholder-shown" | "optional" | "disabled" | "enabled" | "required" | "hover" | "active"
+            | "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type" | "has" | "not" | "is" | "where" | "before" | "after" | "marker" | "placeholder"
+            | "target" | "scope" | "defined" | "read-only" | "read-write" | "valid" | "invalid" | "indeterminate" | "default" | "lang" | "dir"
+    )
+}
+
+/// Properties Ironswift understands (for `@supports`).
+fn property_supported(prop: &str, value: &str) -> bool {
+    let p = prop.to_ascii_lowercase();
+    let v = value.to_ascii_lowercase();
+    if p.starts_with("--") {
+        return true;
+    }
+    let known = KNOWN_PROPERTIES.contains(&p.as_str())
+        || ["margin-", "padding-", "border-", "inset-", "grid-", "flex-", "font-", "text-", "background-", "animation", "transition", "column", "list-style", "overflow", "counter-", "scroll-"]
+            .iter()
+            .any(|pre| p.starts_with(pre));
+    if !known {
+        return false;
+    }
+    match p.as_str() {
+        "display" => matches!(
+            v.as_str(),
+            "none" | "block" | "inline" | "inline-block" | "flex" | "inline-flex" | "grid" | "inline-grid" | "table" | "inline-table" | "table-row" | "table-cell" | "list-item" | "contents" | "flow-root" | "table-row-group" | "table-header-group" | "table-footer-group" | "table-caption"
+        ) || is_wide_keyword(&v),
+        "position" => matches!(v.as_str(), "static" | "relative" | "absolute" | "fixed" | "sticky" | "-webkit-sticky") || is_wide_keyword(&v),
+        _ => !v.is_empty(),
+    }
+}
+
+pub fn is_wide_keyword(v: &str) -> bool {
+    matches!(v, "inherit" | "initial" | "unset" | "revert" | "revert-layer")
+}
+
+const KNOWN_PROPERTIES: &[&str] = &[
+    "display", "position", "top", "right", "bottom", "left", "inset", "float", "clear", "z-index", "width", "height", "min-width", "max-width", "min-height", "max-height",
+    "margin", "padding", "border", "border-radius", "box-sizing", "box-shadow", "color", "background", "opacity", "visibility", "overflow", "transform", "transform-origin",
+    "translate", "rotate", "scale", "filter", "backdrop-filter", "-webkit-backdrop-filter", "aspect-ratio", "gap", "row-gap", "column-gap", "order", "flex", "justify-content",
+    "align-items", "align-self", "align-content", "justify-items", "justify-self", "place-items", "place-content", "place-self", "line-height", "letter-spacing",
+    "word-spacing", "white-space", "vertical-align", "cursor", "content", "quotes", "direction", "unicode-bidi", "writing-mode", "object-fit", "object-position",
+    "outline", "pointer-events", "user-select", "appearance", "-webkit-appearance", "will-change", "contain", "container", "container-type", "container-name",
+    "accent-color", "caret-color", "hyphens", "tab-size", "word-break", "overflow-wrap", "word-wrap", "isolation", "mix-blend-mode", "clip-path", "mask",
+    "border-collapse", "border-spacing", "table-layout", "caption-side", "empty-cells", "resize", "touch-action", "color-scheme", "inline-size", "block-size",
+    "min-inline-size", "max-inline-size", "min-block-size", "max-block-size", "zoom",
+];
 
 // ---------------------------------------------------------------- media queries
 
@@ -366,29 +685,34 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
     }
 }
 
-fn matching_brace(b: &[u8], open: usize) -> usize {
-    let mut depth = 0;
-    let mut i = open;
-    let mut quote: Option<u8> = None;
-    while i < b.len() {
-        let c = b[i];
-        if let Some(q) = quote {
-            if c == q {
-                quote = None;
-            }
-        } else if c == b'"' || c == b'\'' {
-            quote = Some(c);
-        } else if c == b'{' {
-            depth += 1;
-        } else if c == b'}' {
-            depth -= 1;
-            if depth == 0 {
-                return i;
-            }
+/// A container query (`(min-width: 400px)`, `(width > 30em) and (height < 200px)`,
+/// `not (…)`, `… or …`) against a container `w`×`h` (h is NaN for inline-size containers).
+pub fn container_query(q: &str, w: f32, h: f32) -> bool {
+    let q = q.trim();
+    let parts = split_words(q);
+    if parts.len() > 1 {
+        let mut result = container_query(&parts[0], w, h);
+        let mut i = 1;
+        while i + 1 < parts.len() {
+            let v = container_query(&parts[i + 1], w, h);
+            result = if parts[i] == "or" { result || v } else { result && v };
+            i += 2;
         }
-        i += 1;
+        return result;
     }
-    b.len()
+    if let Some(rest) = q.strip_prefix("not") {
+        return !container_query(rest, w, h);
+    }
+    let Some(inner) = q.strip_prefix('(').and_then(|r| r.strip_suffix(')')) else { return false };
+    let inner = inner.trim();
+    if inner.starts_with('(') || inner.starts_with("not") {
+        return container_query(inner, w, h);
+    }
+    if h.is_nan() && inner.contains("height") || h.is_nan() && inner.contains("orientation") {
+        return false;
+    }
+    let inner = inner.replace("inline-size", "width").replace("block-size", "height");
+    feature(&inner, w, if h.is_nan() { 0.0 } else { h })
 }
 
 /// Split on `sep`, ignoring separators inside (), [] and quotes.
@@ -578,6 +902,68 @@ fn parse_compound(chars: &[char], mut i: usize) -> Option<(Compound, usize)> {
     Some((c, i))
 }
 
+/// Load a sheet's `@import`s (fetched with `fetch`, at most 5 deep) and put their rules
+/// ahead of its own, inside the import's media condition and layer.
+pub fn load_imports(sheet: &mut Stylesheet, base: &str, fetch: &dyn Fn(&str) -> Option<String>, depth: u32) {
+    if sheet.imports.is_empty() || depth >= 5 {
+        return;
+    }
+    let mut rules = Vec::new();
+    let mut faces = Vec::new();
+    let mut keyframes = Vec::new();
+    let mut layers: Vec<std::sync::Arc<str>> = Vec::new();
+    for imp in std::mem::take(&mut sheet.imports) {
+        let url = crate::net::resolve(base, &imp.url);
+        let Some(text) = fetch(&url) else { continue };
+        let mut inner = parse(&text);
+        absolutize_urls(&mut inner, &url);
+        load_imports(&mut inner, &url, fetch, depth + 1);
+        if let Some(m) = &imp.media {
+            wrap_media(&mut inner, m);
+        }
+        if let Some(l) = &imp.layer {
+            layers.push(l.clone());
+            for r in &mut inner.rules {
+                r.layer = Some(match &r.layer {
+                    Some(own) => format!("{l}.{own}").into(),
+                    None => l.clone(),
+                });
+            }
+            inner.layers = inner.layers.iter().map(|own| format!("{l}.{own}").into()).collect();
+        }
+        rules.extend(inner.rules);
+        faces.extend(inner.font_faces);
+        keyframes.extend(inner.keyframes);
+        layers.extend(inner.layers);
+    }
+    rules.append(&mut sheet.rules);
+    sheet.rules = rules;
+    faces.append(&mut sheet.font_faces);
+    sheet.font_faces = faces;
+    keyframes.append(&mut sheet.keyframes);
+    sheet.keyframes = keyframes;
+    for l in std::mem::take(&mut sheet.layers) {
+        if !layers.contains(&l) {
+            layers.push(l);
+        }
+    }
+    sheet.layers = layers;
+}
+
+/// Put every rule of a sheet inside a media condition (`<link media>`, `@import … screen`).
+pub fn wrap_media(sheet: &mut Stylesheet, media: &str) {
+    let m = media.trim().to_ascii_lowercase();
+    if m.is_empty() || m == "all" || m == "screen" {
+        return;
+    }
+    for r in &mut sheet.rules {
+        r.media = Some(match &r.media {
+            Some(own) => format!("{m} && {own}").into(),
+            None => m.as_str().into(),
+        });
+    }
+}
+
 /// Make every `url(...)` in a stylesheet absolute, relative to the sheet's own URL.
 pub fn absolutize_urls(sheet: &mut Stylesheet, base: &str) {
     for f in &mut sheet.font_faces {
@@ -744,5 +1130,47 @@ mod tests {
     #[test]
     fn split_top_respects_nesting() {
         assert_eq!(split_top("a, rgb(1, 2, 3), \"x,y\"", ','), vec!["a", " rgb(1, 2, 3)", " \"x,y\""]);
+    }
+}
+
+#[cfg(test)]
+mod syntax_tests {
+    use super::*;
+
+    #[test]
+    fn supports_conditions() {
+        assert!(supports("(display: grid)"));
+        assert!(!supports("(display: subgrid-ish)"));
+        assert!(!supports("(foo: bar)"));
+        assert!(supports("not (foo: bar)"));
+        assert!(supports("(display: flex) and (position: sticky)"));
+        assert!(supports("(foo: bar) or (gap: 1px)"));
+        assert!(supports("selector(:has(a))"));
+        assert!(!supports("selector(:fancy)"));
+    }
+
+    #[test]
+    fn nesting_imports_layers_containers() {
+        let s = parse("@import 'a.css' layer(x) screen; .a { color: red; & .b { x: 1 } > .c { y: 2 } @media (min-width: 1px) { z: 3 } } @layer l { p { q: 1 } } @container card (min-width: 400px) { i { j: 1 } }");
+        assert_eq!(s.imports.len(), 1);
+        assert_eq!(s.imports[0].url, "a.css");
+        assert_eq!(s.imports[0].layer.as_deref(), Some("x"));
+        assert_eq!(s.imports[0].media.as_deref(), Some("screen"));
+        let sels: Vec<usize> = s.rules.iter().map(|r| r.selectors[0].parts.len()).collect();
+        assert_eq!(sels, vec![1, 2, 2, 1, 1, 1]);
+        assert!(s.rules[3].media.is_some());
+        assert_eq!(s.rules[4].layer.as_deref(), Some("l"));
+        assert_eq!(s.rules[5].container.as_deref(), Some("card (min-width: 400px)"));
+        assert!(container_query("(min-width: 400px)", 500.0, f32::NAN));
+        assert!(!container_query("(min-height: 10px)", 500.0, f32::NAN));
+        assert!(container_query("(width > 100px) and (height < 50px)", 500.0, 20.0));
+    }
+
+    #[test]
+    fn specificity_of_is_not_where() {
+        let sp = |s: &str| parse_selector_list(s)[0].specificity();
+        assert_eq!(sp(":is(#a, .b) p"), (1, 0, 1));
+        assert_eq!(sp(":where(#a) p"), (0, 0, 1));
+        assert_eq!(sp("a:not(.x.y)"), (0, 2, 1));
     }
 }

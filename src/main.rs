@@ -17,6 +17,8 @@ macro_rules! log {
 
 mod cookies;
 mod css;
+mod csssyntax;
+mod cascade;
 mod dom;
 mod font;
 mod filepicker;
@@ -467,10 +469,20 @@ impl Page {
                 self.restyle();
             }
         }
-        let lay = js::with_dom(|d| match d.composed() {
+        let mut lay = js::with_dom(|d| match d.composed() {
             Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
             None => layout::layout(d, &self.styles, fonts, &self.images, cw, ch),
         });
+        // @container rules depend on the containers' laid-out sizes: style and lay out again
+        // when those changed.
+        if self.sheets.iter().any(|s| s.rules.iter().any(|r| r.container.is_some())) && cascade::record(&self.styles, &lay.boxes) {
+            self.restyle();
+            lay = js::with_dom(|d| match d.composed() {
+                Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
+                None => layout::layout(d, &self.styles, fonts, &self.images, cw, ch),
+            });
+            cascade::record(&self.styles, &lay.boxes);
+        }
         geometry::publish(&lay, cw, ch);
         if (z - 1.0).abs() < 1e-4 { lay } else { lay.scaled(z) }
     }
@@ -709,8 +721,8 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
     // Stylesheets: inline ones in place, external ones fetched in parallel, order kept.
     enum Src {
         Inline(String),
-        /// URL and the element's nonce
-        External(String, Option<String>),
+        /// URL, the element's nonce and its media attribute
+        External(String, Option<String>, String),
     }
     let mut sources = Vec::new();
     let mut script_urls = Vec::new();
@@ -728,7 +740,7 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
                 if let (true, Some(href)) = (rel.split_whitespace().any(|r| r == "stylesheet"), dom.attr(id, "href")) {
                     let media = dom.attr(id, "media").unwrap_or("all");
                     if !(media.contains("print") && !media.contains("screen")) {
-                        sources.push(Src::External(net::resolve(&final_url, href), nonce));
+                        sources.push(Src::External(net::resolve(&final_url, href), nonce, media.to_string()));
                     }
                 }
             }
@@ -755,13 +767,16 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
                     scope.spawn(move || {
                         let mut sheet = css::parse(text);
                         css::absolutize_urls(&mut sheet, &base);
+                        css::load_imports(&mut sheet, &base, &|u| net::fetch_sub_nonce(u, page_url, security::Dest::Style, None).ok().map(|(_, t)| t), 0);
                         Some(sheet)
                     })
                 }
-                Src::External(u, nonce) => scope.spawn(move || {
+                Src::External(u, nonce, media) => scope.spawn(move || {
                     let (_, text) = net::fetch_sub_nonce(u, page_url, security::Dest::Style, nonce.as_deref()).ok()?;
                     let mut sheet = css::parse(&text);
                     css::absolutize_urls(&mut sheet, u);
+                    css::load_imports(&mut sheet, u, &|v| net::fetch_sub_nonce(v, page_url, security::Dest::Style, nonce.as_deref()).ok().map(|(_, t)| t), 0);
+                    css::wrap_media(&mut sheet, media);
                     Some(sheet)
                 }),
             })
@@ -4112,6 +4127,7 @@ mod screenshot_tests {
         ("tests/columns.html", 800),
         ("tests/text-wrapping.html", 600),
         ("tests/pseudo.html", 900),
+        ("tests/cascade.html", 1024),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),

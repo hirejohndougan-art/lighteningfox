@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html><head><style>
+@import url("css/imported.css");
+@layer reset, theme;
+@layer reset { .layered { color: red; } }
+@layer theme { .layered { color: green; } }
+.layered { font-weight: bold; }
+p.unl { color: blue; }
+@layer theme { p.unl { color: red; } }
+.parent { color: purple; border: 3px solid orange; padding: 4px; }
+.parent .kid { color: red; border: initial; }
+.parent .kid.inh { color: inherit; border: inherit; }
+.unset { color: unset; }
+div.revert { display: inline; } div.revert.r2 { display: revert; }
+h3.rv { margin: 0; font-size: revert; }
+@supports (display: grid) { .sup { background: #ccf; } }
+@supports not (display: grid) { .sup { background: red; } }
+@supports (foo: bar) { .sup2 { background: red; } }
+@supports selector(:has(a)) { .sup2 { outline: 1px; border: 2px solid teal; } }
+.card { container-type: inline-size; border: 1px solid #999; margin: 4px; padding: 6px; }
+.wide { width: 500px; } .narrow { width: 200px; }
+.label { background: #fcc; }
+@container (min-width: 300px) { .label { background: #cfc; } .label::after { content: " (wide container)"; } }
+.nest { color: #333; & .x { color: darkred; } &:hover { color: red; } > .y { font-style: italic; } }
+</style></head><body>
+<p class="imp">Imported sheet: green background</p>
+<p class="layered">Layered: green and bold (theme layer, declared after reset, wins)</p>
+<p class="unl">Unlayered: blue beats theme layer red</p>
+<div class="parent">Parent purple <span class="kid">kid red, border reset by initial</span> <span class="kid inh">kid inherits purple + border</span></div>
+<p class="unset" style="color: unset">unset color</p>
+<div class="revert r2">display: revert gives a div back its block display</div>
+<h3 class="rv">h3 with font-size: revert</h3>
+<p class="sup">@supports grid: blue background</p>
+<p class="sup2">@supports selector: teal border</p>
+<div class="card wide"><span class="label">Container label</span></div>
+<div class="card narrow"><span class="label">Container label</span></div>
+<div class="nest">Nesting <span class="x">dark red</span> <span class="y">italic child</span></div>
+</body></html>
