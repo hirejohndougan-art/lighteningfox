@@ -25,7 +25,7 @@ Status values: `free`, `claimed by …`, `done`, `blocked: <reason>`, `not for c
 ## Checklist tasks you can start now
 
 ### T01. A real box tree
-**Status:** free
+**Status:** claimed by chat-opus-a 2026-11-17 04:50
 **After:** —
 **Checklist:** §5 "A real box tree (layout tree separate from the DOM)"
 **Files:** `src/layout.rs` (split into new `src/boxtree.rs`), `src/paint.rs` callers
