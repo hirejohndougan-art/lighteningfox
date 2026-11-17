@@ -262,7 +262,7 @@ and `Document-createElement-namespace.html`. Run `tools/wpt.py <wpt> dom/nodes` 
 `createDocument`, which can be left undone if it grows large.
 
 ### X17. Media Source Extensions: frame-level edits, sequence mode, tracks
-**Status:** free
+**Status:** claimed by chat-mseX17 2026-11-17 12:55
 **After:** —
 **Checklist:** none
 **Files:** `src/mse.rs`, `src/mse.js`, `src/media.js` (MSE hooks only)
