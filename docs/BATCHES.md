@@ -113,7 +113,7 @@ Left undone:
 - §3 Clicking and scrolling inside an `<iframe>` — moved to batch F2 below
 
 ## F2. Clicking and scrolling inside iframes (split from F)
-**Status:** free — reserved for the chat given the F2 prompt
+**Status:** claimed by iframes-chat 2026-11-17 03:24
 **Start after:** —
 **Main files:** the iframe parts of `src/main.rs` (`render_frames`, `render_frame`, `draw_frame`, `isolated`), new `src/frames.rs`, `src/sandbox.rs` only if needed
 
