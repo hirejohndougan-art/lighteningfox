@@ -1,0 +1,17 @@
+<!DOCTYPE html><html><head><style>
+body { font-family: sans-serif; font-size: 14px; }
+.box { height: 40px; background: #cde; border: 2px solid #579; width: 300px; }
+.mh { max-height: 30px; background: #dfc; border: 2px solid #575; width: 300px; margin-top: 40px; }
+.flexrow { display: flex; height: 30px; background: #eee; margin-top: 50px; width: 300px; }
+.flexrow div { width: 100px; border: 1px solid #579; }
+.cell { margin-top: 50px; border-collapse: collapse; } .cell td { height: 20px; border: 1px solid #999; }
+p { margin: 0; color: #a33; }
+</style></head><body>
+<div class="box">Line 1<br>Line 2<br>Line 3<br>Line 4: the box stays 40px tall</div>
+<p>This line starts right below the 40px box, so the overflow overlaps it (as in Chrome).</p>
+<div class="mh">max-height 30px<br>second<br>third</div>
+<p>After the max-height box.</p>
+<div class="flexrow"><div>a<br>b<br>c<br>d</div></div>
+<p>After the 30px flex row.</p>
+<table class="cell"><tr><td>A table cell's height<br>is a minimum,<br>so it grows</td></tr></table>
+</body></html>

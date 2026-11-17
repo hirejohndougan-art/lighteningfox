@@ -841,8 +841,10 @@ impl<'a> Ctx<'a> {
             content_h = content_h.max(h);
         }
         if let (Some(h), None) = (spec_h, replaced) {
-            // A clipping box keeps exactly its height; others grow to fit (for now).
-            content_h = if st.clip { h } else { content_h.max(h) };
+            // A box with a height keeps exactly that height; content that doesn't fit
+            // overflows it. Table parts are the exception: their height is a minimum.
+            let table_part = table.is_some() || st.table_role != crate::style::TableRole::None;
+            content_h = if table_part { content_h.max(h) } else { h };
         }
         if let (Some(mx), None) = (max_h, replaced) {
             content_h = content_h.min(mx);
