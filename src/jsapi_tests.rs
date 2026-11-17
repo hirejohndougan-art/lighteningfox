@@ -492,5 +492,17 @@ fn doctype_default_value_and_navigation_marks() {
 fn abspos_children_do_not_widen_shrink_to_fit() {
     let _serial = serial();
     let _page = open("tests/sites/abs-shrink.html");
+}
+
+fn script_text_and_navigation_timing() {
+    let _serial = serial();
+    let _page = open("tests/sites/wp-bits.html");
+    assert_eq!(text_of("out"), "true;two words;link;navigation;true;true");
+}
+
+#[test]
+fn shrink_to_fit_items_and_flex_keywords() {
+    let _serial = serial();
+    let _page = open("tests/sites/wp-header.html");
     assert_eq!(text_of("out"), "true;true;true");
 }

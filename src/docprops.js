@@ -25,6 +25,28 @@
     if (d[name] === undefined) Object.defineProperty(d, name, { ...desc, configurable: true, enumerable: true });
   }
 
+  // The navigation timing entry (performance.getEntriesByType("navigation")[0]): WordPress's
+  // Interactivity API reads domContentLoadedEventStart to know whether the page is ready. Its
+  // times fill in as the document's events fire (0 until then, as in other browsers).
+  const perf = g.performance;
+  if (perf && typeof perf.getEntriesByType === "function" && !perf.getEntriesByType("navigation").length) {
+    const nav = {
+      name: (g.location && g.location.href) || "", entryType: "navigation", startTime: 0, duration: 0,
+      initiatorType: "navigation", type: "navigate", redirectCount: 0, nextHopProtocol: "h2",
+      fetchStart: 0, domainLookupStart: 0, domainLookupEnd: 0, connectStart: 0, connectEnd: 0, requestStart: 0,
+      responseStart: 0, responseEnd: 0, domInteractive: 0, domContentLoadedEventStart: 0, domContentLoadedEventEnd: 0,
+      domComplete: 0, loadEventStart: 0, loadEventEnd: 0, transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+      toJSON() { return { ...this }; },
+    };
+    const now = () => Math.max(perf.now(), 0.1); // events always come after the navigation starts
+    d.addEventListener("DOMContentLoaded", () => { nav.domInteractive = nav.domContentLoadedEventStart = now(); setTimeout(() => { nav.domContentLoadedEventEnd = now(); }, 0); }, { once: true });
+    g.addEventListener("load", () => { nav.domComplete = nav.loadEventStart = now(); setTimeout(() => { nav.loadEventEnd = nav.duration = now(); }, 0); }, { once: true });
+    const byType = perf.getEntriesByType.bind(perf), all = perf.getEntries ? perf.getEntries.bind(perf) : () => [], byName = perf.getEntriesByName ? perf.getEntriesByName.bind(perf) : () => [];
+    perf.getEntriesByType = (t) => (String(t) === "navigation" ? [nav] : byType(t));
+    perf.getEntries = () => [nav, ...all()];
+    perf.getEntriesByName = (n, t) => (String(n) === nav.name && (t === undefined || t === "navigation") ? [nav] : []).concat(t === "navigation" ? [] : byName(n, t));
+  }
+
   // Attributes scripts set as properties when they build <link>, <script> and <style> elements
   // (link.rel = "stylesheet"; script.async = true). Added only where nothing defines them.
   const proto = g.Element && g.Element.prototype;
@@ -44,6 +66,18 @@
   for (const [prop, attr] of Object.entries({ async: "async", defer: "defer", noModule: "nomodule" })) {
     if (prop in proto) continue;
     Object.defineProperty(proto, prop, { get() { return this.hasAttribute(attr); }, set(v) { if (v) this.setAttribute(attr, ""); else this.removeAttribute(attr); }, configurable: true });
+  }
+  // .text: a <script>'s or <title>'s source, a link's text, an option's text with spaces
+  // collapsed (WordPress reads its settings with JSON.parse(script.text)).
+  if (!("text" in proto)) {
+    Object.defineProperty(proto, "text", {
+      get() {
+        const t = this.textContent;
+        return (this.localName || "").toLowerCase() === "option" ? t.replace(/[\t\n\f\r ]+/g, " ").trim() : t;
+      },
+      set(v) { this.textContent = String(v); },
+      configurable: true,
+    });
   }
   if (!("relList" in proto)) {
     Object.defineProperty(proto, "relList", {

@@ -290,6 +290,7 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         vertical_avail: Vec::new(),
         widths_memo: HashMap::new(),
         measured: HashMap::new(),
+        fitting: Vec::new(),
     };
     crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
@@ -400,6 +401,9 @@ struct Ctx<'a> {
     /// block height). Nested flex items are measured several times at each level (basis,
     /// minimum, final size), which otherwise multiplies with every level.
     measured: HashMap<(NodeId, u32, Option<u32>, Option<Option<u32>>), Detached>,
+    /// Boxes whose content widths are being measured right now (they don't size themselves to
+    /// fit while that happens: see block_fresh).
+    fitting: Vec<NodeId>,
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -843,6 +847,18 @@ impl<'a> Ctx<'a> {
         } else {
             None
         };
+        let st = &self.styles[id];
+        // While measuring how wide something wants to be, a block with no width of its own is
+        // as wide as its content (fit-content), not as wide as the trial width: otherwise a
+        // block with a background inside a shrink-to-fit box makes it seem to need all of it.
+        // A percentage width has nothing to be a percentage of while measuring: it counts as
+        // auto (CSS Sizing: cyclic percentages in intrinsic contributions).
+        let auto_while_measuring = st.width == Len::Auto || matches!(st.width, Len::Pct(_) | Len::Mix(..));
+        if self.measuring && auto_while_measuring && forced.0.is_none() && replaced.is_none() && ctrl.is_none() && table.is_none() && !self.fitting.contains(&id) {
+            let (mn, mx) = self.content_widths(id);
+            let edges = ml + mr + extra;
+            w = w.min(mx - edges).max(mn - edges);
+        }
         let st = &self.styles[id];
         // A flex container decides this item's outer width.
         if let Some(fw) = forced.0 {
@@ -1968,8 +1984,10 @@ impl<'a> Ctx<'a> {
         let tail = st.padding[1].resolve(0.0) + st.border[1] + st.margin[1].resolve(0.0);
         let was = self.measuring;
         self.measuring = true;
+        self.fitting.push(id);
         let narrow = self.detach(|cx| (0.0, cx.block(id, 0.0, 0.0, 0.0, 0.0).0));
         let wide = self.detach(|cx| (100_000.0, cx.block(id, 0.0, 0.0, 100_000.0, 0.0).0));
+        self.fitting.pop();
         self.measuring = was;
         let mn = self.content_right(&narrow.items, true).ceil() + tail;
         let mx = self.content_right(&wide.items, true).ceil() + tail;

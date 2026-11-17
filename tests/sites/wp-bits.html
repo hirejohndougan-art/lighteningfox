@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- WordPress.org (2026-11): settings read with JSON.parse(script.text), and the Interactivity
+     API waits on performance.getEntriesByType("navigation")[0].domContentLoadedEventStart. -->
+<html><head><title>WordPress bits</title>
+<script type="application/json" id="settings">{"emoji": true}</script></head>
+<body><select><option id="o">  two   words </option></select><a id="a" href="#">link</a><p id="out"></p>
+<script>
+  const out = [];
+  out.push(JSON.parse(document.getElementById("settings").text).emoji, document.getElementById("o").text, document.getElementById("a").text);
+  const [nav] = performance.getEntriesByType("navigation");
+  out.push(nav.entryType, nav.domContentLoadedEventStart === 0);
+  document.addEventListener("DOMContentLoaded", () => {
+    out.push(performance.getEntriesByType("navigation")[0].domContentLoadedEventStart > 0);
+    document.getElementById("out").textContent = out.join(";");
+  });
+</script></body></html>

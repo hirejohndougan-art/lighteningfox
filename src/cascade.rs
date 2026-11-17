@@ -91,8 +91,44 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
             }
         }
         "border-radius" => dst.radius = src.radius,
-        "flex" | "flex-direction" | "flex-wrap" | "flex-flow" | "justify-content" | "align-items" | "align-self" | "place-items" | "flex-grow" | "flex-shrink"
-        | "flex-basis" | "order" | "gap" | "row-gap" | "column-gap" | "grid-gap" | "align-content" | "place-content" | "justify-items" | "justify-self" => dst.flex = src.flex,
+        // Each of these resets only its own part of the flex settings: `order: unset` after
+        // `flex-basis: 100%` in one rule must not undo the basis (WordPress.org's header).
+        "flex" => {
+            dst.flex.grow = src.flex.grow;
+            dst.flex.shrink = src.flex.shrink;
+            dst.flex.basis = src.flex.basis;
+        }
+        "flex-grow" => dst.flex.grow = src.flex.grow,
+        "flex-shrink" => dst.flex.shrink = src.flex.shrink,
+        "flex-basis" => dst.flex.basis = src.flex.basis,
+        "order" => dst.flex.order = src.flex.order,
+        "flex-direction" => {
+            dst.flex.column = src.flex.column;
+            dst.flex.reverse = src.flex.reverse;
+        }
+        "flex-wrap" => dst.flex.wrap = src.flex.wrap,
+        "flex-flow" => {
+            dst.flex.column = src.flex.column;
+            dst.flex.reverse = src.flex.reverse;
+            dst.flex.wrap = src.flex.wrap;
+        }
+        "justify-content" => dst.flex.justify = src.flex.justify,
+        "place-content" => dst.flex.justify = src.flex.justify,
+        "align-content" => {}
+        "align-items" => dst.flex.align_items = src.flex.align_items,
+        "align-self" => dst.flex.align_self = src.flex.align_self,
+        "place-items" => {
+            dst.flex.align_items = src.flex.align_items;
+            dst.flex.justify_items = src.flex.justify_items;
+        }
+        "justify-items" => dst.flex.justify_items = src.flex.justify_items,
+        "justify-self" => dst.flex.justify_self = src.flex.justify_self,
+        "gap" | "grid-gap" => {
+            dst.flex.row_gap = src.flex.row_gap;
+            dst.flex.column_gap = src.flex.column_gap;
+        }
+        "row-gap" => dst.flex.row_gap = src.flex.row_gap,
+        "column-gap" => dst.flex.column_gap = src.flex.column_gap,
         "position" => dst.position = src.position,
         "top" => dst.inset[0] = src.inset[0],
         "right" => dst.inset[1] = src.inset[1],
