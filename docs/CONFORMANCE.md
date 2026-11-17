@@ -10,12 +10,12 @@ are a baseline to measure progress against, not a finish line: each fix should m
 | **Test262** | The JavaScript language (Boa 0.22, our engine) | **51,225 of 53,578 passed (95.6%)**; 572 failed, 1,781 skipped as features Boa hasn't built |
 | **HTML parsing** (WPT `html/syntax/parsing`, the html5lib tree-construction tests) | The exact tree built from tricky or broken markup | 1,972 of 1,972 (100%), including the tests that run scripts during parsing |
 | **HTML tokenizing** (html5lib-tests `tokenizer/*.test`) | Tags, attributes, comments, doctypes, character references, script-data escapes, processing instructions | 7,046 of 7,046 (100%) |
-| **DOM** (WPT `dom/nodes`) | `Node`, `Element`, `Document` and friends | 1,391 of 5,587 subtests (24.9%) |
-| **Shadow DOM** (WPT `shadow-dom`) | attachShadow, slots, scoped styles, events across shadow trees | 239 of 394 script subtests (60.7%); 10 of 18 reference pages |
-| **IndexedDB** (WPT `IndexedDB`) | Databases, stores, indexes, cursors, transactions | 1,084 of 1,277 subtests (84.9%) |
-| **CSS selectors** (WPT `css/selectors`) | Selector matching | 446 of 800 script subtests; 37 of 135 reference pages |
-| **Flexbox** (WPT `css/css-flexbox`) | Flex layout | 234 of 894 reference pages; 64 of 398 script subtests |
-| **Floats** (WPT `css/CSS2/floats`) | Float layout | 18 of 78 reference pages; 19 of 51 script subtests |
+| **DOM** (WPT `dom/nodes`) | `Node`, `Element`, `Document` and friends | 1,535 of 5,629 subtests (27.3%) |
+| **Shadow DOM** (WPT `shadow-dom`) | attachShadow, slots, scoped styles, events across shadow trees | 245 of 402 script subtests (60.9%); 11 of 18 reference pages |
+| **IndexedDB** (WPT `IndexedDB`) | Databases, stores, indexes, cursors, transactions | 1,098 of 1,284 subtests (85.5%) |
+| **CSS selectors** (WPT `css/selectors`) | Selector matching | 450 of 816 script subtests; 39 of 135 reference pages |
+| **Flexbox** (WPT `css/css-flexbox`) | Flex layout | 291 of 894 reference pages; 79 of 398 script subtests |
+| **Floats** (WPT `css/CSS2/floats`) | Float layout | 19 of 78 reference pages; 19 of 51 script subtests |
 
 Reference tests pass only when the test page and its reference page render to *identical*
 pixels at 800×600. Official WPT allows small pixel differences on some tests, so these numbers

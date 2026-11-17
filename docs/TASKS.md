@@ -192,7 +192,10 @@ tests/real-world pages before and after; keep every reference screenshot identic
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
-**Status:** claimed by main-chat 2026-11-17 11:10
+**Status:** done
+**Result:** nothing got worse. DOM 1,535 of 5,629 (was 1,391), Shadow DOM 245/402 and 11/18
+reference pages, IndexedDB 1,098/1,284, selectors 450/816 and 39/135 pages, flexbox 291/894
+pages and 79/398, floats 19/78 pages; `docs/CONFORMANCE.md` updated.
 **After:** —
 **Checklist:** none
 **Files:** whatever a regression needs
@@ -200,7 +203,15 @@ Run `tools/wpt.py` on dom/nodes, shadow-dom, css/selectors, IndexedDB, css/css-f
 css/CSS2/floats; compare with `docs/CONFORMANCE.md` and fix anything that got worse overnight.
 
 ### R2. Site check: compare with last night
-**Status:** claimed by main-chat 2026-11-17 11:10
+**Status:** done
+**Result:** run of 11:30: 15 work, 19 usable, 6 broken, 0 crash (was 16/16/7/1).
+`site-compat.json` now keeps each site's first script errors. Fixed: `crypto` (Mastodon,
+Medium) and `PerformanceObserver` (Bing) didn't exist. **Left for X1** (these sites can't be
+reached from the review chat): GitHub fell from Works to Broken (likeness 94 → 49) with
+`TypeError: not a callable function` in core-*.js and marketing-essentials-*.js; `ReferenceError:
+Image is not defined` on Wikipedia, YouTube and stats.wp.com although `new Image()` works on
+test pages (an inline script early in the page, or a callback); `ReadableStream` missing
+(Medium); NYT defines `nyt-betamax` twice ("already defined").
 **After:** —
 **Checklist:** none
 **Files:** whatever a regression needs
