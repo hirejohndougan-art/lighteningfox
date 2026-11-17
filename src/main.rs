@@ -1044,6 +1044,7 @@ mod screenshot_tests {
         ("tests/forms.html", 800),
         ("tests/fetch.html", 700),
         ("tests/geometry.html", 700),
+        ("tests/sticky.html", 1024),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

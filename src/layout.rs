@@ -42,9 +42,23 @@ impl Layout {
         self.fixed.iter().any(|(l, h)| if links { l.contains(&i) } else { h.contains(&i) })
     }
 
+    /// The sticky box (where it sits unscrolled) drawn at page point (x, y), and its current offset.
+    fn sticky_at(&self, x: f32, y: f32, scroll: f32) -> Option<(Rect, f32)> {
+        self.sticky.iter().rev().find_map(|&(r, top, limit)| {
+            let off = crate::paint::sticky_offset(r.y, top, limit, scroll);
+            Rect { y: r.y + off, ..r }.contains(x, y).then_some((r, off))
+        })
+    }
+
     /// The link under a point in the viewport (y measured from the top of the page area).
     /// Fixed boxes are checked first: they sit on top.
     pub fn link_at(&self, x: f32, view_y: f32, scroll: f32) -> Option<&String> {
+        if let Some((r, off)) = self.sticky_at(x, view_y + scroll, scroll) {
+            let y = view_y + scroll - off;
+            if let Some((_, l)) = self.links.iter().rev().find(|(lr, _)| lr.contains(x, y) && r.contains(x, y)) {
+                return Some(l);
+            }
+        }
         let pick = |fixed: bool| {
             self.links.iter().enumerate().rev().find(|(i, (r, _))| {
                 self.is_fixed(*i, true) == fixed && r.contains(x, if fixed { view_y } else { view_y + scroll })
@@ -55,6 +69,12 @@ impl Layout {
 
     /// The DOM node drawn under a point in the viewport.
     pub fn hit_at(&self, x: f32, view_y: f32, scroll: f32) -> Option<NodeId> {
+        if let Some((r, off)) = self.sticky_at(x, view_y + scroll, scroll) {
+            let y = view_y + scroll - off;
+            if let Some((_, n)) = self.hits.iter().rev().find(|(hr, _)| hr.contains(x, y) && r.contains(x, y)) {
+                return Some(*n);
+            }
+        }
         let pick = |fixed: bool| {
             self.hits.iter().enumerate().rev().find(|(i, (r, _))| {
                 self.is_fixed(*i, false) == fixed && r.contains(x, if fixed { view_y } else { view_y + scroll })
@@ -82,6 +102,8 @@ pub struct Layout {
     /// Each block-level element's border box in page coordinates; `true` = position: fixed
     /// (then the box is relative to the window, not the page).
     pub boxes: HashMap<NodeId, (Rect, bool)>,
+    /// position: sticky boxes: (border box where it sits unscrolled, top inset, how far it may move).
+    pub sticky: Vec<(Rect, f32, f32)>,
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
@@ -135,7 +157,21 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
         }
         _ => true,
     });
-    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg, boxes }
+    // A sticky box can travel until it reaches the bottom of its parent's content box.
+    let mut sticky = Vec::new();
+    for it in items.iter_mut() {
+        if let Item::StickyPush { id, y, h, top, limit } = it {
+            let parent = dom.nodes[*id].parent;
+            let bottom = parent
+                .and_then(|p| boxes.get(&p).map(|(r, _)| r.y + r.h - styles[p].padding[2].resolve(width) - styles[p].border[2]))
+                .unwrap_or(height);
+            *limit = (bottom - styles[*id].margin[2].resolve(width) - (*y + *h)).max(0.0);
+            if let Some((r, _)) = boxes.get(id) {
+                sticky.push((Rect { y: *y, ..*r }, *top, *limit));
+            }
+        }
+    }
+    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg, boxes, sticky }
 }
 
 struct Ctx<'a> {
@@ -173,7 +209,7 @@ fn merge_layers(items: Vec<Item>, mut layers: Vec<(i32, Vec<Item>)>) -> Vec<Item
         out.append(l);
     }
     out.extend(items);
-    for (_, l) in layers.iter_mut().filter(|(z, _)| *z > 0) {
+    for (_, l) in layers.iter_mut().filter(|(z, _)| *z >= 0) {
         out.append(l);
     }
     out
@@ -278,7 +314,8 @@ fn shift_item(it: &mut Item, dx: f32, dy: f32) {
             *x += dx;
             *y += dy;
         }
-        Item::ClipPop | Item::FixedPush | Item::FixedPop => {}
+        Item::StickyPush { y, .. } => *y += dy,
+        Item::ClipPop | Item::FixedPush | Item::FixedPop | Item::StickyPop => {}
     }
 }
 
@@ -524,9 +561,20 @@ impl<'a> Ctx<'a> {
             let cb = Rect { x: bx + bl, y: top + bt, w: box_w - bl - br, h: box_h - bt - bb };
             self.place_absolutes(pending, cb);
         }
-        // position: relative (and sticky, for now) shifts the box after layout.
+        // position: sticky moves with scrolling at paint time; wrap its items.
         let st = &self.styles[id];
-        if matches!(st.position, Position::Relative | Position::Sticky) {
+        let sticky_top = match (st.position, st.inset[0]) {
+            (Position::Sticky, Len::Auto) => None,
+            (Position::Sticky, t) => Some(t.resolve(avail)),
+            _ => None,
+        };
+        if let (Some(top_inset), false) = (sticky_top, self.measuring) {
+            self.items.insert(start.0, Item::StickyPush { id, y: top, h: box_h, top: top_inset, limit: 0.0 });
+            self.items.push(Item::StickyPop);
+        }
+        // position: relative shifts the box after layout.
+        let st = &self.styles[id];
+        if st.position == Position::Relative {
             let off = |a: Len, b: Len| match (a, b) {
                 (Len::Auto, Len::Auto) => 0.0,
                 (Len::Auto, b) => -b.resolve(avail),
@@ -540,7 +588,7 @@ impl<'a> Ctx<'a> {
         }
         // A positioned box with a z-index paints in its own layer.
         let z = self.styles[id].z_index;
-        if positioned && z != 0 && !matches!(self.styles[id].position, Position::Absolute | Position::Fixed) {
+        if positioned && (z != 0 || sticky_top.is_some()) && !matches!(self.styles[id].position, Position::Absolute | Position::Fixed) {
             let lifted: Vec<Item> = self.items.drain(start.0..).collect();
             self.layers.push((z, lifted));
         }

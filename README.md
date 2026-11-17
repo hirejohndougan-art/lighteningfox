@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **position: sticky**: headers, sidebars and section titles that stick while scrolling, stopping at the end of their parent
 - **Layout data for scripts**: `getBoundingClientRect`, `offsetWidth/Height/Top`, `clientWidth`, `scrollHeight`, live `innerWidth`/`scrollY`, `scrollTo`/`scrollBy`/`scrollIntoView`, and `matchMedia` width queries; if a script changed the page, it's laid out again before answering
 - **fetch() and XMLHttpRequest**: requests run on background threads and never freeze the page; JSON, text, status, headers, POST bodies, `AbortController`, sync XHR; cross-origin rules (CORS, including preflight) so a site can't read other sites' data or your local network; plus `URL`, `URLSearchParams`, `FormData`, `Headers`, `Response`
 - **Cookies**: Set-Cookie with Domain, Path, Expires/Max-Age, Secure, HttpOnly, SameSite and the `__Host-`/`__Secure-` prefixes; cookies set during redirects are kept; `document.cookie`; saved to `~/.local/share/lighteningfox/cookies.tsv` (or `$LF_PROFILE`), readable only by you
@@ -137,7 +138,7 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **Sticky positioning** and nested stacking contexts
+1. **Nested stacking contexts**, scrollable boxes inside pages, transforms
 2. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
    then profile Boa itself and work on its interpreter
 3. **Tabs and bookmarks**

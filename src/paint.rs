@@ -25,6 +25,15 @@ pub enum Item {
     /// Where an element's border box ended up (for scripts' getBoundingClientRect).
     /// Never painted; collected into `Layout::boxes` at the end of layout.
     Mark { id: usize, x: f32, y: f32, w: f32, h: f32 },
+    /// Start of a position: sticky box whose border box starts at page `y` and is `h` tall.
+    /// While scrolling, it moves down by up to `limit` px to stay `top` px below the window top.
+    StickyPush { id: usize, y: f32, h: f32, top: f32, limit: f32 },
+    StickyPop,
+}
+
+/// How far a sticky box moves down at this scroll position.
+pub fn sticky_offset(y: f32, top: f32, limit: f32, scroll: f32) -> f32 {
+    (scroll + top - y).clamp(0.0, limit.max(0.0))
 }
 
 /// Signed distance from (px, py) to a rounded rectangle's edge (negative inside).
@@ -385,9 +394,18 @@ impl Canvas {
         self.clips.clear();
         let mut fixed_depth = 0;
         let mut dy = origin_y - scroll;
+        let mut sticky: Vec<f32> = Vec::new();
         for item in items {
             match item {
                 Item::Mark { .. } => {}
+                Item::StickyPush { y, top, limit, .. } => {
+                    let off = if fixed_depth == 0 { sticky_offset(*y, *top, *limit, scroll) } else { 0.0 };
+                    sticky.push(off);
+                    dy += off;
+                }
+                Item::StickyPop => {
+                    dy -= sticky.pop().unwrap_or(0.0);
+                }
                 Item::FixedPush => {
                     fixed_depth += 1;
                     dy = origin_y;
