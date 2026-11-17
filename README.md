@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Bookmarks and history**: Ctrl+D or the ☆ in the address bar bookmarks a page; every visit is recorded (title, visit count, last visit) in private files in the profile folder (`LF_PRIVATE=1` records nothing); `about:history` (Ctrl+H, with "Clear history") and `about:bookmarks` (Ctrl+Shift+O); the address bar suggests bookmarks and history as you type (arrow keys or click to pick)
 - **Text editing**: in fields, text areas and the address bar — caret movement (arrows, Home/End, Ctrl for whole words), Shift to select, Ctrl+A, Delete and Ctrl+Backspace, click to place the caret and double-click to select a word, Up/Down between lines in text areas, and Ctrl+C/X/V with the system clipboard (`arboard`, X11 and Wayland); one click in the address bar selects it
 - **Tabs**: tab strip with titles, loading dots and close buttons; Ctrl+T, Ctrl+W, Ctrl+(Shift+)Tab, Ctrl+1–9, Ctrl+Shift+T to reopen; middle-click or Ctrl+click opens links in a background tab, `target="_blank"` and `window.open()` (only during a click — pop-ups are blocked) in a new tab; hidden tabs pause their scripts, and a page that loads in the background is only built when you look at it
 - **Real-world libraries**: React 18, Vue 3, jQuery 3 and Bootstrap 5 render and respond to clicks (kept as screenshot tests in `tests/real-world/`); standard element interfaces (`HTMLInputElement`, `SVGElement`… with honest `instanceof`), `document.implementation.createHTMLDocument`, `DOMParser`
@@ -151,6 +152,6 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 1. **Vertical-align**, percentage heights and multi-column layout
 2. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
    then profile Boa itself and work on its interpreter
-3. **Bookmarks and history**
+3. **Sleeping tabs** and a settings page
 4. **GPU painting** and incremental layout for speed
 5. *Optional, after everything else:* a JIT compiler for Boa

@@ -17,6 +17,7 @@ mod html;
 mod images;
 mod js;
 mod layout;
+mod library;
 mod net;
 mod paint;
 mod style;
@@ -39,6 +40,9 @@ const TOOL_H: f32 = 36.0;
 const BAR_H: usize = (TAB_H + TOOL_H) as usize;
 const TAB_MAX_W: f32 = 220.0;
 const NEW_TAB_W: f32 = 32.0;
+/// The bookmark star at the right end of the address field, and the suggestion rows below it.
+const STAR_W: f32 = 30.0;
+const SUGGEST_H: f32 = 30.0;
 /// Toolbar buttons: (x, label). Each is BTN_W wide.
 const BTN_W: f32 = 30.0;
 const BUTTONS: [(f32, &str); 3] = [(6.0, "←"), (38.0, "→"), (70.0, "↻")];
@@ -299,6 +303,10 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
         ("about:home".to_string(), START_PAGE.to_string())
     } else if url == "about:blank" {
         ("about:blank".to_string(), String::new())
+    } else if let Some(q) = url.strip_prefix("about:history") {
+        ("about:history".to_string(), library::history_page(q))
+    } else if let Some(q) = url.strip_prefix("about:bookmarks") {
+        ("about:bookmarks".to_string(), library::bookmarks_page(q))
     } else {
         let got = match post {
             Some(body) => net::post_form(url, body),
@@ -570,12 +578,46 @@ fn render_png(fonts: &Fonts, url: &str, width: usize, out: &str) {
     );
 }
 
-/// Collects typed characters for the address bar.
-struct Typed(Rc<RefCell<Vec<char>>>);
+/// A key press with the modifiers held at that moment.
+#[derive(Clone, Copy, Debug)]
+struct KeyPress {
+    key: Key,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+}
+
+/// Collects typed characters and key presses as they happen, so a quick tap is never
+/// missed between two frames (the window polls slowly when idle).
+struct Typed {
+    chars: Rc<RefCell<Vec<char>>>,
+    keys: Rc<RefCell<Vec<KeyPress>>>,
+    ctrl: [bool; 2],
+    shift: [bool; 2],
+    alt: [bool; 2],
+}
 impl minifb::InputCallback for Typed {
     fn add_char(&mut self, c: u32) {
         if let Some(ch) = char::from_u32(c) {
-            self.0.borrow_mut().push(ch);
+            self.chars.borrow_mut().push(ch);
+        }
+    }
+
+    fn set_key_state(&mut self, key: Key, down: bool) {
+        match key {
+            Key::LeftCtrl => self.ctrl[0] = down,
+            Key::RightCtrl => self.ctrl[1] = down,
+            Key::LeftShift => self.shift[0] = down,
+            Key::RightShift => self.shift[1] = down,
+            Key::LeftAlt => self.alt[0] = down,
+            Key::RightAlt => self.alt[1] = down,
+            _ if down => self.keys.borrow_mut().push(KeyPress {
+                key,
+                ctrl: self.ctrl[0] || self.ctrl[1],
+                shift: self.shift[0] || self.shift[1],
+                alt: self.alt[0] || self.alt[1],
+            }),
+            _ => {}
         }
     }
 }
@@ -590,10 +632,11 @@ struct EditResult {
 /// Apply this frame's keys and typed characters to an editable text: caret movement,
 /// selection (Shift), word jumps (Ctrl), deleting, and clipboard (Ctrl+A/C/X/V).
 #[allow(clippy::too_many_arguments)]
-fn edit_keys(ed: &mut textedit::TextEdit, keys: &[Key], chars: &[char], ctrl: bool, shift: bool, multiline: bool, clip: &mut Option<arboard::Clipboard>) -> EditResult {
+fn edit_keys(ed: &mut textedit::TextEdit, keys: &[KeyPress], chars: &[char], ctrl_now: bool, multiline: bool, clip: &mut Option<arboard::Clipboard>) -> EditResult {
     let before = ed.clone();
     let mut enter = false;
-    for &k in keys {
+    for p in keys {
+        let (k, ctrl, shift) = (p.key, p.ctrl, p.shift);
         match k {
             Key::Left => ed.left(ctrl, shift),
             Key::Right => ed.right(ctrl, shift),
@@ -629,7 +672,7 @@ fn edit_keys(ed: &mut textedit::TextEdit, keys: &[Key], chars: &[char], ctrl: bo
         match c {
             '\r' | '\n' if multiline => ed.insert("\n"),
             '\r' | '\n' => enter = true,
-            c if !c.is_control() && c != '\u{7f}' && !ctrl => ed.insert(c.encode_utf8(&mut [0; 4])),
+            c if !c.is_control() && c != '\u{7f}' && !ctrl_now => ed.insert(c.encode_utf8(&mut [0; 4])),
             _ => {}
         }
     }
@@ -755,7 +798,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut idle_frames = 0u32;
     let mut slow = false;
     let typed = Rc::new(RefCell::new(Vec::new()));
-    window.set_input_callback(Box::new(Typed(typed.clone())));
+    let pressed = Rc::new(RefCell::new(Vec::<KeyPress>::new()));
+    window.set_input_callback(Box::new(Typed { chars: typed.clone(), keys: pressed.clone(), ctrl: [false; 2], shift: [false; 2], alt: [false; 2] }));
+    // Wayland doesn't repeat held keys for us; there, add the window's own repeats.
+    let add_repeats = std::env::var_os("WAYLAND_DISPLAY").is_some();
 
     let mut back: Vec<Entry> = Vec::new();
     let mut forward: Vec<Entry> = Vec::new();
@@ -770,6 +816,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let (mut w, mut h) = window.get_size();
     geometry::set_viewport(w as f32, h.saturating_sub(BAR_H) as f32);
     let mut page = load(start);
+    library::visit(&page.url, &page.title);
     let mut lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
@@ -795,6 +842,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut clipboard = arboard::Clipboard::new().ok();
     let mut aedit = textedit::TextEdit::default();
     let mut fedit: Option<textedit::TextEdit> = None;
+    // Address bar suggestions while typing, and which one the arrow keys picked.
+    let mut suggestions: Vec<library::Suggestion> = Vec::new();
+    let mut sugg_sel: Option<usize> = None;
+    let mut sugg_hover: Option<usize> = None;
     // For double-click detection: when and where the last click was.
     let mut last_click = (Instant::now() - std::time::Duration::from_secs(5), 0.0f32, 0.0f32);
 
@@ -1000,13 +1051,24 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         let view_h = h.saturating_sub(BAR_H) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
 
+        // This frame's key presses (from the input callback, so none are missed).
+        let mut presses: Vec<KeyPress> = pressed.borrow_mut().drain(..).collect();
+        if add_repeats {
+            let fresh = window.get_keys_pressed(KeyRepeat::No);
+            let ctrl = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+            let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+            let alt = window.is_key_down(Key::LeftAlt) || window.is_key_down(Key::RightAlt);
+            for key in window.get_keys_pressed(KeyRepeat::Yes).into_iter().filter(|k| !fresh.contains(k)) {
+                presses.push(KeyPress { key, ctrl, shift, alt });
+            }
+        }
+        let escape = presses.iter().any(|p| p.key == Key::Escape);
         // Tab shortcuts: Ctrl+T new, Ctrl+W close, Ctrl+(Shift+)Tab next/previous,
         // Ctrl+1…8 / Ctrl+9 (last), Ctrl+Shift+T reopen the last closed tab.
         {
-            let ctrl = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
-            let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
-            if ctrl {
-                for key in window.get_keys_pressed(KeyRepeat::No) {
+            for p in presses.iter().filter(|p| p.ctrl) {
+                let (key, shift) = (p.key, p.shift);
+                {
                     let n = tabs.len();
                     let digit = [Key::Key1, Key::Key2, Key::Key3, Key::Key4, Key::Key5, Key::Key6, Key::Key7, Key::Key8].iter().position(|&k| k == key);
                     tab_cmd = match key {
@@ -1016,6 +1078,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         Key::Tab if shift => Some(TabCmd::Switch((active + n - 1) % n)),
                         Key::Tab => Some(TabCmd::Switch((active + 1) % n)),
                         Key::Key9 => Some(TabCmd::Switch(n - 1)),
+                        Key::H => Some(TabCmd::Open("about:history".into(), false)),
+                        Key::O if shift => Some(TabCmd::Open("about:bookmarks".into(), false)),
+                        Key::D => {
+                            library::toggle_bookmark(&page.url, &page.title);
+                            dirty = true;
+                            tab_cmd.take()
+                        }
                         _ => digit.filter(|&d| d < n).map(TabCmd::Switch).or(tab_cmd.take()),
                     };
                 }
@@ -1026,14 +1095,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         let typing = !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
         let ctrl_down = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
         let shift_down = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
-        let edit_keys_now = if typing || editing { window.get_keys_pressed(KeyRepeat::Yes) } else { Vec::new() };
+        let edit_keys_now: Vec<KeyPress> = if typing || editing { presses.clone() } else { Vec::new() };
         if typing {
             let f = focused.unwrap();
             let multiline = js::with_dom(|d| d.tag(f) == Some("textarea"));
             let value = js::with_dom(|d| forms::value(d, f));
             let ed = fedit.get_or_insert_with(|| textedit::TextEdit::new(&value));
             ed.sync(&value);
-            let r = edit_keys(ed, &edit_keys_now, &chars, ctrl_down, shift_down, multiline, &mut clipboard);
+            let r = edit_keys(ed, &edit_keys_now, &chars, ctrl_down, multiline, &mut clipboard);
             // A maxlength limit, counted in characters (only stops text from growing).
             if let Some(max) = js::with_dom(|d| d.attr(f, "maxlength").and_then(|m| m.trim().parse::<usize>().ok())) {
                 let n = ed.len();
@@ -1068,32 +1137,49 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
         if editing {
             aedit.sync(&address);
-            let r = edit_keys(&mut aedit, &edit_keys_now, &chars, ctrl_down, shift_down, false, &mut clipboard);
+            for k in edit_keys_now.iter().map(|p| p.key) {
+                let n = suggestions.len();
+                match k {
+                    Key::Down if n > 0 => sugg_sel = Some(sugg_sel.map_or(0, |i| (i + 1).min(n - 1))),
+                    Key::Up if n > 0 => sugg_sel = sugg_sel.and_then(|i| i.checked_sub(1)),
+                    _ => {}
+                }
+                if matches!(k, Key::Up | Key::Down) {
+                    dirty = true;
+                }
+            }
+            let r = edit_keys(&mut aedit, &edit_keys_now, &chars, ctrl_down, false, &mut clipboard);
             address = aedit.text.clone();
+            if r.changed {
+                suggestions = library::suggest(&address, 6);
+                sugg_sel = None;
+            }
             if r.enter {
                 editing = false;
-                navigate = Some(Go::To(net::normalize_input(&address)));
+                let picked = sugg_sel.and_then(|i| suggestions.get(i)).map(|s| s.url.clone());
+                navigate = Some(Go::To(picked.unwrap_or_else(|| net::normalize_input(&address))));
+                suggestions.clear();
             }
             if r.changed || r.moved || r.enter {
                 dirty = true;
             }
-            if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
+            if escape {
                 editing = false;
                 address = page.url.clone();
+                suggestions.clear();
                 dirty = true;
             }
         } else {
-            let ctrl = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
-            stop_key = window.is_key_pressed(Key::Escape, KeyRepeat::No);
-            let alt = window.is_key_down(Key::LeftAlt) || window.is_key_down(Key::RightAlt);
-            for key in window.get_keys_pressed(KeyRepeat::Yes) {
+            stop_key = escape;
+            for p in &presses {
+                let (key, ctrl, alt) = (p.key, p.ctrl, p.alt);
                 let before = scroll;
                 // Keys for the focused control come first.
                 if let Some(f) = focused {
                     let kind = js::with_dom(|d| forms::control(d, f));
                     let handled = match key {
                         Key::Tab if !ctrl => {
-                            let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+                            let shift = p.shift;
                             let all = js::with_dom(focusable);
                             let i = all.iter().position(|&n| n == f).unwrap_or(0);
                             let next = if shift { (i + all.len() - 1) % all.len().max(1) } else { (i + 1) % all.len().max(1) };
@@ -1197,6 +1283,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         let down = window.get_mouse_down(MouseButton::Left);
         let mid = window.get_mouse_down(MouseButton::Middle);
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
+            let sh = (editing && my >= BAR_H as f32 && mx >= FIELD_X).then(|| ((my - BAR_H as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
+            if sh != sugg_hover {
+                sugg_hover = sh;
+                dirty = true;
+            }
             let th = tab_at(mx, my, w as f32, tabs.len());
             if th != tab_hover {
                 tab_hover = th;
@@ -1259,6 +1350,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     fire(&mut page, dd.select, "change");
                 }
                 form_changed = true;
+            } else if down && !was_down && editing && !suggestions.is_empty() && my >= BAR_H as f32 && mx >= FIELD_X && my < BAR_H as f32 + suggestions.len() as f32 * SUGGEST_H {
+                // A click on an address suggestion opens it.
+                let i = ((my - BAR_H as f32) / SUGGEST_H) as usize;
+                if let Some(sg) = suggestions.get(i) {
+                    navigate = Some(Go::To(sg.url.clone()));
+                }
+                editing = false;
+                suggestions.clear();
+                dirty = true;
+            } else if down && !was_down && my >= TAB_H && (my as usize) < BAR_H && mx >= w as f32 - 8.0 - STAR_W {
+                library::toggle_bookmark(&page.url, &page.title);
+                dirty = true;
             } else if down && !was_down && my < TAB_H {
                 tab_cmd = match th {
                     Some(TabHit::Tab(i)) => Some(TabCmd::Switch(i)),
@@ -1290,6 +1393,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     }
                     dirty = true;
                 } else if (my as usize) >= BAR_H {
+                    if editing {
+                        editing = false;
+                        address = page.url.clone();
+                        suggestions.clear();
+                        dirty = true;
+                    }
                     // Let the page's JavaScript see the click first.
                     let node = lay.hit_at(mx, view_y, scroll);
                     // Checkboxes and radio buttons change before the click event, so handlers
@@ -1482,6 +1591,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     back.push(current.clone());
                     forward.clear();
                     current = Entry { url: url.clone(), doc: page.doc, state };
+                    library::visit(&url, &page.title);
                     page.url = url;
                 }
                 js::HistoryOp::Replace(url, state) => {
@@ -1602,6 +1712,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 Go::Reload => state = current.state.clone(),
             }
             page = build_page(prepared);
+            library::visit(&page.url, &page.title);
             current = Entry { url: page.url.clone(), doc: page.doc, state };
             focused = None;
             dropdown = None;
@@ -1647,10 +1758,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     None => (String::new(), false),
                 })
                 .collect();
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)) };
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url) };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
+            }
+            if editing && !suggestions.is_empty() {
+                draw_suggestions(&mut canvas, fonts, &suggestions, sugg_sel.or(sugg_hover));
             }
             let _ = window.update_with_buffer(&canvas.buf, w, h);
             dirty = false;
@@ -1666,6 +1780,7 @@ struct Toolbar<'a> {
     tab_hover: Option<TabHit>,
     /// While editing the address: (caret, selection anchor).
     caret: Option<(usize, usize)>,
+    bookmarked: bool,
     address: &'a str,
     editing: bool,
     can_back: bool,
@@ -1750,6 +1865,9 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     // Address field
     let field = if ui.editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
     canvas.fill_rect(FIELD_X, top + 5.0, w - FIELD_X - 8.0, TOOL_H - 10.0, field);
+    // Bookmark star
+    let (star, star_ink) = if ui.bookmarked { ("★", Color::rgb(234, 179, 8)) } else { ("☆", Color::rgb(110, 110, 120)) };
+    canvas.draw_text(fonts, w - 8.0 - STAR_W + 7.0, top + 24.0, star, font::REGULAR, 17.0, star_ink);
     let tx = FIELD_X + 8.0;
     if let Some((caret, anchor)) = ui.caret {
         let upto = |i: usize| fonts.width(font::REGULAR, &ui.address.chars().take(i).collect::<String>(), 14.0);
@@ -1765,6 +1883,37 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         let span = w * 0.25;
         let pos = (t * 0.8).fract() * (w + span) - span;
         canvas.fill_rect(pos.max(0.0), bar - 3.0, (pos + span).min(w) - pos.max(0.0), 2.0, Color::rgb(249, 115, 22));
+    }
+}
+
+/// Address bar suggestions: a panel under the field, one row per page (title, then address).
+fn draw_suggestions(canvas: &mut Canvas, fonts: &Fonts, list: &[library::Suggestion], hot: Option<usize>) {
+    let (x, y0) = (FIELD_X, BAR_H as f32);
+    let w = canvas.w as f32 - FIELD_X - 8.0;
+    let h = list.len() as f32 * SUGGEST_H;
+    canvas.fill_rect(x + 2.0, y0 + 2.0, w, h + 2.0, Color { r: 0, g: 0, b: 0, a: 35 });
+    canvas.fill_rect(x, y0, w, h + 2.0, Color::rgb(200, 200, 208));
+    canvas.fill_rect(x + 1.0, y0, w - 2.0, h + 1.0, Color::rgb(255, 255, 255));
+    for (i, sg) in list.iter().enumerate() {
+        let y = y0 + i as f32 * SUGGEST_H;
+        if hot == Some(i) {
+            canvas.fill_rect(x + 1.0, y, w - 2.0, SUGGEST_H, Color::rgb(232, 240, 254));
+        }
+        let icon = if sg.bookmarked { "★" } else { "↺" };
+        canvas.draw_text(fonts, x + 10.0, y + 20.0, icon, font::REGULAR, 13.0, if sg.bookmarked { Color::rgb(234, 179, 8) } else { Color::rgb(140, 140, 150) });
+        let title = if sg.title.is_empty() { &sg.url } else { &sg.title };
+        let mut t: String = title.chars().take(70).collect();
+        if t.len() < title.len() {
+            t.push('…');
+        }
+        canvas.draw_text(fonts, x + 32.0, y + 20.0, &t, font::REGULAR, 13.5, Color::rgb(30, 30, 40));
+        let tx = x + 32.0 + fonts.width(font::REGULAR, &t, 13.5) + 12.0;
+        let room = (x + w - 12.0 - tx).max(0.0);
+        let mut u = sg.url.clone();
+        while !u.is_empty() && fonts.width(font::REGULAR, &u, 12.0) > room {
+            u.pop();
+        }
+        canvas.draw_text(fonts, tx, y + 20.0, &u, font::REGULAR, 12.0, Color::rgb(29, 78, 216));
     }
 }
 
