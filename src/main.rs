@@ -391,7 +391,10 @@ struct Page {
 impl Page {
     /// Re-run the cascade after the DOM changed.
     fn restyle(&mut self) {
-        self.styles = js::with_dom(|d| style::compute(d, &self.sheets));
+        self.styles = js::with_dom(|d| match d.composed() {
+            Some(c) => style::compute(&c, &self.sheets),
+            None => style::compute(d, &self.sheets),
+        });
         let bg_urls = background_urls(&self.styles);
         let (images, url) = (&mut self.images, &self.url);
         js::with_dom(|d| images.load_missing(d, url, &bg_urls));
@@ -399,7 +402,10 @@ impl Page {
     }
 
     fn layout(&self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
-        let lay = js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h));
+        let lay = js::with_dom(|d| match d.composed() {
+            Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, width, viewport_h),
+            None => layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h),
+        });
         geometry::publish(&lay, width, viewport_h);
         lay
     }
@@ -417,6 +423,8 @@ struct Prepared {
     source: String,
     /// Only the part of the page downloaded so far (shown while the rest arrives; no scripts).
     partial: bool,
+    /// An XHTML document, parsed as XML.
+    xml: bool,
     /// The navigation turned out to be a download: there is no page to show.
     download: bool,
 }
@@ -525,6 +533,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
 
 /// `fetch_page`, also handing over previews of a slow page while it downloads.
 fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepared)) -> Prepared {
+    let mut xml = false;
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), start_page())
     } else if url == "about:blank" {
@@ -547,16 +556,19 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
     } else {
         let target = if post.is_some() { url.to_string() } else { net::strip_tracking(url) };
         let mut on_partial = |u: &str, html: &str| {
-            let mut p = prepare(u.to_string(), html.to_string(), false);
+            let mut p = prepare(u.to_string(), html.to_string(), false, false);
             p.partial = true;
             preview(p);
         };
         match net::navigate_with(&target, post, &mut on_partial) {
-            Ok(net::Navigated::Page { url, html }) => (url, html),
+            Ok(net::Navigated::Page { url, html, xml: x }) => {
+                xml = x;
+                (url, html)
+            }
             // A file being saved: the tab stays on the page it was showing.
             Ok(net::Navigated::Download { name }) => {
                 log!("[download] saving {name}");
-                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), partial: false, download: true };
+                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), partial: false, xml: false, download: true };
             }
             Err(e) => {
                 log!("[net] couldn't load {url}: {e}");
@@ -564,14 +576,14 @@ fn fetch_page_with(url: &str, post: Option<&str>, preview: &mut dyn FnMut(Prepar
             }
         }
     };
-    prepare(final_url, body, true)
+    prepare(final_url, body, true, xml)
 }
 
 /// Parse a page and fetch what it needs: stylesheets and scripts, and with `full`, images
 /// and web fonts too (a preview of a half-downloaded page skips those).
-fn prepare(final_url: String, body: String, full: bool) -> Prepared {
+fn prepare(final_url: String, body: String, full: bool, xml: bool) -> Prepared {
     let parse_t = Instant::now();
-    let dom = html::parse(&body);
+    let dom = if xml { treebuilder::parse_xml(&body) } else { html::parse(&body) };
     if std::env::var("IRONSWIFT_PARSE_TIME").is_ok() {
         eprintln!("parse: {:?} for {} bytes", parse_t.elapsed(), body.len());
     }
@@ -641,7 +653,7 @@ fn prepare(final_url: String, body: String, full: bool) -> Prepared {
         fonts = fetch_fonts(&sheets, &styles, &final_url);
         render_frames(&dom, &styles, &final_url, &mut images);
     }
-    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, download: false }
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, partial: false, xml, download: false }
 }
 
 // ---------------------------------------------------------------- iframes
@@ -687,7 +699,7 @@ fn render_frame(src: &FrameSrc, w: u32, h: u32) -> Option<image::RgbaImage> {
     let fonts = load_fonts()?;
     let prepared = match src {
         FrameSrc::Url(u) => fetch_page(u, None),
-        FrameSrc::Doc { html, base } => prepare(base.clone(), html.clone(), true),
+        FrameSrc::Doc { html, base } => prepare(base.clone(), html.clone(), true, false),
     };
     // (Set after preparing: nested frames rendered meanwhile use their own size.)
     geometry::set_viewport(w as f32, h as f32);
@@ -738,11 +750,8 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
         let src = match (dom.attr(id, "srcdoc"), dom.attr(id, "src").map(str::trim)) {
             (Some(doc), _) => FrameSrc::Doc { html: doc.to_string(), base: base.to_string() },
             (None, Some(s)) if !s.is_empty() && s != "about:blank" && !s.starts_with("javascript:") => FrameSrc::Url(net::resolve(base, s)),
-            // An empty frame is a blank white page.
-            _ => {
-                images.insert(&key, image::RgbaImage::from_pixel(w, h, image::Rgba([255, 255, 255, 255])));
-                continue;
-            }
+            // An empty frame shows nothing: the iframe's own background shows through.
+            _ => continue,
         };
         let img = if depth == 0 {
             let Some(worker) = frame_worker() else { return };
@@ -798,7 +807,7 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts, fonts, source, partial, .. } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts, source, partial, xml, .. } = p;
     install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
@@ -814,6 +823,8 @@ fn build_page(p: Prepared) -> Page {
         let images = images.share();
         Box::new(move |w: f32, h: f32| {
             js::with_dom(|d| {
+                let c = d.composed();
+                let d = c.as_ref().unwrap_or(d);
                 let styles = style::compute(d, &sheets);
                 layout::layout(d, &styles, fonts, &images, w, h)
             })
@@ -824,7 +835,12 @@ fn build_page(p: Prepared) -> Page {
         let mut js = js::Js::new(&url);
         // Parse again with the scripts running as they're reached (the first parse found
         // what to download).
-        js.parse_and_run(&source, &url, &scripts);
+        if xml {
+            // XHTML is parsed as XML up front; its scripts then run in document order.
+            js.run_in_order(&url, &scripts);
+        } else {
+            js.parse_and_run(&source, &url, &scripts);
+        }
         js
     });
     js::take_dirty();

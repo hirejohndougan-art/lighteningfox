@@ -83,7 +83,7 @@ pub fn html5lib(dir: &str) -> i32 {
                 None if case.data.contains("<script") && f.file_name().is_some_and(|n| n.to_string_lossy().starts_with("scripted")) => {
                     let mut js = crate::js::Js::new("about:blank");
                     js.parse_and_run(&case.data, "about:blank", &Default::default());
-                    crate::js::with_dom(|d| crate::dom::Dom { nodes: d.nodes.clone(), ns: d.ns.clone(), template_contents: d.template_contents.clone(), quirks: d.quirks })
+                    crate::js::with_dom(|d| d.clone())
                 }
                 None => crate::treebuilder::TreeBuilder::parse_document(&case.data, scripting),
             };

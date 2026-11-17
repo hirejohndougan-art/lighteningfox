@@ -14,7 +14,7 @@
     let n = cache[id];
     if (n) return n;
     const t = __type(id);
-    n = t === 9 ? document : t === 3 ? new Text(id) : t === 8 ? new Comment(id) : new Element(id);
+    n = t === 9 ? document : t === 3 ? new Text(id) : t === 8 ? new Comment(id) : t === 11 && __shadowHost(id) ? new ShadowRoot(id) : t === 11 ? new DocumentFragment(id) : new Element(id);
     cache[id] = n;
     return n;
   }
@@ -25,41 +25,129 @@
   // ------------------------------------------------------------ events
   class Event {
     constructor(type, init = {}) {
-      this.type = type;
+      this.type = String(type);
       this.bubbles = !!init.bubbles;
       this.cancelable = !!init.cancelable;
+      this.composed = !!init.composed;
       this.defaultPrevented = false;
       this.target = null;
       this.currentTarget = null;
+      this.relatedTarget = init.relatedTarget ?? null;
+      this.eventPhase = 0;
+      this.isTrusted = false;
       this.timeStamp = __nowMs;
       this._stop = false;
+      this._stopNow = false;
+      this._path = [];
     }
+    static get NONE() { return 0; }
+    static get CAPTURING_PHASE() { return 1; }
+    static get AT_TARGET() { return 2; }
+    static get BUBBLING_PHASE() { return 3; }
+    get srcElement() { return this.target; }
+    get returnValue() { return !this.defaultPrevented; }
+    set returnValue(v) { if (!v) this.preventDefault(); }
+    get cancelBubble() { return this._stop; }
+    set cancelBubble(v) { if (v) this._stop = true; }
     preventDefault() { if (this.cancelable) this.defaultPrevented = true; }
     stopPropagation() { this._stop = true; }
-    stopImmediatePropagation() { this._stop = true; }
+    stopImmediatePropagation() { this._stop = true; this._stopNow = true; }
+    initEvent(type, bubbles, cancelable) { this.type = String(type); this.bubbles = !!bubbles; this.cancelable = !!cancelable; }
+    // The event's path as seen from the current listener: closed shadow trees the current
+    // target isn't in stay hidden (DOM standard algorithm).
+    composedPath() {
+      const path = this._path, cur = this.currentTarget;
+      if (!path.length || !cur) return [];
+      const out = [cur];
+      let curIndex = 0, level = 0;
+      for (let i = path.length - 1; i >= 0; i--) {
+        if (path[i].rootOfClosedTree) level++;
+        if (path[i].item === cur) { curIndex = i; break; }
+        if (path[i].slotInClosedTree) level--;
+      }
+      let current = level, max = level;
+      for (let i = curIndex - 1; i >= 0; i--) {
+        if (path[i].rootOfClosedTree) current++;
+        if (current <= max) out.unshift(path[i].item);
+        if (path[i].slotInClosedTree) { current--; if (current < max) max = current; }
+      }
+      current = max = level;
+      for (let i = curIndex + 1; i < path.length; i++) {
+        if (path[i].slotInClosedTree) current++;
+        if (current <= max) out.push(path[i].item);
+        if (path[i].rootOfClosedTree) { current--; if (current < max) max = current; }
+      }
+      return out;
+    }
   }
   class CustomEvent extends Event {
     constructor(type, init = {}) { super(type, init); this.detail = init.detail ?? null; }
   }
+  const isShadowRoot = (n) => n instanceof ShadowRoot;
+  // The root of a node's tree (a document, a shadow root, or a detached subtree's top).
+  const rootOf = (n) => { while (n && n.parentNode) n = n.parentNode; return n; };
+  // Is `a` an ancestor of (or equal to) `b`, crossing from shadow roots to their hosts?
+  const shadowIncludingAncestor = (a, b) => {
+    while (b) {
+      if (b === a) return true;
+      b = b.parentNode || (isShadowRoot(b) ? b.host : null);
+    }
+    return false;
+  };
+  // A node as seen from `other`: moved out to shadow hosts until it's in a tree `other` can see.
+  const retarget = (a, b) => {
+    while (a && a.nodeType !== undefined) {
+      const root = rootOf(a);
+      if (!isShadowRoot(root) || shadowIncludingAncestor(root, b)) return a;
+      a = root.host;
+    }
+    return a;
+  };
+  // "Get the parent" for event paths.
+  function eventParent(node, ev, first) {
+    if (node === g) return null;
+    if (node === document) return ev.type === "load" ? null : g;
+    if (isShadowRoot(node)) return !ev.composed && rootOf(first) === node ? null : node.host;
+    if (node.nodeType !== undefined && node.assignedSlot !== undefined) {
+      const slot = __assignedSlotAny(node);
+      if (slot) return slot;
+    }
+    return node.parentNode || null;
+  }
   class EventTarget {
     addEventListener(type, fn, opts) {
       if (!fn) return;
+      const capture = typeof opts === "boolean" ? opts : !!(opts && opts.capture);
+      const once = !!(opts && typeof opts === "object" && opts.once);
       const l = (this.__listeners ||= {});
-      (l[type] ||= []).push({ fn, once: !!(opts && opts.once) });
+      const list = (l[type] ||= []);
+      if (list.some((x) => x.fn === fn && x.capture === capture)) return;
+      list.push({ fn, once, capture });
     }
-    removeEventListener(type, fn) {
+    removeEventListener(type, fn, opts) {
+      const capture = typeof opts === "boolean" ? opts : !!(opts && opts.capture);
       const l = this.__listeners && this.__listeners[type];
-      if (l) this.__listeners[type] = l.filter((x) => x.fn !== fn);
+      if (l) {
+        for (const x of l) if (x.fn === fn && x.capture === capture) x.removed = true;
+        this.__listeners[type] = l.filter((x) => !(x.fn === fn && x.capture === capture));
+      }
     }
-    __fire(ev) {
+    // Run this target's listeners: phase "capture" runs capturing ones, "bubble" the rest
+    // (and the inline on… handler); undefined runs all of them.
+    __fire(ev, phase) {
       ev.currentTarget = this;
       const list = (this.__listeners && this.__listeners[ev.type]) || [];
       for (const entry of list.slice()) {
-        if (entry.once) this.removeEventListener(ev.type, entry.fn);
+        if (entry.removed) continue;
+        if (phase === "capture" && !entry.capture) continue;
+        if (phase === "bubble" && entry.capture) continue;
+        if (entry.once) this.removeEventListener(ev.type, entry.fn, { capture: entry.capture });
         try {
           typeof entry.fn === "function" ? entry.fn.call(this, ev) : entry.fn.handleEvent(ev);
         } catch (e) { console.error(String(e)); }
+        if (ev._stopNow) return;
       }
+      if (phase === "capture") return;
       const prop = this["on" + ev.type];
       if (typeof prop === "function") {
         try { if (prop.call(this, ev) === false) ev.preventDefault(); } catch (e) { console.error(String(e)); }
@@ -71,14 +159,46 @@
       }
     }
     dispatchEvent(ev) {
-      ev.target = this;
-      let node = this;
-      while (node) {
-        node.__fire(ev);
-        if (!ev.bubbles || ev._stop) break;
-        node = node === document ? g : node.parentNode;
-        if (node === g) { EventTarget.prototype.__fire.call(g, ev); break; }
+      const target = this;
+      const related = ev.relatedTarget;
+      const path = [];
+      for (let node = target; node; node = eventParent(node, ev, target)) {
+        const closedRoot = isShadowRoot(node) && node.mode === "closed";
+        let slotInClosed = false;
+        if (node.nodeType === 1 && node.localName === "slot") {
+          const r = rootOf(node);
+          slotInClosed = isShadowRoot(r) && r.mode === "closed";
+        }
+        path.push({ item: node, rootOfClosedTree: closedRoot, slotInClosedTree: slotInClosed });
+        if (path.length > 10000) break;
       }
+      ev._path = path;
+      ev._stop = false;
+      ev._stopNow = false;
+      const seenFrom = (item) => (item === g ? retarget(target, document) : retarget(target, item));
+      // Capture: outermost first.
+      for (let i = path.length - 1; i >= 0 && !ev._stop; i--) {
+        const item = path[i].item;
+        ev.target = seenFrom(item);
+        if (related) ev.relatedTarget = retarget(related, item);
+        ev.eventPhase = ev.target === item ? 2 : 1;
+        item.__fire(ev, "capture");
+      }
+      // Target and bubble: innermost first.
+      for (let i = 0; i < path.length && !ev._stop; i++) {
+        const item = path[i].item;
+        ev.target = seenFrom(item);
+        if (related) ev.relatedTarget = retarget(related, item);
+        const atTarget = ev.target === item;
+        if (!atTarget && !ev.bubbles) continue;
+        ev.eventPhase = atTarget ? 2 : 3;
+        item.__fire(ev, "bubble");
+      }
+      ev.eventPhase = 0;
+      ev.currentTarget = null;
+      ev.target = retarget(target, document);
+      if (related) ev.relatedTarget = retarget(related, document);
+      ev._path = [];
       return !ev.defaultPrevented;
     }
   }
@@ -214,6 +334,23 @@
     get lastElementChild() { const c = this.children; return c[c.length - 1] || null; }
     get nextElementSibling() { let n = this.nextSibling; while (n && n.nodeType !== 1) n = n.nextSibling; return n; }
     get previousElementSibling() { let n = this.previousSibling; while (n && n.nodeType !== 1) n = n.previousSibling; return n; }
+    attachShadow(init) {
+      const mode = init && init.mode;
+      if (mode !== "open" && mode !== "closed") throw new TypeError("attachShadow: mode must be 'open' or 'closed'");
+      if (__shadowHost(__shadowRoot(this.__id)) || this.__hasShadow) throw new DOMException("This element already has a shadow root", "NotSupportedError");
+      this.__hasShadow = true;
+      return wrap(__attachShadow(this.__id, mode === "open"));
+    }
+    get shadowRoot() { return wrap(__shadowRoot(this.__id)); }
+    get content() { return this.localName === "template" ? wrap(__templateContent(this.__id)) : undefined; }
+    getRootNode(opts) {
+      let n = this;
+      for (;;) {
+        while (n.parentNode) n = n.parentNode;
+        if (opts && opts.composed && n instanceof ShadowRoot) { n = n.host; continue; }
+        return n;
+      }
+    }
     get innerHTML() { return __getHTML(this.__id, false); }
     set innerHTML(v) { __setHTML(this.__id, String(v)); }
     get outerHTML() { return __getHTML(this.__id, true); }
@@ -302,8 +439,7 @@
     }
     focus() { __request("focus", this.__id); }
     blur() { __request("blur", this.__id); }
-    click() { this.dispatchEvent(new Event("click", { bubbles: true, cancelable: true })); }
-    attachShadow() { return this; }
+    click() { this.dispatchEvent(new Event("click", { bubbles: true, cancelable: true, composed: true })); }
     // Reflected attributes commonly used by scripts
     get href() { return this.getAttribute("href") || ""; }
     set href(v) { this.setAttribute("href", v); }
@@ -379,6 +515,65 @@
     querySelectorAll(s) { return Element.prototype.querySelectorAll.call(this, s); }
     append(...a) { for (const n of nodesFrom(a)) this.appendChild(n); }
   }
+
+  class ShadowRoot extends DocumentFragment {
+    get nodeName() { return "#document-fragment"; }
+    get host() { return wrap(__shadowHost(this.__id)[0]); }
+    get mode() { return __shadowHost(this.__id)[1] ? "open" : "closed"; }
+    get innerHTML() { return __getHTML(this.__id, false); }
+    set innerHTML(v) { __setHTML(this.__id, String(v)); }
+    get children() { return this.childNodes.filter((n) => n.nodeType === 1); }
+    getElementById(id) { return this.querySelector("#" + CSS.escape(id)); }
+    get activeElement() { return null; }
+  }
+  g.ShadowRoot = ShadowRoot;
+
+  // ------------------------------------------------------------ slots
+  const slotNameOf = (n) => (n.nodeType === 1 ? n.getAttribute("slot") || "" : n.nodeType === 3 ? "" : null);
+  // The slot a host's child is assigned to (in an open or closed shadow tree), or null.
+  function __assignedSlotAny(node) {
+    const host = node.parentNode;
+    if (!host || host.nodeType !== 1) return null;
+    const root = wrap(__shadowRoot(host.__id, true));
+    if (!root) return null;
+    const name = slotNameOf(node);
+    if (name === null) return null;
+    for (const s of Element.prototype.querySelectorAll.call(root, "slot")) if ((s.getAttribute("name") || "") === name) return s;
+    return null;
+  }
+  g.__assignedSlotAny = __assignedSlotAny;
+  function assignedTo(slot) {
+    const r = rootOf(slot);
+    if (!isShadowRoot(r)) return [];
+    return r.host.childNodes.filter((n) => __assignedSlotAny(n) === slot);
+  }
+  function flattenedOf(slot) {
+    if (!isShadowRoot(rootOf(slot))) return [];
+    let list = assignedTo(slot);
+    if (!list.length) list = slot.childNodes.filter((n) => n.nodeType === 1 || n.nodeType === 3);
+    const out = [];
+    for (const n of list) {
+      if (n.nodeType === 1 && n.localName === "slot" && isShadowRoot(rootOf(n))) out.push(...flattenedOf(n));
+      else out.push(n);
+    }
+    return out;
+  }
+  Object.defineProperty(Node.prototype, "assignedSlot", {
+    configurable: true,
+    get() {
+      const s = __assignedSlotAny(this);
+      return s && rootOf(s).mode === "open" ? s : null;
+    },
+  });
+  Object.assign(Element.prototype, {
+    assignedNodes(opts) { return opts && opts.flatten ? flattenedOf(this) : assignedTo(this); },
+    assignedElements(opts) { return this.assignedNodes(opts).filter((n) => n.nodeType === 1); },
+  });
+  Object.defineProperty(Element.prototype, "slot", {
+    configurable: true,
+    get() { return this.getAttribute("slot") || ""; },
+    set(v) { this.setAttribute("slot", String(v)); },
+  });
 
   class Document extends Node {
     get nodeName() { return "#document"; }
@@ -984,6 +1179,39 @@
   }
   const svgSet = new Set(SVG_TAGS);
   const isSvg = (x) => isEl(x) && svgSet.has((x.localName || x.tagName).toLowerCase());
+  // Fragments and shadow roots hold children like elements do: give them the same tree methods.
+  for (const name of ["appendChild", "insertBefore", "removeChild", "replaceChild", "childNodes", "firstChild", "lastChild", "children",
+    "firstElementChild", "lastElementChild", "childElementCount", "textContent", "cloneNode", "contains", "hasChildNodes", "append", "prepend",
+    "replaceChildren", "querySelector", "querySelectorAll", "getElementsByTagName", "getElementsByClassName", "normalize"]) {
+    const d = Object.getOwnPropertyDescriptor(Element.prototype, name) || Object.getOwnPropertyDescriptor(Node.prototype, name);
+    if (d && !Object.prototype.hasOwnProperty.call(DocumentFragment.prototype, name)) Object.defineProperty(DocumentFragment.prototype, name, d);
+  }
+  // Every node (text, comment, document…) has getRootNode, not just elements.
+  if (!Object.prototype.hasOwnProperty.call(Node.prototype, "getRootNode")) Node.prototype.getRootNode = Element.prototype.getRootNode;
+  if (!DocumentFragment.prototype.getElementById) DocumentFragment.prototype.getElementById = function (id) { return this.querySelector("#" + CSS.escape(String(id))); };
+
+  // Node type constants (Node.ELEMENT_NODE …), on the class and its instances.
+  const NODE_TYPES = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4, ENTITY_REFERENCE_NODE: 5, ENTITY_NODE: 6, PROCESSING_INSTRUCTION_NODE: 7, COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_TYPE_NODE: 10, DOCUMENT_FRAGMENT_NODE: 11, NOTATION_NODE: 12, DOCUMENT_POSITION_DISCONNECTED: 1, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4, DOCUMENT_POSITION_CONTAINS: 8, DOCUMENT_POSITION_CONTAINED_BY: 16, DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: 32 };
+  for (const [k, v] of Object.entries(NODE_TYPES)) {
+    if (!(k in Node)) Object.defineProperty(Node, k, { value: v });
+    if (!(k in Node.prototype)) Object.defineProperty(Node.prototype, k, { value: v });
+  }
+  if (!document.importNode) document.importNode = (node, deep) => node.cloneNode(!!deep);
+  if (!document.adoptNode) document.adoptNode = (node) => { if (node.parentNode) node.parentNode.removeChild(node); return node; };
+  // window.<id>: elements with an id are reachable as globals (until a script defines the
+  // name itself).
+  g.__namedIds = function () {
+    for (const name of __idList()) {
+      if (Object.prototype.hasOwnProperty.call(g, name) || !/^[A-Za-z_$][\w$]*$/.test(name)) continue;
+      Object.defineProperty(g, name, {
+        configurable: true,
+        enumerable: false,
+        get() { return document.getElementById(name) ?? undefined; },
+        set(v) { Object.defineProperty(g, name, { value: v, writable: true, configurable: true, enumerable: true }); },
+      });
+    }
+  };
+  g.HTMLSlotElement = class HTMLSlotElement extends HTMLElement { static [Symbol.hasInstance](x) { return isEl(x) && x.localName === "slot"; } };
   g.SVGElement = class SVGElement extends Element { static [Symbol.hasInstance](x) { return isSvg(x); } };
   g.SVGGraphicsElement = class SVGGraphicsElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isSvg(x); } };
   g.SVGSVGElement = class SVGSVGElement extends g.SVGElement { static [Symbol.hasInstance](x) { return isEl(x) && x.tagName.toLowerCase() === "svg"; } };

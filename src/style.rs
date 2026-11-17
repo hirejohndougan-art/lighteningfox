@@ -453,8 +453,97 @@ struct Matched<'a> {
 /// Styles are shared to save memory: text uses its parent's style, and elements
 /// whose matched rules, attributes and parent are identical (list items, table
 /// cells, paragraphs in a row) share one computed style.
+/// A shadow root's own stylesheets: `:host` rules (which style the host element, found by
+/// the marker attribute the composed tree gives it) and the rest (which style only nodes
+/// inside that shadow tree).
+fn shadow_sheets(dom: &Dom) -> HashMap<NodeId, (Stylesheet, Stylesheet)> {
+    let mut texts: HashMap<NodeId, String> = HashMap::new();
+    for (id, n) in dom.nodes.iter().enumerate() {
+        if let (NodeData::Element { tag, .. }, Some(&root)) = (&n.data, dom.render_scope.get(&id)) {
+            if tag == "style" {
+                let t = texts.entry(root).or_default();
+                t.push_str(&dom.text_content(id));
+                t.push('\n');
+            }
+        }
+    }
+    texts
+        .into_iter()
+        .map(|(root, css)| {
+            let (mut host, mut inner) = (String::new(), String::new());
+            for rule in split_rules(&css) {
+                if rule.split('{').next().unwrap_or("").contains(":host") {
+                    host.push_str(&rewrite_host(&rule, root));
+                } else {
+                    inner.push_str(&rule);
+                }
+                host.push('\n');
+                inner.push('\n');
+            }
+            (root, (css::parse(&host), css::parse(&inner)))
+        })
+        .collect()
+}
+
+/// Split CSS text into top-level rules (`selector { … }`, or an @-rule with its block).
+fn split_rules(css: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut depth, mut start) = (0i32, 0usize);
+    for (i, c) in css.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    out.push(css[start..=i].to_string());
+                    start = i + 1;
+                }
+            }
+            ';' if depth == 0 => {
+                out.push(css[start..=i].to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// `:host` → the host's marker attribute; `:host(.x)` → the marker plus `.x`.
+fn rewrite_host(rule: &str, root: NodeId) -> String {
+    let marker = format!("[__shadowhost=\"{root}\"]");
+    let (sel, body) = rule.split_at(rule.find('{').unwrap_or(rule.len()));
+    let mut out = String::new();
+    let mut rest = sel;
+    while let Some(i) = rest.find(":host") {
+        out.push_str(&rest[..i]);
+        rest = &rest[i + 5..];
+        if let Some(inner) = rest.strip_prefix('(') {
+            let mut depth = 1;
+            let end = inner.char_indices().find(|&(_, c)| {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth -= 1,
+                    _ => {}
+                }
+                depth == 0
+            });
+            let end = end.map_or(inner.len(), |(e, _)| e);
+            out.push_str(&marker);
+            out.push_str(&inner[..end]);
+            rest = &inner[(end + 1).min(inner.len())..];
+        } else {
+            out.push_str(&marker);
+        }
+    }
+    out.push_str(rest);
+    out.push_str(body);
+    out
+}
+
 pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let ua = css::parse(UA_CSS);
+    let scoped = if dom.render_scope.is_empty() { HashMap::new() } else { shadow_sheets(dom) };
     let hidden = Rc::new(Style { display: Display::None, ..Style::default() });
     let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
     styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
@@ -472,7 +561,20 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         };
         let mut matched: Vec<Matched> = Vec::new();
         let mut order = 0;
-        for (origin, sheet) in std::iter::once(&ua).chain(sheets.iter()).enumerate() {
+        // The page's stylesheets style the document; a shadow tree is styled only by its
+        // own (plus the browser's), and a host also by its shadow tree's `:host` rules.
+        let page: Vec<&Stylesheet> = match dom.render_scope.get(&id) {
+            Some(root) => scoped.get(root).map(|(_, inner)| vec![inner]).unwrap_or_default(),
+            None => {
+                let mut v: Vec<&Stylesheet> = sheets.iter().collect();
+                if let Some((host_rules, _)) = dom.attr(id, "__shadowhost").and_then(|r| r.parse::<NodeId>().ok()).and_then(|r| scoped.get(&r)) {
+                    // Page rules win over :host rules: put those first.
+                    v.insert(0, host_rules);
+                }
+                v
+            }
+        };
+        for (origin, sheet) in std::iter::once(&ua).chain(page.into_iter()).enumerate() {
             let origin = if origin == 0 { 0 } else { 1 };
             for rule in &sheet.rules {
                 let best = rule

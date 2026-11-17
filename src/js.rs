@@ -190,13 +190,54 @@ fn parse_fragment(markup: &str) -> Dom {
 
 fn clone_node(dom: &mut Dom, id: NodeId, deep: bool) -> NodeId {
     let new = dom.create(dom.nodes[id].data.clone());
+    if let Some(&ns) = dom.ns.get(&id) {
+        dom.ns.insert(new, ns);
+    }
     if deep {
         for c in dom.nodes[id].children.clone() {
             let k = clone_node(dom, c, true);
             dom.insert(new, k, None);
         }
+        // A template's contents are copied with it.
+        if let Some(&content) = dom.template_contents.get(&id) {
+            let copy = clone_node(dom, content, true);
+            dom.template_contents.insert(new, copy);
+        }
     }
     new
+}
+
+/// __idList(): every id used in the document (for window.<id> named access).
+fn n_id_list(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let ids: Vec<String> = with_dom(|d| {
+        let mut v = Vec::new();
+        d.walk(Dom::ROOT, |n| {
+            if let Some(id) = d.attr(n, "id") {
+                if !id.is_empty() {
+                    v.push(id.to_string());
+                }
+            }
+            true
+        });
+        v
+    });
+    Ok(JsArray::from_iter(ids.iter().map(|i| s(i)), ctx).into())
+}
+
+/// __templateContent(template): its contents fragment (made on first use for templates
+/// created by scripts).
+fn n_template_content(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let Some(id) = valid(id) else { return Ok(JsValue::from(-1)) };
+    let c = with_dom_mut(|d| match d.template_contents.get(&id) {
+        Some(&c) => c,
+        None => {
+            let c = d.create(NodeData::Fragment);
+            d.template_contents.insert(id, c);
+            c
+        }
+    });
+    Ok(JsValue::from(c as f64))
 }
 
 // ------------------------------------------------------------ natives
@@ -215,6 +256,32 @@ fn n_type(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
             NodeData::Fragment => 11,
         })
     })))
+}
+
+/// __attachShadow(host, open): the host's new shadow root.
+fn n_attach_shadow(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let open = a.get(1).is_some_and(|v| v.to_boolean());
+    let Some(id) = valid(id) else { return Ok(JsValue::from(-1)) };
+    Ok(JsValue::from(with_dom_mut(|d| d.attach_shadow(id, open)) as f64))
+}
+
+/// __shadowRoot(host, any): its open shadow root (any = closed ones too, for internal use), or -1.
+fn n_shadow_root(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let any = a.get(1).is_some_and(|v| v.to_boolean());
+    let r = valid(id).and_then(|id| with_dom(|d| d.shadow_roots.get(&id).copied().filter(|r| any || d.shadow_hosts.get(r).is_some_and(|h| h.1))));
+    Ok(JsValue::from(r.map_or(-1.0, |r| r as f64)))
+}
+
+/// __shadowHost(root): [host, open] for a shadow root, or null.
+fn n_shadow_host(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let h = valid(id).and_then(|id| with_dom(|d| d.shadow_hosts.get(&id).copied()));
+    Ok(match h {
+        Some((host, open)) => JsArray::from_iter([JsValue::from(host as f64), JsValue::from(open)], ctx).into(),
+        None => JsValue::null(),
+    })
 }
 
 fn n_parent(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -368,7 +435,8 @@ fn query(root: NodeId, sel: &str, all: bool) -> Vec<NodeId> {
     }
     // querySelector("#x …"): the id index finds the one candidate. No element with that id
     // means no match; a candidate that doesn't fit (duplicate ids, outside root) falls back.
-    if !all && sels.len() == 1 {
+    // (Only for searches inside the document: shadow trees and detached nodes aren't indexed.)
+    if !all && sels.len() == 1 && with_dom(|d| d.is_inside(root, Dom::ROOT)) {
         if let Some(want) = sels[0].parts.last().and_then(|c| c.id.as_deref()) {
             match element_by_id(want) {
                 None => return vec![],
@@ -797,6 +865,11 @@ impl Js {
         ctx.runtime_limits_mut().set_recursion_limit(2_000);
         let natives: &[(&str, usize, fn(&JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>)] = &[
             ("__type", 1, n_type),
+            ("__attachShadow", 2, n_attach_shadow),
+            ("__templateContent", 1, n_template_content),
+            ("__idList", 0, n_id_list),
+            ("__shadowRoot", 2, n_shadow_root),
+            ("__shadowHost", 1, n_shadow_host),
             ("__parent", 1, n_parent),
             ("__children", 1, n_children),
             ("__text", 1, n_text),
@@ -871,8 +944,18 @@ impl Js {
 
     /// Run every <script> in document order, then fire DOMContentLoaded/load.
     /// `prefetched` = external script bodies already downloaded, keyed by absolute URL.
+    /// Run the document's scripts one after another (for documents not parsed here, such
+    /// as XHTML), then the load events.
+    pub fn run_in_order(&mut self, base_url: &str, prefetched: &HashMap<String, String>) {
+        for id in with_dom(|d| d.find_all("script")) {
+            self.run_script(id, base_url, prefetched);
+        }
+        self.finish_loading();
+    }
+
     fn finish_loading(&mut self) {
         CURRENT_SCRIPT.with(|c| c.set(-1));
+        self.eval("__namedIds()", "named ids");
         self.eval("__loaded()", "load events");
         self.tick(); // run zero-delay timers right away
     }
@@ -904,6 +987,7 @@ impl Js {
             None => (inline, format!("inline script #{id}")),
         };
         CURRENT_SCRIPT.with(|c| c.set(id as i64));
+        self.eval("__namedIds()", "named ids");
         self.ctx.global_object().set(js_string!("__currentScript"), JsValue::from(id as f64), false, &mut self.ctx).ok();
         self.stats.scripts += 1;
         self.eval(&code, &label);

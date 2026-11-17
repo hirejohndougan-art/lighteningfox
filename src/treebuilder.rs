@@ -57,6 +57,8 @@ pub struct TreeBuilder {
     pending_script: Option<NodeId>,
     /// Where document.write puts text while a parser-inserted script runs.
     write_point: Option<usize>,
+    /// `<template shadowrootmode>` makes a shadow root (whole documents, not innerHTML).
+    pub allow_declarative_shadow: bool,
 }
 
 const SPECIAL_HTML: &[&str] = &[
@@ -207,6 +209,7 @@ impl TreeBuilder {
             pause_at_scripts: false,
             pending_script: None,
             write_point: None,
+            allow_declarative_shadow: true,
         }
     }
 
@@ -224,6 +227,7 @@ impl TreeBuilder {
     pub fn parse_fragment(src: &str, context: &str, context_ns: Ns, scripting: bool) -> Dom {
         let mut tb = TreeBuilder::new(src);
         tb.scripting = scripting;
+        tb.allow_declarative_shadow = false;
         let ctx = tb.dom.create(NodeData::Element { tag: context.to_string(), attrs: Vec::new() });
         if context_ns != Ns::Html {
             tb.dom.ns.insert(ctx, context_ns);
@@ -927,7 +931,21 @@ impl TreeBuilder {
                 }
                 "script" => self.generic_text(tag, State::ScriptData),
                 "template" => {
-                    self.insert_html(tag);
+                    // Declarative shadow DOM: the template's contents become the shadow root
+                    // of the element it's in, and the template itself isn't kept.
+                    let mode = tag.attrs.iter().find(|(k, _)| k == "shadowrootmode").map(|(_, v)| v.to_ascii_lowercase());
+                    let host = self.adjusted_current();
+                    let declarative = self.allow_declarative_shadow
+                        && matches!(mode.as_deref(), Some("open" | "closed"))
+                        && host.is_some_and(|h| Some(h) != self.open.first().copied() && !self.dom.shadow_roots.contains_key(&h));
+                    if let (true, Some(host)) = (declarative, host) {
+                        let t = self.create_element(tag, Ns::Html);
+                        let root = self.dom.attach_shadow(host, mode.as_deref() == Some("open"));
+                        self.dom.template_contents.insert(t, root);
+                        self.open.push(t);
+                    } else {
+                        self.insert_html(tag);
+                    }
                     self.afe.push(Afe::Marker);
                     self.mode = Mode::InTemplate;
                     self.tmpl_modes.push(Mode::InTemplate);
@@ -2018,4 +2036,69 @@ pub fn dump(dom: &Dom) -> String {
     let mut out = String::new();
     walk(dom, Dom::ROOT, 0, &mut out);
     out
+}
+
+/// Parse an XHTML/XML document (served as application/xhtml+xml, or a .xhtml file). XML
+/// has no implied tags or error recovery: `<div/>` is an empty element, end tags close
+/// what they name, and namespaces come from `xmlns` attributes.
+pub fn parse_xml(src: &str) -> Dom {
+    let mut tk = Tokenizer::new(src);
+    let mut dom = Dom::new();
+    let mut open: Vec<(NodeId, Ns)> = Vec::new();
+    let ns_for = |attrs: &[(String, String)], inherited: Ns| match attrs.iter().find(|(k, _)| k == "xmlns").map(|(_, v)| v.as_str()) {
+        Some("http://www.w3.org/2000/svg") => Ns::Svg,
+        Some("http://www.w3.org/1998/Math/MathML") => Ns::MathMl,
+        Some(_) => Ns::Html,
+        None => inherited,
+    };
+    loop {
+        tk.allow_cdata = true;
+        let parent = open.last().map_or(Dom::ROOT, |o| o.0);
+        match tk.next_token() {
+            Token::Eof => break,
+            Token::Doctype(d) => {
+                dom.add(NodeData::Doctype { name: d.name.unwrap_or_default(), public_id: d.public_id, system_id: d.system_id }, parent);
+            }
+            Token::Comment(c) => {
+                dom.add(NodeData::Comment(c), parent);
+            }
+            // The XML declaration (<?xml …?>) isn't a node.
+            Token::ProcessingInstruction { target, data } => {
+                if !target.eq_ignore_ascii_case("xml") {
+                    dom.add(NodeData::ProcessingInstruction { target, data }, parent);
+                }
+            }
+            Token::Text(t) => {
+                if parent == Dom::ROOT {
+                    continue;
+                }
+                if let Some(&last) = dom.nodes[parent].children.last() {
+                    if let NodeData::Text(s) = &mut dom.nodes[last].data {
+                        s.push_str(&t);
+                        continue;
+                    }
+                }
+                dom.add(NodeData::Text(t), parent);
+            }
+            Token::StartTag(tag) => {
+                let ns = ns_for(&tag.attrs, open.last().map_or(Ns::Html, |o| o.1));
+                let name = if ns == Ns::Svg { adjust_svg_tag(&tag.name) } else { tag.name.clone() };
+                let id = dom.add(NodeData::Element { tag: name, attrs: tag.attrs.clone() }, parent);
+                if ns != Ns::Html {
+                    dom.ns.insert(id, ns);
+                }
+                if !tag.self_closing {
+                    open.push((id, ns));
+                    // Raw text elements still hold text in XHTML, not markup, only when
+                    // they're written that way; XML has no raw-text states, so stay in data.
+                }
+            }
+            Token::EndTag(tag) => {
+                if let Some(i) = open.iter().rposition(|&(n, _)| dom.tag(n).is_some_and(|t| t.eq_ignore_ascii_case(&tag.name))) {
+                    open.truncate(i);
+                }
+            }
+        }
+    }
+    dom
 }

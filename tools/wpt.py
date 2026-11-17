@@ -11,7 +11,7 @@ localhost.
 import concurrent.futures, functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BROWSER = os.path.join(HERE, "..", "target", "release", "ironswift")
+BROWSER = os.environ.get("IRONSWIFT_BIN") or os.path.join(HERE, "..", "target", "release", "ironswift")
 STATUS = {0: "PASS", 1: "FAIL", 2: "TIMEOUT", 3: "NOTRUN", 4: "PRECONDITION_FAILED"}
 
 
@@ -107,6 +107,10 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
         for d, kind, res in ex.map(run, jobs):
             results.setdefault((d, kind), []).append(res)
+    if os.environ.get("WPT_DETAILS"):
+        # Every file's result, for finding what to fix.
+        with open(os.environ["WPT_DETAILS"], "w") as f:
+            json.dump({f"{d} {kind}": rows for (d, kind), rows in results.items()}, f, indent=1)
     print(f"{'directory':<28} {'kind':<7} {'files':>6} {'passed':>8}")
     grand = {"script": [0, 0], "ref": [0, 0]}
     for (d, kind), rows in sorted(results.items()):

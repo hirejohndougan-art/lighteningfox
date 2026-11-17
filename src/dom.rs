@@ -44,7 +44,7 @@ pub struct Node {
     pub children: Vec<NodeId>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Dom {
     pub nodes: Vec<Node>,
     /// Elements that aren't HTML (SVG and MathML); everything else is HTML.
@@ -52,6 +52,11 @@ pub struct Dom {
     /// Each `<template>`'s contents fragment.
     pub template_contents: std::collections::HashMap<NodeId, NodeId>,
     pub quirks: Quirks,
+    /// Shadow DOM: each host's shadow root, and each root's host and whether it's open.
+    pub shadow_roots: std::collections::HashMap<NodeId, NodeId>,
+    pub shadow_hosts: std::collections::HashMap<NodeId, (NodeId, bool)>,
+    /// In a composed tree (see `composed`): the shadow root each shadow-tree node belongs to.
+    pub render_scope: std::collections::HashMap<NodeId, NodeId>,
 }
 
 impl Dom {
@@ -193,6 +198,73 @@ impl Dom {
                 None => return false,
             }
         }
+    }
+
+    /// element.attachShadow(): give `host` a shadow root (or return the one it has).
+    pub fn attach_shadow(&mut self, host: NodeId, open: bool) -> NodeId {
+        if let Some(&r) = self.shadow_roots.get(&host) {
+            return r;
+        }
+        let root = self.create(NodeData::Fragment);
+        self.shadow_roots.insert(host, root);
+        self.shadow_hosts.insert(root, (host, open));
+        root
+    }
+
+    /// The tree as it is drawn: each shadow host shows its shadow tree instead of its own
+    /// children, and each `<slot>` shows the host children assigned to it (by their `slot`
+    /// attribute), or its own content when none are. Node ids stay the same, so styles,
+    /// layout boxes and clicks still line up with the real DOM. None if there's no shadow DOM.
+    pub fn composed(&self) -> Option<Dom> {
+        if self.shadow_roots.is_empty() {
+            return None;
+        }
+        let mut c = self.clone();
+        for (&host, &root) in &self.shadow_roots {
+            let light = self.nodes[host].children.clone();
+            let kids = self.compose_children(&mut c, root, root, &light);
+            for &k in &kids {
+                c.nodes[k].parent = Some(host);
+            }
+            c.nodes[host].children = kids;
+            // `:host` rules find the host by this attribute.
+            if let NodeData::Element { attrs, .. } = &mut c.nodes[host].data {
+                attrs.push(("__shadowhost".into(), root.to_string()));
+            }
+        }
+        Some(c)
+    }
+
+    fn compose_children(&self, c: &mut Dom, node: NodeId, root: NodeId, light: &[NodeId]) -> Vec<NodeId> {
+        let mut out = Vec::new();
+        for &k in &self.nodes[node].children {
+            c.render_scope.insert(k, root);
+            if self.ns_of(k) == Ns::Html && self.tag(k) == Some("slot") {
+                let name = self.attr(k, "name").unwrap_or("");
+                let assigned: Vec<NodeId> = light
+                    .iter()
+                    .copied()
+                    .filter(|&l| match &self.nodes[l].data {
+                        NodeData::Element { .. } => self.attr(l, "slot").unwrap_or("") == name,
+                        NodeData::Text(_) => name.is_empty(),
+                        _ => false,
+                    })
+                    .collect();
+                if assigned.is_empty() {
+                    out.extend(self.compose_children(c, k, root, light));
+                } else {
+                    out.extend(assigned);
+                }
+                continue;
+            }
+            let kids = self.compose_children(c, k, root, light);
+            for &kk in &kids {
+                c.nodes[kk].parent = Some(k);
+            }
+            c.nodes[k].children = kids;
+            out.push(k);
+        }
+        out
     }
 
     pub fn ns_of(&self, id: NodeId) -> Ns {

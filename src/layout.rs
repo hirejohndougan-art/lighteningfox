@@ -1035,12 +1035,13 @@ impl<'a> Ctx<'a> {
                     if self.styles[c].display == Display::None {
                         continue;
                     }
+                    // Any element box, even an out-of-flow one, ends a run of loose text.
+                    if !text.is_empty() {
+                        items.push(FlexItem::Text(std::mem::take(&mut text)));
+                    }
                     if self.is_out_of_flow(c) {
                         self.defer_absolute(c, x, y);
                         continue;
-                    }
-                    if !text.is_empty() {
-                        items.push(FlexItem::Text(std::mem::take(&mut text)));
                     }
                     items.push(FlexItem::Node(c));
                 }
@@ -1766,12 +1767,13 @@ impl<'a> Ctx<'a> {
                     if self.styles[c].display == Display::None {
                         continue;
                     }
+                    // Any element box, even an out-of-flow one, ends a run of loose text.
+                    if !text.is_empty() {
+                        items.push(FlexItem::Text(std::mem::take(&mut text)));
+                    }
                     if self.is_out_of_flow(c) {
                         self.defer_absolute(c, x, y);
                         continue;
-                    }
-                    if !text.is_empty() {
-                        items.push(FlexItem::Text(std::mem::take(&mut text)));
                     }
                     items.push(FlexItem::Node(c));
                 }
@@ -2073,7 +2075,12 @@ impl<'a> Ctx<'a> {
         let mut d = self.detach(|cx| (width, cx.block(id, 0.0, 0.0, width, 0.0).0));
         let st = &self.styles[id];
         d.w = match st.width {
-            Len::Auto => width,
+            // Shrink-to-fit never goes below the content's own minimum width: content that
+            // can't wrap any narrower (a word, a table cell) makes the box that wide.
+            Len::Auto => {
+                let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail);
+                width.max(self.content_right(&d.items, true).ceil() + tail)
+            }
             l => {
                 let ml = st.margin[3].resolve(avail);
                 let mr = st.margin[1].resolve(avail);
@@ -2084,8 +2091,6 @@ impl<'a> Ctx<'a> {
         d
     }
 
-    /// Size of an <img>: CSS width/height, else the width/height attributes, else the
-    /// image's own size, keeping its aspect ratio; then shrunk to fit `max-width`.
     /// The image key a replaced element paints: an `<img>`'s src, or the rendering of an
     /// `<iframe>`'s document.
     fn replaced_src(&self, id: NodeId) -> String {
@@ -2096,6 +2101,8 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Size of an <img> (or iframe): CSS width/height, else the width/height attributes, else
+    /// the image's own size, keeping its aspect ratio; then shrunk to fit `max-width`.
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
         let st = &self.styles[id];
         // An iframe is 300×150 unless sized; its content doesn't change that.

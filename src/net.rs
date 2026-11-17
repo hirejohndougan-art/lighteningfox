@@ -20,7 +20,8 @@ pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), Strin
 /// What a navigation turned out to be.
 pub enum Navigated {
     /// Something to show: the final URL and the HTML for it.
-    Page { url: String, html: String },
+    /// `xml`: an XHTML document (parsed as XML, not HTML).
+    Page { url: String, html: String, xml: bool },
     /// A file being saved to the Downloads folder.
     Download { name: String },
 }
@@ -56,6 +57,10 @@ fn sniff(head: &[u8], no_type: bool) -> Kind {
     let start: Vec<u8> = head.iter().skip_while(|b| b.is_ascii_whitespace()).take(16).map(u8::to_ascii_lowercase).collect();
     let html_starts: [&[u8]; 8] = [b"<!doctype html", b"<html", b"<head", b"<body", b"<script", b"<!--", b"<title", b"<p"];
     if html_starts.iter().any(|p| start.starts_with(p)) {
+        return Kind::Html;
+    }
+    // An XHTML file: an XML declaration, then an <html> element.
+    if start.starts_with(b"<?xml") && head.windows(5).any(|w| w.eq_ignore_ascii_case(b"<html")) {
         return Kind::Html;
     }
     if head.starts_with(b"\x89PNG") || head.starts_with(b"\xff\xd8\xff") || head.starts_with(b"GIF8") || (head.starts_with(b"RIFF") && head.get(8..12) == Some(b"WEBP")) {
@@ -104,7 +109,8 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
             Kind::Text => text_page(&r.url, &decode_text(&r.body, ct.as_deref())),
             Kind::Download => return Err(format!("[type] {}: Ironswift can't show this kind of file", r.url)),
         };
-        return Ok(Navigated::Page { url: r.url, html });
+        let xml = is_xhtml(&r.url, ct.as_deref());
+        return Ok(Navigated::Page { url: r.url, html, xml });
     }
     let headers = match post {
         Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
@@ -158,7 +164,20 @@ pub fn navigate_with(url: &str, post: Option<&str>, partial: &mut dyn FnMut(&str
         Kind::Image => image_page(&final_url, ct.as_deref().unwrap_or("image/png"), &bytes),
         _ => text_page(&final_url, &decode_text(&bytes, ct.as_deref())),
     };
-    Ok(Navigated::Page { url: final_url, html })
+    let xml = kind == Kind::Html && is_xhtml(&final_url, ct.as_deref());
+    Ok(Navigated::Page { url: final_url, html, xml })
+}
+
+/// An XHTML document: served as application/xhtml+xml, or a local .xhtml/.xht file.
+fn is_xhtml(url: &str, content_type: Option<&str>) -> bool {
+    match content_type {
+        Some(ct) if ct.to_ascii_lowercase().contains("xhtml+xml") => true,
+        Some(ct) if ct.to_ascii_lowercase().contains("text/html") => false,
+        _ => {
+            let path = url.split(['?', '#']).next().unwrap_or(url).to_ascii_lowercase();
+            path.ends_with(".xhtml") || path.ends_with(".xht")
+        }
+    }
 }
 
 /// A response for scripts: status, headers and body.
@@ -373,6 +392,7 @@ fn guess_type(path: &str) -> &'static str {
     let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     match ext.as_str() {
         "html" | "htm" => "text/html",
+        "xhtml" | "xht" => "application/xhtml+xml",
         "json" => "application/json",
         "js" | "mjs" => "text/javascript",
         "css" => "text/css",
