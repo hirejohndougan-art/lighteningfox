@@ -59,8 +59,18 @@
     return [t, r, b, l];
   }
   const marginText = (m) => m.map((x) => x.n + (x.pct ? "%" : "px")).join(" ");
+  // The fields are getters on the prototype, as in browsers: feature checks look for
+  // "intersectionRatio" in IntersectionObserverEntry.prototype, and without it pages load
+  // the polyfill, which polls every target's position every 100 ms (The Guardian).
+  const entryData = new WeakMap();
   class IntersectionObserverEntry {
-    constructor(init) { Object.assign(this, init); }
+    constructor(init) { entryData.set(this, Object.assign({}, init)); }
+  }
+  for (const k of ["time", "rootBounds", "boundingClientRect", "intersectionRect", "isIntersecting", "intersectionRatio", "target", "isVisible"]) {
+    Object.defineProperty(IntersectionObserverEntry.prototype, k, {
+      get() { const d = entryData.get(this); return d ? d[k] : undefined; },
+      enumerable: true, configurable: true,
+    });
   }
   class IntersectionObserver {
     constructor(callback, options = {}) {

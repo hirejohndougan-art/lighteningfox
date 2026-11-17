@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- From The Guardian (2026-11): the "Sign in" link starts out `visibility: hidden` in a flex row.
+     Hidden boxes paint nothing but keep their size; when hidden text measured 0 wide, the link
+     shrank to nothing and stayed that way once shown. -->
+<html><head><title>visibility: hidden keeps its room</title>
+<style>
+  body { font: 16px sans-serif; }
+  .row { display: flex; width: 600px; }
+  .row > div { display: flex; }
+</style></head>
+<body>
+<div class="row"><div id="a" style="visibility: hidden"><a style="display: flex"><svg width="14" height="14"></svg> Sign in</a></div><div id="b">x</div></div>
+<span id="c" style="display: inline-block; visibility: hidden">Sign in</span><span id="d" style="display: inline-block">Sign in</span>
+<p id="out"></p>
+<script>
+  const r = (id) => document.getElementById(id).getBoundingClientRect();
+  document.getElementById("out").textContent = [r("a").width > 60, r("b").left === r("a").right, r("c").width === r("d").width].join(";");
+</script>
+</body></html>

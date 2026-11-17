@@ -236,6 +236,10 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
     key + &sandbox
 }
 
+/// The id of the marks left where `visibility: hidden` text and images would be: they paint
+/// nothing but still count towards content widths. Dropped when layout ends.
+const HIDDEN_INK: usize = usize::MAX - 2;
+
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     // Shape the page's new words across CPU cores first (see preshape.rs).
     crate::preshape::run(dom, styles, fonts);
@@ -319,6 +323,7 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
             scrollers.push((id, Rect { x, y, w, h }, max));
             false
         }
+        Item::Mark { id: HIDDEN_INK, .. } => false,
         Item::Mark { id, x, y, w, h } => {
             boxes.insert(id, (Rect { x, y, w, h }, fixed_depth > 0));
             false
@@ -784,7 +789,7 @@ impl<'a> Ctx<'a> {
                 let mut it = it.clone();
                 match &mut it {
                     // Generated boxes are renumbered on every build: keep only DOM nodes' marks.
-                    Item::Mark { id, .. } if !tree.is_dom_node(*id) => return None,
+                    Item::Mark { id, .. } if *id != HIDDEN_INK && !tree.is_dom_node(*id) => return None,
                     Item::StickyPush { id, .. } if !tree.is_dom_node(*id) => sticky_generated = true,
                     Item::ScrollArea { id, .. } => *id = tree.origin(*id),
                     _ => {}
@@ -1630,7 +1635,7 @@ impl<'a> Ctx<'a> {
             }
             let r = match it {
                 Item::Text { x, text, font, size, .. } => x + self.fonts.width(*font, text, *size),
-                Item::Image { x, w, .. } => x + w,
+                Item::Image { x, w, .. } | Item::Mark { id: HIDDEN_INK, x, w, .. } => x + w,
                 Item::Box { x, w, .. } if !(skip_first_boxes && i < 3) => x + w,
                 _ => 0.0,
             };
@@ -3745,6 +3750,10 @@ impl<'a> Ctx<'a> {
                             }
                         }
                         let r = Rect { x: px, y: cy + rdy, w: p.w, h: lh };
+                        if s.hidden {
+                            // Hidden text draws nothing but still takes its room (content widths).
+                            self.items.push(Item::Mark { id: HIDDEN_INK, x: r.x, y: r.y, w: r.w, h: r.h });
+                        }
                         // Likewise one hit area per run of words on a line.
                         match self.hits.last_mut() {
                             Some((h, n)) if *n == *node && h.y == r.y && h.h == r.h && r.x >= h.x + h.w - 0.5 && r.x - (h.x + h.w) < 40.0 => {
@@ -3788,6 +3797,7 @@ impl<'a> Ctx<'a> {
                         }
                         let loaded = src.as_deref().filter(|s| self.images.get(s).is_some());
                         if self.styles[*node].hidden {
+                            self.items.push(Item::Mark { id: HIDDEN_INK, x: r.x, y: r.y, w: r.w, h: r.h });
                         } else if let Some(src) = loaded {
                             let src = src.to_string();
                             self.push_image(*node, r.x, r.y, r.w, r.h, src);

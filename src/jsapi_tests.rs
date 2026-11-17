@@ -603,3 +603,22 @@ fn content_blocking_scriptlets_and_procedural_filters() {
     );
     assert_eq!(r.trim_matches('"'), "no|ran|-|none|none|-|gone|styled|false|-");
 }
+
+/// The Guardian's "Sign in": visibility: hidden content still takes its room.
+#[test]
+fn hidden_content_keeps_its_size() {
+    let _serial = serial();
+    let _page = open("tests/sites/hidden-takes-room.html");
+    assert_eq!(text_of("out"), "true;true;true");
+}
+
+/// IntersectionObserverEntry's fields live on its prototype, so feature checks pass and pages
+/// don't load the polling polyfill (The Guardian).
+#[test]
+fn intersection_entry_fields_are_on_the_prototype() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(&mut page, "['intersectionRatio' in IntersectionObserverEntry.prototype, new IntersectionObserverEntry({intersectionRatio: 0.5}).intersectionRatio].join(',')");
+    assert_eq!(r.trim_matches('"'), "true,0.5");
+}
+
