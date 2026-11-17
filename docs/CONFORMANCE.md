@@ -8,7 +8,7 @@ are a baseline to measure progress against, not a finish line: each fix should m
 | Suite | What it checks | Result |
 |---|---|---|
 | **Test262** | The JavaScript language (Boa 0.22, our engine) | **51,225 of 53,578 passed (95.6%)**; 572 failed, 1,781 skipped as features Boa hasn't built |
-| **HTML parsing** (WPT `html/syntax/parsing`, the html5lib tree-construction tests) | The exact tree built from tricky or broken markup | 1,966 of 1,972 exact (99.7%). The 6 left run scripts during parsing (`document.write`) |
+| **HTML parsing** (WPT `html/syntax/parsing`, the html5lib tree-construction tests) | The exact tree built from tricky or broken markup | 1,972 of 1,972 (100%), including the tests that run scripts during parsing |
 | **HTML tokenizing** (html5lib-tests `tokenizer/*.test`) | Tags, attributes, comments, doctypes, character references, script-data escapes, processing instructions | 7,046 of 7,046 (100%) |
 | **DOM** (WPT `dom/nodes`) | `Node`, `Element`, `Document` and friends | 1,234 of 5,457 subtests (22.6%) |
 | **CSS selectors** (WPT `css/selectors`) | Selector matching | 323 of 660 script subtests; 30 of 135 reference pages |

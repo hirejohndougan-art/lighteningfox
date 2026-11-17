@@ -199,6 +199,21 @@ impl Tokenizer {
 
     // ------------------------------------------------------------ input
 
+    /// Where the tokenizer is in the input (the insertion point for document.write).
+    pub fn position(&self) -> usize {
+        self.pos
+    }
+
+    /// Insert text into the input at `at` (document.write). Returns where the inserted text
+    /// ends, so a following write goes after it.
+    pub fn insert(&mut self, at: usize, text: &str) -> usize {
+        let chars: Vec<char> = text.replace("\r\n", "\n").replace('\r', "\n").chars().collect();
+        let at = at.min(self.input.len());
+        let n = chars.len();
+        self.input.splice(at..at, chars);
+        at + n
+    }
+
     fn next(&mut self) -> Option<char> {
         let c = self.input.get(self.pos).copied();
         self.pos += 1;

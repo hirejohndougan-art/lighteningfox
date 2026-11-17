@@ -26,6 +26,8 @@ thread_local! {
     static DIRTY: Cell<bool> = const { Cell::new(false) };
     static NAVIGATE: RefCell<Option<String>> = const { RefCell::new(None) };
     static CURRENT_SCRIPT: Cell<i64> = const { Cell::new(-1) };
+    /// The HTML parser while a page is still being parsed (document.write feeds it).
+    static PARSER: RefCell<Option<crate::treebuilder::TreeBuilder>> = const { RefCell::new(None) };
     /// Requests from script for the browser: submit a form, move focus.
     static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
     static HISTORY: RefCell<Vec<HistoryOp>> = const { RefCell::new(Vec::new()) };
@@ -451,6 +453,11 @@ fn n_create_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
 
 fn n_write(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let markup = arg_str(a, 0, ctx)?;
+    // While the page is being parsed, the text goes into the parser's input right after
+    // the running script.
+    if PARSER.with(|p| p.borrow_mut().as_mut().is_some_and(|tb| tb.write(&markup))) {
+        return Ok(JsValue::undefined());
+    }
     let frag = parse_fragment(&markup);
     let script = CURRENT_SCRIPT.with(|c| c.get());
     with_dom_mut(|d| {
@@ -864,48 +871,76 @@ impl Js {
 
     /// Run every <script> in document order, then fire DOMContentLoaded/load.
     /// `prefetched` = external script bodies already downloaded, keyed by absolute URL.
-    pub fn run_scripts(&mut self, base_url: &str, prefetched: &HashMap<String, String>) {
-        let scripts: Vec<NodeId> = with_dom(|d| d.find_all("script"));
-        for id in scripts {
-            let (ty, src, inline) = with_dom(|d| {
-                (
-                    d.attr(id, "type").unwrap_or("").to_ascii_lowercase(),
-                    d.attr(id, "src").map(String::from),
-                    d.text_content(id),
-                )
-            });
-            let is_js = ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript");
-            if !is_js {
-                continue; // modules, JSON, templates: not yet
-            }
-            let (code, label) = match src {
-                Some(src) => {
-                    let url = net::resolve(base_url, &src);
-                    let fetched = match prefetched.get(&url) {
-                        Some(body) => Ok((url.clone(), body.clone())),
-                        None => net::fetch_sub(&url, base_url),
-                    };
-                    match fetched {
-                        Ok((_, body)) => (body, url),
-                        Err(e) => {
-                            log!("[js] couldn't load {url}: {e}");
-                            continue;
-                        }
-                    }
-                }
-                None => (inline, format!("inline script #{id}")),
-            };
-            CURRENT_SCRIPT.with(|c| c.set(id as i64));
-            self.ctx
-                .global_object()
-                .set(js_string!("__currentScript"), JsValue::from(id as f64), false, &mut self.ctx)
-                .ok();
-            self.stats.scripts += 1;
-            self.eval(&code, &label);
-        }
+    fn finish_loading(&mut self) {
         CURRENT_SCRIPT.with(|c| c.set(-1));
         self.eval("__loaded()", "load events");
         self.tick(); // run zero-delay timers right away
+    }
+
+    /// Run one `<script>` element (inline or external). Non-JavaScript types are skipped.
+    fn run_script(&mut self, id: NodeId, base_url: &str, prefetched: &HashMap<String, String>) {
+        let (ty, src, inline) = with_dom(|d| {
+            (d.attr(id, "type").unwrap_or("").to_ascii_lowercase(), d.attr(id, "src").map(String::from), d.text_content(id))
+        });
+        let is_js = ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript");
+        if !is_js {
+            return; // modules, JSON, templates: not yet
+        }
+        let (code, label) = match src {
+            Some(src) => {
+                let url = net::resolve(base_url, &src);
+                let fetched = match prefetched.get(&url) {
+                    Some(body) => Ok((url.clone(), body.clone())),
+                    None => net::fetch_sub(&url, base_url),
+                };
+                match fetched {
+                    Ok((_, body)) => (body, url),
+                    Err(e) => {
+                        log!("[js] couldn't load {url}: {e}");
+                        return;
+                    }
+                }
+            }
+            None => (inline, format!("inline script #{id}")),
+        };
+        CURRENT_SCRIPT.with(|c| c.set(id as i64));
+        self.ctx.global_object().set(js_string!("__currentScript"), JsValue::from(id as f64), false, &mut self.ctx).ok();
+        self.stats.scripts += 1;
+        self.eval(&code, &label);
+    }
+
+    /// Parse the page and run its scripts as the parser reaches them, the way browsers do:
+    /// a script sees only the document above it, and document.write adds markup right
+    /// after it. `defer` and `async` scripts run once parsing is done.
+    pub fn parse_and_run(&mut self, html: &str, base_url: &str, prefetched: &HashMap<String, String>) {
+        let mut tb = crate::treebuilder::TreeBuilder::new(html);
+        tb.pause_at_scripts = true;
+        PARSER.with(|p| *p.borrow_mut() = Some(tb));
+        let mut later: Vec<NodeId> = Vec::new();
+        loop {
+            let next = PARSER.with(|p| p.borrow_mut().as_mut().and_then(|tb| tb.pump()));
+            let Some(script) = next else { break };
+            // Hand the document to the scripts while one runs, then take it back.
+            let dom = PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| std::mem::take(&mut tb.dom))).unwrap_or_default();
+            let (has_src, delayed) = (dom.attr(script, "src").is_some(), dom.attr(script, "defer").is_some() || dom.attr(script, "async").is_some());
+            set_dom(dom);
+            if has_src && delayed {
+                later.push(script);
+            } else {
+                PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| tb.begin_script()));
+                self.run_script(script, base_url, prefetched);
+                PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| tb.end_script()));
+            }
+            let dom = DOM.with(|d| std::mem::take(&mut *d.borrow_mut()));
+            PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| tb.dom = dom));
+        }
+        let tb = PARSER.with(|p| p.borrow_mut().take()).expect("parser");
+        set_dom(tb.finish());
+        // Deferred scripts in document order (async ones are run here too).
+        for id in later {
+            self.run_script(id, base_url, prefetched);
+        }
+        self.finish_loading();
     }
 
     /// Wait (up to `max`) for background requests and short timers, so a page that

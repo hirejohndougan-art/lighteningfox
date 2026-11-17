@@ -413,6 +413,8 @@ struct Prepared {
     images: images::Images,
     scripts: HashMap<String, String>,
     fonts: Vec<WebFont>,
+    /// The page's HTML, parsed again with scripts running if it has any.
+    source: String,
     /// The navigation turned out to be a download: there is no page to show.
     download: bool,
 }
@@ -542,7 +544,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
             // A file being saved: the tab stays on the page it was showing.
             Ok(net::Navigated::Download { name }) => {
                 log!("[download] saving {name}");
-                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), download: true };
+                return Prepared { url: url.to_string(), dom: dom::Dom::new(), sheets: Vec::new(), images: images::Images::default(), scripts: HashMap::new(), fonts: Vec::new(), source: String::new(), download: true };
             }
             Err(e) => {
                 log!("[net] couldn't load {url}: {e}");
@@ -617,7 +619,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let bg_urls = background_urls(&styles);
     images.load_missing(&dom, &final_url, &bg_urls);
     let fonts = fetch_fonts(&sheets, &styles, &final_url);
-    Prepared { url: final_url, dom, sheets, images, scripts, fonts, download: false }
+    Prepared { url: final_url, dom, sheets, images, scripts, fonts, source: body, download: false }
 }
 
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
@@ -651,7 +653,7 @@ fn load_fonts() -> Option<&'static Fonts> {
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
-    let Prepared { url, dom, sheets, images, scripts, fonts, .. } = p;
+    let Prepared { url, dom, sheets, images, scripts, fonts, source, .. } = p;
     install_fonts(fonts);
     // Start JavaScript only if the page has scripts or inline event handlers:
     // the engine costs several megabytes even when it has nothing to run.
@@ -675,7 +677,9 @@ fn build_page(p: Prepared) -> Page {
     geometry::set_provider(provider);
     let js = has_scripts.then(|| {
         let mut js = js::Js::new(&url);
-        js.run_scripts(&url, &scripts);
+        // Parse again with the scripts running as they're reached (the first parse found
+        // what to download).
+        js.parse_and_run(&source, &url, &scripts);
         js
     });
     js::take_dirty();

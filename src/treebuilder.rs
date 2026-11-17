@@ -52,6 +52,11 @@ pub struct TreeBuilder {
     context: Option<NodeId>,
     skip_lf: bool,
     stopped: bool,
+    /// Pause at each `</script>` so the caller can run it (a live page with JavaScript).
+    pub pause_at_scripts: bool,
+    pending_script: Option<NodeId>,
+    /// Where document.write puts text while a parser-inserted script runs.
+    write_point: Option<usize>,
 }
 
 const SPECIAL_HTML: &[&str] = &[
@@ -199,6 +204,9 @@ impl TreeBuilder {
             context: None,
             skip_lf: false,
             stopped: false,
+            pause_at_scripts: false,
+            pending_script: None,
+            write_point: None,
         }
     }
 
@@ -252,6 +260,15 @@ impl TreeBuilder {
     }
 
     fn run(&mut self) {
+        while self.pump().is_some() {}
+    }
+
+    /// Parse until a script needs to run (returns it; call again after running it) or the
+    /// input ends (returns None).
+    pub fn pump(&mut self) -> Option<NodeId> {
+        if self.stopped {
+            return None;
+        }
         loop {
             self.tk.allow_cdata = self.adjusted_current().is_some_and(|n| self.dom.ns_of(n) != Ns::Html);
             let t = self.tk.next_token();
@@ -275,9 +292,40 @@ impl TreeBuilder {
                 }
             }
             if eof || self.stopped {
-                break;
+                self.stopped = true;
+                return None;
+            }
+            if let Some(s) = self.pending_script.take() {
+                return Some(s);
             }
         }
+    }
+
+    /// A script is about to run: document.write output goes where the parser stopped.
+    pub fn begin_script(&mut self) {
+        self.write_point = Some(self.tk.position());
+    }
+
+    pub fn end_script(&mut self) {
+        self.write_point = None;
+    }
+
+    /// document.write while a parser-inserted script runs. Returns false if there's no
+    /// insertion point (the caller then treats it as a write after loading).
+    pub fn write(&mut self, text: &str) -> bool {
+        match self.write_point {
+            Some(at) => {
+                self.write_point = Some(self.tk.insert(at, text));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The finished document.
+    pub fn finish(mut self) -> Dom {
+        fill_selectedcontent(&mut self.dom);
+        self.dom
     }
 
     // ------------------------------------------------------------ helpers: the tree
@@ -463,7 +511,13 @@ impl TreeBuilder {
     fn insert_element(&mut self, tag: &Tag, ns: Ns) -> NodeId {
         let (parent, before) = self.insert_place(None);
         let id = self.create_element(tag, ns);
-        self.dom.insert(parent, id, before);
+        // A document can't hold a second element (a script may have moved one there);
+        // the element is still opened, just not attached.
+        let doc_full = matches!(self.dom.nodes[parent].data, NodeData::Document)
+            && self.dom.nodes[parent].children.iter().any(|&c| matches!(self.dom.nodes[c].data, NodeData::Element { .. }));
+        if !doc_full {
+            self.dom.insert(parent, id, before);
+        }
         self.open.push(id);
         id
     }
@@ -1377,6 +1431,13 @@ impl TreeBuilder {
     fn text(&mut self, t: Token) {
         match t {
             Token::Text(s) => self.insert_text(&s),
+            Token::EndTag(ref tag) if tag.name == "script" => {
+                let script = self.pop();
+                self.mode = self.orig_mode;
+                if self.pause_at_scripts {
+                    self.pending_script = script;
+                }
+            }
             Token::Eof => {
                 self.pop();
                 self.mode = self.orig_mode;
