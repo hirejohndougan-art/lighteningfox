@@ -1104,6 +1104,7 @@ fn save_store(ctx: &Context, dir: &str, json: String, quota: usize) -> bool {
 const PRELUDE: &str = include_str!("prelude.js");
 const BLOB: &str = include_str!("blob.js");
 const INDEXEDDB: &str = include_str!("indexeddb.js");
+const FORMS: &str = include_str!("forms.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
@@ -1185,7 +1186,7 @@ impl Js {
             ("__notify", 2, n_notify),
             ("__fpSeed", 0, n_fp_seed),
         ];
-        for (name, len, f) in natives {
+        for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES) {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
                 .expect("register native");
         }
@@ -1205,6 +1206,9 @@ impl Js {
         }
         if let Err(e) = ctx.eval(Source::from_bytes(INDEXEDDB.as_bytes())) {
             log!("[ironswift] IndexedDB setup failed: {e}");
+        }
+        if let Err(e) = ctx.eval(Source::from_bytes(FORMS.as_bytes())) {
+            log!("[ironswift] form validation setup failed: {e}");
         }
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
@@ -1470,6 +1474,13 @@ impl Js {
     /// Fire an event (input, change, submit, focus…) at a node. Returns false if cancelled.
     pub fn dispatch(&mut self, node: NodeId, kind: &str) -> bool {
         self.eval(&format!("__dispatch({node}, '{kind}')"), kind).map_or(true, |v| v.to_boolean())
+    }
+
+    /// Run a snippet of the browser's own JavaScript (calls into the prelude) and return
+    /// its result as a number (NaN when it isn't one).
+    pub fn call_number(&mut self, code: &str, label: &str) -> f64 {
+        let v = self.eval(code, label);
+        v.map_or(f64::NAN, |v| v.as_number().unwrap_or(f64::NAN))
     }
 
     /// Dispatch a click on a node. Returns false if the page called preventDefault().

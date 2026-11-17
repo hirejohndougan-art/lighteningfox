@@ -57,6 +57,8 @@ pub struct Dom {
     pub shadow_hosts: std::collections::HashMap<NodeId, (NodeId, bool)>,
     /// In a composed tree (see `composed`): the shadow root each shadow-tree node belongs to.
     pub render_scope: std::collections::HashMap<NodeId, NodeId>,
+    /// Form state kept outside attributes: custom validity messages, typed-in fields, picked files.
+    pub form_state: crate::validation::FormState,
 }
 
 impl Dom {

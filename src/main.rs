@@ -20,6 +20,7 @@ mod css;
 mod dom;
 mod font;
 mod forms;
+mod formui;
 mod geometry;
 mod grid;
 mod html;
@@ -67,6 +68,7 @@ mod paint;
 mod style;
 mod textedit;
 mod transform;
+mod validation;
 
 use font::Fonts;
 use minifb::{CursorStyle, Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
@@ -1665,6 +1667,20 @@ fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
 
 /// Submit a form. With `fire_event`, the page's submit handlers run first and may cancel it.
 fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId>, fire_event: bool) -> Option<Go> {
+    // Interactive submissions check the form first (required, pattern, min/max…) and stop at
+    // the first problem, which the window shows in a bubble.
+    if fire_event && !js::with_dom(|d| validation::no_validate(d, form, submitter)) {
+        let bad = match page.js.as_mut() {
+            Some(js) => js.call_number(&format!("__interactiveValidate({form})"), "validate"),
+            None => js::with_dom(|d| validation::invalid_controls(d, &d.form_state, form).first().map_or(-1.0, |&n| n as f64)),
+        };
+        if bad >= 0.0 {
+            validation::request_report(bad as dom::NodeId);
+        }
+        if bad >= 0.0 || bad == -2.0 {
+            return None;
+        }
+    }
     if fire_event && !fire(page, form, "submit") {
         return None;
     }
@@ -1806,6 +1822,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
     let mut dropdown: Option<Dropdown> = None;
+    // A form control's validation message, shown after a blocked submission.
+    let mut bubble: Option<formui::Bubble> = None;
     window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
@@ -2090,6 +2108,34 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         let view_h = h.saturating_sub(bar_h()) as f32;
+        // A blocked submission or reportValidity(): focus the control and say what's wrong.
+        if let Some(id) = validation::take_report() {
+            let text = js::with_dom(|d| {
+                let v = validation::validity(d, &d.form_state, id);
+                validation::message(d, &d.form_state, id, &v)
+            });
+            if !text.is_empty() {
+                if focused != Some(id) {
+                    if let Some(old) = focused {
+                        fire(&mut page, old, "blur");
+                    }
+                    focused = Some(id);
+                    fire(&mut page, id, "focus");
+                    form_changed = true;
+                }
+                if let Some((r, _)) = js::with_dom(|d| geometry::page_rect(d, id)) {
+                    if r.y < scroll || r.y + r.h + 60.0 > scroll + view_h {
+                        scroll = (r.y - view_h / 3.0).max(0.0);
+                    }
+                }
+                bubble = Some(formui::Bubble::new(id, text));
+                dirty = true;
+            }
+        }
+        if bubble.as_ref().is_some_and(|b| b.expired() || focused != Some(b.node) || js::with_dom(|d| validation::validity(d, &d.form_state, b.node).valid())) {
+            bubble = None;
+            dirty = true;
+        }
         let max_scroll = (lay.height - view_h).max(0.0);
 
         // This frame's key presses (from the input callback, so none are missed).
@@ -3294,7 +3340,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, icons: &icons, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover, downloads: (!downloads::list().is_empty()).then(|| (downloads::active(), downloads::progress())), zoom: page.zoom() };
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
-            let popups = folder_menu.is_some() || dropdown.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
+            let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
             #[cfg(feature = "gpu")]
             let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay);
             #[cfg(not(feature = "gpu"))]
@@ -3323,6 +3369,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
+            }
+            if let Some(b) = &bubble {
+                if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == b.node).map(|(r, _)| *r) {
+                    b.draw(&mut canvas, fonts, r.x, r.y + r.h - scroll + bar_h() as f32);
+                }
             }
             if editing && !suggestions.is_empty() {
                 draw_suggestions(&mut canvas, fonts, &suggestions, sugg_sel.or(sugg_hover));

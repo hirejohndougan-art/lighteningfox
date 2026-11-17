@@ -1751,6 +1751,7 @@ dependencies = [
  "png 0.17.16",
  "pollster",
  "raw-window-handle",
+ "regress",
  "reqwest",
  "resvg",
  "rgb",

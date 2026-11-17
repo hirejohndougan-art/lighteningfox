@@ -72,6 +72,7 @@ pub fn value(dom: &Dom, id: NodeId) -> String {
 }
 
 pub fn set_value(dom: &mut Dom, id: NodeId, v: &str) {
+    dom.form_state.dirty.insert(id);
     if dom.tag(id) == Some("textarea") {
         // Edit the existing text node when there is one, so no new nodes need styling.
         let kids = dom.nodes[id].children.clone();
@@ -290,6 +291,10 @@ pub fn reset(dom: &mut Dom, form: NodeId, defaults: &[(NodeId, Option<String>, b
         } else {
             dom.remove_attr(n, "checked");
         }
+    }
+    for n in ctrls {
+        dom.form_state.dirty.remove(&n);
+        dom.form_state.files.remove(&n);
     }
 }
 
