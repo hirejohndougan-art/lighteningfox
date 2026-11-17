@@ -23,6 +23,7 @@ mod forms;
 mod geometry;
 mod grid;
 mod html;
+mod http;
 mod icon;
 mod images;
 mod js;
@@ -696,6 +697,16 @@ fn main() {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
+            "--fetch" => {
+                // Developer tool: fetch each URL given and print what came back.
+                for u in &args[i + 1..] {
+                    match http::send("GET", u, &[], None) {
+                        Ok(r) => println!("{u}\n  {} {} over {}, {} bytes\n  {}", r.status, r.status_text, r.version, r.body.len(), String::from_utf8_lossy(&r.body[..r.body.len().min(120)]).replace('\n', " ")),
+                        Err(e) => println!("{u}\n  error: {e}"),
+                    }
+                }
+                return;
+            }
             "--conformance-html5lib" => {
                 let dir = args.get(i + 1).cloned().unwrap_or_else(|| ".".into());
                 std::process::exit(conformance::html5lib(&dir));

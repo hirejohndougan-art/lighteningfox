@@ -1,7 +1,5 @@
 //! Networking: load http(s):// and file:// URLs, and resolve relative links.
 
-use std::io::Read;
-
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Ironswift/0.1";
 
 /// Fetch a page (a top-level document) as text. Returns (final URL after redirects, body).
@@ -92,53 +90,38 @@ pub fn http(req: &Request) -> Result<Response, String> {
         let ty = guess_type(&abs);
         return Ok(Response { status: 200, status_text: "OK".into(), url: format!("file://{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
     }
-    // Redirects are followed here rather than by ureq, so cookies set along the way are kept.
+    // Redirects are followed here rather than by the HTTP library, so cookies set along the way
+    // are kept and every hop goes through the same rules.
     let mut url = url.to_string();
     let mut method = req.method.to_ascii_uppercase();
     let mut body = req.body.map(<[u8]>::to_vec);
     for _ in 0..20 {
-        let agent = ureq::AgentBuilder::new()
-            .user_agent(USER_AGENT)
-            .timeout(std::time::Duration::from_secs(30))
-            .redirects(0)
-            .try_proxy_from_env(use_proxy(&url))
-            .build();
         let first_party = req.top.unwrap_or(&url).to_string();
-        let mut r = agent.request(&method, &url);
+        let mut headers: Vec<(String, String)> = Vec::new();
         let accept = if req.top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" };
-        r = r.set("Accept", accept);
+        headers.push(("Accept".into(), accept.into()));
+        headers.push(("Accept-Language".into(), "en-US,en;q=0.9".into()));
         // Global Privacy Control: "do not sell or share my data" (honored by law in some US states).
         if crate::settings::get().send_gpc {
-            r = r.set("Sec-GPC", "1");
+            headers.push(("Sec-GPC".into(), "1".into()));
         }
         for (k, v) in req.headers {
             if !FORBIDDEN_HEADERS.contains(&k.to_ascii_lowercase().as_str()) {
-                r = r.set(k, v);
+                headers.push((k.clone(), v.clone()));
             }
         }
-        for (k, v) in req.extra {
-            r = r.set(k, v);
-        }
+        headers.extend(req.extra.iter().cloned());
         if req.cookies {
             if let Some(c) = crate::cookies::header_for(&url, &first_party) {
-                r = r.set("Cookie", &c);
+                headers.push(("Cookie".into(), c));
             }
         }
-        let result = match &body {
-            Some(b) => r.send_bytes(b),
-            None => r.call(),
-        };
-        let resp = match result {
-            Ok(r) => r,
-            // Error responses (404, 500…) are still responses.
-            Err(ureq::Error::Status(_, r)) => r,
-            Err(e) => return Err(e.to_string()),
-        };
+        let resp = crate::http::send(&method, &url, &headers, body.as_deref())?;
         if req.cookies {
-            let set: Vec<String> = resp.all("set-cookie").iter().map(|s| s.to_string()).collect();
+            let set: Vec<String> = resp.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
             crate::cookies::receive(&url, &first_party, &set);
         }
-        let status = resp.status();
+        let status = resp.status;
         if (300..400).contains(&status) && status != 304 {
             if let Some(loc) = resp.header("location") {
                 url = resolve(&url, loc.trim());
@@ -150,16 +133,8 @@ pub fn http(req: &Request) -> Result<Response, String> {
                 continue;
             }
         }
-        let headers = resp
-            .headers_names()
-            .into_iter()
-            .filter(|n| n != "set-cookie")
-            .flat_map(|n| resp.all(&n).into_iter().map(|v| (n.to_ascii_lowercase(), v.to_string())).collect::<Vec<_>>())
-            .collect();
-        let status_text = resp.status_text().to_string();
-        let mut bytes = Vec::new();
-        resp.into_reader().take(50_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        return Ok(Response { status, status_text, url, headers, body: bytes });
+        let headers = resp.headers.into_iter().filter(|(k, _)| k != "set-cookie").collect();
+        return Ok(Response { status, status_text: resp.status_text, url, headers, body: resp.body });
     }
     Err("too many redirects".into())
 }
@@ -256,20 +231,6 @@ pub fn origin_of(url: &str) -> String {
         Some(("file", _)) => "null".into(),
         _ => "null".into(),
     }
-}
-
-/// Skip the system proxy for local addresses and anything listed in NO_PROXY.
-fn use_proxy(url: &str) -> bool {
-    let host = url.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("");
-    let host = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host).to_ascii_lowercase();
-    if host == "localhost" || host.starts_with("127.") || host == "[::1]" {
-        return false;
-    }
-    let no_proxy = std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy")).unwrap_or_default();
-    !no_proxy.split(',').map(str::trim).filter(|d| !d.is_empty()).any(|d| {
-        let d = d.trim_start_matches('.').to_ascii_lowercase();
-        d == "*" || host == d || host.ends_with(&format!(".{d}"))
-    })
 }
 
 /// `data:[<mediatype>][;base64],<data>`

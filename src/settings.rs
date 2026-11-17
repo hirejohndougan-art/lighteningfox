@@ -18,6 +18,10 @@ pub struct Settings {
     pub show_bookmarks_bar: bool,
     /// Draw with the graphics card (takes effect at the next start).
     pub use_gpu: bool,
+    /// "system" (desktop settings and the *_proxy variables), "none" or "manual".
+    pub proxy_mode: String,
+    /// For manual: http://host:port, https://… or socks5://host:port.
+    pub proxy_url: String,
 }
 
 impl Default for Settings {
@@ -32,6 +36,8 @@ impl Default for Settings {
             send_gpc: true,
             show_bookmarks_bar: true,
             use_gpu: true,
+            proxy_mode: "system".into(),
+            proxy_url: String::new(),
         }
     }
 }
@@ -77,6 +83,8 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "send_gpc" => s.send_gpc = on(v),
         "show_bookmarks_bar" => s.show_bookmarks_bar = on(v),
         "use_gpu" => s.use_gpu = on(v),
+        "proxy_mode" if matches!(v, "system" | "none" | "manual") => s.proxy_mode = v.to_string(),
+        "proxy_url" => s.proxy_url = v.trim().replace(['\t', '\n'], ""),
         _ => {}
     }
 }
@@ -92,7 +100,7 @@ fn save(s: &Settings) {
     }
     let b = |v: bool| if v { "1" } else { "0" };
     let body = format!(
-        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\n",
+        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\nproxy_mode\t{}\nproxy_url\t{}\n",
         s.home.replace(['\t', '\n'], " "),
         s.search,
         b(s.restore_tabs),
@@ -101,7 +109,9 @@ fn save(s: &Settings) {
         b(s.strip_tracking),
         b(s.send_gpc),
         b(s.show_bookmarks_bar),
-        b(s.use_gpu)
+        b(s.use_gpu),
+        s.proxy_mode,
+        s.proxy_url
     );
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {

@@ -1,0 +1,3 @@
+[build]
+# HTTP/3 in reqwest is still behind an "unstable" switch.
+rustflags = ["--cfg", "reqwest_unstable"]
