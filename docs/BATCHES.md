@@ -110,7 +110,18 @@ Left undone:
 - §10 `contenteditable` (rich text editors)
 - §10 Autofill and saved passwords
 - §10 Keyboard input methods for other languages (IME) — may be `blocked` until batch J moves to winit
-- §3 Clicking and scrolling inside an `<iframe>`
+- §3 Clicking and scrolling inside an `<iframe>` — moved to batch F2 below
+
+## F2. Clicking and scrolling inside iframes (split from F)
+**Status:** free — reserved for the chat given the F2 prompt
+**Start after:** —
+**Main files:** the iframe parts of `src/main.rs` (`render_frames`, `render_frame`, `draw_frame`, `isolated`), new `src/frames.rs`, `src/sandbox.rs` only if needed
+
+- §3 Clicking and scrolling inside an `<iframe>`: frames are drawn today as still pictures by the
+  frame worker thread (same-site) or the `--frame-renderer` process (cross-site). Keep each
+  frame's document alive, send it mouse clicks, wheel scrolling and keyboard input, and redraw
+  it when it changes, for both kinds. Batch F (forms) keeps working on forms in `main.rs`;
+  keep iframe code in new files where possible.
 
 ## G. JavaScript APIs, part 1
 **Status:** done
