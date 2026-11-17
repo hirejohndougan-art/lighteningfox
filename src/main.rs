@@ -35,6 +35,7 @@ mod a11y;
 mod i18n;
 mod keynav;
 mod rtl;
+mod uikeys;
 mod chrome;
 mod favicon;
 mod devtools;

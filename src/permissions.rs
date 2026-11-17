@@ -204,6 +204,13 @@ impl Prompt {
         [(right - BTN_W, by, true), (right - 2.0 * BTN_W - 10.0, by, false)]
     }
 
+    /// The Allow and Block buttons as (x, y, w, h, allow), Block first (for keyboard focus).
+    pub fn button_boxes(&self) -> Vec<(f32, f32, f32, f32, bool)> {
+        let mut b: Vec<_> = self.buttons().iter().map(|&(x, y, allow)| (x, y, BTN_W, 26.0, allow)).collect();
+        b.reverse();
+        b
+    }
+
     pub fn contains(&self, mx: f32, my: f32) -> bool {
         mx >= self.x && mx < self.x + PROMPT_W && my >= self.y && my < self.y + PROMPT_H
     }

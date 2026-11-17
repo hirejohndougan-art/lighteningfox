@@ -187,6 +187,24 @@ impl<A: Clone> Menu<A> {
         None
     }
 
+    /// Which rows do something (for moving through the menu with the keyboard).
+    pub fn actionable(&self) -> Vec<bool> {
+        self.rows.iter().map(|r| r.action.is_some()).collect()
+    }
+
+    /// The middle of a row, in window coordinates.
+    pub fn row_center(&self, row: usize) -> Option<(f32, f32)> {
+        let mut top = self.y + 4.0;
+        for (i, r) in self.rows.iter().enumerate() {
+            let h = Self::row_h(r);
+            if i == row {
+                return Some((self.x + self.w / 2.0, top + h / 2.0));
+            }
+            top += h;
+        }
+        None
+    }
+
     pub fn action(&self, row: usize) -> Option<A> {
         self.rows.get(row).and_then(|r| r.action.clone())
     }
