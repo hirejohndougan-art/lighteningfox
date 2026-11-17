@@ -180,6 +180,10 @@ points at another file isn't loaded (browsers don't either).
 
 ## M. Boa engine speed
 **Status:** claimed by boa-chat 2026-11-17 02:20
+**Note:** two chats ended up on this batch. To keep out of each other's files: boa-chat takes
+parsing, compiling and bytecode caching (`vendor/boa/boa_parser`, `vendor/boa/boa_ast`,
+`vendor/boa/boa_engine/src/bytecompiler`); the chat that added the V8 harness takes the runtime
+items (strings, inline caches, shapes, GC: `boa_string`, `boa_gc`, `boa_engine/src/vm`, `object`).
 **Start after:** —
 **Main files:** a fork of Boa (vendored under `vendor/boa` or a git dependency), `tools/`
 
