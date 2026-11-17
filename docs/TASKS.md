@@ -206,7 +206,7 @@ Styles use `Rc` and per-thread state (hover, viewport, animations) today; see ba
 inside `@container` are matched in order, not in parallel (they need ancestors' styles).
 
 ### T04b. Parallel layout
-**Status:** claimed by chat-opus-geo 2026-11-17 17:20
+**Status:** done
 **After:** T04
 **Checklist:** §14 "Parallel styling and layout across CPU cores (Rayon)" (the layout half; tick
 the item when this is done)
@@ -218,6 +218,12 @@ a third of its time shaping words (`Fonts::shape`) and another third in `word_wi
 caches in `Rc`/`RefCell` shared with painting, so shaping can't run on other threads until
 those become thread-safe (or each thread gets its own shaping state). Measure before and after;
 keep every reference screenshot identical.
+**Left undone:** words are shaped across cores before layout (src/preshape.rs), but boxes are
+still laid out on one thread: laying out independent blocks at once needs `layout::Ctx` and
+`Fonts` (Rc/RefCell caches shared with painting) made thread-safe, and T02 is reworking
+layout.rs now. On 2 cores the parallel shaping saves only a few percent (1500 paragraphs: layout
+173 → ~137 ms, mostly from two single-thread fixes in font.rs); it saves more with more cores.
+Painting shapes whole lines again (`paint.rs`), which this pass can't do ahead of layout.
 
 ### T06. Shared process pool
 **Status:** done
