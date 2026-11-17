@@ -479,3 +479,18 @@ fn a_block_inside_an_inline_keeps_its_own_box() {
     assert_eq!(eval(&mut page, "document.getElementById('plain').getBoundingClientRect().left > 0"), "true");
 }
 
+/// BBC News startup: DocumentType exists, defaultValue can be set, "navigationStart" is a mark.
+#[test]
+fn doctype_default_value_and_navigation_marks() {
+    let _serial = serial();
+    let _page = open("tests/sites/bbc-startup.html");
+    assert_eq!(text_of("out"), "object;object;object;true;10;b;y;0");
+}
+
+/// BBC News menu: absolutely positioned children don't widen a shrink-to-fit box.
+#[test]
+fn abspos_children_do_not_widen_shrink_to_fit() {
+    let _serial = serial();
+    let _page = open("tests/sites/abs-shrink.html");
+    assert_eq!(text_of("out"), "true;true;true");
+}

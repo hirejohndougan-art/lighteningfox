@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- From BBC News (2026-11): the main menu is an inline-block (shrink-to-fit) whose items have an
+     absolutely positioned `width: 100%` underline. Out-of-flow boxes must not add to the menu's
+     width; when they did, it was as wide as the page and the site's script hid the menu. -->
+<html><head><title>Abspos and shrink-to-fit</title>
+<style>
+  .sec { text-align: center; overflow: hidden; line-height: 0; }
+  .wrap { display: inline-block; overflow-x: hidden; white-space: nowrap; }
+  ul { list-style: none; display: flex; margin: 0; padding: 0; }
+  li { position: relative; }
+  li::after { content: ""; width: 100%; height: 4px; background: #b80000; position: absolute; left: 0; bottom: 0; }
+  a { display: block; padding: 12px 8px; line-height: 18px; }
+  .blk { display: inline-block; }
+  .blk span { display: block; position: relative; }
+  .blk i { position: absolute; left: 0; width: 500px; height: 2px; }
+</style></head>
+<body><div class="sec"><nav class="wrap" id="w"><ul><li><a>Home</a></li><li><a>News</a></li></ul></nav></div>
+<div><span class="blk" id="b"><span>Text<i></i></span></span></div>
+<p id="out"></p>
+<script>
+  const w = document.getElementById("w"), b = document.getElementById("b");
+  document.getElementById("out").textContent = [w.clientWidth < 300, w.parentNode.clientWidth > 600, b.offsetWidth < 100].join(";");
+</script>
+</body></html>

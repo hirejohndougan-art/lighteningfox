@@ -1402,6 +1402,11 @@ impl<'a> Ctx<'a> {
 
     /// Hold an absolutely positioned box until its containing block is laid out.
     fn defer_absolute(&mut self, id: NodeId, x: f32, y: f32) {
+        // Out-of-flow boxes add nothing to a box's intrinsic size: while measuring, a
+        // `width: 100%` underline in a shrink-to-fit menu made it as wide as the page (BBC News).
+        if self.measuring {
+            return;
+        }
         let fixed = self.styles[id].position == Position::Fixed;
         let frame = if fixed { self.abs.first_mut() } else { self.abs.last_mut() };
         if let Some(f) = frame {

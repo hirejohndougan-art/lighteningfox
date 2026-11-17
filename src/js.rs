@@ -1299,6 +1299,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("docprops.js", include_str!("docprops.js")),
     ("hyperlink.js", include_str!("hyperlink.js")),
     ("doctype.js", include_str!("doctype.js")),
+    ("defaultvalue.js", include_str!("defaultvalue.js")),
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 

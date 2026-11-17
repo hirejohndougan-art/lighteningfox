@@ -255,10 +255,17 @@
     for (const o of observers) if (o._types.has(e.entryType)) { o._queue.push(e); o._schedule(); }
     return e;
   };
+  const navNames = new Set(["navigationStart", "unloadEventStart", "unloadEventEnd", "redirectStart", "redirectEnd", "fetchStart", "domainLookupStart", "domainLookupEnd", "connectStart", "connectEnd", "secureConnectionStart", "requestStart", "responseStart", "responseEnd", "domLoading", "domInteractive", "domContentLoadedEventStart", "domContentLoadedEventEnd", "domComplete", "loadEventStart", "loadEventEnd"]);
   const timeOf = (m) => {
     if (m === undefined) return perf.now();
     if (typeof m === "number") return m;
     for (let i = entries.length - 1; i >= 0; i--) if (entries[i].entryType === "mark" && entries[i].name === m) return entries[i].startTime;
+    // Navigation Timing names ("navigationStart", "responseEnd"…) count as marks (BBC News measures
+    // from "navigationStart"): their time from navigationStart, or 0 where no time is known.
+    if (navNames.has(m)) {
+      const t = perf.timing || {}, v = +t[m], s = +t.navigationStart;
+      return v > 0 && s > 0 ? Math.max(0, v - s) : 0;
+    }
     throw new DOMException(`The mark '${m}' does not exist.`, "SyntaxError");
   };
   perf.timeOrigin = perf.timeOrigin || Date.now() - perf.now();

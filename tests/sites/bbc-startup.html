@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- From BBC News (2026-11): a consent script polyfills remove() on DocumentType.prototype,
+     React hydration sets input.defaultValue in strict mode, and the page measures from the
+     Navigation Timing name "navigationStart". Each of these threw and stopped the page. -->
+<html><head><title>BBC startup</title></head>
+<body><input id="i" value="a"><textarea id="t">x</textarea><p id="out"></p>
+<script>
+  "use strict";
+  const o = [];
+  [Element.prototype, CharacterData.prototype, DocumentType.prototype].forEach((p) => o.push(typeof p));
+  o.push(document.doctype instanceof DocumentType, document.doctype.nodeType);
+  const i = document.getElementById("i"), t = document.getElementById("t");
+  i.defaultValue = "b"; t.defaultValue = "y";
+  o.push(i.getAttribute("value"), t.value);
+  o.push(performance.measure("m", "navigationStart").startTime);
+  document.getElementById("out").textContent = o.join(";");
+</script>
+</body></html>
