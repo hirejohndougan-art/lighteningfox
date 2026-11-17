@@ -411,7 +411,9 @@ struct FloatBox {
 
 /// One unit of inline content.
 enum Tok {
-    Word { text: String, node: NodeId, link: Option<String> },
+    /// `glue`: no space before it (a piece of a word split where a line may break);
+    /// `hyphen`: a hyphen shows if the line breaks right after it.
+    Word { text: String, node: NodeId, link: Option<String>, glue: bool, hyphen: bool },
     Space { node: NodeId },
     Break { node: NodeId },
     Image { w: f32, h: f32, node: NodeId, src: Option<String>, link: Option<String> },
@@ -2606,7 +2608,7 @@ impl<'a> Ctx<'a> {
                             out.push(Tok::Break { node: id });
                         }
                         if !line.is_empty() {
-                            out.push(Tok::Word { text: transform(line, self.styles[id].text_transform), node: id, link: link.map(String::from) });
+                            out.push(Tok::Word { text: transform(line, self.styles[id].text_transform), node: id, link: link.map(String::from), glue: false, hyphen: false });
                         }
                     }
                     return;
@@ -2615,12 +2617,18 @@ impl<'a> Ctx<'a> {
                     out.push(Tok::Space { node: id });
                 }
                 let mut first = true;
+                let ts = &self.styles[id].text;
+                let lang = if ts.hyphens == crate::text::Hyphens::Auto { self.lang_of(id) } else { None };
                 for word in t.split_ascii_whitespace() {
                     if !first {
                         out.push(Tok::Space { node: id });
                     }
                     first = false;
-                    out.push(Tok::Word { text: transform(word, self.styles[id].text_transform), node: id, link: link.map(String::from) });
+                    // Pieces between the places a line may break (UAX #14, hyphenation).
+                    let word = transform(word, self.styles[id].text_transform);
+                    for (k, p) in crate::text::pieces(&word, ts, lang.as_deref()).into_iter().enumerate() {
+                        out.push(Tok::Word { text: p.text, node: id, link: link.map(String::from), glue: k > 0, hyphen: p.hyphen });
+                    }
                 }
                 if !first && t.ends_with(|c: char| c.is_ascii_whitespace()) {
                     out.push(Tok::Space { node: id });
@@ -2640,7 +2648,7 @@ impl<'a> Ctx<'a> {
                             }
                             None => {
                                 if let Some(alt) = self.dom.attr(id, "alt").filter(|a| !a.trim().is_empty()) {
-                                    out.push(Tok::Word { text: format!("[{}]", alt.trim()), node: id, link: link.map(String::from) });
+                                    out.push(Tok::Word { text: format!("[{}]", alt.trim()), node: id, link: link.map(String::from), glue: false, hyphen: false });
                                 }
                             }
                         }
@@ -2793,6 +2801,27 @@ impl<'a> Ctx<'a> {
         (dx, dy)
     }
 
+    /// The language an element's text is in (`lang` on it or an ancestor).
+    fn lang_of(&self, mut id: NodeId) -> Option<String> {
+        loop {
+            if let Some(l) = self.dom.attr(id, "lang").or_else(|| self.dom.attr(id, "xml:lang")) {
+                return Some(l.to_string());
+            }
+            id = self.dom.nodes[id].parent?;
+        }
+    }
+
+    /// A word's width with its letter-spacing (letter-spaced text is drawn one letter at a
+    /// time, so it's measured that way too).
+    fn word_width(&self, node: NodeId, text: &str) -> f32 {
+        let (font, size) = self.font_of(node);
+        let ls = self.styles[node].text.letter_spacing;
+        if ls == 0.0 {
+            return self.fonts.width(font, text, size);
+        }
+        crate::text::letters(text).iter().map(|l| self.fonts.width(font, l, size) + ls).sum()
+    }
+
     fn font_of(&self, node: NodeId) -> (u8, f32) {
         let s = &self.styles[node];
         (self.fonts.resolve(s.family.as_deref(), s.bold, s.italic, s.mono), s.font_size)
@@ -2818,6 +2847,23 @@ impl<'a> Ctx<'a> {
         let mut toks = Vec::new();
         for &id in run {
             self.flatten(id, None, w, &mut toks);
+        }
+        // overflow-wrap: break-word / anywhere: a word wider than the line is split to fit.
+        if toks.iter().any(|t| matches!(t, Tok::Word { node, .. } if self.styles[*node].text.break_long_words)) {
+            let mut out = Vec::with_capacity(toks.len());
+            for t in toks {
+                match t {
+                    Tok::Word { text, node, link, glue, hyphen } if self.styles[node].text.break_long_words && !self.measuring && self.word_width(node, &text) > w => {
+                        let parts = crate::text::split_to_fit(&text, w.max(1.0), &|s| self.word_width(node, s));
+                        let n = parts.len();
+                        for (k, part) in parts.into_iter().enumerate() {
+                            out.push(Tok::Word { text: part, node, link: link.clone(), glue: glue || k > 0, hyphen: hyphen && k + 1 == n });
+                        }
+                    }
+                    t => out.push(t),
+                }
+            }
+            toks = out;
         }
         // Absolutely positioned and floated elements inside this text leave the flow.
         let mut stack: Vec<NodeId> = run.iter().rev().copied().collect();
@@ -2874,7 +2920,8 @@ impl<'a> Ctx<'a> {
                 Tok::Space { node } => {
                     if !line.items.is_empty() {
                         let (font, size) = self.font_of(*node);
-                        pending_space = self.fonts.advance(font, ' ', size);
+                        let t = &self.styles[*node].text;
+                        pending_space = self.fonts.advance(font, ' ', size) + t.word_spacing + t.letter_spacing;
                     }
                 }
                 Tok::Break { node } => {
@@ -2890,18 +2937,23 @@ impl<'a> Ctx<'a> {
                     }
                     pending_space = 0.0;
                 }
-                Tok::Word { text, node, .. } => {
-                    let (font, size) = self.font_of(*node);
-                    let ww = self.fonts.width(font, text, size);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, ww, i, (x, w), &mut est_y, &toks, &blocks);
+                Tok::Word { text, node, hyphen, .. } => {
+                    let ww = self.word_width(*node, text);
+                    // white-space: nowrap: no line break between its words.
+                    let wrap = !self.styles[*node].text.nowrap;
+                    // A piece that may end a line with a hyphen needs room for the hyphen.
+                    let extra = if *hyphen { self.word_width(*node, "-") } else { 0.0 };
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, ww, i, (x, w), &mut est_y, &toks, &blocks, (wrap, extra));
                 }
-                Tok::Image { w: iw, .. } => {
+                Tok::Image { w: iw, node, .. } => {
                     let iw = iw.min(w);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, (x, w), &mut est_y, &toks, &blocks);
+                    let wrap = !self.styles[*node].text.nowrap;
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, iw, i, (x, w), &mut est_y, &toks, &blocks, (wrap, 0.0));
                 }
-                Tok::InlineBlock { .. } => {
+                Tok::InlineBlock { node, .. } => {
                     let bw = blocks.get(&i).map_or(0.0, |d| d.w);
-                    self.place(&mut lines, &mut pending_space, &mut pending_opens, bw, i, (x, w), &mut est_y, &toks, &blocks);
+                    let wrap = !self.styles[*node].text.nowrap;
+                    self.place(&mut lines, &mut pending_space, &mut pending_opens, bw, i, (x, w), &mut est_y, &toks, &blocks, (wrap, 0.0));
                 }
             }
         }
@@ -3006,16 +3058,43 @@ impl<'a> Ctx<'a> {
             boxes.sort_by_key(|(d, _)| *d);
             // Text items whose text has a text-shadow (their shadows go in after the line).
             let mut shadowed: Vec<(usize, NodeId)> = Vec::new();
+            // text-overflow: ellipsis on a block that clips: a line too long for it ends in "…".
+            let block_style = run.first().and_then(|&n| self.dom.nodes[n].parent).map(|p| &self.styles[p]);
+            let cut = block_style.filter(|b| b.text.ellipsis && b.clip && !self.measuring && line.width > line.max_w + 0.5).map(|_| line.max_w);
             for (pi, p) in line.items.iter().enumerate() {
+                if cut.is_some_and(|c| p.x >= c - 0.5) {
+                    break;
+                }
                 let (rdx, rdy) = self.inline_rel(tok_node(&toks[p.tok]), w);
                 let px = x + shift + p.x + rdx;
                 let (vp, va, vb) = vps[pi];
                 let baseline = base_at(vp, va, vb) + rdy;
                 match &toks[p.tok] {
-                    Tok::Word { text, node, link } => {
+                    Tok::Word { text, node, link, glue, hyphen } => {
                         let s = &self.styles[*node];
                         let (font, size) = self.font_of(*node);
-                        if !s.hidden {
+                        // A hyphen where the line breaks after a soft or automatic hyphen point.
+                        let last_on_line = pi + 1 == line.items.len();
+                        let shown: String = if *hyphen && last_on_line { format!("{text}-") } else { text.clone() };
+                        let shown = match cut {
+                            Some(c) if p.x + p.w > c => crate::text::ellipsize(&shown, (c - p.x).max(0.0), &|t| self.word_width(*node, t)),
+                            _ => shown,
+                        };
+                        let text = &shown;
+                        let ls = s.text.letter_spacing;
+                        if !s.hidden && ls != 0.0 {
+                            // Letter-spaced: one item per letter.
+                            let mut lx = px;
+                            for l in crate::text::letters(text) {
+                                if s.text_shadow.is_some() {
+                                    shadowed.push((self.items.len(), *node));
+                                }
+                                self.items.push(Item::Text { x: lx, y: baseline, text: l.to_string(), font, size, color: s.color });
+                                lx += self.fonts.width(font, l, size) + ls;
+                            }
+                            last_text = None;
+                        }
+                        if !s.hidden && ls == 0.0 {
                             // Words of the same text run on one line become one text item
                             // ("Hello world" instead of "Hello" + "world"): far fewer items.
                             let space = self.fonts.advance(font, ' ', size);
@@ -3035,6 +3114,11 @@ impl<'a> Ctx<'a> {
                                     t.push_str(text);
                                     true
                                 }
+                                // A piece of the same word (split where a line could break).
+                                (Some((n, end)), Some(Item::Text { text: t, .. })) if *glue && n == *node && (px - end).abs() < 0.5 => {
+                                    t.push_str(text);
+                                    true
+                                }
                                 _ => false,
                             };
                             if !joined {
@@ -3051,17 +3135,19 @@ impl<'a> Ctx<'a> {
                                     Some((end, n)) if n == *node => end,
                                     _ => px,
                                 };
-                                let th = (size / 14.0).max(1.0);
+                                let th = s.text.deco_thickness.unwrap_or((size / 14.0).max(1.0));
                                 let color = s.deco_color.unwrap_or(s.color);
                                 let w = px + p.w - start;
+                                let style = s.text.deco_style;
                                 if s.underline {
-                                    self.items.push(Item::Rect { x: start, y: baseline + th + 1.0, w, h: th, color });
+                                    let off = s.text.underline_offset.unwrap_or(th + 1.0);
+                                    crate::text::deco_line(&mut self.items, start, baseline + off, w, th, color, style);
                                 }
                                 if s.line_through {
-                                    self.items.push(Item::Rect { x: start, y: baseline - size * 0.3, w, h: th, color });
+                                    crate::text::deco_line(&mut self.items, start, baseline - size * 0.3, w, th, color, style);
                                 }
                                 if s.overline {
-                                    self.items.push(Item::Rect { x: start, y: baseline - self.fonts.ascent(font, size), w, h: th, color });
+                                    crate::text::deco_line(&mut self.items, start, baseline - self.fonts.ascent(font, size), w, th, color, style);
                                 }
                                 prev_underline_end = Some((px + p.w, *node));
                             } else {
@@ -3149,11 +3235,12 @@ impl<'a> Ctx<'a> {
         est_y: &mut f32,
         toks: &[Tok],
         blocks: &HashMap<usize, Detached>,
+        (wrap, extra): (bool, f32),
     ) {
         let line = lines.last_mut().unwrap();
         let mut sp = *pending_space;
         let lead: f32 = pending_opens.iter().map(|(_, w)| w).sum();
-        if !line.items.is_empty() && line.width + sp + lead + ww > line.max_w {
+        if wrap && !line.items.is_empty() && line.width + sp + lead + ww + extra > line.max_w {
             *est_y += self.line_est_height(lines.last().unwrap(), toks, blocks);
             lines.push(self.new_line(x0, w, *est_y));
             sp = 0.0;

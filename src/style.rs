@@ -284,6 +284,8 @@ pub struct Style {
     pub deco_color: Option<Color>,
     /// text-transform: 0 none, 1 uppercase, 2 lowercase, 3 capitalize.
     pub text_transform: u8,
+    /// Spacing, wrapping, hyphenation, ellipsis and decoration style (text.rs).
+    pub text: crate::text::TextStyle,
     /// text-indent of a block's first line.
     pub text_indent: Len,
     /// The mouse pointer over it: 0 auto, 1 pointer (hand), 2 text, 3 default arrow,
@@ -384,6 +386,7 @@ impl Default for Style {
             overline: false,
             deco_color: None,
             text_transform: 0,
+            text: crate::text::TextStyle::default(),
             text_indent: Len::Px(0.0),
             cursor: 0,
             text_align: Align::Left,
@@ -457,6 +460,7 @@ impl Style {
             overline: parent.overline,
             deco_color: parent.deco_color,
             text_transform: parent.text_transform,
+            text: parent.text.inherit(),
             text_indent: parent.text_indent,
             cursor: parent.cursor,
             text_align: parent.text_align,
@@ -1142,6 +1146,8 @@ pub fn computed_json(st: &Style, size: Option<(f32, f32)>) -> String {
         ("direction".into(), if st.rtl { "rtl" } else { "ltr" }.into()),
         ("text-decoration-line".into(), if deco.is_empty() { "none".into() } else { deco.join(" ") }),
         ("text-transform".into(), ["none", "uppercase", "lowercase", "capitalize"][st.text_transform.min(3) as usize].into()),
+        ("letter-spacing".into(), if st.text.letter_spacing == 0.0 { "normal".into() } else { px(st.text.letter_spacing) }),
+        ("word-spacing".into(), px(st.text.word_spacing)),
         ("visibility".into(), if st.hidden { "hidden" } else { "visible" }.into()),
         ("opacity".into(), format!("{}", st.opacity)),
         ("overflow".into(), if st.clip { "hidden" } else { "visible" }.into()),
@@ -1798,6 +1804,9 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     let lower = v.to_ascii_lowercase();
     if lower == "inherit" {
         return; // inherited props already inherited; good enough for now
+    }
+    if crate::text::apply(&mut st.text, name, &lower, st.font_size) {
+        return;
     }
     let fs = st.font_size;
     if crate::anim::is_anim_prop(name) {

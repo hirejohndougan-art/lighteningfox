@@ -54,6 +54,7 @@ mod crashlog;
 mod settings;
 mod security;
 mod sysfonts;
+mod text;
 mod blocklist;
 mod permissions;
 mod updates;
@@ -3781,6 +3782,7 @@ mod screenshot_tests {
         ("tests/margins.html", 760),
         ("tests/percent-heights.html", 800),
         ("tests/columns.html", 800),
+        ("tests/text-wrapping.html", 600),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),
