@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): ~900 custom properties on :root and thousands of
+     elements declaring a few more of their own; each element copied every inherited one and
+     the page ran out of memory. Values must still inherit, override and unset correctly. -->
+<html><head><title>Custom properties in layers</title><style id="s"></style></head>
+<body><div id="a"><div id="b"><p id="c">x</p></div></div><p id="out"></p>
+<script>
+  let css = ":root{";
+  for (let i = 0; i < 900; i++) css += `--v${i}: ${i}px;`;
+  css += "--brand: red; --gone: blue}";
+  css += "#a { --brand: green; --mine: var(--v5) } #b { --gone: initial; --late: var(--early); --early: 7px } ";
+  css += "#c { width: var(--v899); color: var(--brand); background-color: var(--gone, rgb(1, 2, 3)); margin-left: var(--late); padding-left: var(--mine) }";
+  css += "p.x { --n: 1px }";
+  document.getElementById("s").textContent = css;
+  const box = document.body.appendChild(document.createElement("div"));
+  for (let i = 0; i < 3000; i++) { const p = box.appendChild(document.createElement("p")); p.className = "x"; }
+  const s = getComputedStyle(document.getElementById("c"));
+  document.getElementById("out").textContent = [s.width, s.color, s.backgroundColor, s.marginLeft, s.paddingLeft].join(";");
+</script></body></html>

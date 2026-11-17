@@ -36,7 +36,7 @@ pub fn is_svg_prop(name: &str) -> bool {
 
 /// The SVG properties among an element's matched declarations (lowest priority first), with
 /// `var()` filled in. Called by the cascade for elements in the SVG namespace.
-pub fn declared<'a>(decls: impl Iterator<Item = &'a crate::css::Decl>, vars: &HashMap<String, String>) -> Option<Rc<Vec<(String, String)>>> {
+pub fn declared<'a>(decls: impl Iterator<Item = &'a crate::css::Decl>, vars: &impl crate::cssvars::VarSource) -> Option<Rc<Vec<(String, String)>>> {
     let mut out: Vec<(String, String)> = Vec::new();
     for d in decls.filter(|d| is_svg_prop(&d.name)) {
         let v = if d.value.contains("var(") { crate::style::substitute_vars(&d.value, vars, 0) } else { d.value.clone() };

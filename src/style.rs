@@ -419,7 +419,7 @@ pub struct Style {
     /// The product of this element's and its ancestors' opacity (applied to its colors).
     pub fade: f32,
     /// CSS custom properties (`--name: value`), inherited. Shared until changed.
-    pub vars: Rc<HashMap<String, String>>,
+    pub vars: Rc<crate::cssvars::Vars>,
     // not inherited
     pub background: Color,
     pub bg: Background,
@@ -1131,7 +1131,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             declared.push((m.decl.name.as_str(), m.decl.value.as_str()));
         }
         if !declared.is_empty() {
-            let mut raw: HashMap<String, String> = (*st.vars).clone();
+            let mut raw = crate::cssvars::Vars::over(st.vars.clone());
             for (n, v) in &declared {
                 if v.trim().eq_ignore_ascii_case("initial") {
                     raw.remove(*n);
@@ -1139,7 +1139,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                     raw.insert(n.to_string(), v.to_string());
                 }
             }
-            let vars = Rc::make_mut(&mut st.vars);
+            let vars = crate::cssvars::own_layer(&mut st.vars);
             for (n, _) in &declared {
                 match raw.get(*n) {
                     Some(v) => {
@@ -1320,7 +1320,7 @@ fn cascade_pseudo(parent: &Style, pm: &[Matched]) -> Style {
     let mut p = Style::inherit(parent);
     for m in pm.iter().filter(|m| m.decl.name.starts_with("--")) {
         let value = substitute_vars(&m.decl.value, &p.vars, 0);
-        Rc::make_mut(&mut p.vars).insert(m.decl.name.clone(), value);
+        crate::cssvars::own_layer(&mut p.vars).insert(m.decl.name.clone(), value);
     }
     for m in pm.iter().filter(|m| !m.decl.name.starts_with("--")) {
         if m.decl.value.contains("var(") {
@@ -1795,7 +1795,7 @@ pub fn computed_json(st: &Style, size: Option<(f32, f32)>) -> String {
 // ---------------------------------------------------------------- values
 
 /// Replace every `var(--name, fallback)` with the variable's value.
-pub fn substitute_vars(value: &str, vars: &HashMap<String, String>, depth: u32) -> String {
+pub fn substitute_vars(value: &str, vars: &(impl crate::cssvars::VarSource + ?Sized), depth: u32) -> String {
     if depth > 8 || !value.contains("var(") {
         return value.to_string();
     }
@@ -1813,7 +1813,7 @@ pub fn substitute_vars(value: &str, vars: &HashMap<String, String>, depth: u32) 
             Some(c) => (inner[..c].trim(), Some(inner[c + 1..].trim())),
             None => (inner.trim(), None),
         };
-        let replacement = vars.get(name).map(String::as_str).or(fallback).unwrap_or("");
+        let replacement = vars.var(name).or(fallback).unwrap_or("");
         out.push_str(&substitute_vars(replacement, vars, depth + 1));
         rest = &rest[inner_start + len + 1..];
     }

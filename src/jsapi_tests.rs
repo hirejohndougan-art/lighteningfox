@@ -523,6 +523,7 @@ fn legacy_navigation_timing() {
     );
     assert_eq!(r.trim_matches('"'), "0,0,1,true,0,number");
 }
+}
 
 
 /// BBC News headlines: font-weight 500 uses the family's 500 face, not the 400 one.
@@ -636,4 +637,11 @@ fn fr_rows_hold_their_items_in_auto_height_grids() {
     let _serial = serial();
     let _page = open("tests/sites/grid-fr-rows.html");
     assert_eq!(text_of("next"), "180;true");
+}
+
+#[test]
+fn custom_properties_inherit_in_layers() {
+    let _serial = serial();
+    let _page = open("tests/sites/many-vars.html");
+    assert_eq!(text_of("out"), "899px;rgb(0, 128, 0);rgb(1, 2, 3);7px;5px");
 }
