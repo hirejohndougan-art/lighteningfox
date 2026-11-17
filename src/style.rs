@@ -266,8 +266,12 @@ pub struct Style {
     pub inset: [Len; 4],
     pub z_index: i32,
     pub clip: bool,
+    /// overflow: auto / scroll: the box scrolls its content instead of only clipping it.
+    pub scrolls: bool,
     pub shadow: Option<Shadow>,
     pub min_width: Len,
+    pub min_height: Len,
+    pub max_height: Len,
     /// box-sizing: border-box — width/height include padding and border.
     pub border_box: bool,
     /// float: Some(true) = left, Some(false) = right.
@@ -319,8 +323,11 @@ impl Default for Style {
             inset: [Len::Auto; 4],
             z_index: 0,
             clip: false,
+            scrolls: false,
             shadow: None,
             min_width: Len::Auto,
+            min_height: Len::Auto,
+            max_height: Len::Auto,
             border_box: false,
             float: None,
             clear: (false, false),
@@ -1485,7 +1492,21 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         }
         "z-index" => st.z_index = lower.parse().unwrap_or(0),
         "overflow" | "overflow-x" | "overflow-y" => {
-            st.clip = matches!(lower.split_whitespace().next(), Some("hidden" | "clip" | "auto" | "scroll"))
+            // `overflow: x y` — the vertical value is the last one.
+            let v = if name == "overflow" { lower.split_whitespace().last() } else { lower.split_whitespace().next() };
+            let v = v.unwrap_or("visible");
+            if name != "overflow-x" {
+                st.scrolls = matches!(v, "auto" | "scroll" | "overlay");
+            }
+            st.clip = st.clip && name == "overflow-y" || matches!(v, "hidden" | "clip" | "auto" | "scroll" | "overlay");
+        }
+        "min-height" => {
+            if let Some(l) = parse_len(&lower, fs) {
+                st.min_height = l;
+            }
+        }
+        "max-height" => {
+            st.max_height = if lower == "none" { Len::Auto } else { parse_len(&lower, fs).unwrap_or(Len::Auto) };
         }
         "min-width" => {
             if let Some(l) = parse_len(&lower, fs) {
@@ -1701,7 +1722,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 st.max_width = Len::Auto
             }
         }
-        "height" | "min-height" => {
+        "height" => {
             if let Some(l @ Len::Px(_)) = parse_len(&lower, fs) {
                 st.height = l
             }

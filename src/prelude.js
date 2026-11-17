@@ -263,6 +263,8 @@
     }
     get clientHeight() {
       if (this === document.documentElement) return g.innerHeight;
+      const e = __elScroll(this.__id);
+      if (e) return Math.round(Number(e.split(",")[2]));
       return Math.round(this.getBoundingClientRect().height);
     }
     get clientTop() { return 0; }
@@ -270,10 +272,21 @@
     get scrollWidth() { return this === document.documentElement || this === document.body ? g.innerWidth : this.clientWidth; }
     get scrollHeight() {
       if (this === document.documentElement || this === document.body) return Math.round(Number(__viewport().split(",")[3]));
+      const e = __elScroll(this.__id);
+      if (e) { const [, max, h] = e.split(",").map(Number); return Math.round(max + h); }
       return this.clientHeight;
     }
-    get scrollTop() { return this === document.documentElement || this === document.body ? g.scrollY : 0; }
-    set scrollTop(v) { if (this === document.documentElement || this === document.body) __scrollTo(Number(v)); }
+    get scrollTop() {
+      if (this === document.documentElement || this === document.body) return g.scrollY;
+      const e = __elScroll(this.__id);
+      return e ? Number(e.split(",")[0]) : 0;
+    }
+    set scrollTop(v) {
+      if (this === document.documentElement || this === document.body) __scrollTo(Number(v));
+      else __setElScroll(this.__id, Number(v));
+    }
+    scrollBy(a, b) { const dy = typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0); this.scrollTop = this.scrollTop + dy; }
+    scrollTo(a, b) { this.scrollTop = typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0); }
     get scrollLeft() { return 0; }
     set scrollLeft(v) {}
     scrollIntoView(opts) {

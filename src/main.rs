@@ -215,6 +215,7 @@ fn build_page(p: Prepared) -> Page {
         _ => false,
     });
     js::set_dom(dom);
+    layout::reset_element_scrolls();
     // Scripts that ask where elements are get a fresh layout of the page as it is then.
     let provider: Option<Box<dyn Fn(f32, f32) -> layout::Layout>> = FONTS.with(|c| c.get()).map(|fonts| {
         let sheets = sheets.clone();
@@ -691,8 +692,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
         }
         if let Some((_, dy)) = window.get_scroll_wheel() {
-            scroll -= dy * 3.0;
-            dirty = true;
+            // About 45px per wheel click (minifb reports roughly 2 per click on X11).
+            let delta = -dy * 22.0;
+            // The wheel scrolls the innermost scrollable box under the mouse, else the page.
+            let inner = window
+                .get_mouse_pos(MouseMode::Discard)
+                .filter(|&(_, my)| my >= BAR_H as f32)
+                .and_then(|(mx, my)| lay.scroller_at(mx, my - BAR_H as f32, scroll, delta));
+            match inner {
+                Some((id, max)) => {
+                    layout::set_element_scroll(id, (layout::element_scroll(id) + delta).clamp(0.0, max));
+                    reflow = true;
+                }
+                None => {
+                    scroll += delta;
+                    dirty = true;
+                }
+            }
         }
         if let Some(y) = geometry::take_scroll_request() {
             scroll = y;
@@ -1045,6 +1061,7 @@ mod screenshot_tests {
         ("tests/fetch.html", 700),
         ("tests/geometry.html", 700),
         ("tests/sticky.html", 1024),
+        ("tests/scroll-box.html", 900),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

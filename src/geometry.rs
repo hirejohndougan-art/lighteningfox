@@ -11,6 +11,7 @@ use std::collections::HashMap;
 struct Geometry {
     boxes: HashMap<NodeId, (Rect, bool)>,
     hits: Vec<(Rect, NodeId)>,
+    scrollers: HashMap<NodeId, (Rect, f32)>,
     view_w: f32,
     view_h: f32,
     scroll: f32,
@@ -52,6 +53,7 @@ pub fn publish(lay: &Layout, view_w: f32, view_h: f32) {
         let mut g = g.borrow_mut();
         g.boxes = lay.boxes.clone();
         g.hits = lay.hits.clone();
+        g.scrollers = lay.scrollers.iter().map(|&(id, r, max)| (id, (r, max))).collect();
         g.view_w = view_w;
         g.view_h = view_h;
         g.doc_h = lay.height;
@@ -151,6 +153,12 @@ pub fn page_rect(dom: &Dom, id: NodeId) -> Option<(Rect, bool)> {
         }
         acc.map(|r| (r, false))
     })
+}
+
+/// A scrollable box's (scrollTop, how far it can scroll, visible height), if `id` is one.
+pub fn element_scroll_info(id: NodeId) -> Option<(f32, f32, f32)> {
+    ensure_fresh();
+    GEOM.with(|g| g.borrow().scrollers.get(&id).copied()).map(|(r, max)| (crate::layout::element_scroll(id).min(max), max, r.h))
 }
 
 /// getBoundingClientRect: the box relative to the window's top-left.

@@ -29,6 +29,9 @@ pub enum Item {
     /// While scrolling, it moves down by up to `limit` px to stay `top` px below the window top.
     StickyPush { id: usize, y: f32, h: f32, top: f32, limit: f32 },
     StickyPop,
+    /// A scrollable box (overflow: auto/scroll): its padding box and how far it can scroll.
+    /// Never painted; collected into `Layout::scrollers`.
+    ScrollArea { id: usize, x: f32, y: f32, w: f32, h: f32, max: f32 },
 }
 
 /// How far a sticky box moves down at this scroll position.
@@ -397,7 +400,7 @@ impl Canvas {
         let mut sticky: Vec<f32> = Vec::new();
         for item in items {
             match item {
-                Item::Mark { .. } => {}
+                Item::Mark { .. } | Item::ScrollArea { .. } => {}
                 Item::StickyPush { y, top, limit, .. } => {
                     let off = if fixed_depth == 0 { sticky_offset(*y, *top, *limit, scroll) } else { 0.0 };
                     sticky.push(off);

@@ -12,6 +12,23 @@ use std::cell::Cell;
 thread_local! {
     /// The focused form control and whether its caret is currently shown.
     static FOCUS: Cell<Option<(NodeId, bool)>> = const { Cell::new(None) };
+    /// How far each scrollable box (overflow: auto/scroll) is scrolled.
+    static SCROLLS: std::cell::RefCell<HashMap<NodeId, f32>> = std::cell::RefCell::new(HashMap::new());
+}
+
+pub fn element_scroll(id: NodeId) -> f32 {
+    SCROLLS.with(|s| s.borrow().get(&id).copied().unwrap_or(0.0))
+}
+
+pub fn set_element_scroll(id: NodeId, y: f32) {
+    SCROLLS.with(|s| {
+        s.borrow_mut().insert(id, y.max(0.0));
+    });
+}
+
+/// A new page: every box starts unscrolled.
+pub fn reset_element_scrolls() {
+    SCROLLS.with(|s| s.borrow_mut().clear());
 }
 
 pub fn set_focus(f: Option<(NodeId, bool)>) {
@@ -40,6 +57,16 @@ impl Layout {
     /// Is link/hit `i` part of a fixed box (which doesn't scroll)?
     fn is_fixed(&self, i: usize, links: bool) -> bool {
         self.fixed.iter().any(|(l, h)| if links { l.contains(&i) } else { h.contains(&i) })
+    }
+
+    /// The innermost scrollable box under a viewport point that can still scroll by `dy`.
+    pub fn scroller_at(&self, x: f32, view_y: f32, scroll: f32, dy: f32) -> Option<(NodeId, f32)> {
+        let y = view_y + scroll;
+        self.scrollers.iter().rev().filter(|(_, r, _)| r.contains(x, y)).find_map(|&(id, _, max)| {
+            let cur = element_scroll(id).min(max);
+            let can = if dy > 0.0 { cur < max - 0.5 } else { cur > 0.5 };
+            can.then_some((id, max))
+        })
     }
 
     /// The sticky box (where it sits unscrolled) drawn at page point (x, y), and its current offset.
@@ -104,6 +131,8 @@ pub struct Layout {
     pub boxes: HashMap<NodeId, (Rect, bool)>,
     /// position: sticky boxes: (border box where it sits unscrolled, top inset, how far it may move).
     pub sticky: Vec<(Rect, f32, f32)>,
+    /// Scrollable boxes: (element, visible area in page coordinates, how far it can scroll).
+    pub scrollers: Vec<(NodeId, Rect, f32)>,
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
@@ -141,8 +170,13 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
     let mut items = merge_layers(std::mem::take(&mut cx.items), std::mem::take(&mut cx.layers));
     // Pull out the box marks: scripts need them, painting doesn't.
     let mut boxes = HashMap::new();
+    let mut scrollers = Vec::new();
     let mut fixed_depth = 0;
     items.retain(|it| match *it {
+        Item::ScrollArea { id, x, y, w, h, max } => {
+            scrollers.push((id, Rect { x, y, w, h }, max));
+            false
+        }
         Item::Mark { id, x, y, w, h } => {
             boxes.insert(id, (Rect { x, y, w, h }, fixed_depth > 0));
             false
@@ -171,7 +205,7 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
             }
         }
     }
-    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg, boxes, sticky }
+    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg, boxes, sticky, scrollers }
 }
 
 struct Ctx<'a> {
@@ -307,6 +341,7 @@ fn shift_item(it: &mut Item, dx: f32, dy: f32) {
         | Item::Text { x, y, .. }
         | Item::Image { x, y, .. }
         | Item::Mark { x, y, .. }
+        | Item::ScrollArea { x, y, .. }
         | Item::Box { x, y, .. }
         | Item::Ring { x, y, .. }
         | Item::Shadow { x, y, .. }
@@ -496,9 +531,18 @@ impl<'a> Ctx<'a> {
             self.floats.pop();
         }
         let st = &self.styles[id];
+        let natural_h = content_h;
         if let (Len::Px(h), None) = (st.height, replaced) {
-            content_h = content_h.max(h - vsizing);
+            // A clipping box keeps exactly its height; others grow to fit (for now).
+            content_h = if st.clip { h - vsizing } else { content_h.max(h - vsizing) };
         }
+        if let (Len::Px(mx), None) = (st.max_height, replaced) {
+            content_h = content_h.min(mx - vsizing);
+        }
+        if let Len::Px(mn) = st.min_height {
+            content_h = content_h.max(mn - vsizing);
+        }
+        content_h = content_h.max(0.0);
         if let Some(fh) = forced.1 {
             content_h = content_h.max(fh - mt - mb - bt - pt - pb - bb);
         }
@@ -528,6 +572,52 @@ impl<'a> Ctx<'a> {
             self.items[bg_slot] = Item::Box { x: bx, y: top, w: box_w, h: box_h, radius, bg: Box::new(st.bg.clone()) };
         } else {
             placeholder(&mut self.items[bg_slot]);
+        }
+        // Scrollable boxes: move the content by the scroll offset, then (for any clipping
+        // box) keep links and hit areas to the visible part.
+        if st.clip && !self.measuring {
+            let clip = Rect { x: bx + bl, y: top + bt, w: box_w - bl - br, h: box_h - bt - bb };
+            let overflow = (natural_h - content_h).max(0.0);
+            if st.scrolls && overflow > 0.5 {
+                let off = element_scroll(id).min(overflow);
+                if off > 0.0 {
+                    for it in &mut self.items[clip_slot + 1..] {
+                        shift_item(it, 0.0, -off);
+                    }
+                    for (r, _) in &mut self.links[start.1..] {
+                        r.y -= off;
+                    }
+                    for (r, _) in &mut self.hits[start.2..] {
+                        r.y -= off;
+                    }
+                }
+                self.items.push(Item::ScrollArea { id, x: clip.x, y: clip.y, w: clip.w, h: clip.h, max: overflow });
+                // A thin scrollbar thumb along the right edge.
+                if !st.hidden && clip.h > 20.0 {
+                    let track = clip.h - 4.0;
+                    let thumb = (track * clip.h / (clip.h + overflow)).max(16.0);
+                    let ty = clip.y + 2.0 + (track - thumb) * (off / overflow);
+                    self.items.push(Item::Box {
+                        x: clip.x + clip.w - 6.0,
+                        y: ty,
+                        w: 4.0,
+                        h: thumb,
+                        radius: 2.0,
+                        bg: Box::new(Background { color: Color { r: 0, g: 0, b: 0, a: 90 }, ..Default::default() }),
+                    });
+                }
+            }
+            let cut = |r: &mut Rect| {
+                let (x0, y0) = (r.x.max(clip.x), r.y.max(clip.y));
+                let (x1, y1) = ((r.x + r.w).min(clip.x + clip.w), (r.y + r.h).min(clip.y + clip.h));
+                *r = Rect { x: x0, y: y0, w: (x1 - x0).max(0.0), h: (y1 - y0).max(0.0) };
+            };
+            for (r, _) in &mut self.links[start.1..] {
+                cut(r);
+            }
+            for (r, _) in &mut self.hits[start.2..] {
+                cut(r);
+            }
         }
         // overflow: hidden clips children to the padding box.
         if st.clip {

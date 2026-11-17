@@ -550,6 +550,26 @@ fn n_scroll_to(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
     Ok(JsValue::undefined())
 }
 
+/// __elScroll(id) -> "scrollTop,maxScroll,visibleHeight", or "" if it isn't a scrolling box.
+fn n_el_scroll(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let s = if id >= 0 { crate::geometry::element_scroll_info(id as NodeId).map(|(t, m, h)| format!("{t},{m},{h}")).unwrap_or_default() } else { String::new() };
+    Ok(JsValue::from(JsString::from(s)))
+}
+
+/// __setElScroll(id, y): scroll a box; the window lays the page out again.
+fn n_set_el_scroll(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let y = a.get(1).map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0) as f32;
+    if id >= 0 && y.is_finite() {
+        if let Some((_, max, _)) = crate::geometry::element_scroll_info(id as NodeId) {
+            crate::layout::set_element_scroll(id as NodeId, y.clamp(0.0, max));
+            with_dom_mut(|_| ()); // marks the page for a new layout
+        }
+    }
+    Ok(JsValue::undefined())
+}
+
 /// True while any background request is still running or waiting to be delivered.
 pub fn network_busy() -> bool {
     NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
@@ -594,6 +614,8 @@ impl Js {
             ("__rect", 1, n_rect),
             ("__viewport", 0, n_viewport),
             ("__scrollTo", 1, n_scroll_to),
+            ("__elScroll", 1, n_el_scroll),
+            ("__setElScroll", 2, n_set_el_scroll),
             ("__formData", 1, n_form_data),
             ("__getCookie", 1, n_get_cookie),
             ("__setCookie", 2, n_set_cookie),
