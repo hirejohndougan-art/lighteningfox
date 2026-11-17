@@ -1,0 +1,25 @@
+GET https://assets.apnews.com/60/2a/9eca647640bb9e56bd7f0466e36e/crossword.svg
+200 OK
+content-type: image/svg+xml
+x-guploader-uploadid: AKhXX7IKp1sjPrZQZYSgycGbgHFzcoYsVe8DgrL3Ff9uvHRfPjgRWkAuK_-gfmoDn8UuPNJfcahiRB9_WBiA7Q
+date: Tue, 17 Nov 2026 19:13:26 GMT
+cache-control: public, max-age=31536000
+expires: Sat, 30 Oct 2027 05:53:33 GMT
+last-modified: Thu, 05 Mar 2026 15:22:29 GMT
+priority: u=3,i=?0
+x-goog-generation: 1772724149214483
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 299
+x-goog-meta-content-length: 299
+x-goog-hash: crc32c=/wwU4w==
+x-goog-hash: md5=D7x0f45Fcz2Nhju/OopuEg==
+x-goog-storage-class: STANDARD
+etag: W/"0fbc747f8e45733d8d863bbf3a8a6e12"
+server-timing: cfExtPri
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 1603193
+cf-cache-status: HIT
+cf-ray: a5c10d7f7cfa0814-IAD

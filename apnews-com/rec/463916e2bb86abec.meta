@@ -1,0 +1,25 @@
+GET https://www.puzzmo.com/_embed/assets/index-D438o2Z3.js
+200 OK
+date: Tue, 17 Nov 2026 19:13:27 GMT
+content-type: application/javascript
+access-control-allow-origin: *
+access-control-expose-headers: x-ms-request-id,Server,x-ms-version,Content-Type,Cache-Control,ETag,Last-Modified,Content-MD5,x-ms-lease-status,x-ms-blob-type,Content-Length,Date,Transfer-Encoding
+cache-control: public, max-age=31536000, immutable
+age: 1930
+server-timing: cfExtPri
+content-md5: k+A3B0MxSbGYgsg0uDwtJQ==
+content-security-policy: frame-ancestors *
+etag: 0x8DF44DA0E78B0C9
+last-modified: Tue, 17 Nov 2026 18:39:04 GMT
+rndr-id: 9018ed1d-bfdf-4486
+server: cloudflare
+vary: Accept-Encoding
+x-ms-blob-type: BlockBlob
+x-ms-lease-status: unlocked
+x-ms-request-id: f457f23d-101e-00a5-2fc3-763f54000000
+x-ms-version: 2009-09-19
+x-render-origin-server: Windows-Azure-Blob/1.0 Microsoft-HTTPAPI/2.0
+priority: u=3,i=?0
+cf-cache-status: HIT
+cf-ray: a5c10d80d915d704-IAD
+alt-svc: h3=":443"; ma=86400

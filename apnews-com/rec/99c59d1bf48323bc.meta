@@ -1,0 +1,14 @@
+GET https://tyrion.viafoura.co/v3/settings/00000000-0000-4000-8000-3caf4df03307/map
+200 OK
+content-type: application/json; charset=utf-8
+via: 1.1 71ef67708396c311b716d7bd3b3699e2.cloudfront.net (CloudFront)
+alt-svc: h3=":443"; ma=86400
+access-control-allow-credentials: true
+access-control-allow-origin: https://apnews.com
+x-amz-cf-pop: IAD61-P15
+x-envoy-upstream-service-time: 0
+timing-allow-origin: *
+date: Tue, 17 Nov 2026 19:13:44 GMT
+server: istio-envoy
+x-cache: Miss from cloudfront
+x-amz-cf-id: ijZqiguOk5WdBZIGFkUIVBy_x_m59oGnZazqXl25qtSO_ailnbTvBA==

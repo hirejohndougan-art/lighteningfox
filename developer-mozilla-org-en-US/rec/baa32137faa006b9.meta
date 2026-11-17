@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/7678.78c0e251c48d8f5a.js
+200 OK
+referrer-policy: strict-origin-when-cross-origin
+x-guploader-uploadid: AFy3sg2jbcch1yQ3x4_KB7BUQA6VwA7lmb4tDClzhBw18RmhfjAM7-jfnOuT2zq8bBgWwmJD
+x-goog-storage-class: STANDARD
+server: Google Frontend
+etag: "d3799d933b5ad5738eb31291ed94fae0"
+x-goog-hash: crc32c=95PiFg==, md5=03mdkzta1XOOsxKR7ZT64A==
+x-frame-options: DENY
+content-type: text/javascript
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+x-cloud-trace-context: e592bba5365e7982ccb873fba35fdd96
+last-modified: Sat, 07 Nov 2026 00:50:26 GMT
+strict-transport-security: max-age=63072000
+x-goog-generation: 1794012626274056
+cache-control: public, max-age=31536000
+x-goog-metageneration: 1
+x-content-type-options: nosniff
+expires: Sat, 07 Nov 2026 02:12:16 GMT
+x-goog-stored-content-length: 1888
+x-goog-stored-content-encoding: identity
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 19:13:11 GMT
+age: 55278
+x-served-by: cache-bfi-kbfi7400071-BFI, cache-bfi-kbfi7400071-BFI, cache-bfi-kbfi7400055-BFI, cache-nyc-kteb1890065-NYC
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 1, 3
+x-timer: S1794942791.330280,VS0,VE0

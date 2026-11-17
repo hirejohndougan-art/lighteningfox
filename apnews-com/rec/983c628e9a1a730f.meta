@@ -1,0 +1,25 @@
+GET https://assets.apnews.com/04/b6/ed98f9004995bc7af2a363e88ada/memoku.svg
+200 OK
+x-guploader-uploadid: AJjja9b3KHYqsaMYKCD4vhIDuwJtTALwrr1rAdV2T7CjBZ8SSruqZI-3pTZVF0mIOtDkt1bR
+x-goog-generation: 1772724232452437
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 1520
+x-goog-meta-content-length: 1520
+x-goog-hash: crc32c=uodH0w==
+x-goog-hash: md5=rZZCMiup68FKcrNE85b1kA==
+x-goog-storage-class: STANDARD
+etag: W/"ad9642322ba9ebc14a72b344f396f590"
+priority: u=3,i=?0
+server: cloudflare
+date: Tue, 17 Nov 2026 19:13:26 GMT
+expires: Sat, 30 Oct 2027 07:46:28 GMT
+cache-control: public, max-age=31536000
+last-modified: Thu, 05 Mar 2026 15:23:52 GMT
+server-timing: cfExtPri
+content-type: image/svg+xml
+vary: Origin
+age: 1596418
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: HIT
+cf-ray: a5c10d7f7cfc0814-IAD

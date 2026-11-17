@@ -1,0 +1,14 @@
+OPTIONS https://api.puzzmo.com/graphql?op=embedConfigBootstrapQueryMutation
+204 No Content
+date: Tue, 17 Nov 2026 19:13:27 GMT
+access-control-allow-credentials: true
+access-control-allow-headers: Content-Type, Content-Length, Authorization, Accept, auth-provider, puzzmo-gameplay-id, puzzmo-external-id, puzzmo-login-key, puzzmo-embed-session, puzzmo-anon-flags, runtime, sentry-trace, baggage
+access-control-allow-methods: GET, POST, PUT, OPTIONS, HEAD, PATCH, DELETE
+access-control-allow-origin: https://www.puzzmo.com
+rndr-id: 2b4e6788-02a5-4419
+server: cloudflare
+vary: Origin
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: a5c10d81cd3fc967-IAD
+alt-svc: h3=":443"; ma=86400

@@ -1,0 +1,12 @@
+OPTIONS https://api.sail-personalize.com/v1/personalize/simple?pageviews=1&isMobile=0
+200 OK
+date: Tue, 17 Nov 2026 19:13:40 GMT
+content-type: text/plain
+content-length: 18
+vary: Origin
+access-control-allow-origin: https://apnews.com
+access-control-allow-credentials: true
+access-control-max-age: 1800
+access-control-allow-methods: OPTIONS,GET,POST,PUT,DELETE
+access-control-allow-headers: Content-Type,Authorization,X-Requested-With,Content-Length,Accept,Origin,X-Lib-Version,X-Referring-URL
+allow: HEAD,GET,OPTIONS

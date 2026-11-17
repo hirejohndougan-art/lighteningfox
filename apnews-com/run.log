@@ -1,0 +1,35 @@
+[img] https://www.gstatic.com/youtube/img/branding/player/controls/play_button.png: unknown or broken image
+[frames] started frame process 1 for puzzmo.com (pid 4830)
+[sandbox] frame renderer: Landlock ABI 8, read-only system files
+[js log] Setting clientID locally
+[js error] inline script #140: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :28:11)
+    at <main> (unknown at :20:17)
+    at <main> (unknown at :28:11)
+[js error] https://apcdp.apnews.com/script.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :278:3)
+    at <main> (unknown at :88:308)
+    at <main> (unknown at :276:501)
+    at <main> (unknown at :278:3)
+[js info] Incompatible browser.
+[js error] TypeError: not a callable function
+[js error] TypeError: not a callable function
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-KT7RHVG (||googletagmanager.com^$third-party)
+[js] couldn't load https://www.googletagmanager.com/gtm.js?id=GTM-KT7RHVG: https://www.googletagmanager.com/gtm.js?id=GTM-KT7RHVG: blocked by filter rule ||googletagmanager.com^$third-party
+[blocked] https://aax.amazon-adsystem.com/e/dtb/bid/281126.65/0/prebid?adunitid=assyq_300x250_9721730 (||amazon-adsystem.com^)
+[js error] Uncaught (in promise): ReferenceError: Attr is not defined
+    at Attr_value (unknown at :2:141154)
+    at collect (unknown at :2:142636)
+    at Yj (unknown at :2:494794)
+    at YV (unknown at :2:496521)
+    at <main> (unknown at :2:523328)
+    at <main> (unknown at :2:523340)
+[js warn] XMLHttpRequest failed: https://assets.apnews.com/resource/00000188-2a81-d28a-a1fd-7bfb6ccb0000/styles/default/All.min.6b51ae5986734c24dd9b0ca7ba39badb.gz.css: blocked by CORS (no Access-Control-Allow-Origin for https://apnews.com)
+[js warn] fetch failed: https://aax.amazon-adsystem.com/e/dtb/bid/281126.65/0/prebid?adunitid=assyq_300x250_9721730: blocked by filter rule ||amazon-adsystem.com^
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||doubleclick.net^)
+[js] couldn't load https://securepubads.g.doubleclick.net/tag/js/gpt.js: https://securepubads.g.doubleclick.net/tag/js/gpt.js: blocked by filter rule ||doubleclick.net^
+[js error] Uncaught (in promise): [object Object]
+[blocked] https://aax.amazon-adsystem.com/e/dtb/bid/414278.90/0/prebid?adunitid=oznjgx_300x250_638139 (||amazon-adsystem.com^)
+[js warn] Unable to get WebChoices Preferences TIME OUT
+[blocked] https://www.googletagservices.com/tag/js/gpt.js (||googletagservices.com^)
+[js warn] fetch failed: https://aax.amazon-adsystem.com/e/dtb/bid/414278.90/0/prebid?adunitid=oznjgx_300x250_638139: blocked by filter rule ||amazon-adsystem.com^
+https://apnews.com/: 28736 nodes, 9928 display items, 1280x16000 px, 48.002174262s total | JS: 88 scripts, 4 errors, 41.468039111s
+exit 0

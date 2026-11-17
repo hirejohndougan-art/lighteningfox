@@ -1,0 +1,19 @@
+GET https://apnews.com/zephr/features
+200 OK
+content-type: application/json; charset=UTF-8
+date: Tue, 17 Nov 2026 19:13:33 GMT
+server-timing: cfExtPri
+set-cookie: AWSALB=qd9iroqK6NvO/ZrGbUhYKFgl37LRL1Bhop1Ui+ENHymmaZ9nimY4BTPsrXOd5PoNugrJuA8YIlZgI/F9/IrBjzQHLwAN5guvusg4yCMRdI49maIk8AdcWtQ8JFAA; Expires=Tue, 24 Nov 2026 19:13:33 GMT; Path=/
+set-cookie: AWSALBCORS=qd9iroqK6NvO/ZrGbUhYKFgl37LRL1Bhop1Ui+ENHymmaZ9nimY4BTPsrXOd5PoNugrJuA8YIlZgI/F9/IrBjzQHLwAN5guvusg4yCMRdI49maIk8AdcWtQ8JFAA; Expires=Tue, 24 Nov 2026 19:13:33 GMT; Path=/; SameSite=None; Secure
+cache-control: public, max-age=300
+x-blaize-request: 71169ed
+vary: Accept-Encoding
+x-cache: Miss from cloudfront
+via: 1.1 2af44885a7fc4faf5a3444e606d6c02c.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P10
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: e1H1JG4bxcZxLuEJfHKrB_fDqL0NRXln4j0GcSu7vRusXUqp0gmXUQ==
+cf-cache-status: BYPASS
+priority: u=3,i=?0
+server: cloudflare
+cf-ray: a5c10da62dd79312-IAD

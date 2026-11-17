@@ -1,0 +1,31 @@
+[js warn] (Glean.platform.browser.SendBeaconFallbackUploader) `sendBeacon` is not available. Falling back to the `fetch` uploader.
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js error] Uncaught (in promise): Error: Hydration value mismatch: Primitive found where TemplateResult expected. This usually occurs due to conditional rendering that resulted in a different value or template being rendered between the server and client.
+    at b (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:2727)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5201)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:5584)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:12192)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11733)
+    at <main> (https://developer.mozilla.org/static/client/4585.7535b1f199327a48.js:2:11642)
+[js warn] (Glean.platform.browser.SendBeaconFallbackUploader) `sendBeacon` is not available. Falling back to the `fetch` uploader.
+[js info] (Glean.core.Upload.PingUploadManager) Ping a42b98d1-edad-443a-a889-e2b65cf06235 successfully sent 200.
+[js info] (Glean.core.Upload.PingUploadManager) Ping a455ff75-709d-4387-a5d1-449319fff9e7 successfully sent 200.
+[js warn] (Glean.platform.browser.SendBeaconFallbackUploader) `sendBeacon` is not available. Falling back to the `fetch` uploader.
+[js warn] (Glean.platform.browser.SendBeaconFallbackUploader) `sendBeacon` is not available. Falling back to the `fetch` uploader.
+[js info] (Glean.core.Upload.PingUploadManager) Ping f43acaa0-f6fe-42e1-82e7-ffeeef8f3806 successfully sent 200.
+[js info] (Glean.core.Upload.PingUploadManager) Ping cbd2abb6-446c-47ef-847d-771cfd95efbf successfully sent 200.
+https://developer.mozilla.org/en-US/: 2590 nodes, 2174 display items, 1280x2744 px, 2.762330398s total | JS: 6 scripts, 3 errors, 1.026875703s
+exit 0

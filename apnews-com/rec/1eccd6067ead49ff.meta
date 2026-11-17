@@ -1,0 +1,12 @@
+OPTIONS https://c.pub.network/v2/c
+200 OK
+access-control-allow-credentials: true
+access-control-allow-headers: content-type,x-cf-country,x-cf-state,x-cf-city
+access-control-allow-methods: POST
+access-control-allow-origin: https://apnews.com
+access-control-max-age: 1800
+vary: Origin,Access-Control-Request-Method,Access-Control-Request-Headers
+date: Tue, 17 Nov 2026 19:13:44 GMT
+content-length: 0
+via: 1.1 google
+alt-svc: h3=":443"; ma=2592000

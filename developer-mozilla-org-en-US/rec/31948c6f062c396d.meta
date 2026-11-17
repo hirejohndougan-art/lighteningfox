@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/inter-italic-latin.fd2627ec16333c05.woff2
+200 OK
+last-modified: Tue, 19 Aug 2025 15:41:06 GMT
+expires: Tue, 09 Dec 2025 16:52:43 GMT
+origin-trial: AxVILwizhbMjxFeHOn1P3R8niO1RJY/smaK4B4d1rLzc1gTaxtXMSaTi+FoigYgCw40uFRDwFcEAeqDR+vVLOW4AAABfeyJvcmlnaW4iOiJodHRwczovL2RldmVsb3Blci5tb3ppbGxhLm9yZyIsImZlYXR1cmUiOiJQcml2YXRlQXR0cmlidXRpb25WMiIsImV4cGlyeSI6MTc0MjA3OTYwMH0=
+x-goog-metageneration: 1
+x-goog-storage-class: STANDARD
+x-goog-generation: 1755618066855834
+cache-control: public, max-age=31536000
+x-goog-hash: crc32c=DC4/lA==, md5=Vh6cggyGVe9Fh7u6N2rj7g==
+server: Google Frontend
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+referrer-policy: strict-origin-when-cross-origin
+x-goog-stored-content-length: 115932
+x-goog-stored-content-encoding: identity
+x-cloud-trace-context: 7c5aba001ffb2e8d3242322edd61a261
+x-frame-options: DENY
+x-content-type-options: nosniff
+x-guploader-uploadid: AHVrFxM2JXvPLovHZ6IOwirzIJh2NABQ95BJKZE-3xJxGm41Upx6iWBmw2n_EIgqVMlrwTeq
+content-type: font/woff2
+etag: "561e9c820c8655ef4587bbba376ae3ee"
+strict-transport-security: max-age=63072000
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 19:13:10 GMT
+age: 51883
+x-served-by: cache-bfi-krnt7300089-BFI, cache-bfi-krnt7300089-BFI, cache-nyc-kteb1890065-NYC
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 1470, 20
+x-timer: S1794942791.833427,VS0,VE0
+content-length: 115932

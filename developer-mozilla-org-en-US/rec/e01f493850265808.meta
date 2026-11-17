@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/3708.c45faaa59ea2b8df.js
+200 OK
+x-goog-stored-content-encoding: identity
+x-goog-hash: crc32c=ITrdRw==, md5=gepVrtbtQxZn89wwFf0iqg==
+x-goog-storage-class: STANDARD
+etag: "81ea55aed6ed431667f3dc3015fd22aa"
+x-goog-metageneration: 1
+x-goog-generation: 1793666402714182
+server: Google Frontend
+content-type: text/javascript
+referrer-policy: strict-origin-when-cross-origin
+x-frame-options: DENY
+x-content-type-options: nosniff
+last-modified: Tue, 03 Nov 2026 00:40:02 GMT
+expires: Tue, 03 Nov 2026 01:45:22 GMT
+strict-transport-security: max-age=63072000
+x-cloud-trace-context: 623e202d8dcfacc623574202d0bace36
+x-goog-stored-content-length: 1069
+x-guploader-uploadid: AFy3sg3gsuKY85nmV_smqymxJx9WM1U8uoKxoc6N47uC_gNSaabowK7VHWg2TD09M9G4Qs7EPE1rIHs
+cache-control: public, max-age=31536000
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 19:13:11 GMT
+age: 714039
+x-served-by: cache-bfi-kbfi7400020-BFI, cache-bfi-kbfi7400020-BFI, cache-bfi-kbfi7400036-BFI, cache-nyc-kteb1890065-NYC
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 6, 33
+x-timer: S1794942791.145058,VS0,VE0

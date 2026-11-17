@@ -1,0 +1,15 @@
+GET https://d.pub.network/v2/sites/apnews-com/configs?env=PROD&cb=29915713
+200 OK
+date: Tue, 17 Nov 2026 19:13:31 GMT
+set-cookie: _fsuid=976f6fc5-17ff-42b5-97df-4daae598c01c; path=/; Domain=.pub.network; Max-Age=63113904; SameSite=None; Secure; HttpOnly=true;
+vary: Origin
+vary: Access-Control-Request-Method
+vary: Access-Control-Request-Headers
+vary: Accept-Encoding, User-Agent
+access-control-allow-origin: https://apnews.com
+access-control-allow-credentials: true
+content-type: application/json
+alt-svc: h3=":443"; ma=2592000
+via: 1.1 google
+strict-transport-security: max-age=31536000
+x-external-managed-migration-selected-scheme: EXTERNAL

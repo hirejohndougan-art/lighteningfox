@@ -1,0 +1,21 @@
+POST https://apnews.com/zephr/feature-decisions
+200 OK
+content-type: application/json; charset=UTF-8
+date: Tue, 17 Nov 2026 19:13:45 GMT
+server-timing: cfExtPri
+vary: Accept-Encoding
+set-cookie: AWSALB=RhVv4G+kXxfYhxujZQNmiP0J7sSaLIo3DeQVPE+Nyx+/3gx45qS38/HGIrAroAHohrdu6I8/w2Sk+cGrenZMtsE6W25KsVe9NI1sYzM5ZzMDp5ApcRQwGTRevnie; Expires=Tue, 24 Nov 2026 19:13:45 GMT; Path=/
+set-cookie: AWSALBCORS=RhVv4G+kXxfYhxujZQNmiP0J7sSaLIo3DeQVPE+Nyx+/3gx45qS38/HGIrAroAHohrdu6I8/w2Sk+cGrenZMtsE6W25KsVe9NI1sYzM5ZzMDp5ApcRQwGTRevnie; Expires=Tue, 24 Nov 2026 19:13:45 GMT; Path=/; SameSite=None; Secure
+set-cookie: blaize_session=cd440be5-f108-45fb-847a-786dc5bebd0c; Expires=Tue, 6 Apr 2027 19:13:45 GMT; Path=/;
+set-cookie: blaize_tracking_id=ce6bf429-0733-4718-aa8e-2db1c2205ffc; Expires=Wed, 22 Dec 2027 19:13:45 GMT; Path=/;
+cache-control: no-cache, no-store, must-revalidate
+x-blaize-request: c48f4754
+x-cache: Miss from cloudfront
+via: 1.1 b4011ac432e4f034161d5cccc8a4ac80.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P10
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: lz6FINHSEAsIy5sVuQtTipk3uk-wfa76nN6bj9-bM5cSXy7B8ho_YQ==
+cf-cache-status: DYNAMIC
+priority: u=3,i=?0
+server: cloudflare
+cf-ray: a5c10df34acd9312-IAD

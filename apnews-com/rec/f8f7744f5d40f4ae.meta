@@ -1,0 +1,26 @@
+GET https://a.pub.network/apnews-com/pubfig.engine.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg3UKMEDW7UE_qGMtbLVAO9-SAVBotSO9vVG8KGwnykXMh12oj3WAiQr8nIDdgBLlWk9XN5mooc
+date: Tue, 17 Nov 2026 19:13:47 GMT
+cache-control: public, max-age=1800
+expires: Mon, 09 Nov 2026 17:01:08 GMT
+last-modified: Mon, 09 Nov 2026 17:00:07 GMT
+priority: u=3,i=?0
+x-goog-generation: 1794243607352098
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 713680
+x-goog-hash: crc32c=qwBP1g==
+x-goog-hash: md5=COy0Cm8DFidUePNdNfmUdg==
+x-goog-storage-class: MULTI_REGIONAL
+etag: W/"08ecb40a6f0316275478f35d35f99476"
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+access-control-allow-origin: *
+access-control-expose-headers: *
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 699218
+cf-cache-status: HIT
+server-timing: cfExtPri
+cf-ray: a5c10dfc8b062096-IAD

@@ -1,0 +1,15 @@
+GET https://developer.mozilla.org/api/v1/whoami
+200 OK
+server: Google Frontend
+accept-ranges: bytes
+content-type: application/json
+x-cloud-trace-context: 6fe7460632f69e11acdf87a461935e1c/6590673780042405216
+traceparent: 00-6fe7460632f69e11acdf87a461935e1c-5b76c6e251e89560-00
+via: 1.1 google, 1.1 google, 1.1 varnish, 1.1 varnish
+date: Tue, 17 Nov 2026 19:13:11 GMT
+x-served-by: cache-nyc-kteb1890065-NYC, cache-nyc-kteb1890065-NYC, cache-nyc-kteb1890065-NYC
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1794942791.084752,VS0,VE121
+vary: Accept-Encoding
+content-length: 187

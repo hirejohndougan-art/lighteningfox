@@ -1,0 +1,18 @@
+OPTIONS https://optimise.net/?k=0&d=apnews.com&t=desktop&c=US&r=20&floorsVersion=v2
+200 OK
+date: Tue, 17 Nov 2026 19:13:47 GMT
+access-control-allow-origin: https://apnews.com
+access-control-allow-credentials: true
+access-control-allow-methods: ACL, CANCELUPLOAD, CHECKIN, CHECKOUT, COPY, DELETE, GET, HEAD, LOCK, MKCALENDAR, MKCOL, MOVE, OPTIONS, POST, PROPFIND, PROPPATCH, PUT, REPORT, SEARCH, UNCHECKOUT, UNLOCK, UPDATE, VERSION-CONTROL
+access-control-max-age: 3600
+access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Key, Authorization, x-api-key, x-lm, x-ab-test-id, x-test-config-id, timeouts-active, x-gucpm
+access-control-expose-headers: fs-client-rtt,fs-country
+strict-transport-security: max-age=31536000
+content-length: 0
+via: 1.1 google
+fs-client-rtt: 2
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+expires: 0
+pragma: no-cache
+fs-country: US
+alt-svc: h3=":443"; ma=2592000

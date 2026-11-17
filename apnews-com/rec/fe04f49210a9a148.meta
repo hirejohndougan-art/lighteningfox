@@ -1,0 +1,20 @@
+GET https://dims.apnews.com/dims4/default/0d7764a/2147483647/strip/true/crop/2851x1534+0+0/resize/240x129!/format/webp/quality/90/?url=https%3A%2F%2Fassets.apnews.com%2F22%2F25%2F9576fafb4e768552fed602a60238%2Fap-pri-wordmarktagline-rgb-dbg.png
+200 OK
+date: Tue, 17 Nov 2026 19:13:26 GMT
+server: cloudflare
+cache-control: public, max-age=31536000
+edge-control: downstream-ttl=31536000
+expires: Thu, 28 Oct 2027 05:13:35 GMT
+server-timing: cfExtPri
+content-type: image/webp
+x-envoy-upstream-service-time: 228
+x-envoy-decorator-operation: brightspot-dims-verify.prod-news.svc.cluster.local:80/*
+via: 1.1 google
+alt-svc: h3=":443"; ma=86400
+age: 1778391
+accept-ranges: bytes
+last-modified: Wed, 28 Oct 2026 05:13:35 GMT
+cf-cache-status: HIT
+priority: u=3,i=?0
+cf-ray: a5c10d7f7e989312-IAD
+content-length: 4300

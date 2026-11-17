@@ -1,0 +1,13 @@
+GET https://apnews.com/cdn-cgi/challenge-platform/h/b/scripts/precursor/f8df4d4a0cd6/main.js?ray=a5c10d74d8014944
+200 OK
+content-type: application/javascript; charset=UTF-8
+cache-control: private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+x-content-type-options: nosniff
+cross-origin-opener-policy: same-origin
+server-timing: cfExtPri
+date: Tue, 17 Nov 2026 19:13:42 GMT
+set-cookie: __cf_bm=4ZT1ewHoPHFT5qyddB1YTM8P9Q9PeYlIYvzdcftxxoQ-1794942822.3911726-1.0.1.1-uXs4PdA.xGbJKnoZ4o72CGhKd.pu3k_HnAEjDJOd0lwzgdkJjuS0tT1XnUO.l.V_BvwduD45Nms3BLWFfWwUHpptZpHcMs7UgGFkaAU24udly9jGwuJ4DuJEMy4dK99m2P8l84yMGvEj6Qq.UPyd7w; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=apnews.com; Expires=Tue, 17 Nov 2026 19:43:42 GMT
+server: cloudflare
+priority: u=3,i=?0
+cf-ray: a5c10ddfef5a9312-IAD
+alt-svc: h3=":443"; ma=86400

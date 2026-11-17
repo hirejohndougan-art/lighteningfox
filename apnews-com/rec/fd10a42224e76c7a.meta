@@ -1,0 +1,12 @@
+GET https://jadserve.postrelease.com/t?ntv_mvi=&ntv_kv=content*topnews%2Chome&ntv_url=https%253A%252F%252Fapnews.com%252F
+200 OK
+date: Tue, 17 Nov 2026 19:13:44 GMT
+content-type: text/javascript;charset=UTF-8
+set-cookie: visitor=f70cb49d-ddbf-48b8-a8f7-e7269bf009b3; Expires=Wed, 17 Nov 2027 19:13:44 GMT; Max-Age=31536000; Domain=postrelease.com; Path=/; Secure; SameSite=None;
+set-cookie: status=0; Expires=Wed, 17 Nov 2027 19:13:44 GMT; Max-Age=31536000; Domain=postrelease.com; Path=/; Secure; SameSite=None;
+expires: Mon, 1 Jan 1990 12:00:00 GMT
+cache-control: no-store, no-cache, must-revalidate
+cache-control: post-check=0, pre-check=0
+pragma: no-cache
+access-control-allow-origin: *
+p3p: CP="CURa ADMa DEVa TAIo PSAo PSDo OUR IND UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR"

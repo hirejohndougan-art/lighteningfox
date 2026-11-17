@@ -1,0 +1,10 @@
+GET https://www.gstatic.com/youtube/img/branding/player/controls/play_button.png
+404 Not Found
+cross-origin-resource-policy: cross-origin
+content-type: text/html; charset=UTF-8
+x-content-type-options: nosniff
+date: Tue, 17 Nov 2026 19:13:26 GMT
+server: sffe
+content-length: 1613
+x-xss-protection: 0
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000

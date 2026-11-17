@@ -1,0 +1,26 @@
+GET https://assets.apnews.com/resource/00000188-2a81-d28a-a1fd-7bfb6ccb0000/assets/fonts/APCustomFont/APW05-SemiCondensed.d6d1dd4cf415654d766572b8828ac316.woff2
+200 OK
+x-guploader-uploadid: AJjja9a9y8WG3yaSeZNoRfDNXJG_k8qr0F4UedqUeueK9mAEfI9At0h9_CPyvp6DR3Gyyz1-EqEKiTQ
+x-goog-generation: 1686087702664007
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 51300
+x-goog-hash: crc32c=lvLHhA==
+x-goog-hash: md5=BoblOyY9csYru8C/yCa9FQ==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+server: cloudflare
+date: Tue, 17 Nov 2026 19:13:26 GMT
+expires: Fri, 29 Oct 2027 09:02:02 GMT
+cache-control: public, max-age=31536000
+last-modified: Tue, 06 Jun 2023 21:41:42 GMT
+etag: "0686e53b263d72c62bbbc0bfc826bd15"
+content-type: application/octet-stream
+vary: Origin
+age: 1678284
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: HIT
+priority: u=3,i=?0
+cf-ray: a5c10d7f8d080814-IAD
+content-length: 51300

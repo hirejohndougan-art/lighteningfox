@@ -1,0 +1,27 @@
+GET https://assets.apnews.com/63/c3/4a44412a40d3a3a38e85f2e603b9/group-1.png
+200 OK
+content-type: image/png
+x-guploader-uploadid: AKhXX7IICwbrI5xAAUBBhqF3WgAHbRh9cCuydlDyuCcDVRovCkAH5DN1cJMhfC8ItnqtYGIZLmFE2j4
+date: Tue, 17 Nov 2026 19:13:26 GMT
+cache-control: public, max-age=31536000
+expires: Fri, 29 Oct 2027 07:18:54 GMT
+last-modified: Thu, 30 Jul 2026 14:57:19 GMT
+etag: "b1eadc882486d83d92ee399ca45ee409"
+x-goog-generation: 1785423439788102
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 66914
+x-goog-meta-content-length: 66914
+x-goog-hash: crc32c=W17EKA==
+x-goog-hash: md5=serciCSG2D2S7jmcpF7kCQ==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+vary: Origin
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 1684471
+cf-cache-status: HIT
+priority: u=3,i=?0
+cf-ray: a5c10d7dbc910814-IAD
+content-length: 66914

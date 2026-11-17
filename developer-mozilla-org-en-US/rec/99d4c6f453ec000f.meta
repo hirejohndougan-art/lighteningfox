@@ -1,0 +1,14 @@
+POST https://incoming.telemetry.mozilla.org/submit/mdn-fred/events/1/f43acaa0-f6fe-42e1-82e7-ffeeef8f3806
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 19:13:12 GMT
+content-type: text/plain; charset=utf-8
+vary: Accept-Encoding
+strict-transport-security: max-age=31536000
+x-frame-options: DENY
+access-control-allow-origin: https://developer.mozilla.org
+access-control-allow-methods: GET, POST, PUT, OPTIONS
+access-control-max-age: 1728000
+access-control-allow-headers: Accept-Encoding,Connection,Content-Encoding,Content-Length,Content-Type,DNT,Date,Sec-Fetch-Dest,Sec-Fetch-Mode,Sec-Fetch-Site,User-Agent,X-Client-Type,X-Client-Version,X-Debug-ID,X-Forwarded-For,X-Pingsender-Version,X-Pipeline-Proxy,X-Source-Tags,X-Telemetry-Agent
+alt-svc: h3=":443"; ma=2592000
+via: 1.1 google

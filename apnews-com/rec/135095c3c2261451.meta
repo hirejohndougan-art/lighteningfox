@@ -1,0 +1,23 @@
+GET https://cdn.mintthimblemedley.apnews.com/heraldgouda.js
+200 OK
+date: Tue, 17 Nov 2026 19:13:25 GMT
+content-type: application/javascript
+cf-ray: a5c10d760bc8c97b-IAD
+cf-cache-status: HIT
+age: 0
+cache-control: public, max-age=900
+etag: W/"d56d189bc452b082a05b8ca4eeebf0f0"
+expires: Tue, 17 Nov 2026 19:28:25 GMT
+last-modified: Mon, 16 Nov 2026 15:58:36 GMT
+server: cloudflare
+vary: accept-encoding
+timing-allow-origin: *
+x-goog-generation: 1794844716243401
+x-goog-hash: crc32c=O/kzsA==
+x-goog-hash: md5=1W0Ym8RSsIKgW4yk7uvw8A==
+x-goog-meta-oid: 507b28fb-2ef1-4c34-8bda-ba32030bb199
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: br
+x-goog-stored-content-length: 150153
+x-guploader-uploadid: AFy3sg3gyz1t-n-QqCA7XrGgtWAgvPI0eyBZ5J6waSqWyrVqsb6yZM8qfdtnoMAiyPARrzpT

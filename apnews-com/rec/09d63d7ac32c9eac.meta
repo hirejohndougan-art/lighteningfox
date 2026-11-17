@@ -1,0 +1,19 @@
+GET https://js.sentry-cdn.com/8032e6bd5e7841b5b7d6633c985e04cb.min.js
+200 OK
+content-type: text/javascript
+access-control-allow-origin: *
+cache-control: public, max-age=3600, s-maxage=60, stale-while-revalidate=315360000, stale-if-error=315360000
+x-frame-options: deny
+x-content-type-options: nosniff
+x-xss-protection: 1; mode=block
+cross-origin-opener-policy-report-only: same-origin; report-to="coop-endpoint"
+report-to: {"group":"coop-endpoint","max_age":86400,"endpoints":[{"url":"https://sentry-coop-302178938983.us-central1.run.app/coop"}]}
+content-security-policy: frame-src app.pendo.io demo.arcade.software js.stripe.com sentry.io 'self' intercom-sheets.com www.intercom-reporting.com; media-src *; script-src 'self' 'unsafe-inline' 'report-sample' s1.sentry-cdn.com js.sentry-cdn.com browser.sentry-cdn.com statuspage-production.s3.amazonaws.com aui-cdn.atlassian.com connect-cdn.atl-paas.net js.stripe.com 'strict-dynamic' cdn.pendo.io data.pendo.io pendo-io-static.storage.googleapis.com pendo-static-5634074999128064.storage.googleapis.com app.intercom.io widget.intercom.io js.intercomcdn.com; object-src 'none'; base-uri 'none'; font-src * data:; default-src 'none'; img-src * blob: data:; connect-src 'self' *.algolia.net *.algolianet.com *.algolia.io browser.sentry-cdn.com sentry.io *.sentry.io s1.sentry-cdn.com o1.ingest.sentry.io api2.amplitude.com app.pendo.io data.pendo.io reload.getsentry.net t687h3m0nh65.statuspage.io maps.googleapis.com *.intercom.io wss://*.intercom.io *.intercom-messenger.com wss://*.intercom-messenger.com uploads.intercomcdn.com uploads.intercomusercontent.com; style-src * 'unsafe-inline'; worker-src 'self' blob:; frame-ancestors 'self' *.sentry.io; report-uri https://o1.ingest.sentry.io/api/54785/security/?sentry_key=f724a8a027db45f5b21507e7142ff78e&sentry_release=9240fb8e30900ea9cff394d20e86d475e53aa180
+x-envoy-upstream-service-time: 23
+strict-transport-security: max-age=31536000; includeSubDomains
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 19:13:27 GMT
+age: 17
+x-served-by: cache-chi-kigq8000086-CHI, cache-iad-kcgs7200022-IAD
+vary: Accept-Encoding
+timing-allow-origin: *

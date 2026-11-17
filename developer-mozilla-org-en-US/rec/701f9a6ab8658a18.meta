@@ -1,0 +1,31 @@
+GET https://developer.mozilla.org/en-US/
+200 OK
+x-guploader-uploadid: AFy3sg3Z3ZfsPE53-XtL0NnnKkNkDI1PM4gL-vaOcuUapBQZxIeSGDd3MmsuZCBObdnz5g
+strict-transport-security: max-age=63072000
+expires: Tue, 17 Nov 2026 02:23:44 GMT
+referrer-policy: strict-origin-when-cross-origin
+x-cloud-trace-context: 77552fc83a28f37cda5071918d984a08
+x-goog-generation: 1794876568784889
+content-type: text/html
+last-modified: Tue, 17 Nov 2026 00:49:28 GMT
+x-goog-stored-content-length: 118790
+x-goog-meta-goog-reserved-file-mtime: 1794875631
+x-goog-metageneration: 1
+content-security-policy: default-src 'self'; script-src 'report-sample' 'self' 'wasm-unsafe-eval' assets.codepen.io production-assets.codepen.io https://js.stripe.com transcend-cdn.com 'sha256-XNBp89FG76amD8BqrJzyflxOF9PaWPqPqvJfKZPCv7M=' 'sha256-YCNoU9DNiinACbd8n6UPyB/8vj0kXvhkOni9/06SuYw=' 'sha256-PZjP7OR6mBEtnvXIZfCZ5PuOlxoDF1LDZL8aj8c42rw='; script-src-elem 'report-sample' 'self' 'wasm-unsafe-eval' assets.codepen.io production-assets.codepen.io https://js.stripe.com transcend-cdn.com 'sha256-XNBp89FG76amD8BqrJzyflxOF9PaWPqPqvJfKZPCv7M=' 'sha256-YCNoU9DNiinACbd8n6UPyB/8vj0kXvhkOni9/06SuYw=' 'sha256-PZjP7OR6mBEtnvXIZfCZ5PuOlxoDF1LDZL8aj8c42rw='; style-src 'report-sample' 'self' 'unsafe-inline' transcend-cdn.com; object-src 'none'; base-uri 'self'; connect-src 'self' developer.allizom.org bcd.developer.allizom.org bcd.developer.mozilla.org updates.developer.allizom.org updates.developer.mozilla.org https://incoming.telemetry.mozilla.org https://observatory-api.mdn.allizom.net https://observatory-api.mdn.mozilla.net telemetry.transcend.io telemetry.us.transcend.io transcend-cdn.com https://api.github.com/search/issues https://api.stripe.com; font-src 'self'; frame-src 'self' mdn.github.io *.mdnplay.dev *.mdnyalp.dev *.play.test.mdn.allizom.net https://v2.scrimba.com https://scrimba.com jsfiddle.net www.youtube-nocookie.com codepen.io survey.alchemer.com https://js.stripe.com; img-src 'self' data: *.githubusercontent.com *.gravatar.com mozillausercontent.com firefoxusercontent.com profile.stage.mozaws.net profile.accounts.firefox.com developer.mozilla.org mdn.dev wikipedia.org upload.wikimedia.org https://mdn.github.io/shared-assets/ https://mdn.dev/; manifest-src 'self'; media-src 'self' archive.org videos.cdn.mozilla.net https://mdn.github.io/shared-assets/; child-src 'self'; worker-src 'self';
+etag: "3a8ce56f63641b7bad891cb8d12ea541"
+x-content-type-options: nosniff
+x-goog-storage-class: STANDARD
+x-goog-hash: crc32c=R0MXDA==, md5=Oozlb2NkG3utiRy40S6lQQ==
+x-frame-options: DENY
+server: Google Frontend
+x-goog-stored-content-encoding: identity
+cache-control: public, max-age=3600
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 19:13:10 GMT
+age: 2774
+x-served-by: cache-bfi-krnt7300047-BFI, cache-bfi-krnt7300047-BFI, cache-bfi-krnt7300047-BFI, cache-nyc-kteb1890065-NYC
+x-cache: MISS, MISS, HIT
+x-cache-hits: 0, 0, 1
+x-timer: S1794942791.775664,VS0,VE2

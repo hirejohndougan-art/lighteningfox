@@ -1,0 +1,23 @@
+GET https://assets.bounceexchange.com/assets/smart-tag/versioned/cjs_min_0fb2e79d6d9d9c1e8f577a3a805350a8.js
+200 OK
+x-guploader-uploadid: AFy3sg2VeSseiR9i8DOKX9Or9GopvqWiHj914vEOosZDvBvU3_mW-3mFyyzax_2BKUi5q_p9M0cHqSE
+x-goog-generation: 1778681069073509
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 16120
+alt-svc: h3=":443"; ma=2592000
+x-goog-hash: crc32c=4rfiCQ==
+x-goog-hash: md5=zIddjh1ewkuq61DyVkiMsg==
+x-goog-storage-class: MULTI_REGIONAL
+accept-ranges: bytes
+ad-auction-allowed: true
+access-control-allow-origin: *
+access-control-expose-headers: etag
+access-control-expose-headers: Content-Type
+server: UploadServer
+date: Wed, 04 Nov 2026 00:25:32 GMT
+age: 1190916
+last-modified: Wed, 13 May 2026 14:04:29 GMT
+etag: "cc875d8e1d5ec24baaeb50f256488cb2"
+content-type: text/javascript; charset=utf-8
+cache-control: public,max-age=31536000,no-transform

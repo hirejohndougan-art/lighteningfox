@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Puzzmo Embedded Game Runner</title>
+    <meta name="description" content="Puzzmo Embedded Game Runner" />
+    <meta name="robots" content="noindex, nofollow" />
+    <script type="module" crossorigin src="https://www.puzzmo.com/_embed/assets/index-D438o2Z3.js"></script>
+  </head>
+  <body style="height: 100%; width: 100%; position: fixed; display: flex; flex-direction: column; padding: 0; margin: 0">
+    <div id="game-chrome-above" style="position: relative; flex: 1"></div>
+    <div id="game-render-target" style="position: relative; flex: 1; max-height: 100vh; flex-basis: 100%"></div>
+    <div id="game-chrome-below" style="position: relative; flex: 1"></div>
+    <style id="main-fonts"></style>
+
+    <script>
+      // Configure sentryOnLoad before adding the Loader Script
+      const isStaging = document.location.hostname.includes("staging.puzzmo")
+      const isLocal = document.location.hostname.includes("localhost")
+      const urlParams = new URLSearchParams(document.location.search)
+      const hashParams = new URLSearchParams(document.location.hash.startsWith("#") ? document.location.hash.substring(1) : "")
+      const params = new URLSearchParams([...urlParams, ...hashParams])
+      const embedID = params.get("embedID") || ""
+
+      // Skip sending errors for these embeds
+      const noErrorEmbedIDs = [
+        "wmle",
+        "hgtv-flipart-header-daily",
+        "food-network-typeshift-header-daily",
+        "tlc-spelltower-header-daily",
+        "wm-weather-inline",
+      ]
+
+      window.sentryOnLoad = function () {
+        if (typeof window["Sentry"] !== "undefined" && !params.get("sandbox")) {
+          const sentry = window["Sentry"]
+
+          try {
+            sentry.init({
+              dsn: "https://7eadc119ffc04266a1e1334a793783ad@o1223952.ingest.sentry.io/6368499",
+              debug: !isStaging,
+              environment: isLocal ? "dev" : isStaging ? "staging" : "production",
+              release: "latest",
+              sampleRate: isStaging ? 1 : 0.1,
+              tracesSampleRate: isStaging ? 0.5 : 0.1,
+              denyUrls: ["https://*.ftstatic.com/**", "*.cloudfront.net/**", "*.ftcdn.net/**"],
+              ignoreErrors: [
+                /pageFold/,
+                // Out of our control, https://github.com/getsentry/sentry-javascript/issues/3440
+                /Object Not Found Matching Id/,
+                // Same error but captured as non-Error promise rejection
+                /Non-Error promise rejection captured with value:.*Object Not Found Matching Id/,
+                /loading dynamically imported module: https:\/\/www.puzzmo.com\/assets\//,
+                /Failed to fetch dynamically imported module: https:\/\/www.puzzmo.com\/assets\//,
+              ],
+              beforeSend(event) {
+                if (noErrorEmbedIDs.includes(embedID) || embedID.includes("-cdn")) {
+                  return null
+                }
+                // Filter out Unity WebGL bridge errors (non-Error promise rejections)
+                const message = event.exception?.values?.[0]?.value || ""
+                if (message.includes("Object Not Found Matching Id")) {
+                  return null
+                }
+                const ignore = ["ftUtils.js", "cloudfront.net", "ftcdn.net"]
+                const anyFound = event.exception?.values?.some((ex) =>
+                  ex.stacktrace?.frames?.some((frame) => ignore.some((i) => frame.filename?.includes(i))),
+                )
+
+                if (anyFound) return null
+                return event
+              },
+            })
+            sentry.setTag("embedID", embedID)
+          } catch (e) {
+            console.error("Failed to initialize sentry", e)
+          }
+        }
+      }
+    </script>
+    <!-- Minimal sentry SDK loader, it will load up something like https://browser.sentry-cdn.com/7.29.0/bundle.es5.js async + minimized -->
+    <!-- async so a slow sentry-cdn doesn't block parsing, which delays the runtime module script -->
+    <script
+      async
+      src="https://js.sentry-cdn.com/8032e6bd5e7841b5b7d6633c985e04cb.min.js"
+      crossorigin="anonymous"
+      onerror="console.log('Failed to load sentry, this should be OK though, its only for crash reporting.')"
+    ></script>
+    <script>
+      const mainFonts = document.getElementById("main-fonts")
+
+      const root = "https://cdn.puzzmo.com/assets"
+
+      const imports = [
+        [
+          "RedHatMono",
+          ["Bold", "BoldItalic", "Italic", "Light", "LightItalic", "Medium", "MediumItalic", "Regular", "SemiBold", "SemiBoldItalic"],
+        ],
+        [
+          "Poppins",
+          [
+            "Black",
+            "BlackItalic",
+            "Bold",
+            "BoldItalic",
+            "ExtraBold",
+            "ExtraBoldItalic",
+            "ExtraLight",
+            "ExtraLightItalic",
+            "Italic",
+            "Light",
+            "LightItalic",
+            "Medium",
+            "MediumItalic",
+            "Regular",
+            "SemiBold",
+            "SemiBoldItalic",
+            "Thin",
+            "ThinItalic",
+          ],
+        ],
+        ["Dongle", ["Light", "Bold"]],
+        [
+          "Zodiak",
+          [
+            "Black",
+            "BlackItalic",
+            "Bold",
+            "BoldItalic",
+            "Extrabold",
+            "ExtraboldItalic",
+            "Italic",
+            "Light",
+            "LightItalic",
+            "Regular",
+            "Thin",
+            "ThinItalic",
+            "Variable",
+            "VariableItalic",
+          ],
+        ],
+      ]
+
+      const codegenCSS = []
+      for (var i = 0; i < imports.length; i++) {
+        const family = imports[i][0]
+        const weights = imports[i][1]
+        for (var j = 0; j < weights.length; j++) {
+          const weight = weights[j]
+          codegenCSS.push(`
+            @font-face {
+              font-family: ${family}-${weight};
+              src: url(${root}/fonts-subset/${family}-${weight}-subset.ttf);
+              font-display: auto;
+            }
+          `)
+        }
+      }
+
+      const css = `
+      @font-face {
+        font-family: LeagueSpartan;
+        src: url(${root}/fonts-subset/LeagueSpartanVariable-subset.ttf);
+        font-display: auto;
+        font-weight: 200 800;
+        font-style: normal;
+      }
+
+      @font-face {
+        font-family: LeagueSpartanBold;
+        src: url(${root}/fonts/LeagueSpartan-Bold.ttf);
+      }
+
+      @font-face {
+        font-family: Zodiak-Variable;
+        src: url(${root}/fonts-subset/Zodiak-Variable-subset.ttf);
+        font-display: auto;
+      }
+      @font-face {
+        font-family: Zodiak-VariableItalic;
+        src: url(${root}/fonts-subset/Zodiak-VariableItalic-subset.ttf);
+        font-display: auto;
+      }
+      @font-face {
+        font-family: Dongle-Regular;
+        src: url(${root}/fonts-subset/VERTICALLY_ALTERED_Dongle-Regular-subset.woff);
+        font-display: auto;
+      }
+      @font-face {
+        font-family: CodyStar-Regular;
+        src: url(${root}/fonts-subset/Codystar-Regular-subset.ttf);
+        font-display: auto;
+      }
+      `
+      const style = document.createElement("style")
+      style.type = "text/css"
+
+      if (style.styleSheet) {
+        style.styleSheet.cssText = css
+      } else {
+        style.appendChild(document.createTextNode(css + codegenCSS.join("\n")))
+      }
+      document.head.appendChild(style)
+    </script>
+  </body>
+</html>

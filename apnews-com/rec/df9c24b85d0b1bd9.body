@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <title>User authentication is required</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Raleway" rel="stylesheet">
+  <style>
+      body {
+        padding: 3em 0;
+        font-family: Raleway, Sans-Serif;
+        text-align: center;
+        color: #666;
+        margin: 0;
+        background-color: #eee;
+      }
+      h1 {
+        background-color: white;
+        border-top: 1px solid #666;
+        border-bottom: 1px solid #666;
+        padding: 1em;
+      }
+      p {
+        font-size: 1.6rem;
+      }
+      svg {
+        width: 5%;
+        min-width: 100px;
+        height: 5%;
+        min-height: 100px;
+        position: fixed;
+        bottom: 1em;
+        left: 1em;
+      }
+    </style>
+</head>
+<body>
+<h1>User authentication is required</h1>
+<p>
+  We apologize for any inconvenience.
+</p>
+<span>Reason: .</span>
+<script>window.__CF$cv$params={r:'a5c10deb69679312',t:'MTc5NDk0MjgyNA==',u:'01a1eaeda5147301bbb9e0b92666fba5',ut:'YuZejLbWUBVQDaSQq3CRLCkJ66IYOd5JA1UFQeCpoGo-1794942824-1.2.1.1-oUC_hsNx3UJnCOsQu36bWO_5Z5ZGGBURi220KezJZcAccBkKzMa.D1IADkAn6Ssu265K9Hu01j.T8IN7Dypvok9bKSFmGguVvVXMpUBlEPI',i:60};(function(){if(!document.body)return;var l=window.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/precursor/main.js?ray=a5c10deb69679312',s=document.createElement('script');s.src=o?new URL(u,o).href:u;document.head.appendChild(s);})();</script></body>
+</html>

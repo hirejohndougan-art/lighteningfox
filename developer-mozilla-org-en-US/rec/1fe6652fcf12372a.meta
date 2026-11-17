@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/inter-italic-cyrillic.d153dcd2916c4842.woff2
+200 OK
+referrer-policy: strict-origin-when-cross-origin
+x-goog-hash: crc32c=tNGeyA==, md5=A7piEYF1ezcysSeljs+Vyw==
+strict-transport-security: max-age=63072000
+x-frame-options: DENY
+x-goog-stored-content-length: 31700
+x-goog-generation: 1791284474154479
+x-goog-stored-content-encoding: identity
+x-guploader-uploadid: AP6rU81t8YVB_rfYdiA-PDU72gUz-4UUenKYzI8pTcONJH3zikQZ9SodjckTMmmmqHnH4bdMOKPXwR8
+expires: Sat, 17 Oct 2026 13:54:32 GMT
+last-modified: Tue, 06 Oct 2026 11:01:14 GMT
+content-type: font/woff2
+x-goog-metageneration: 1
+x-goog-storage-class: STANDARD
+cache-control: public, max-age=31536000
+x-cloud-trace-context: eb6856e2baa18eb15a14fe520e6ba795
+etag: "03ba621181757b3732b127a58ecf95cb"
+x-goog-meta-goog-reserved-file-mtime: 1755618066
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+server: Google Frontend
+x-content-type-options: nosniff
+accept-ranges: bytes
+age: 497333
+date: Tue, 17 Nov 2026 19:13:10 GMT
+x-served-by: cache-bfi-krnt7300110-BFI, cache-bfi-krnt7300110-BFI, cache-bfi-krnt7300116-BFI, cache-nyc-kteb1890065-NYC
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 40, 0
+x-timer: S1794942791.832982,VS0,VE3
+content-length: 31700

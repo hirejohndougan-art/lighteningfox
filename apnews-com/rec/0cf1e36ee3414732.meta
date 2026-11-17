@@ -1,0 +1,31 @@
+HEAD https://a.pub.network/core/imgs/1.png
+200 OK
+x-guploader-uploadid: AJjja9ZOTV0_NBMq5jkLIegvzN7DGHSWLMT2UH4GcRpxcyVj2lC_2VyefK91myPKaTcc9hHnRAkRGm8
+x-goog-generation: 1732115582035222
+x-goog-metageneration: 2
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 95
+x-goog-hash: crc32c=a/BhMw==
+x-goog-hash: md5=caUNu6RMeBKLIht997tR8Q==
+x-goog-storage-class: MULTI_REGIONAL
+x-latitude: 39.04372
+etag: W/"71a50dbba44c78128b221b7df7bb51f1"
+access-control-allow-origin: *
+access-control-expose-headers: *, Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+server: cloudflare
+date: Tue, 17 Nov 2026 19:13:31 GMT
+expires: Fri, 30 Oct 2026 11:44:50 GMT
+cache-control: public, max-age=3600
+age: 1585721
+last-modified: Wed, 20 Nov 2024 15:13:02 GMT
+priority: u=3,i=?0
+content-type: image/png
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: HIT
+server-timing: cfExtPri
+x-region: VA
+x-longitude: -77.48749
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-city: Ashburn
+x-country-code: US
+cf-ray: a5c10d9e4eab2096-IAD

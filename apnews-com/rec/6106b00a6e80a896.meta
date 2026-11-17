@@ -1,0 +1,25 @@
+GET https://a.pub.network/apnews-com/pubfig.min.js
+200 OK
+date: Tue, 17 Nov 2026 19:13:25 GMT
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg0yQMgchceqJ9ZVIgs4bEgN02FIDcwb4HhngVLfADSZBu_8EMEjZwSIFx4gAHqs8Sw
+cache-control: public, max-age=1800
+expires: Mon, 09 Nov 2026 17:01:08 GMT
+last-modified: Mon, 09 Nov 2026 17:00:07 GMT
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-goog-generation: 1794243607556133
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 90308
+x-goog-hash: crc32c=g7hSlg==
+x-goog-hash: md5=e+oGAem9YdNatx3LQB5j9A==
+x-goog-storage-class: MULTI_REGIONAL
+etag: W/"7bea0601e9bd61d35ab71dcb401e63f4"
+access-control-allow-origin: *
+access-control-expose-headers: *
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 699196
+cf-cache-status: HIT
+link: <https://d.pub.network/v2/sites/apnews-com/configs?env=PROD>; rel="preload"; as="fetch"; crossorigin="use-credentials", <https://optimise.net>; rel="preconnect", <https://api.floors.dev>; rel="preconnect"
+cf-ray: a5c10d75d9a5d909-IAD

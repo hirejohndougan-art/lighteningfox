@@ -1,0 +1,26 @@
+GET https://a.pub.network/apnews-com/prebid.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg357GcuqSr13er_Wgrj6QMl05glI7Ri7TV2ZwT2__NvZ7jjpEo4kpVLwTMfO6Z6j1K_oQKhqxLcsmIKqQ
+date: Tue, 17 Nov 2026 19:13:46 GMT
+cache-control: public, max-age=1800
+expires: Mon, 09 Nov 2026 17:01:08 GMT
+last-modified: Mon, 09 Nov 2026 17:00:07 GMT
+priority: u=3,i=?0
+x-goog-generation: 1794243607006061
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 577845
+x-goog-hash: crc32c=tS9CTw==
+x-goog-hash: md5=wrNvntr1Rdpld8WxsyCmaQ==
+x-goog-storage-class: MULTI_REGIONAL
+etag: W/"c2b36f9edaf545da6577c5b1b320a669"
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+access-control-allow-origin: *
+access-control-expose-headers: *
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 699217
+cf-cache-status: HIT
+server-timing: cfExtPri
+cf-ray: a5c10dfa9af22096-IAD

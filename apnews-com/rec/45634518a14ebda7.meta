@@ -1,0 +1,16 @@
+POST https://api.puzzmo.com/graphql?op=embedConfigBootstrapQueryMutation
+200 OK
+date: Tue, 17 Nov 2026 19:13:27 GMT
+content-type: application/json; charset=utf-8
+alt-svc: h3=":443"; ma=86400
+access-control-allow-credentials: true
+access-control-allow-origin: https://www.puzzmo.com
+server-timing: cfExtPri
+rndr-id: 7e4be00a-f087-4ed3
+server: cloudflare
+vary: Origin
+vary: Accept-Encoding
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+priority: u=3,i=?0
+cf-ray: a5c10d824afda177-IAD
