@@ -94,7 +94,7 @@ bytes; `text()` and `json()` decode them.
 `<script type="importmap">` so bare specifiers like `import "react"` resolve.
 
 ### X4. Click and animation events
-**Status:** free
+**Status:** claimed by chat-opus-x4 2026-11-17 05:02
 **After:** —
 **Checklist:** none
 **Files:** the event parts of `src/main.rs`, `src/prelude.js`, the animation code in `src/style.rs`
