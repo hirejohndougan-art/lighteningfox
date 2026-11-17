@@ -36,6 +36,9 @@ thread_local! {
     static PERMISSION_REQUESTS: RefCell<Vec<(u64, crate::permissions::Kind, String)>> = const { RefCell::new(Vec::new()) };
     /// True while a user's click is being handled (window.open is allowed then).
     static ACTIVATION: Cell<bool> = const { Cell::new(false) };
+    /// The epoch new requests on this thread are tagged with: each thread runs its own page
+    /// (the window's, or a live iframe's), so results go back to the page that asked.
+    static THREAD_EPOCH: Cell<u64> = const { Cell::new(0) };
     /// Bumped on every DOM change; caches built from the DOM remember the generation they saw.
     static GENERATION: Cell<u64> = const { Cell::new(0) };
     /// id attribute -> first element with it, in document order (rebuilt lazily after changes).
@@ -920,8 +923,9 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         return Ok(JsValue::from(JsString::from(response_js(&r))));
     }
     NET_IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    // Tag the result with the page that asked (a worker has its own engine and epoch).
-    let epoch = page_ctx(ctx, |p| p.epoch).unwrap_or_else(|| EPOCH.load(std::sync::atomic::Ordering::SeqCst));
+    // Tag the result with the page that asked (a worker has its own engine and epoch; each
+    // thread, such as a live iframe's, runs its own page).
+    let epoch = page_ctx(ctx, |p| p.epoch).unwrap_or_else(|| THREAD_EPOCH.with(|e| e.get()));
     std::thread::spawn(move || {
         let r = run();
         if let Ok(mut q) = NET_DONE.lock() {
@@ -1020,6 +1024,7 @@ fn n_set_el_scroll(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
 /// Make this page's requests the ones new fetches are tagged with (its tab became active).
 pub fn activate(js: &Js) {
     EPOCH.store(js.epoch, std::sync::atomic::Ordering::SeqCst);
+    THREAD_EPOCH.with(|e| e.set(js.epoch));
 }
 
 /// A closed page's undelivered requests can be dropped.
@@ -1242,6 +1247,7 @@ impl Js {
     /// A script engine for the page at `url`, under the page's security policy.
     pub fn with_policy(url: &str, policy: std::sync::Arc<crate::security::PagePolicy>) -> Js {
         let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        THREAD_EPOCH.with(|e| e.set(epoch));
         let modules = std::rc::Rc::new(crate::jsmodules::Loader::default());
         let mut ctx = boa_engine::context::ContextBuilder::new()
             .host_hooks(std::rc::Rc::new(Hooks))

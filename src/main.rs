@@ -79,6 +79,7 @@ mod updates;
 mod websocket;
 mod worker;
 mod sandbox;
+mod frames;
 mod tiles;
 #[cfg(feature = "gpu")]
 mod gpu;
@@ -951,187 +952,7 @@ fn draw_frame(prepared: Prepared, fonts: &'static Fonts, w: u32, h: u32) -> Opti
     }))
 }
 
-/// Cross-site iframes in their own sandboxed process (`ironswift --frame-renderer`): an
-/// embedded ad or widget runs its scripts away from the browser, under a filter that keeps it
-/// from writing files or starting programs (see sandbox.rs).
-mod isolated {
-    use super::*;
-    use std::io::{Read, Write};
-
-    struct Proc {
-        child: std::process::Child,
-        stdin: std::process::ChildStdin,
-        stdout: std::process::ChildStdout,
-    }
-
-    static PROC: std::sync::Mutex<Option<Proc>> = std::sync::Mutex::new(None);
-    /// The renderer's process id (0 = none), so a stuck frame can be stopped from outside.
-    static PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-
-    fn site(url: &str) -> Option<String> {
-        url::Url::parse(url).ok()?.host_str().map(cookies::site_of)
-    }
-
-    /// Frames from another site than the top-level page.
-    pub fn should_isolate(job: &FrameJob) -> bool {
-        if std::env::var("IRONSWIFT_FRAME_PROCESS").is_ok_and(|v| v == "0") {
-            return false;
-        }
-        match &job.src {
-            FrameSrc::Url(u) if u.starts_with("http://") || u.starts_with("https://") => site(u) != site(&job.top),
-            _ => false,
-        }
-    }
-
-    fn put(out: &mut Vec<u8>, b: &[u8]) {
-        out.extend_from_slice(&(b.len() as u32).to_le_bytes());
-        out.extend_from_slice(b);
-    }
-
-    fn get(r: &mut impl Read) -> std::io::Result<Vec<u8>> {
-        let mut n = [0u8; 4];
-        r.read_exact(&mut n)?;
-        let n = u32::from_le_bytes(n) as usize;
-        if n > 64 << 20 {
-            return Err(std::io::Error::other("message too large"));
-        }
-        let mut b = vec![0u8; n];
-        r.read_exact(&mut b)?;
-        Ok(b)
-    }
-
-    fn sandbox_bytes(s: &Option<security::Sandbox>) -> Vec<u8> {
-        match s {
-            None => vec![],
-            Some(s) => vec![s.scripts as u8, s.same_origin as u8, s.forms as u8, s.popups as u8, s.top_navigation as u8, s.modals as u8],
-        }
-    }
-
-    fn sandbox_from(b: &[u8]) -> Option<security::Sandbox> {
-        (b.len() == 6).then(|| security::Sandbox { scripts: b[0] == 1, same_origin: b[1] == 1, forms: b[2] == 1, popups: b[3] == 1, top_navigation: b[4] == 1, modals: b[5] == 1 })
-    }
-
-    fn encode(job: &FrameJob) -> Vec<u8> {
-        let mut m = Vec::new();
-        let url = match &job.src {
-            FrameSrc::Url(u) => u.clone(),
-            FrameSrc::Doc { .. } => String::new(),
-        };
-        put(&mut m, url.as_bytes());
-        put(&mut m, job.parent.as_bytes());
-        put(&mut m, job.top.as_bytes());
-        put(&mut m, &sandbox_bytes(&job.sandbox));
-        put(&mut m, &job.w.to_le_bytes());
-        put(&mut m, &job.h.to_le_bytes());
-        m
-    }
-
-    fn spawn() -> Option<Proc> {
-        let exe = std::env::current_exe().ok()?;
-        let mut child = std::process::Command::new(exe)
-            .arg("--frame-renderer")
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .map_err(|e| log!("[frames] couldn't start the frame process: {e}"))
-            .ok()?;
-        PID.store(child.id(), std::sync::atomic::Ordering::SeqCst);
-        let stdin = child.stdin.take()?;
-        let stdout = child.stdout.take()?;
-        Some(Proc { child, stdin, stdout })
-    }
-
-    /// Draw the frame in the frame process. None = the process isn't available (the caller
-    /// draws it here instead).
-    pub fn render(job: &FrameJob) -> Option<Option<image::RgbaImage>> {
-        let mut g = PROC.lock().ok()?;
-        if g.is_none() {
-            *g = spawn();
-        }
-        let p = g.as_mut()?;
-        let msg = encode(job);
-        let result = (|| -> std::io::Result<Option<image::RgbaImage>> {
-            p.stdin.write_all(&msg)?;
-            p.stdin.flush()?;
-            let w = get(&mut p.stdout)?;
-            let h = get(&mut p.stdout)?;
-            let px = get(&mut p.stdout)?;
-            let (w, h) = (u32::from_le_bytes(w.try_into().unwrap_or([0; 4])), u32::from_le_bytes(h.try_into().unwrap_or([0; 4])));
-            Ok(if w == 0 || h == 0 { None } else { image::RgbaImage::from_raw(w, h, px) })
-        })();
-        match result {
-            Ok(img) => Some(img),
-            Err(e) => {
-                // It crashed or was stopped: start a fresh one next time. The frame stays blank
-                // rather than being drawn in the browser.
-                log!("[frames] frame process: {e}");
-                if let Some(mut p) = g.take() {
-                    let _ = p.child.kill();
-                    let _ = p.child.wait();
-                }
-                PID.store(0, std::sync::atomic::Ordering::SeqCst);
-                Some(None)
-            }
-        }
-    }
-
-    /// Stop a frame that's taking too long (its process is restarted for the next frame).
-    pub fn stop_stuck() {
-        let pid = PID.swap(0, std::sync::atomic::Ordering::SeqCst);
-        if pid != 0 {
-            // SAFETY: sending a signal to our own child process.
-            unsafe {
-                libc::kill(pid as i32, libc::SIGKILL);
-            }
-        }
-    }
-
-    /// `ironswift --frame-renderer`: draw frames sent on stdin until it closes.
-    pub fn serve() {
-        if !sandbox::protect_frame_renderer() {
-            log!("[frames] refusing to run without a sandbox");
-            return;
-        }
-        if load_fonts().is_none() {
-            return;
-        }
-        js::use_memory_storage();
-        FRAME_DEPTH.with(|d| d.set(1));
-        let mut input = std::io::stdin().lock();
-        let mut output = std::io::stdout().lock();
-        loop {
-            let job = (|| -> std::io::Result<FrameJob> {
-                let url = String::from_utf8_lossy(&get(&mut input)?).to_string();
-                let parent = String::from_utf8_lossy(&get(&mut input)?).to_string();
-                let top = String::from_utf8_lossy(&get(&mut input)?).to_string();
-                let sandbox = sandbox_from(&get(&mut input)?);
-                let w = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
-                let h = u32::from_le_bytes(get(&mut input)?.try_into().unwrap_or([0; 4])).clamp(1, 2000);
-                let (reply, _) = std::sync::mpsc::channel();
-                Ok(FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply })
-            })();
-            let Ok(job) = job else { return };
-            let img = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job))).ok().flatten();
-            let mut m = Vec::new();
-            match img {
-                Some(img) => {
-                    put(&mut m, &img.width().to_le_bytes());
-                    put(&mut m, &img.height().to_le_bytes());
-                    put(&mut m, img.as_raw());
-                }
-                None => {
-                    put(&mut m, &0u32.to_le_bytes());
-                    put(&mut m, &0u32.to_le_bytes());
-                    put(&mut m, &[]);
-                }
-            }
-            if output.write_all(&m).and_then(|_| output.flush()).is_err() {
-                return;
-            }
-        }
-    }
-}
+use frames::isolated;
 
 /// Render the page's iframes (up to 8, three levels deep, 8 seconds in all) into `images`.
 fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images: &mut images::Images) {
@@ -1185,7 +1006,13 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
             (a, b) => a.or(b),
         };
         let job_parts = (base.to_string(), top, sandbox);
-        let img = if depth == 0 {
+        let live = depth == 0 && frames::enabled() && !(matches!(src, FrameSrc::Doc { .. }) && job_parts.2.is_some());
+        let img = if live {
+            // In the window, frames stay live: their documents keep running and take input (frames.rs).
+            let (parent, top, sandbox) = job_parts;
+            let (tx, _) = std::sync::mpsc::channel();
+            frames::start(FrameJob { src, w, h, parent, top, sandbox, reply: tx }, &key, base, deadline)
+        } else if depth == 0 {
             let Some(worker) = frame_worker() else { return };
             let (tx, rx) = std::sync::mpsc::channel();
             let (parent, top, sandbox) = job_parts;
@@ -1834,6 +1661,8 @@ fn is_private() -> bool {
 }
 
 fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
+    // Iframes in the window stay live (frames.rs); snapshots draw them once.
+    frames::enable();
     zoom::use_device_scale();
     zoom::set_pixel_ratio(zoom::device_scale());
     // Without a page on the command line, reopen last session's tabs (if that's the setting),
@@ -1933,6 +1762,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut was_down = false;
     // The mouse as the page's scripts have seen it (for mouseover, mousedown… events).
     let mut pointer = userinput::Pointer::default();
+    // Live iframes (frames.rs): the one under the mouse, and the one that has the keyboard.
+    let mut frame_hover: Option<String> = None;
+    let mut frame_focus: Option<String> = None;
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
     // Focus moved by the keyboard shows a focus ring; Enter or Space on a focused element
@@ -2204,6 +2036,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             dirty = true;
             animating |= it.repaint;
         }
+        // Live iframes: new pictures, and links they open in the window or a new tab.
+        let fr = frames::pump(page.doc, &page.url, &mut page.images);
+        if fr.repaint {
+            page_version += 1;
+            dirty = true;
+        }
+        if let Some(t) = fr.navigate.filter(|t| security::page_may_navigate(&page.url, t)) {
+            pending_nav = Some(Go::To(t));
+        }
+        if let Some(t) = fr.open_tab {
+            tab_cmd = Some(TabCmd::Open(t, false));
+        }
         if let Some(target) = js::take_navigation() {
             let target = net::resolve(&page.url, &target);
             if security::page_may_navigate(&page.url, &target) {
@@ -2429,6 +2273,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let typing = !finding && !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
         // keydown/keyup for the page; a cancelled keydown doesn't reach the browser or field.
         let mut chars = chars;
+        // A live iframe with the keyboard gets the typing (frames.rs); browser shortcuts stay here.
+        if frame_focus.as_ref().is_some_and(|k| !frames::has(page.doc, k)) {
+            frame_focus = None;
+        }
+        if let (Some(k), false, false) = (&frame_focus, finding, editing) {
+            let mut text: String = chars.drain(..).collect();
+            if presses.iter().any(|p| p.ctrl && p.key == Key::V) {
+                if let Some(t) = clipboard.as_mut().and_then(|c| c.get_text().ok()) {
+                    text.push_str(&t);
+                }
+            }
+            let mine: Vec<_> = presses.iter().filter(|p| frames::for_frame(p.key, p.ctrl)).map(|p| (p.key, p.ctrl, p.shift, p.alt)).collect();
+            presses.retain(|p| !frames::for_frame(p.key, p.ctrl) && !(p.ctrl && p.key == Key::V));
+            if !mine.is_empty() || !text.is_empty() {
+                frames::keys(page.doc, k, mine, text);
+            }
+        }
         if !finding && !editing {
             if let Some(js) = page.js.as_mut() {
                 let mut typed_cancelled = false;
@@ -2808,7 +2669,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     toast = Some((i18n::tf("toast-zoom", &[("pct", &format!("{:.0}", nz * 100.0))]), Instant::now()));
                 }
             }
-        } else if let Some((_, dy)) = window.get_scroll_wheel() {
+        } else if let Some((_, dy)) = window.get_scroll_wheel().filter(|&(_, dy)| {
+            // Over a live iframe that can scroll that way, the frame scrolls (frames.rs).
+            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= bar_h() as f32);
+            let fr = mouse.and_then(|(mx, my)| frames::frame_at(page.doc, &lay, mx, my - bar_h() as f32 + scroll));
+            !fr.is_some_and(|(k, fx, fy)| frames::wheel(page.doc, &k, fx, fy, -dy * 22.0 / page.zoom()))
+        }) {
             // About 45px per wheel click (minifb reports roughly 2 per click on X11).
             let delta = -dy * 22.0;
             // The page may cancel the wheel event (maps, carousels); then nothing scrolls.
@@ -2945,7 +2811,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             let view_y = my - bar_h() as f32;
-            let hit = if my >= bar_h() as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
+            // Over a live iframe, the mouse belongs to the frame's document (frames.rs).
+            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
+            if over_frame.as_ref().map(|f| &f.0) != frame_hover.as_ref() {
+                if let Some(k) = frame_hover.take() {
+                    frames::leave(page.doc, &k);
+                }
+                frame_hover = over_frame.as_ref().map(|f| f.0.clone());
+            }
+            if let Some((k, fx, fy)) = &over_frame {
+                frames::mouse(page.doc, k, *fx, *fy, [down, mid, right]);
+            }
+            let hit = if my >= bar_h() as f32 && over_frame.is_none() { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             // Mouse events for the page's scripts (moves, hover changes, button presses).
             if pointer.changed(mx, my, [down, mid, right]) {
                 let z = page.zoom();
@@ -3227,7 +3104,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         },
                         None => {}
                     }
+                } else if let Some((k, _, _)) = &over_frame {
+                    // A press inside a live iframe went to the frame (above); it takes the keyboard.
+                    if frame_focus.as_ref() != Some(k) {
+                        if let Some(old) = frame_focus.replace(k.clone()) {
+                            frames::blur(page.doc, &old);
+                        }
+                    }
+                    if let Some(old) = focused.take() {
+                        fire(&mut page, old, "blur");
+                        form_changed = true;
+                    }
                 } else if (my as usize) >= bar_h() {
+                    if let Some(k) = frame_focus.take() {
+                        frames::blur(page.doc, &k);
+                    }
                     // A press on the page may start a text selection (and clears the old one).
                     sel_press = Some((mx, view_y + scroll));
                     if selection.take().is_some() {

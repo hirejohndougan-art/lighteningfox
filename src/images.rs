@@ -142,6 +142,19 @@ impl Images {
 
     /// Add an already-decoded picture (an iframe's rendering) under `key`.
     pub fn insert(&mut self, key: &str, rgba: image::RgbaImage) {
+        // A new picture under the same key (a live frame redrawn): drop copies of the old one.
+        {
+            let mut c = self.cache.borrow_mut();
+            let mut freed = 0;
+            c.map.retain(|k, v| {
+                let keep = k.0 != key;
+                if !keep {
+                    freed += v.img.as_raw().len();
+                }
+                keep
+            });
+            c.bytes -= freed;
+        }
         let (w, h) = rgba.dimensions();
         self.by_src.insert(key.to_string(), Arc::new(Img { w, h, data: Data::Pixels(Arc::new(rgba)) }));
     }
