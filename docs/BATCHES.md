@@ -209,7 +209,7 @@ Menu key, arrow keys in menus and the downloads panel). a11y-chat did the AT-SPI
 
 ## K. CSS (§4)
 **Status:** claimed by css-chat 2026-11-17 02:40 (the old section 4 chat switched to batch A work and finished)
-**Checklist:** already ticked (03:45): CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert. Tick only the rest.
+**Checklist:** already ticked: CSS tokenizer, pseudo-elements, at-rules, cascade layers and inherit/initial/unset/revert (03:45); :active and :visited (04:10). Tick only the rest.
 **Start after:** —
 **Main files:** `src/css.rs`, `src/style.rs`, `src/grid.rs` (grid extras)
 
