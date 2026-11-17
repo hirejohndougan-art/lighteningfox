@@ -82,6 +82,7 @@ mod library;
 mod cache;
 mod canvas;
 mod media;
+mod mse;
 mod channels;
 mod geo;
 mod parallel;

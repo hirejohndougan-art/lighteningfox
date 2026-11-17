@@ -18,13 +18,15 @@
   if (typeof g.URL === "function") {
     try {
       g.URL.createObjectURL = function (obj) {
+        const ms = g.__mseUrlFor && g.__mseUrlFor(obj);
+        if (ms) return ms;
         if (!(obj instanceof g.Blob)) throw new TypeError("createObjectURL needs a Blob");
         const o = g.location && g.location.origin && g.location.origin !== "null" ? g.location.origin : "null";
         const u = "blob:" + o + "/" + uuid();
         blobUrls.set(u, obj);
         return u;
       };
-      g.URL.revokeObjectURL = function (u) { blobUrls.delete(String(u)); };
+      g.URL.revokeObjectURL = function (u) { blobUrls.delete(String(u)); if (g.__mseRevoke) g.__mseRevoke(u); };
     } catch (e) {}
   }
   const blobText = (b) => {

@@ -28,7 +28,7 @@ def serve(root):
 def render(url, png, profile):
     env = dict(os.environ, IRONSWIFT_PROFILE=profile, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
     try:
-        p = subprocess.run([BROWSER, "--width", "800", "--png", png, url], capture_output=True, text=True, timeout=30, env=env)
+        p = subprocess.run([BROWSER, "--width", "800", "--png", png, url], capture_output=True, text=True, timeout=int(os.environ.get("WPT_TIMEOUT","30")), env=env)
         return p.stdout + p.stderr, p.returncode
     except subprocess.TimeoutExpired:
         return "", "timeout"

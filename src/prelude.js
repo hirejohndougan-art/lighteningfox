@@ -670,6 +670,15 @@
     get documentElement() { return this.querySelector("html"); }
     get head() { return this.querySelector("head"); }
     get body() { return this.querySelector("body"); }
+    set body(v) {
+      // HTML: replaces the body (or adds one) under <html>.
+      if (!v || v.nodeType !== 1 || (v.localName !== "body" && v.localName !== "frameset")) throw new DOMException("The new body element must be a 'body' or 'frameset' element.", "HierarchyRequestError");
+      const old = this.body, root = this.documentElement;
+      if (old === v) return;
+      if (old) old.parentNode.replaceChild(v, old);
+      else if (root) root.appendChild(v);
+      else throw new DOMException("No document element.", "HierarchyRequestError");
+    }
     get title() { const t = this.querySelector("title"); return t ? t.textContent.trim() : ""; }
     set title(v) {
       let t = this.querySelector("title");

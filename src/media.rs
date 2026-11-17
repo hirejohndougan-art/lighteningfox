@@ -14,7 +14,8 @@
 //! when it's painted at the box's size. Its size in the images is the video's own (the
 //! poster's until that's known), which layout uses as the element's natural size.
 //!
-//! Media is downloaded whole before it plays (no streaming or Media Source Extensions yet).
+//! Media is downloaded whole before it plays, unless a page feeds it through Media Source
+//! Extensions (`mse.rs`): then the decoders read the page's segments from a pipe.
 
 use crate::dom::NodeId;
 use crate::images::Images;
@@ -25,7 +26,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, OnceLock};
 use tiny_skia::{Color, FillRule, FilterQuality, Paint, PathBuilder, Pixmap, PixmapPaint, Rect, Transform};
@@ -211,6 +212,59 @@ fn temp_path() -> PathBuf {
     std::env::temp_dir().join(format!("ironswift-media-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)))
 }
 
+/// Where a decoder reads the media: a downloaded file, or a Media Source Extensions
+/// SourceBuffer's segments, written into its standard input from media time `t` on.
+#[derive(Clone)]
+enum Src {
+    File(PathBuf),
+    Feed(Arc<crate::mse::Feed>),
+}
+
+impl Src {
+    /// Add the input to an ffmpeg command line starting at media time `t`. A feed also
+    /// needs `feed_input` once the process is running.
+    fn input(&self, cmd: &mut Command, t: f64) {
+        match self {
+            Src::File(p) => {
+                cmd.args(["-ss", &format!("{:.3}", t.max(0.0)), "-i"]).arg(p);
+            }
+            Src::Feed(f) => {
+                // On a pipe, -ss counts from the first segment written. (`-ss 0` on a WebM pipe
+                // holds every frame back until the input ends, so it's left out.) A small
+                // probe: the page may not have appended the next seconds yet.
+                let skip = t - f.start_for(t).unwrap_or(t);
+                // Frame threading holds a frame per thread back until more input comes.
+                cmd.args(["-probesize", "4096", "-analyzeduration", "0", "-thread_type", "slice"]);
+                if skip > 0.001 {
+                    cmd.args(["-ss", &format!("{skip:.3}")]);
+                }
+                cmd.args(["-i", "-"]);
+            }
+        }
+    }
+
+    /// The decoder's standard input: the feed's pipe, or nothing.
+    fn stdin(&self) -> Stdio {
+        if matches!(self, Src::Feed(_)) { Stdio::piped() } else { Stdio::null() }
+    }
+
+    /// Start writing a feed into the running decoder; set the flag to stop.
+    fn feed_input(&self, child: &mut Child, t: f64) -> Option<Arc<AtomicBool>> {
+        let Src::Feed(f) = self else { return None };
+        let stdin = child.stdin.take()?;
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (feed, flag, from) = (f.clone(), stop.clone(), f.start_for(t));
+        std::thread::Builder::new().name("media-feed".into()).spawn(move || feed.pump(from, stdin, flag)).ok()?;
+        Some(stop)
+    }
+}
+
+fn stop_feed(stop: &Option<Arc<AtomicBool>>) {
+    if let Some(s) = stop {
+        s.store(true, Ordering::Relaxed);
+    }
+}
+
 fn kill(c: &mut Child) {
     let _ = c.kill();
     let _ = c.wait();
@@ -224,13 +278,17 @@ struct VideoDecoder {
     rx: Receiver<Frame>,
     pending: Option<Frame>,
     fps: f64,
+    feed: Option<Arc<AtomicBool>>,
 }
 
 impl VideoDecoder {
-    fn start(file: &Path, info: &Info, start: f64) -> Option<VideoDecoder> {
+    fn start(src: &Src, info: &Info, start: f64) -> Option<VideoDecoder> {
         let (w, h) = frame_size(info);
         let fps = info.fps.clamp(1.0, MAX_FPS);
-        let mut child = quiet(Command::new(ffmpeg()?).args(["-nostdin", "-loglevel", "error", "-ss", &format!("{:.3}", start.max(0.0)), "-i"]).arg(file).args([
+        let mut cmd = Command::new(ffmpeg()?);
+        cmd.args(["-nostdin", "-loglevel", "error"]);
+        src.input(&mut cmd, start);
+        let mut child = quiet(cmd.args([
             "-an",
             "-sn",
             "-vf",
@@ -241,9 +299,11 @@ impl VideoDecoder {
             "rgba",
             "-",
         ]))
+        .stdin(src.stdin())
         .stdout(Stdio::piped())
         .spawn()
         .ok()?;
+        let feed = src.feed_input(&mut child, start);
         let mut out = child.stdout.take()?;
         let (tx, rx) = mpsc::sync_channel::<Frame>(3);
         std::thread::Builder::new()
@@ -262,7 +322,7 @@ impl VideoDecoder {
                 }
             })
             .ok()?;
-        Some(VideoDecoder { child, rx, pending: None, fps })
+        Some(VideoDecoder { child, rx, pending: None, fps, feed })
     }
 
     /// The newest decoded frame due by media time `t` (late frames are skipped).
@@ -287,8 +347,16 @@ impl VideoDecoder {
     }
 }
 
+impl VideoDecoder {
+    /// Has the decoder run out (end of its input) with nothing left to show?
+    fn finished(&mut self) -> bool {
+        self.pending.is_none() && matches!(self.child.try_wait(), Ok(Some(_))) && matches!(self.rx.try_recv(), Err(mpsc::TryRecvError::Disconnected))
+    }
+}
+
 impl Drop for VideoDecoder {
     fn drop(&mut self) {
+        stop_feed(&self.feed);
         kill(&mut self.child);
     }
 }
@@ -298,25 +366,30 @@ impl Drop for VideoDecoder {
 struct SoundOut {
     decoder: Child,
     sink: Child,
+    feed: Option<Arc<AtomicBool>>,
 }
 
 impl SoundOut {
-    fn start(file: &Path, start: f64, rate: f64, volume: Arc<AtomicU32>) -> Option<SoundOut> {
+    fn start(src: &Src, start: f64, rate: f64, volume: Arc<AtomicU32>) -> Option<SoundOut> {
         let mut sink = sound_sink()?.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().ok()?;
         let mut cmd = Command::new(ffmpeg()?);
-        cmd.args(["-nostdin", "-loglevel", "error", "-ss", &format!("{:.3}", start.max(0.0)), "-i"]).arg(file).args(["-vn", "-sn"]);
+        cmd.args(["-nostdin", "-loglevel", "error"]);
+        src.input(&mut cmd, start);
+        cmd.args(["-vn", "-sn"]);
         if let Some(af) = atempo(rate) {
             cmd.args(["-af", &af]);
         }
         cmd.args(["-f", "s16le", "-ac", "2", "-ar", &RATE.to_string(), "-"]);
-        let mut decoder = match quiet(&mut cmd).stdout(Stdio::piped()).spawn() {
+        let mut decoder = match quiet(&mut cmd).stdin(src.stdin()).stdout(Stdio::piped()).spawn() {
             Ok(c) => c,
             Err(_) => {
                 kill(&mut sink);
                 return None;
             }
         };
+        let feed = src.feed_input(&mut decoder, start);
         let (Some(mut pcm), Some(mut play)) = (decoder.stdout.take(), sink.stdin.take()) else {
+            stop_feed(&feed);
             kill(&mut decoder);
             kill(&mut sink);
             return None;
@@ -335,16 +408,18 @@ impl SoundOut {
             }
         });
         if spawned.is_err() {
+            stop_feed(&feed);
             kill(&mut decoder);
             kill(&mut sink);
             return None;
         }
-        Some(SoundOut { decoder, sink })
+        Some(SoundOut { decoder, sink, feed })
     }
 }
 
 impl Drop for SoundOut {
     fn drop(&mut self) {
+        stop_feed(&self.feed);
         kill(&mut self.decoder);
         kill(&mut self.sink);
     }
@@ -398,6 +473,8 @@ struct Media {
     frame_gen: u64,
     video: Option<VideoDecoder>,
     sound: Option<SoundOut>,
+    /// Media Source Extensions: the SourceBuffers the video and the sound come from.
+    feeds: Option<(Option<Arc<crate::mse::Feed>>, Option<Arc<crate::mse::Feed>>)>,
     volume: Arc<AtomicU32>,
     /// Waiting for the first frame at or after this time (after a seek or the first load).
     waiting_for: Option<f64>,
@@ -422,7 +499,7 @@ impl Media {
                 match done {
                     Loaded::Ok(file, info) => {
                         if info.video {
-                            self.video = VideoDecoder::start(&file.0, &info, 0.0);
+                            self.video = VideoDecoder::start(&Src::File(file.0.clone()), &info, 0.0);
                             self.waiting_for = Some(0.0);
                         }
                         self.file = Some(file);
@@ -451,6 +528,15 @@ impl Media {
                 }
                 self.waiting_for = None;
             }
+        }
+    }
+
+    /// Where the video and the sound are read from.
+    fn sources(&self) -> (Option<Src>, Option<Src>) {
+        match (&self.feeds, &self.file) {
+            (Some((v, a)), _) => (v.clone().map(Src::Feed), a.clone().map(Src::Feed)),
+            (None, Some(f)) => (Some(Src::File(f.0.clone())), Some(Src::File(f.0.clone()))),
+            (None, None) => (None, None),
         }
     }
 
@@ -503,6 +589,7 @@ pub fn install(ctx: &mut Context) {
     if let Err(e) = ctx.eval(Source::from_bytes(include_str!("webaudio.js").as_bytes())) {
         log!("[ironswift] Web Audio setup failed: {e}");
     }
+    crate::mse::install(ctx);
 }
 
 /// Hand media pictures that changed since the last call to the page's images.
@@ -529,6 +616,23 @@ pub fn publish(ctx: &Context, images: &mut Images) {
         }
         images.insert_drawn(&key, natural.0, natural.1, Arc::new(move |w, h| draw(&snap, w, h)));
     }
+}
+
+/// Media Source Extensions: element `id` now plays from these SourceBuffers' segments
+/// (`mse.rs`), which have the tracks `info` describes.
+pub fn attach_feeds(ctx: &Context, id: NodeId, video: Option<Arc<crate::mse::Feed>>, audio: Option<Arc<crate::mse::Feed>>, info: Info) {
+    with(ctx, id, |m| {
+        m.sound = None;
+        m.video = None;
+        m.waiting_for = None;
+        if let (true, Some(f)) = (info.video, &video) {
+            m.video = VideoDecoder::start(&Src::Feed(f.clone()), &info, 0.0);
+            m.waiting_for = Some(0.0);
+        }
+        m.feeds = Some((video, audio));
+        m.info = Some(info);
+        m.version += 1;
+    });
 }
 
 // ---------------------------------------------------------------- natives
@@ -650,16 +754,17 @@ fn n_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let frozen = frozen();
     with(ctx, id, |m| {
         m.sound = None;
-        let (Some(file), Some(info)) = (&m.file, &m.info) else { return };
-        if info.video {
-            // Restart the decoder only if the frames it has are for somewhere else.
-            let near = m.video.is_some() && (t - m.frame_time).abs() < 1.0;
+        let (Some(info), (video, sound)) = (m.info.clone(), m.sources()) else { return };
+        if let (true, Some(src)) = (info.video, &video) {
+            // Restart the decoder only if the frames it has are for somewhere else (or, when
+            // the page feeds the media, it ran out before more was appended).
+            let near = m.video.as_mut().is_some_and(|d| !(m.feeds.is_some() && d.finished())) && (t - m.frame_time).abs() < 1.0;
             if !near {
-                m.video = VideoDecoder::start(&file.0, info, t);
+                m.video = VideoDecoder::start(src, &info, t);
             }
         }
-        if info.audio && !frozen && rate > 0.0 {
-            m.sound = SoundOut::start(&file.0, t, rate, m.volume.clone());
+        if let (true, Some(src)) = (info.audio && !frozen && rate > 0.0, &sound) {
+            m.sound = SoundOut::start(src, t, rate, m.volume.clone());
         }
     });
     Ok(JsValue::undefined())
@@ -677,9 +782,9 @@ fn n_seek(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let t = num(a, 1, ctx);
     with(ctx, id, |m| {
         m.sound = None;
-        if let (Some(file), Some(info)) = (&m.file, &m.info) {
+        if let (Some(info), (Some(src), _)) = (m.info.clone(), m.sources()) {
             if info.video {
-                m.video = VideoDecoder::start(&file.0, info, t);
+                m.video = VideoDecoder::start(&src, &info, t);
                 m.waiting_for = Some(t);
             }
         }
@@ -1050,7 +1155,7 @@ mod tests {
         assert!(info.video && !info.audio);
         assert_eq!((info.width, info.height), (64, 48));
         assert!((info.duration - 2.0).abs() < 0.2, "{}", info.duration);
-        let mut dec = VideoDecoder::start(&file.0, &info, 1.0).expect("decoder");
+        let mut dec = VideoDecoder::start(&Src::File(file.0.clone()), &info, 1.0).expect("decoder");
         let t0 = std::time::Instant::now();
         let frame = loop {
             if let Some(f) = dec.take_due(1.0) {
@@ -1140,5 +1245,39 @@ mod page_tests {
         }
         assert_eq!(text("errs"), "true,NotSupportedError,function,function");
         assert_eq!(text("out"), "true,true,true,true,true,true,true,true");
+    }
+
+    /// Media Source Extensions: a page appends an MP4 video track and a WebM sound track
+    /// in pieces, plays, stalls at the end of what it appended, appends the rest and ends.
+    #[test]
+    fn media_source_playback() {
+        if !super::available() {
+            eprintln!("ffmpeg not installed; skipping");
+            return;
+        }
+        let profile = std::env::temp_dir().join(format!("ironswift-mse-test-{}", std::process::id()));
+        // SAFETY: tests only read this variable; every test sets the same kind of value.
+        unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
+        crate::load_fonts().expect("fonts");
+        super::UNFROZEN.with(|u| u.set(true));
+        let url = crate::net::normalize_input("tests/mse.html");
+        let mut page = crate::load(&url);
+        let js = page.js.as_mut().expect("scripts");
+        let t = std::time::Instant::now();
+        let text = |id: &str| {
+            crate::js::with_dom(|d| {
+                let n = d.descendants(crate::dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(id));
+                n.map(|n| d.text_content(n)).unwrap_or_default()
+            })
+        };
+        while text("out").is_empty() {
+            assert!(t.elapsed().as_secs() < 30, "didn't finish: checks={:?} out={:?} log={:?}", text("checks"), text("out"), text("log"));
+            js.settle(std::time::Duration::from_millis(200));
+        }
+        let checks = text("checks");
+        assert!(checks.starts_with("true,true,false,false,false,closed,true,open:open,NotSupportedError,2,true,InvalidStateError,true,buffered:0.0-2.0,dur:3.0,ready:"), "{checks}");
+        let out = text("out");
+        assert!(out.starts_with("play,waiting,durationchange,loadedmetadata,loadeddata,canplay,playing,waiting,t~2,ended,"), "{out}");
+        assert!(out.ends_with(",canplay,playing,ended buffered=0.0-3.0 t=3.0"), "{out}");
     }
 }

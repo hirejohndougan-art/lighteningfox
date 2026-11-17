@@ -123,6 +123,7 @@
   function load(el, fromPlay) {
     const s = S(el);
     if (s.networkState === NETWORK_LOADING || s.networkState === NETWORK_IDLE) queueFire(el, "abort");
+    if (s.mse) { s.mse.__detach(); s.mse = null; }
     if (s.networkState !== NETWORK_EMPTY) {
       queueFire(el, "emptied");
       __mdClose(el.__id);
@@ -149,6 +150,9 @@
     if (!pick.url) { fail(el, 4, pick.fromAttr ? "Empty or bad src" : "No playable <source>", pick); return; }
     s.currentSrc = pick.url;
     if (!AVAILABLE) { fail(el, 4, "Ironswift needs ffmpeg to play audio and video", pick); return; }
+    // A MediaSource's URL: the page feeds the media (mse.js).
+    const ms = internals.attachSource && internals.attachSource(el, pick.url);
+    if (ms) { s.mse = ms; s.deferred = false; s.source = null; render(el); return; }
     const preload = (el.getAttribute("preload") || "").toLowerCase();
     if (preload === "none" && !el.hasAttribute("autoplay") && !fromPlay) {
       s.deferred = true;
@@ -203,7 +207,7 @@
     const [state, dur, vw, vh, code, msg, busy] = st;
     if (state === 3 && !s.error) { fail(el, code || 4, msg, s.source ? { source: s.source } : null); return; }
     if (state >= 1 && s.readyState < HAVE_METADATA) {
-      s.duration = isFinite(dur) ? dur : Infinity;
+      s.duration = s.mse ? (isNaN(s.mse.duration) ? Infinity : s.mse.duration) : isFinite(dur) ? dur : Infinity;
       s.vw = vw; s.vh = vh;
       s.readyState = HAVE_METADATA;
       fire(el, "durationchange");
@@ -211,6 +215,18 @@
       fire(el, "loadedmetadata");
       if (s.pendingSeek != null) { const t = s.pendingSeek; s.pendingSeek = null; seek(el, t); }
       else if (startFragment(el) != null) seek(el, startFragment(el));
+    }
+    if (state >= 2 && s.readyState < HAVE_CURRENT_DATA && !s.seeking && s.mse && !s.mse.__ready(s.time)) {
+      // A MediaSource with its first frame but not enough after it yet.
+      s.readyState = HAVE_CURRENT_DATA;
+      fire(el, "loadeddata");
+    }
+    if (s.mse && s.readyState === HAVE_CURRENT_DATA && !s.seeking && s.mse.__ready(s.time)) {
+      // Enough has been appended to play (again) from here.
+      s.readyState = HAVE_ENOUGH_DATA;
+      fire(el, "canplay");
+      if (!s.paused) { startOutput(el); fire(el, "playing"); resolvePlays(s); }
+      fire(el, "canplaythrough");
     }
     if (state >= 2 && s.readyState < HAVE_CURRENT_DATA && !s.seeking) {
       // The whole file is here, so there's enough data to play straight through.
@@ -238,7 +254,14 @@
       if (s.wasConnected && !el.isConnected) { pause.call(el); return; }
       const t = clock(s);
       __mdAdvance(el.__id, t);
-      if (t >= s.duration) { reachedEnd(el); }
+      if (s.mse && t < s.duration && !s.mse.__ready(t)) {
+        // Played up to the end of what's been appended: wait for more.
+        anchor(s);
+        s.readyState = HAVE_CURRENT_DATA;
+        __mdStop(el.__id);
+        fire(el, "timeupdate");
+        fire(el, "waiting");
+      } else if (t >= s.duration) { reachedEnd(el); }
       else if (now() - s.lastUpdate >= 250) { s.lastUpdate = now(); fire(el, "timeupdate"); }
     }
     if (el.isConnected) s.wasConnected = true;
@@ -246,6 +269,7 @@
     const playing = !s.paused && !s.seeking && s.readyState >= HAVE_FUTURE_DATA;
     if (busy || s.seeking || s.readyState < HAVE_CURRENT_DATA && s.networkState === NETWORK_LOADING) schedule(el, 15);
     else if (playing && !__mdFrozen()) schedule(el, 1000 / 30);
+    else if (s.mse && s.readyState < HAVE_FUTURE_DATA && s.readyState >= HAVE_METADATA) schedule(el, 100);
   }
 
   function reachedEnd(el) {
@@ -465,8 +489,8 @@
   });
   mediaProp("preservesPitch", function () { return S(this).preservesPitch; }, function (v) { S(this).preservesPitch = !!v; });
   mediaProp("sinkId", function () { return S(this).sinkId; });
-  mediaProp("buffered", function () { const s = S(this); return new TimeRanges(s.readyState >= HAVE_CURRENT_DATA && isFinite(s.duration) ? [[0, s.duration]] : []); });
-  mediaProp("seekable", function () { const s = S(this); return new TimeRanges(s.readyState >= HAVE_METADATA && isFinite(s.duration) ? [[0, s.duration]] : []); });
+  mediaProp("buffered", function () { const s = S(this); if (s.mse) return new TimeRanges(s.mse.__buffered()); return new TimeRanges(s.readyState >= HAVE_CURRENT_DATA && isFinite(s.duration) ? [[0, s.duration]] : []); });
+  mediaProp("seekable", function () { const s = S(this); if (s.mse) return new TimeRanges(s.readyState >= HAVE_METADATA ? s.mse.__seekable() : []); return new TimeRanges(s.readyState >= HAVE_METADATA && isFinite(s.duration) ? [[0, s.duration]] : []); });
   mediaProp("played", function () {
     const s = S(this);
     const r = s.played.concat(s.paused ? [] : [[s.base, clock(s)]]).filter((x) => x[1] > x[0]).sort((a, b) => a[0] - b[0]);
@@ -544,6 +568,18 @@
     }
     return r;
   };
+  // For mse.js (Media Source Extensions).
+  const internals = {
+    available: AVAILABLE, schedule, fail: (el, code, msg) => fail(el, code, msg, null),
+    setDuration(el, d) {
+      const s = S(el);
+      if (s.readyState < HAVE_METADATA || s.duration === d) return;
+      s.duration = d;
+      queueFire(el, "durationchange");
+      if (clock(s) > d) seek(el, d);
+    },
+  };
+  Object.defineProperty(g, "__mediaInternals", { value: internals, configurable: true });
   function start() { scan(document); watch(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();

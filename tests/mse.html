@@ -1,0 +1,53 @@
+<!doctype html>
+<title>Media Source Extensions</title>
+<!-- Plays a video track (fragmented MP4) and a sound track (WebM) appended from script, with
+     a stall in the middle: the second half is appended only once playback waits for it. -->
+<video id="v" muted width="160" height="120"></video>
+<p id="checks"></p>
+<p id="out"></p>
+<p id="log"></p>
+<script>
+const v = document.getElementById("v"), ev = [], checks = [];
+const say = (id, text) => { document.getElementById(id).textContent = text; };
+for (const t of ["loadedmetadata", "loadeddata", "canplay", "play", "playing", "waiting", "durationchange", "ended"])
+  v.addEventListener(t, () => { ev.push(t); say("log", ev.join(",") + " rs=" + v.readyState + " t=" + v.currentTime.toFixed(2)); });
+
+checks.push(MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401e"'), MediaSource.isTypeSupported('audio/webm; codecs="opus"'),
+  MediaSource.isTypeSupported('video/webm; codecs="vp9"; width=7680'), MediaSource.isTypeSupported("video/x-flv"),
+  MediaSource.isTypeSupported('video/webm; codecs="avc1.4d401e"'));
+const ms = new MediaSource();
+checks.push(ms.readyState, isNaN(ms.duration));
+v.src = URL.createObjectURL(ms);
+
+const append = (sb, bytes) => new Promise((done) => { sb.addEventListener("updateend", done, { once: true }); sb.appendBuffer(bytes); });
+const ranges = (r) => Array.from({ length: r.length }, (_, i) => r.start(i).toFixed(1) + "-" + r.end(i).toFixed(1)).join(" ");
+
+ms.addEventListener("sourceopen", async () => {
+  checks.push("open:" + ms.readyState);
+  ms.duration = 3;
+  try { ms.addSourceBuffer("video/x-nope"); } catch (e) { checks.push(e.name); }
+  const vb = ms.addSourceBuffer('video/mp4; codecs="avc1.4d401e"');
+  const ab = ms.addSourceBuffer('audio/webm; codecs="opus"');
+  checks.push(ms.sourceBuffers.length, ms.sourceBuffers[0] === vb);
+  const [vd, ad] = await Promise.all([fetch("media/mse-video.mp4"), fetch("media/mse-audio.webm")].map((p) => p.then((r) => r.arrayBuffer())));
+  // The first ~2/3 of each (cut anywhere: appends needn't be whole segments).
+  const vHalf = Math.floor(vd.byteLength * 0.7), aHalf = Math.floor(ad.byteLength * 0.7);
+  const first = append(vb, vd.slice(0, vHalf));
+  try { vb.appendBuffer(new Uint8Array(1)); } catch (e) { checks.push(e.name); }
+  checks.push(vb.updating);
+  await first;
+  await append(ab, ad.slice(0, aHalf));
+  checks.push("buffered:" + ranges(v.buffered), "dur:" + ms.duration.toFixed(1), "ready:" + v.readyState);
+  say("checks", checks.join(","));
+  v.addEventListener("playing", () => v.addEventListener("waiting", async () => {
+    // Playback caught up with what's appended: append the rest and end the stream.
+    ev.push("t~" + v.currentTime.toFixed(0));
+    await append(vb, vd.slice(vHalf));
+    await append(ab, ad.slice(aHalf));
+    ms.endOfStream();
+    ev.push(ms.readyState);
+  }, { once: true }), { once: true });
+  v.addEventListener("ended", () => say("out", ev.join(",") + " buffered=" + ranges(v.buffered) + " t=" + v.currentTime.toFixed(1)));
+  v.play();
+});
+</script>
