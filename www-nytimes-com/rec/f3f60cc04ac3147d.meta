@@ -1,0 +1,33 @@
+GET https://www.nytimes.com/vi-assets/static-assets/assets/Masthead-BcDknu2x.css
+200 OK
+x-amz-request-id: KDMSWJYXSKQEQHDX
+x-amz-id-2: TOJJnX8C9xhsPEbCx6DlraKQA3sfBSc8Yyf9Y5FlGPNOhcc4dVGI6EfJ2JPRi/QdcYI0S+CiI43h1t2DgAUOPcy3Anvmmsy0
+server: AmazonS3
+last-modified: Thu, 12 Nov 2026 19:15:53 GMT
+etag: "2fb9c484837ae0426071c0a24fa39e19"
+x-amz-version-id: lcIc9sZg7zC1qBmhHEZi0UmAnkrDD72D
+cache-control: public,max-age=31536000
+content-type: text/css
+x-amz-server-side-encryption: AES256
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=HIT-WAIT,final-url="/vi-assets/static-assets/assets/Masthead-BcDknu2x.css"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=RHTZ4l_-BMvXE50kSOGJgj,regi_id=58872050,newsTenure=sub13m
+x-nyt-geoip-map: continent=NA,country=US,region=DC,gmt-offset=-500,meridiem=PM,latitude=38.900,longitude=-77.040,city=washington,postal-code=20006,area-code=202,metro=511
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=RHTZ4l_-BMvXE50kSOGJgj,regi_id=58872050,newsTenure=sub13m
+x-nyt-vars: slideshow-compatibility
+x-origin-time: 2026-11-12 19:16:24 UTC
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:59 GMT
+age: 402274
+x-served-by: cache-lga-kjfk8660050-LGA, cache-iad-khef600079-IAD
+x-cache: HIT, HIT
+x-cache-hits: 24, 5332
+x-timer: S1794913259.210264,VS0,VE0
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

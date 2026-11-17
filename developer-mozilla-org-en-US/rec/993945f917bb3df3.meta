@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/inter-latin-extended.02dc98170ff37b88.woff2
+200 OK
+x-goog-stored-content-encoding: identity
+x-goog-hash: crc32c=7GpH9w==, md5=EchT0EWCR8GjC2dHpUHDEQ==
+x-goog-stored-content-length: 140872
+strict-transport-security: max-age=63072000
+content-type: font/woff2
+expires: Mon, 02 Nov 2026 07:17:32 GMT
+x-goog-metageneration: 1
+cache-control: public, max-age=31536000
+x-goog-storage-class: STANDARD
+last-modified: Tue, 06 Oct 2026 11:01:14 GMT
+server: Google Frontend
+x-goog-generation: 1791284474147843
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+x-cloud-trace-context: 4b7237f237bd8e7e8b2a9b7fbd95ec4d
+x-content-type-options: nosniff
+etag: "11c853d0458247c1a30b6747a541c311"
+x-guploader-uploadid: AFy3sg11HoRshGbmeUSWXrjoKFkr3c7GfmX-g8cPj-1NSrwugDR5dDKBXiUCFVeOwK6fJvL7yyvSZEY
+x-goog-meta-goog-reserved-file-mtime: 1755618066
+accept-ranges: bytes
+age: 473
+date: Tue, 17 Nov 2026 11:00:49 GMT
+x-served-by: cache-bfi-kbfi7400024-BFI, cache-bfi-kbfi7400024-BFI, cache-bfi-kbfi7400101-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 416, 0
+x-timer: S1794913250.690106,VS0,VE72
+content-length: 140872

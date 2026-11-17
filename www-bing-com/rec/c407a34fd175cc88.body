@@ -1,0 +1,1 @@
+sj_be(document,"keydown",function(e){(!(e=sb_ie?_w.event:e).altKey||e.ctrlKey||e.shiftKey)&&(e.key&&"Enter"===e.key||e.keyCode&&13===e.keyCode)&&_w.si_ct(sb_ie?e.srcElement:e.target,!1,e,"enter")},!1);

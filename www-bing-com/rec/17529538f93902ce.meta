@@ -1,0 +1,27 @@
+GET https://r.bing.com/rb/5K/jnc,nj/sDK9srW57kUX3o6was3pZDm53Ho.js?bu=BscEywTNBIgEtATZBA&or=w
+200 OK
+timing-allow-origin: *
+content-type: application/x-javascript; charset=utf-8
+server: Kestrel
+access-control-allow-headers: *
+access-control-allow-origin: *
+x-check-cacheable: YES
+last-modified: Sat, 14 Nov 2026 21:52:10 GMT
+x-eventid: 6af97f4e57ae427f870363c19ef6513d
+accept-ch: Sec-CH-UA-Bitness, Sec-CH-UA-Arch, Sec-CH-UA-Full-Version, Sec-CH-UA-Mobile, Sec-CH-UA-Model, Sec-CH-UA-Platform-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Platform, Sec-CH-UA, ECT, Sec-CH-Prefers-Color-Scheme, UA-Bitness, UA-Arch, UA-Full-Version, UA-Mobile, UA-Model, UA-Platform-Version, UA-Platform, UA
+useragentreductionoptout: A7kgTC5xdZ2WIVGZEfb1hUoNuvjzOZX3VIV/BA6C18kQOOF50Q0D3oWoAm49k3BQImkujKILc7JmPysWk3CSjwUAAACMeyJvcmlnaW4iOiJodHRwczovL3d3dy5iaW5nLmNvbTo0NDMiLCJmZWF0dXJlIjoiU2VuZEZ1bGxVc2VyQWdlbnRBZnRlclJlZHVjdGlvbiIsImV4cGlyeSI6MTY4NDg4NjM5OSwiaXNTdWJkb21haW4iOnRydWUsImlzVGhpcmRQYXJ0eSI6dHJ1ZX0=
+x-as-instrumentationoptions: AppServerLoggingMaster=1
+x-as-machinename: BNZEEAP0003E13D
+permissions-policy: unload=()
+x-as-suppresssetcookie: 1
+content-security-policy: script-src https: 'strict-dynamic' 'report-sample' 'wasm-unsafe-eval' 'nonce-0/9a4W03EMz7MJsZlPYerNc2J5ODrifW97Q6fitEaBY='; base-uri 'self';report-to csp-endpoint
+report-to: {"group":"csp-endpoint","max_age":86400,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingcsp"}]}
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingrms"}]}
+cross-origin-resource-policy: cross-origin
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":0.75}
+cache-control: public, max-age=31358698
+expires: Mon, 15 Nov 2027 09:45:50 GMT
+date: Tue, 17 Nov 2026 11:00:52 GMT
+x-cache: TCP_MEM_HIT from a2-17-114-149.deploy.akamaitechnologies.com (AkamaiGHost/22.7.1-a99db5fb656d033f98675045e2711319) (-)
+alt-svc: h3=":443"; ma=93600
+akamai-grn: 0.95721102.1794913252.2fbc3cc7

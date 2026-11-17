@@ -1,0 +1,69 @@
+self.__BUILD_MANIFEST = {
+  "/[[...slug]]": [
+    "static/chunks/0n_pyor.5hoie.js"
+  ],
+  "/_error": [
+    "static/chunks/0pa8_dh0e3s50.js"
+  ],
+  "/audio/[[...slug]]": [
+    "static/chunks/17f4b4tkbll-r.js"
+  ],
+  "/audio/brand/[id]": [
+    "static/chunks/0.rr7eltq7qu4.js"
+  ],
+  "/audio/play/[id]": [
+    "static/chunks/186wyuar3riia.js"
+  ],
+  "/audio/series/[id]": [
+    "static/chunks/0qmw9-cln7x26.js"
+  ],
+  "/audio_archive_sitemap.xml": [
+    "static/chunks/006k3zk_x1c2v.js"
+  ],
+  "/audio_archive_sitemap/page/[pageNumber]": [
+    "static/chunks/0gpc5jxu~a7b6.js"
+  ],
+  "/content_index_sitemap.xml": [
+    "static/chunks/0gvo28l2zxobq.js"
+  ],
+  "/content_index_sitemap/page/[pageNumber]": [
+    "static/chunks/0koe_y.te3afm.js"
+  ],
+  "/index_sitemap.xml": [
+    "static/chunks/06z68b1~g3nqg.js"
+  ],
+  "/video_documentaries_sitemap.xml": [
+    "static/chunks/0oiiivagdktfg.js"
+  ],
+  "__rewrites": {
+    "afterFiles": [],
+    "beforeFiles": [
+      {
+        "source": "/bbcdotcom/web/20261110-133831-0053d0afea-web-3.28.0-4//_next/:path+",
+        "destination": "/_next/:path+"
+      },
+      {
+        "source": "/blaize/:path*"
+      },
+      {
+        "source": "/zephr/:path*"
+      }
+    ],
+    "fallback": []
+  },
+  "sortedPages": [
+    "/_app",
+    "/_error",
+    "/audio/brand/[id]",
+    "/audio/play/[id]",
+    "/audio/series/[id]",
+    "/audio/[[...slug]]",
+    "/audio_archive_sitemap/page/[pageNumber]",
+    "/audio_archive_sitemap.xml",
+    "/content_index_sitemap/page/[pageNumber]",
+    "/content_index_sitemap.xml",
+    "/index_sitemap.xml",
+    "/video_documentaries_sitemap.xml",
+    "/[[...slug]]"
+  ]
+};self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()

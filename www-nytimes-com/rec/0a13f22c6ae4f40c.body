@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";var n=(0,e(t()).createContext)({getVariant:()=>null,isAllocated:()=>!1,reportExposure:()=>null,reportHybridExposure:()=>null,tests:{}});export{n as t};
+//# sourceMappingURL=AbraPreloadedContext-Ctkm9Eq5.js.map

@@ -1,0 +1,23 @@
+GET https://i.guim.co.uk/img/uploads/2026/11/16/Helen_Clark.png?width=150&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "LsfhnYRcxLyra1N6mINBD7ElXFOGYPo6ZC4b43iDzz8"
+fastly-io-info: ifsz=596818 idim=720x600 ifmt=png ofsz=9627 odim=150x150 ofmt=png
+fastly-io-served-by: vpop-etou8240196
+fastly-io-transform-stats: ifsz=596818 ofsz=9627 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+x-amz-server-side-encryption: AES256
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 59504
+date: Tue, 17 Nov 2026 11:01:35 GMT
+x-served-by: cache-lcy-egml8630033-LCY, cache-iad-khef600022-IAD
+x-cache: HIT, HIT
+x-cache-hits: 2, 0
+x-timer: S1794913295.002715,VS0,VE1
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 9627

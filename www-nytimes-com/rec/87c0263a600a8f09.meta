@@ -1,0 +1,35 @@
+GET https://static01.nytimes.com/newsgraphics/_l-HTaf6CYlN-Q/_app.dTIIKNktqA4J_Ze_zT1-gzPfCguFEIkeCeCwF6E8kUw/immutable/nodes/0.B5yPAurb.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg2UXTWpB_E-TZDy4Ru1qXgCOd1P8BtAgVwn_kutAwroVy7Q7IWdHmvZF0XeqFT3PF0UdUzbN18
+cache-control: max-age=31536000, stale-if-error=3600, stale-while-revalidate=60, public, immutable
+expires: Tue, 16 Nov 2027 16:37:05 GMT
+last-modified: Mon, 16 Nov 2026 16:37:00 GMT
+etag: W/"0ca1196a9383f83f91f5cd2535d06a15"
+x-goog-generation: 1794847020107579
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 173
+x-amz-meta-checksum: 1468b33aa39c3262e5cb50d3460ef439
+x-goog-hash: crc32c=bD/wDA==
+x-goog-hash: md5=DKEZapOD+D+R9c0lNdBqFQ==
+x-amz-checksum-crc32c: bD/wDA==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, Warning, X-GUploader-Response-Body-Transformations, X-GUploader-UploadID, X-Google-Trace, etag, if-match, range
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:01:04 GMT
+via: 1.1 varnish
+age: 66240
+x-served-by: cache-iad-kcgs7200089-IAD
+x-cache: HIT
+x-cache-hits: 455
+x-timer: S1794913265.604084,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

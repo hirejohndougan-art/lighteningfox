@@ -1,0 +1,22 @@
+GET https://i.guim.co.uk/img/uploads/2020/03/22/Robert-Reich,-L.png?width=150&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "+paP5YPoU+JhHmd/AVKL1GVPYJ9wD+MhGw72tlL7GTQ"
+fastly-io-info: ifsz=551062 idim=720x600 ifmt=png ofsz=10410 odim=150x150 ofmt=png
+fastly-io-served-by: vpop-etou8240193
+fastly-io-transform-stats: ifsz=551062 ofsz=10410 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 1344
+date: Tue, 17 Nov 2026 11:01:34 GMT
+x-served-by: cache-lcy-egml8630035-LCY, cache-iad-khef600022-IAD
+x-cache: HIT, HIT
+x-cache-hits: 4, 0
+x-timer: S1794913295.574848,VS0,VE1
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 10410

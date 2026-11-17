@@ -1,0 +1,23 @@
+GET https://www.bing.com/rp/wczR3URZR4-oWjjc5idYK8_hr54.br.css
+200 OK
+last-modified: Fri, 18 Oct 2024 21:02:40 GMT
+etag: 0x8DCEFB833B31C79
+akamai-grn: 0.ce78ce17.1794839848.4f062b65
+akamai-amd-bc-debug: [a=23.198.215.136,b=326887876,c=c,d=1790570161,h=304,k=1,l=3,n=US_NJ_PISCATAWAY,o=20940,r=4,j=[[a=10.198.215.141,b=326887876,c=p,d=1790570161,h=304,k=1,l=2,m=0,r=3]]],[a=23.198.215.141,b=324661848,c=p,d=1790570161,h=304,k=1,l=0,n=US_NJ_PISCATAWAY,o=20940,r=1]
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingaotak"}]}
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":1.0}
+timing-allow-origin: *
+content-type: text/css
+content-md5: tOWLy5TTnZmu/Ug6KvlKMA==
+x-ms-request-id: d4e35eb6-a01e-0007-5f47-76a4cc000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+x-cdn-traceid: 0.c9292117.1794913253.1b2cec5d
+alt-svc: h3=":443"; ma=93600
+vary: Accept-Encoding
+cache-control: public, no-transform, max-age=164032
+expires: Thu, 19 Nov 2026 08:34:45 GMT
+date: Tue, 17 Nov 2026 11:00:53 GMT
+quic-version: 0x00000001

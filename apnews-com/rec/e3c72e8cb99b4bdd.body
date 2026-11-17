@@ -1,0 +1,69 @@
+{
+  "features" : [ {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "admiral-login-page",
+    "label" : "Admiral login page",
+    "slug" : "admiral-login-page",
+    "cssSelector" : ".Zephr-loginAdmiralModule"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "commenting",
+    "label" : "Commenting",
+    "slug" : "commenting",
+    "cssSelector" : ".Zephr.Zephr-mod"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "complete-registration",
+    "label" : "Complete registration",
+    "slug" : "complete-registration",
+    "cssSelector" : ".Zephr-setpwModule"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "donate-page",
+    "label" : "Donate Page",
+    "slug" : "donate-page",
+    "cssSelector" : ".Zephr-donateModule"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "donate-page-required-variables",
+    "label" : "Donate Page Required Variables",
+    "slug" : "donate-page-required-variables",
+    "cssSelector" : ".ZephrDonateVariables"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "gated-registration",
+    "label" : "Gated registration ",
+    "slug" : "gated-registration",
+    "cssSelector" : ".Zephr-gatedRegistration"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "login-page",
+    "label" : "Login Page",
+    "slug" : "login-page",
+    "cssSelector" : ".Zephr-loginModule"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "register-page",
+    "label" : "Register Page",
+    "slug" : "register-page",
+    "cssSelector" : ".Zephr-registerModule"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "user-country",
+    "label" : "User Country",
+    "slug" : "user-country",
+    "cssSelector" : ".ZephrSourceCountry"
+  }, {
+    "targetType" : "CSS_SELECTOR",
+    "id" : "zephr-banner",
+    "label" : "Zephr Banner",
+    "slug" : "zephr-banner",
+    "cssSelector" : ".Zephr.Zephr-bar"
+  } ],
+  "datalayerOutcomesConfig" : {
+    "datalayerName" : "dataLayer",
+    "includeOutcomes" : true,
+    "outcomesAsEvents" : true,
+    "groupFields" : true
+  }
+}

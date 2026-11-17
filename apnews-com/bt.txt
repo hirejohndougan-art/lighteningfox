@@ -1,0 +1,209 @@
+[New LWP 14328]
+[New LWP 14326]
+[New LWP 14294]
+[New LWP 14220]
+[New LWP 14217]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+0x00007f27aca98e31 in __futex_abstimed_wait_common64 (private=128, cancel=true, abstime=0x0, op=265, expected=14217, futex_word=0x7f27ac8c1990) at ./nptl/futex-internal.c:57
+
+warning: 57	./nptl/futex-internal.c: No such file or directory
+warning: Missing auto-load script at offset 0 in section .debug_gdb_scripts
+of file /home/runner/work/lighteningfox/lighteningfox/target/release/ironswift.
+Use `info auto-load python-scripts [REGEXP]' to list them.
+
+Thread 6 (Thread 0x7f27ac8c16c0 (LWP 14217) "ironswift"):
+#0  read_unlock () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/sync/rwlock/futex.rs:111
+#1  drop<ironswift::settings::Settings> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/poison/rwlock.rs:1122
+#2  drop_glue<std::sync::poison::rwlock::RwLockReadGuard<ironswift::settings::Settings>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ptr/mod.rs:848
+#3  {closure#0} () at src/settings.rs:186
+#4  map<std::sync::poison::rwlock::RwLockReadGuard<ironswift::settings::Settings>, std::sync::poison::PoisonError<std::sync::poison::rwlock::RwLockReadGuard<ironswift::settings::Settings>>, ironswift::settings::Settings, ironswift::settings::get::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/result.rs:837
+#5  get () at src/settings.rs:186
+#6  0x0000555c40c1d6b1 in feature () at src/css.rs:652
+#7  0x0000555c40c1826f in one_query () at src/css.rs:590
+#8  {closure#0} () at src/css.rs:576
+#9  {closure#0}<&str, ironswift::css::query_list::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2905
+#10 try_fold<core::str::iter::Split<char>, (), core::iter::traits::iterator::Iterator::any::check::{closure_env#0}<&str, ironswift::css::query_list::{closure_env#0}>, core::ops::control_flow::ControlFlow<(), ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2504
+#11 any<core::str::iter::Split<char>, ironswift::css::query_list::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2909
+#12 query_list () at src/css.rs:576
+#13 {closure#0} () at src/css.rs:571
+#14 {closure#0}<&str, ironswift::css::media_matches::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2851
+#15 try_fold<core::str::iter::Split<&str>, (), core::iter::traits::iterator::Iterator::all::check::{closure_env#0}<&str, ironswift::css::media_matches::{closure_env#0}>, core::ops::control_flow::ControlFlow<(), ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2504
+#16 all<core::str::iter::Split<&str>, ironswift::css::media_matches::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/iter/traits/iterator.rs:2854
+#17 media_matches () at src/css.rs:571
+#18 0x0000555c40fad62a in {closure#11} () at src/style.rs:811
+#19 is_some_and<&str, ironswift::style::compute::{closure_env#11}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/option.rs:662
+#20 compute () at src/style.rs:811
+#21 0x0000555c40eeed1d in {closure#0} () at src/main.rs:1108
+#22 {closure#0}<ironswift::layout::Layout, ironswift::build_page::{closure#3}::{closure#0}::{closure_env#0}> () at src/js.rs:230
+#23 try_with<core::cell::RefCell<ironswift::dom::Dom>, ironswift::js::with_dom::{closure_env#0}<ironswift::layout::Layout, ironswift::build_page::{closure#3}::{closure#0}::{closure_env#0}>, ironswift::layout::Layout> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#24 with<core::cell::RefCell<ironswift::dom::Dom>, ironswift::js::with_dom::{closure_env#0}<ironswift::layout::Layout, ironswift::build_page::{closure#3}::{closure#0}::{closure_env#0}>, ironswift::layout::Layout> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:427
+#25 0x0000555c40c9aa93 in with_dom<ironswift::layout::Layout, ironswift::build_page::{closure#3}::{closure#0}::{closure_env#0}> () at src/js.rs:230
+#26 {closure#0} () at src/main.rs:1105
+#27 0x0000555c40e86b57 in call<(f32, f32), dyn core::ops::function::Fn<(f32, f32), Output=ironswift::layout::Layout>, alloc::alloc::Global> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/alloc/src/boxed.rs:2409
+#28 {closure#0} () at src/geometry.rs:139
+#29 map<&alloc::boxed::Box<dyn core::ops::function::Fn<(f32, f32), Output=ironswift::layout::Layout>, alloc::alloc::Global>, ironswift::layout::Layout, ironswift::geometry::ensure_fresh::{closure#1}::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/option.rs:1165
+#30 {closure#1} () at src/geometry.rs:139
+#31 try_with<core::cell::RefCell<core::option::Option<alloc::boxed::Box<dyn core::ops::function::Fn<(f32, f32), Output=ironswift::layout::Layout>, alloc::alloc::Global>>>, ironswift::geometry::ensure_fresh::{closure_env#1}, core::option::Option<ironswift::layout::Layout>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#32 with<core::cell::RefCell<core::option::Option<alloc::boxed::Box<dyn core::ops::function::Fn<(f32, f32), Output=ironswift::layout::Layout>, alloc::alloc::Global>>>, ironswift::geometry::ensure_fresh::{closure_env#1}, core::option::Option<ironswift::layout::Layout>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:427
+#33 ensure_fresh () at src/geometry.rs:139
+#34 0x0000555c40e86997 in viewport () at src/geometry.rs:147
+#35 client_rect () at src/geometry.rs:205
+#36 0x0000555c40ecb443 in {closure#1} () at src/js.rs:971
+#37 {closure#0}<ironswift::layout::Rect, ironswift::js::n_rect::{closure_env#1}> () at src/js.rs:230
+#38 try_with<core::cell::RefCell<ironswift::dom::Dom>, ironswift::js::with_dom::{closure_env#0}<ironswift::layout::Rect, ironswift::js::n_rect::{closure_env#1}>, ironswift::layout::Rect> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#39 with<core::cell::RefCell<ironswift::dom::Dom>, ironswift::js::with_dom::{closure_env#0}<ironswift::layout::Rect, ironswift::js::n_rect::{closure_env#1}>, ironswift::layout::Rect> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:427
+
+Thread 5 (Thread 0x7f278c5cc6c0 (LWP 14220) "reqwest-interna"):
+#0  0x00007f27acb2a292 in epoll_wait (epfd=3, events=0x7f2780000ca0, maxevents=1024, timeout=58530) at ../sysdeps/unix/sysv/linux/epoll_wait.c:30
+#1  0x0000555c41aeb0bc in select () at src/sys/unix/mod.rs:8
+#2  poll () at src/poll.rs:439
+#3  0x0000555c41ae6f6b in turn () at src/runtime/io/driver.rs:199
+#4  0x0000555c41ae1fc3 in park_internal () at src/runtime/io/driver.rs:167
+#5  0x0000555c41ade203 in {closure#0} () at src/runtime/scheduler/current_thread/mod.rs:471
+#6  enter<(), tokio::runtime::scheduler::current_thread::{impl#3}::park_internal::{closure_env#0}> () at src/runtime/scheduler/current_thread/mod.rs:486
+#7  park_internal () at src/runtime/scheduler/current_thread/mod.rs:468
+#8  0x0000555c41ade60d in park () at src/runtime/scheduler/current_thread/mod.rs:421
+#9  0x0000555c41892f7c in {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:858
+#10 {closure#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:906
+#11 set<tokio::runtime::scheduler::Context, tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/scoped.rs:40
+#12 0x0000555c41898a3d in {closure#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context.rs:186
+#13 try_with<tokio::runtime::context::Context, tokio::runtime::context::set_scheduler::{closure_env#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#14 with<tokio::runtime::context::Context, tokio::runtime::context::set_scheduler::{closure_env#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:427
+#15 set_scheduler<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context.rs:186
+#16 enter<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:906
+#17 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:819
+#18 {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:216
+#19 enter_runtime<tokio::runtime::scheduler::current_thread::{impl#0}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, ()> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/runtime.rs:65
+#20 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:204
+#21 block_on_inner<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:379
+#22 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:348
+#23 {closure#0} () at src/blocking/client.rs:1468
+#24 __rust_begin_short_backtrace<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/backtrace.rs:166
+#25 0x0000555c41899cd4 in {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:70
+#26 call_once<(), std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/panic/unwind_safe.rs:275
+#27 do_call<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:573
+#28 catch_unwind<(), core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:541
+#29 catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panic.rs:359
+#30 {closure#1}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:68
+#31 call_once<std::thread::lifecycle::spawn_unchecked::{closure_env#1}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ops/function.rs:250
+#32 0x0000555c42cbff9f in alloc::boxed::{impl#31}::call_once<(), (dyn core::ops::function::FnOnce<(), Output=()> + core::marker::Send), alloc::alloc::Global> () at library/alloc/src/boxed.rs:2395
+#33 std::sys::thread::unix::{impl#2}::new::thread_start () at library/std/src/sys/thread/unix.rs:127
+#34 0x00007f27aca9cb64 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#35 0x00007f27acb29e8c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 4 (Thread 0x7f276abf56c0 (LWP 14294) "reqwest-interna"):
+#0  0x00007f27acb2a292 in epoll_wait (epfd=13, events=0x7f2744005e30, maxevents=1024, timeout=23870) at ../sysdeps/unix/sysv/linux/epoll_wait.c:30
+#1  0x0000555c41aeb0bc in select () at src/sys/unix/mod.rs:8
+#2  poll () at src/poll.rs:439
+#3  0x0000555c41ae6f6b in turn () at src/runtime/io/driver.rs:199
+#4  0x0000555c41ae1fc3 in park_internal () at src/runtime/io/driver.rs:167
+#5  0x0000555c41ade203 in {closure#0} () at src/runtime/scheduler/current_thread/mod.rs:471
+#6  enter<(), tokio::runtime::scheduler::current_thread::{impl#3}::park_internal::{closure_env#0}> () at src/runtime/scheduler/current_thread/mod.rs:486
+#7  park_internal () at src/runtime/scheduler/current_thread/mod.rs:468
+#8  0x0000555c41ade60d in park () at src/runtime/scheduler/current_thread/mod.rs:421
+#9  0x0000555c41892f7c in {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:858
+#10 {closure#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:906
+#11 set<tokio::runtime::scheduler::Context, tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/scoped.rs:40
+#12 0x0000555c41898a3d in {closure#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context.rs:186
+#13 try_with<tokio::runtime::context::Context, tokio::runtime::context::set_scheduler::{closure_env#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#14 with<tokio::runtime::context::Context, tokio::runtime::context::set_scheduler::{closure_env#0}<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>>, (alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>)> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:427
+#15 set_scheduler<(alloc::boxed::Box<tokio::runtime::scheduler::current_thread::Core, alloc::alloc::Global>, core::option::Option<()>), tokio::runtime::scheduler::current_thread::{impl#9}::enter::{closure_env#0}<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context.rs:186
+#16 enter<tokio::runtime::scheduler::current_thread::{impl#9}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, core::option::Option<()>> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:906
+#17 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:819
+#18 {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:216
+#19 enter_runtime<tokio::runtime::scheduler::current_thread::{impl#0}::block_on::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}>, ()> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/context/runtime.rs:65
+#20 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/scheduler/current_thread/mod.rs:204
+#21 block_on_inner<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:379
+#22 block_on<reqwest::blocking::client::{impl#9}::new::{closure#0}::{async_block_env#0}> () at /home/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.54.1/src/runtime/runtime.rs:348
+#23 {closure#0} () at src/blocking/client.rs:1468
+#24 __rust_begin_short_backtrace<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/backtrace.rs:166
+#25 0x0000555c41899cd4 in {closure#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:70
+#26 call_once<(), std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/panic/unwind_safe.rs:275
+#27 do_call<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:573
+#28 catch_unwind<(), core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:541
+#29 catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panic.rs:359
+#30 {closure#1}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:68
+#31 call_once<std::thread::lifecycle::spawn_unchecked::{closure_env#1}<reqwest::blocking::client::{impl#9}::new::{closure_env#0}, ()>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ops/function.rs:250
+#32 0x0000555c42cbff9f in alloc::boxed::{impl#31}::call_once<(), (dyn core::ops::function::FnOnce<(), Output=()> + core::marker::Send), alloc::alloc::Global> () at library/alloc/src/boxed.rs:2395
+#33 std::sys::thread::unix::{impl#2}::new::thread_start () at library/std/src/sys/thread/unix.rs:127
+#34 0x00007f27aca9cb64 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#35 0x00007f27acb29e8c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 3 (Thread 0x7f26ebfff6c0 (LWP 14326) "frames"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x0000555c42ca6396 in std::sys::sync::futex::unix::futex_wait () at library/std/src/sys/sync/futex/unix.rs:63
+#2  std::sys::sync::thread_parking::futex::Parker::park () at library/std/src/sys/sync/thread_parking/futex.rs:55
+#3  std::thread::thread::Thread::park () at library/std/src/thread/thread.rs:153
+#4  0x0000555c40def9c5 in wait_until () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/context.rs:143
+#5  {closure#1}<core::option::Option<image::images::buffer::ImageBuffer<image::color::Rgba<u8>, alloc::vec::Vec<u8, alloc::alloc::Global>>>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/list.rs:453
+#6  0x0000555c40e15021 in {closure#0}<std::sync::mpmc::list::{impl#3}::recv::{closure_env#1}<ironswift::FrameJob>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/context.rs:49
+#7  {closure#1}<std::sync::mpmc::list::{impl#3}::recv::{closure_env#1}<ironswift::FrameJob>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/context.rs:57
+#8  try_with<core::cell::Cell<core::option::Option<std::sync::mpmc::context::Context>>, std::sync::mpmc::context::{impl#0}::with::{closure_env#1}<std::sync::mpmc::list::{impl#3}::recv::{closure_env#1}<ironswift::FrameJob>, ()>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/local.rs:463
+#9  with<std::sync::mpmc::list::{impl#3}::recv::{closure_env#1}<ironswift::FrameJob>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/context.rs:53
+#10 recv<ironswift::FrameJob> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/list.rs:442
+#11 recv<ironswift::FrameJob> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpmc/mod.rs:1025
+#12 0x0000555c40e46255 in recv<ironswift::FrameJob> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpsc.rs:890
+#13 next<ironswift::FrameJob> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sync/mpsc.rs:1139
+#14 {closure#0} () at src/main.rs:882
+#15 __rust_begin_short_backtrace<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/backtrace.rs:166
+#16 0x0000555c40df8ebb in {closure#0}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:70
+#17 call_once<(), std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/panic/unwind_safe.rs:275
+#18 do_call<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:573
+#19 catch_unwind<(), core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()>>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:541
+#20 catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panic.rs:359
+#21 {closure#1}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:68
+#22 call_once<std::thread::lifecycle::spawn_unchecked::{closure_env#1}<ironswift::frame_worker::{closure#0}::{closure_env#0}, ()>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ops/function.rs:250
+#23 0x0000555c42cbff9f in alloc::boxed::{impl#31}::call_once<(), (dyn core::ops::function::FnOnce<(), Output=()> + core::marker::Send), alloc::alloc::Global> () at library/alloc/src/boxed.rs:2395
+#24 std::sys::thread::unix::{impl#2}::new::thread_start () at library/std/src/sys/thread/unix.rs:127
+#25 0x00007f27aca9cb64 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#26 0x00007f27acb29e8c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 2 (Thread 0x7f276bfff6c0 (LWP 14328) "frame-process"):
+#0  0x00007f27acb1bd2a in __GI___libc_read (nbytes=4, buf=0x7f276bffd9d4, fd=32) at ../sysdeps/unix/sysv/linux/read.c:26
+#1  __GI___libc_read (fd=32, buf=0x7f276bffd9d4, nbytes=4) at ../sysdeps/unix/sysv/linux/read.c:24
+#2  0x0000555c42cb318f in std::sys::fd::unix::FileDesc::read () at library/std/src/sys/fd/unix.rs:135
+#3  std::sys::fs::unix::File::read () at library/std/src/sys/fs/unix.rs:1469
+#4  0x0000555c40ee2db5 in default_read_exact<std::process::ChildStdout> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/alloc/src/io/read.rs:1039
+#5  read_exact<std::process::ChildStdout> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/alloc/src/io/read.rs:397
+#6  0x0000555c40e43cf8 in get<std::process::ChildStdout> () at src/frames.rs:83
+#7  0x0000555c40e4a7d5 in {closure#0} () at src/frames.rs:979
+#8  {closure#1} () at src/frames.rs:978
+#9  __rust_begin_short_backtrace<ironswift::frames::isolated::ensure::{closure_env#1}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/backtrace.rs:166
+#10 0x0000555c40dfa5fd in {closure#0}<ironswift::frames::isolated::ensure::{closure_env#1}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:70
+#11 call_once<(), std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frames::isolated::ensure::{closure_env#1}, ()>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/panic/unwind_safe.rs:275
+#12 do_call<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frames::isolated::ensure::{closure_env#1}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:573
+#13 catch_unwind<(), core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frames::isolated::ensure::{closure_env#1}, ()>>> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panicking.rs:541
+#14 catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked::{closure#1}::{closure_env#0}<ironswift::frames::isolated::ensure::{closure_env#1}, ()>>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/panic.rs:359
+#15 {closure#1}<ironswift::frames::isolated::ensure::{closure_env#1}, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:68
+#16 call_once<std::thread::lifecycle::spawn_unchecked::{closure_env#1}<ironswift::frames::isolated::ensure::{closure_env#1}, ()>, ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ops/function.rs:250
+#17 0x0000555c42cbff9f in alloc::boxed::{impl#31}::call_once<(), (dyn core::ops::function::FnOnce<(), Output=()> + core::marker::Send), alloc::alloc::Global> () at library/alloc/src/boxed.rs:2395
+#18 std::sys::thread::unix::{impl#2}::new::thread_start () at library/std/src/sys/thread/unix.rs:127
+#19 0x00007f27aca9cb64 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#20 0x00007f27acb29e8c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 1 (Thread 0x7f27acd02a00 (LWP 14215) "ironswift"):
+#0  0x00007f27aca98e31 in __futex_abstimed_wait_common64 (private=128, cancel=true, abstime=0x0, op=265, expected=14217, futex_word=0x7f27ac8c1990) at ./nptl/futex-internal.c:57
+#1  __futex_abstimed_wait_common (cancel=true, private=128, abstime=0x0, clockid=0, expected=14217, futex_word=0x7f27ac8c1990) at ./nptl/futex-internal.c:87
+#2  __GI___futex_abstimed_wait_cancelable64 (futex_word=futex_word@entry=0x7f27ac8c1990, expected=14217, clockid=clockid@entry=0, abstime=abstime@entry=0x0, private=private@entry=128) at ./nptl/futex-internal.c:139
+#3  0x00007f27aca9e863 in __pthread_clockjoin_ex (threadid=139808375314112, thread_return=0x0, clockid=0, abstime=0x0, block=<optimized out>) at ./nptl/pthread_join_common.c:102
+#4  0x0000555c42c9cfb1 in std::sys::thread::unix::Thread::join () at library/std/src/sys/thread/unix.rs:135
+#5  0x0000555c40dfbc95 in join<()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/lifecycle.rs:224
+#6  0x0000555c40ce077d in join<()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/thread/join_handle.rs:150
+#7  {closure#0} () at src/main.rs:1215
+#8  map<std::thread::join_handle::JoinHandle<()>, core::io::error::Error, core::result::Result<(), alloc::boxed::Box<(dyn core::any::Any + core::marker::Send), alloc::alloc::Global>>, ironswift::main::{closure_env#0}> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/result.rs:837
+#9  main () at src/main.rs:1215
+#10 0x0000555c40e4500b in call_once<fn(), ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/core/src/ops/function.rs:250
+#11 __rust_begin_short_backtrace<fn(), ()> () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/sys/backtrace.rs:166
+#12 0x0000555c40d88749 in std::rt::lang_start::<()>::{closure#0} () at /rustc/0ef1bc386059596dada8fb65b50425aab2ea637a/library/std/src/rt.rs:206
+#13 0x0000555c42cb5408 in core::ops::function::impls::{impl#2}::call_once<(), (dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> () at library/core/src/ops/function.rs:287
+#14 std::panicking::catch_unwind::do_call<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> () at library/std/src/panicking.rs:573
+#15 std::panicking::catch_unwind<i32, &(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe)> () at library/std/src/panicking.rs:541
+#16 std::panic::catch_unwind<&(dyn core::ops::function::Fn<(), Output=i32> + core::marker::Sync + core::panic::unwind_safe::RefUnwindSafe), i32> () at library/std/src/panic.rs:359
+#17 std::rt::lang_start_internal::{closure#0} () at library/std/src/rt.rs:175
+#18 std::panicking::catch_unwind::do_call<std::rt::lang_start_internal::{closure_env#0}, isize> () at library/std/src/panicking.rs:573
+#19 std::panicking::catch_unwind<isize, std::rt::lang_start_internal::{closure_env#0}> () at library/std/src/panicking.rs:541
+#20 std::panic::catch_unwind<std::rt::lang_start_internal::{closure_env#0}, isize> () at library/std/src/panic.rs:359
+#21 std::rt::lang_start_internal () at library/std/src/rt.rs:171
+#22 0x0000555c40d0177c in main ()
+[Inferior 1 (process 14215) detached]

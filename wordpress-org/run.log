@@ -1,0 +1,15 @@
+[js error] https://wordpress.org/wp-content/plugins/gutenberg/build/modules/block-library/navigation/view.min.js?ver=459046a3816f848f72d6-20240308: TypeError: Failed to resolve module specifier "@wordpress/interactivity": relative references must start with "/", "./" or "../"
+[js error] Uncaught (in promise): TypeError: Failed to resolve module specifier "@wordpress/interactivity": relative references must start with "/", "./" or "../"
+[js error] https://stats.wp.com/e-202647.js: ReferenceError: Image is not defined (unknown at :1:3810)
+    at o (unknown at :1:2001)
+    at view (unknown at :1:3011)
+    at apply (native)
+    at <main> (unknown at :1:2408)
+    at i (unknown at :1:2291)
+    at r (unknown at :1:2503)
+    at <main> (unknown at :1:3796)
+    at <main> (unknown at :1:3810)
+[js error] inline script #1347: SyntaxError: expected value at line 1 column 1
+[js error] Uncaught (in promise): SyntaxError: expected value at line 1 column 1
+https://wordpress.org/: 1481 nodes, 1102 display items, 1280x5490 px, 9.480046368s total | JS: 12 scripts, 5 errors, 7.762647649s
+exit 0

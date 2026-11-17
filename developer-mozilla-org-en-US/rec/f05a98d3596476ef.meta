@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/styles-breadcrumbs.87eb742f4e711dc3.css
+200 OK
+etag: "6c471e5334b6346f403717d633055937"
+content-type: text/css
+x-goog-stored-content-length: 859
+server: Google Frontend
+last-modified: Fri, 08 May 2026 01:16:49 GMT
+x-guploader-uploadid: AAVLpEhw0gtNmZC2Ast72BrhVsjCgsuny02x_wXsbDIZRch5Wfo4okLjtvBoOVmokTDU7VKK
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+cache-control: public, max-age=31536000
+x-goog-metageneration: 1
+x-cloud-trace-context: e934417674ccc6ac6569d20f5d477a6f
+x-goog-stored-content-encoding: identity
+x-content-type-options: nosniff
+x-goog-hash: crc32c=tkl+bQ==, md5=bEceUzS2NG9ANxfWMwVZNw==
+x-goog-generation: 1778203009378970
+x-goog-storage-class: STANDARD
+strict-transport-security: max-age=63072000
+expires: Fri, 08 May 2026 02:23:27 GMT
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:49 GMT
+age: 1694757
+x-served-by: cache-bfi-krnt7300089-BFI, cache-bfi-krnt7300058-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 5, 8
+x-timer: S1794913250.660827,VS0,VE0

@@ -1,0 +1,29 @@
+GET https://www.theguardian.com/
+302 Found
+retry-after: 0
+location: /us
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:01:33 GMT
+x-robots-tag: bingbot: noarchive
+set-cookie: gu_client_ab_tests=; path=/; max-age=0
+set-cookie: gu_client_ab_tests=growth-auxia-banner:control; path=/; max-age=2592000; domain=.theguardian.com; Secure
+set-cookie: gu_v2_mvt_id=; path=/; max-age=0
+set-cookie: gu_v2_mvt_id=252; path=/; expires=Mon, 15 Feb 2027 11:01:33 GMT; domain=.theguardian.com; Secure
+set-cookie: GU_mvt_id=204226; expires=Mon, 15 Feb 2027 11:01:33 GMT; path=/; domain=.theguardian.com; Secure
+set-cookie: GU_geo_country=US; path=/; Secure
+set-cookie: GU_geo_country_region=US-VA; path=/; Secure
+x-timer: S1794913293.440145,VS0,VE1
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-frame-options: SAMEORIGIN
+x-xss-protection: 1; mode=block
+x-content-type-options: nosniff
+content-security-policy: upgrade-insecure-requests; default-src https:; script-src https: 'unsafe-inline' 'unsafe-eval' blob: 'unsafe-inline'; style-src https: 'unsafe-inline'; img-src https: data: blob:; media-src https: data: blob:; font-src 'self' https://assets.guim.co.uk https://pasteup.guim.co.uk https://interactive.guim.co.uk https://dashboard.ophan.co.uk https://cdn.braze.eu data:; connect-src https: wss: blob:; child-src https: blob:; object-src 'none'; base-uri 'none'
+referrer-policy: no-referrer-when-downgrade
+feature-policy: camera 'none'; microphone 'none'; midi 'none'; geolocation 'none'
+permissions-policy: camera=(), microphone=(), midi=(), geolocation=(), interest-cohort=(), clipboard-read=(), unload=()
+x-gu-edition: us
+age: 0
+x-request-id: 632293e2-92ad-482e-93a1-11048850adc0
+cache-control: max-age=0
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+content-length: 0

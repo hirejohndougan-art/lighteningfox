@@ -1,0 +1,13 @@
+GET https://experiments.parsely.com/vip-experiments.js?apiKey=apnews.com
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 10:59:25 GMT
+content-type: application/javascript; charset=utf-8
+vary: Accept-Encoding
+x-content-type-options: nosniff
+access-control-allow-methods: GET
+access-control-allow-origin: *
+x-cache: HIT
+x-rq: dca6 181 249 80
+cache-control: public, max-age=30, s-maxage=60
+accept-ranges: bytes

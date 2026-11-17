@@ -1,0 +1,1 @@
+function sj_pt(t,s){var r=_w.scheduler;if(r&&"function"==typeof r.postTask)try{return r.postTask(t,s||{priority:"user-visible"})}catch(t){}return sb_st(t,0)}_w.sj_pt=sj_pt;

@@ -1,0 +1,20 @@
+GET https://i0.wp.com/wordpress.org/files/2026/08/merch-items-03.png?resize=1024%2C339&ssl=1
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 11:01:49 GMT
+content-type: image/png
+content-length: 110539
+last-modified: Tue, 01 Sep 2026 15:37:19 GMT
+expires: Fri, 01 Sep 2028 03:37:19 GMT
+cache-control: public, max-age=63115200
+link: <https://wordpress.org/files/2026/08/merch-items-03.png>; rel="canonical"
+x-content-type-options: nosniff
+etag: "bda2f6b86b49233b"
+x-bytes-saved: 257555
+vary: Accept
+alt-svc: clear
+x-nc: HIT dca 8
+server-timing: a8c-cdn, dc;desc=dca, cache;desc=HIT;dur=3.0
+access-control-allow-origin: *
+access-control-allow-methods: GET, HEAD
+timing-allow-origin: *

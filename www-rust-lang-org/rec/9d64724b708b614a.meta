@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/scripts/highlight.pack.js
+200 OK
+server: GitHub.com
+content-type: application/javascript; charset=utf-8
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-62e8"
+expires: Tue, 17 Nov 2026 01:35:47 GMT
+cache-control: max-age=600
+x-fastly-request-id: 3ac3dc5c38c72fb45bac613cc220bdaf092acd28
+x-proxy-cache: HIT
+x-github-request-id: 2562:36F4B9:8185A0:A0A73D:6AFBD01E
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 545
+date: Tue, 17 Nov 2026 11:01:46 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794913307.927061,VS0,VE2
+vary: Accept-Encoding

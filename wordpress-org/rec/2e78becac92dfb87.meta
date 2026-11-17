@@ -1,0 +1,13 @@
+GET https://wordpress.org/wp-content/mu-plugins/pub-sync/blocks/global-header-footer/build/style.css?ver=1794235755
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 11:01:48 GMT
+content-type: text/css
+last-modified: Mon, 09 Nov 2026 14:49:15 GMT
+vary: Accept-Encoding
+x-frame-options: SAMEORIGIN
+x-nc: HIT dca 1
+expires: Thu, 31 Dec 2037 23:55:55 GMT
+cache-control: max-age=315360000
+alt-svc: clear
+x-remembering: Eric Binnion <https://friendsofericbinnion.wordpress.com/>

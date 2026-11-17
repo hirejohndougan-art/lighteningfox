@@ -1,0 +1,18 @@
+GET https://www.bing.com/rp/8PdTRyOAOW1kkyD7yJTx0Ed2kws.br.css
+200 OK
+last-modified: Fri, 02 Oct 2026 21:50:12 GMT
+etag: 0x8DF20CF22D8A5A9
+alt-svc: h3=":443"; ma=93600
+content-type: text/css
+x-cdn-traceid: 0.c9292117.1794913253.1b2cec4d
+content-md5: nTfQDmI5jbaQlwcgfCNkKw==
+x-ms-request-id: 481904a2-a01e-000c-4aff-52bcb8000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+akamai-amd-bc-debug: [a=23.33.41.203,b=478418645,c=p,d=1791021650,h=200,k=1,l=0,n=US_NJ_PISCATAWAY,o=20940,r=1,p=146]
+cache-control: public, no-transform, max-age=257818
+expires: Fri, 20 Nov 2026 10:37:51 GMT
+date: Tue, 17 Nov 2026 11:00:53 GMT
+quic-version: 0x00000001

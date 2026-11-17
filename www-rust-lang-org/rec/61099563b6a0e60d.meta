@@ -1,0 +1,23 @@
+GET https://rust-lang.org/static/styles/app_17774143076088586802.css
+200 OK
+server: GitHub.com
+content-type: text/css; charset=utf-8
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: W/"6afbac14-2b4d"
+expires: Tue, 17 Nov 2026 04:04:17 GMT
+cache-control: max-age=600
+x-fastly-request-id: d7d424d76b3b5e04636b9972ab23974f152af900
+x-proxy-cache: HIT
+x-github-request-id: 6370:3004A4:10F4BAD:12547B0:6AFBD1C9
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 545
+date: Tue, 17 Nov 2026 11:01:46 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794913307.927214,VS0,VE2
+vary: Accept-Encoding

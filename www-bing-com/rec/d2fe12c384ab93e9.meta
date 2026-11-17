@@ -1,0 +1,19 @@
+GET https://www.bing.com/rp/I4k9cTVu6VDz2154KW58lDgex9g.br.js
+200 OK
+content-type: text/javascript; charset=utf-8
+content-md5: QqNjLjC+lI4vEtoK8kUz0w==
+last-modified: Sun, 20 Sep 2026 16:29:54 GMT
+etag: 0x8DF173467141F28
+x-ms-request-id: f56192f2-801e-005f-0744-4aa0b7000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+x-cdn-traceid: 0.c9292117.1794913253.1b2cec4f
+alt-svc: h3=":443"; ma=93600
+akamai-amd-bc-debug: [a=23.198.215.135,b=1545594951,c=c,d=1790048783,h=200,k=1,l=18,n=US_NJ_PISCATAWAY,o=20940,r=19,p=328,j=[[a=52.239.222.100,b=1545594951,c=o,d=1790048783,h=200,k=2,l=15,m=0,r=18,p=288,t=cus]]]
+vary: Accept-Encoding
+cache-control: public, no-transform, max-age=29643422
+expires: Tue, 26 Oct 2027 13:17:55 GMT
+date: Tue, 17 Nov 2026 11:00:53 GMT
+quic-version: 0x00000001

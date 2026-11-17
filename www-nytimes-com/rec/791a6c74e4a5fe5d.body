@@ -1,0 +1,2 @@
+import{t as e}from"./isBrowser-Dkae7dA-.js";function t(n,r=0){if(!(!e||r>4)){if(window.Iterate){n();return}window.setTimeout(()=>t(n,r+1),1e3)}}export{t};
+//# sourceMappingURL=iterate-DqLG6xm4.js.map

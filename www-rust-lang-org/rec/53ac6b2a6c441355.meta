@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/fonts/woff2/AlfaSlabOne-Regular.vietnamese.woff2
+200 OK
+server: GitHub.com
+content-type: font/woff2
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-1960"
+expires: Tue, 17 Nov 2026 11:11:47 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: 6EBA:39D63:FE0294:12F704D:6AFC341A
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 11:01:47 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1794913307.955153,VS0,VE75
+vary: Accept-Encoding
+x-fastly-request-id: 462c038ef3f1c975bc1096616f89c35ef02cacf2
+content-length: 6496

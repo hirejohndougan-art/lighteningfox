@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2022/10/12/podcasts/headlines-albumartwork-audioapp-2/headlines-albumartwork-audioapp-2-thumbLarge.png?quality=75&auto=webp&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "eoPXOwOhBSL4U9UHEbFLtC8J7dZZfnDX5DM2XV+jtHQ"
+expires: Sat, 05 Sep 2026 08:58:54 GMT
+fastly-io-info: ifsz=20844 idim=150x150 ifmt=png ofsz=19505 odim=150x150 ofmt=png
+fastly-io-served-by: img10-us-east4
+fastly-io-transform-stats: ifsz=20844 ofsz=19505 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 5MfQCw==
+x-goog-generation: 1717602116648933
+x-goog-hash: crc32c=5MfQCw==
+x-goog-hash: md5=qqLRi3ewu5a5crO4pskKzg==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 20844
+x-guploader-uploadid: AJjja9bebqwKFthNPnb71QxdAEM2PKZshOyRLf9a4-LUs9YnIhZsU7u3CmuKfagtdYGyX7KrKTjK3qw
+accept-ranges: bytes
+age: 22599
+date: Tue, 17 Nov 2026 11:01:26 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200125-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794913286.366242,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 19505

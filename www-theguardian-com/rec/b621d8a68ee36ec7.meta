@@ -1,0 +1,22 @@
+GET https://i.guim.co.uk/img/uploads/2018/01/10/Peter_Bradshaw,_L.png?width=90&dpr=1&s=none&crop=1%3A1
+200 OK
+content-type: image/png
+etag: "Qsj4vcJ/tqurz+BzHvbFFrZuaoxbciTgvQkZ7jCL62U"
+fastly-io-info: ifsz=575911 idim=720x600 ifmt=png ofsz=4317 odim=90x90 ofmt=png
+fastly-io-served-by: vpop-etou8240196
+fastly-io-transform-stats: ifsz=575911 ofsz=4317 ofmt=png
+fastly-stats: io=1
+server: AmazonS3
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 11871
+date: Tue, 17 Nov 2026 11:01:35 GMT
+x-served-by: cache-lcy-eglc8600095-LCY, cache-iad-khef600022-IAD
+x-cache: HIT, HIT
+x-cache-hits: 1, 0
+x-timer: S1794913295.002666,VS0,VE1
+access-control-allow-origin: *
+cache-control: max-age=31536000
+vary: Accept, Accept-Encoding
+content-length: 4317

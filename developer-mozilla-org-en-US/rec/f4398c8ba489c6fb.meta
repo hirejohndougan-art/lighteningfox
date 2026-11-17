@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/styles-featured-articles.770034368883a9ae.css
+200 OK
+x-cloud-trace-context: 862c3fc6fb1f2b2eb74c876dc4affb2d
+x-goog-stored-content-encoding: identity
+referrer-policy: strict-origin-when-cross-origin
+x-goog-hash: crc32c=0mct4Q==, md5=Gd2sCX78PWy+I0f4YKNQDQ==
+x-goog-metageneration: 1
+content-type: text/css
+x-goog-stored-content-length: 1406
+x-frame-options: DENY
+x-goog-storage-class: STANDARD
+strict-transport-security: max-age=63072000
+x-guploader-uploadid: AAVLpEjq3HkDMYdZp79NKIevNa4vVUwWLFyW2YIKDH_0ytXsrToidmfIAfolUvCD3rZbIc68ovDOXm8
+cache-control: public, max-age=31536000
+x-content-type-options: nosniff
+last-modified: Fri, 08 May 2026 01:16:49 GMT
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+expires: Fri, 08 May 2026 02:39:42 GMT
+etag: "19ddac097efc3d6cbe2347f860a3500d"
+server: Google Frontend
+x-goog-generation: 1778203009439402
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:49 GMT
+age: 1044217
+x-served-by: cache-bfi-krnt7300063-BFI, cache-bfi-krnt7300063-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 1320, 2
+x-timer: S1794913250.660401,VS0,VE0

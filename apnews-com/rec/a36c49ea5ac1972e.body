@@ -1,0 +1,32 @@
+{
+  "featureResults" : {
+    "zephr-banner" : "blaize.transform.concat([\"blaize.transform.resource('fdfd7593-178b-4503-8d98-3e939bb351cd', {\\\"type\\\":\\\"INTERNAL_TEMPLATE\\\",\\\"outcomeId\\\":\\\"graph/1#2,graph/1#3,graph/1#5,graph/2#1,graph/2#9,graph/2#14,graph/2#16,transformation/5\\\",\\\"ruleId\\\":\\\"H-zephr-banner-79\\\"})\",\"blaize.transform.outcomeTracker('zephr-banner','Zephr Banner','transformation/5','$10 Desktop Donate Banner')\"])"
+  },
+  "resources" : {
+    "uiComponents" : {
+      "fdfd7593-178b-4503-8d98-3e939bb351cd" : "<style>.ap_banner-container {\n   display: flex;\n   justify-content: flex-end;\n   align-items: center;\n   background-color: #000000;\n   padding: 10px 12px 10px 10px;\n   top: 0;\n}\n\n\n.ap_banner-button {\n   display: inline-block;\n   font-variant: normal;\n   font-style: normal;\n   font-size: 14px;\n   font-weight: 550;\n   line-height: 16px;\n   font-family: APVar, sans-serif;\n   color: #ffffff;\n   background-color: #da1026;\n   border: none;\n   border-radius: 3px;\n   padding: 5px 12px;\n   cursor: pointer;\n   text-decoration: none;\n\n\n   /* Capitalize each word */\n   text-transform: capitalize !important;\n}\n\n\n/* Tablet and mobile */\n@media only screen and (max-width: 800px) {\n   .ap_banner-button {\n       font-size: 14px;\n       line-height: 10px;\n       padding: 4px;\n   }\n}\n\n\n/* Medium/large screens */\n@media only screen and (min-width: 801px) and (max-width: 1440px) {\n   .ap_banner-button {\n       font-size: 16px;\n       line-height: 8px;\n       padding: 8px;\n   }\n}</style><a\r\n  href=\"/donate?target=button&payment-type=Monthly&payment-price=10\"\r\n  class=\"ap_banner-button\"\r\n  id=\"ap_banner-button-1\"\r\n>\r\n  Donate\r\n</a>"
+    }
+  },
+  "accessDetails" : {
+    "accessDecisions" : { },
+    "entitlements" : { },
+    "credits" : { },
+    "meters" : { },
+    "trials" : { },
+    "timeTrials" : { },
+    "testGroups" : {
+      "17a7d695-4fb5-484b-9639-17f3499fd46c" : "C",
+      "3aa8be44-3b36-4fa1-b68e-9bf1a322d02c" : "B",
+      "479ec4f0-25e7-4e34-9af1-6cd099c0dc33" : "B",
+      "927299b3-2a08-43c2-adbc-5f9b8565c8d9" : "A",
+      "b3620fe1-3d1f-4bbd-b63d-958b2ff2f549" : "B",
+      "cc1e166d-8bc4-45ab-bae3-d8272b34a859" : "A"
+    },
+    "activeProducts" : [ ],
+    "authenticated" : false,
+    "trialTrackingDetails" : [ ]
+  },
+  "flags" : {
+    "LOCALE_AWARE_TRUNCATION" : false
+  }
+}

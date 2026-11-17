@@ -1,0 +1,29 @@
+GET https://developer.mozilla.org/static/client/index.c9ef002ec1335c68.js
+200 OK
+x-goog-stored-content-length: 50111
+server: Google Frontend
+x-goog-metageneration: 1
+content-type: text/javascript
+x-cloud-trace-context: 428a60b3e7e4e6bd5c89d9984e9fb33b
+referrer-policy: strict-origin-when-cross-origin
+cache-control: public, max-age=31536000
+x-content-type-options: nosniff
+x-guploader-uploadid: AFy3sg29Nf5yF_JeFznZ9_HpMtjE-fM0sxzDzaFcWn-6yrPnF_4mRkuQ0wZpiSR4NG4UfGr-9KhCfWU
+x-goog-generation: 1794444143901143
+etag: "99e06bae51c7cd82dc92b43b3f35d344"
+x-goog-storage-class: STANDARD
+expires: Thu, 12 Nov 2026 01:46:31 GMT
+x-goog-stored-content-encoding: identity
+last-modified: Thu, 12 Nov 2026 00:42:23 GMT
+strict-transport-security: max-age=63072000
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+x-goog-hash: crc32c=QSChtQ==, md5=meBrrlHHzYLckrQ7PzXTRA==
+x-frame-options: DENY
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:49 GMT
+age: 468858
+x-served-by: cache-bfi-kbfi7400106-BFI, cache-bfi-kbfi7400106-BFI, cache-bfi-kbfi7400044-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 9, 7
+x-timer: S1794913250.658956,VS0,VE0

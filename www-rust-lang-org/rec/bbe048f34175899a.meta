@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/fonts/woff2/AlfaSlabOne-Regular.latin-ext.woff2
+200 OK
+server: GitHub.com
+content-type: font/woff2
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-4604"
+expires: Tue, 17 Nov 2026 11:11:46 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: 3E6C:4611E:F86F47:129E5B1:6AFC341A
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 11:01:46 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1794913307.955142,VS0,VE15
+vary: Accept-Encoding
+x-fastly-request-id: 8deac8fa6bca47ec5645327a04855e9e1315940f
+content-length: 17924

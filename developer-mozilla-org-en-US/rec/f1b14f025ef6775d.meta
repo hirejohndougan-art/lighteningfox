@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/styles-recent-contributions.ddcab7ad78446b98.css
+200 OK
+last-modified: Tue, 19 Aug 2025 15:41:12 GMT
+expires: Tue, 09 Dec 2025 16:52:28 GMT
+origin-trial: AxVILwizhbMjxFeHOn1P3R8niO1RJY/smaK4B4d1rLzc1gTaxtXMSaTi+FoigYgCw40uFRDwFcEAeqDR+vVLOW4AAABfeyJvcmlnaW4iOiJodHRwczovL2RldmVsb3Blci5tb3ppbGxhLm9yZyIsImZlYXR1cmUiOiJQcml2YXRlQXR0cmlidXRpb25WMiIsImV4cGlyeSI6MTc0MjA3OTYwMH0=
+x-goog-metageneration: 1
+x-goog-storage-class: STANDARD
+x-goog-generation: 1755618072902456
+cache-control: public, max-age=31536000
+x-goog-hash: crc32c=la/D8w==, md5=Lur943J5shseeWRpZ68VVQ==
+server: Google Frontend
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+referrer-policy: strict-origin-when-cross-origin
+x-goog-stored-content-length: 999
+x-goog-stored-content-encoding: identity
+x-cloud-trace-context: 335c545d34c271fc5c6720ef1f363e89
+x-frame-options: DENY
+x-content-type-options: nosniff
+x-guploader-uploadid: AHVrFxPNIP3dNuvymQEpsrgL5Dup-FntQ8yKo4gMhykDdPCixRVsX954zadUlcJ6KmG9IMgFu_SPBzU
+content-type: text/css
+etag: "2eeafde37279b21b1e79646967af1555"
+strict-transport-security: max-age=63072000
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:49 GMT
+age: 683561
+x-served-by: cache-bfi-krnt7300031-BFI, cache-bfi-krnt7300054-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 10, 2
+x-timer: S1794913250.660231,VS0,VE0

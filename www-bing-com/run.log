@@ -1,0 +1,14 @@
+[js error] inline script #45: ReferenceError: PerformanceObserver is not defined (unknown at :3:4266)
+    at <main> (unknown at :3:3689)
+    at <main> (unknown at :3:4266)
+[js error] https://www.bing.com/rp/y0FIYYexdcTnfTPn_eeXWjGKdT8.br.js: ReferenceError: sj_be is not defined (unknown at :1:885)
+    at load (unknown at :1:384)
+    at u (unknown at :3:148)
+    at <main> (unknown at :1:359)
+    at <main> (unknown at :1:885)
+[js error] https://www.bing.com/rp/s8ZU1MEe7U8FbDrqIJSB7aDTHHU.br.js: ReferenceError: _w is not defined (unknown at :1:6051)
+    at <main> (unknown at :1:276)
+    at <main> (unknown at :1:6051)
+[js error] TypeError: cannot convert 'null' or 'undefined' to object
+https://www.bing.com/: 291 nodes, 117 display items, 1280x768 px, 1.18278938s total | JS: 43 scripts, 3 errors, 116.781555ms
+exit 0

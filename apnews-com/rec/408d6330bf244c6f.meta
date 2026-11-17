@@ -1,0 +1,26 @@
+GET https://tru.am/scripts/custom/associatedpress.js
+200 OK
+date: Tue, 17 Nov 2026 10:59:25 GMT
+content-type: application/javascript
+x-guploader-uploadid: AKhXX7IgKvwUul_WXWtHNP6R22iNShVgQm-XgCwT14fvkE_L3LhRvIfnuRNNvm8uKZmeUOyD
+cache-control: public, max-age=31536000
+expires: Thu, 28 Oct 2027 10:08:59 GMT
+last-modified: Thu, 31 Mar 2022 15:57:24 GMT
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=WD42BCFg6z2MKi431czM3vs%2Fp7ZY5wg02%2F4b7nT6tzjBo3ecjfoG4BlEIwTbR1411gu1Nbfs2AptkIIKl%2BwQyQgrmjyi7Osq3%2B1ygJtnDhyUOoq5rcA1ng%3D%3D"}]}
+x-goog-generation: 1648742244649299
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 727
+x-goog-hash: crc32c=ckUSJQ==
+x-goog-hash: md5=TZWmG6aDmD75cYtNXZjZEQ==
+x-goog-storage-class: REGIONAL
+etag: W/"4d95a61ba683983ef9718b4d5d98d911"
+server: cloudflare
+alt-svc: h3=":443"; ma=86400
+age: 1731026
+cf-cache-status: HIT
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+strict-transport-security: max-age=15552000; includeSubDomains; preload
+x-content-type-options: nosniff
+vary: accept-encoding
+cf-ray: a5be39d3fe6d1342-IAD

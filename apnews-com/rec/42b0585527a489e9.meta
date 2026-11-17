@@ -1,0 +1,18 @@
+GET https://dims.apnews.com/dims4/default/64bb52a/2147483647/strip/true/crop/7840x5227+0+0/resize/756x504!/format/webp/quality/90/?url=https%3A%2F%2Fassets.apnews.com%2Fc9%2Fe0%2Fe640dc59ffee1035545920b728db%2F88d06666905c47139a99376d2324e883
+200 OK
+date: Tue, 17 Nov 2026 10:59:27 GMT
+content-type: image/webp
+content-length: 63604
+server: cloudflare
+cache-control: public, max-age=31536000
+edge-control: downstream-ttl=31536000
+expires: Wed, 17 Nov 2027 10:29:33 GMT
+x-envoy-upstream-service-time: 1860
+x-envoy-decorator-operation: brightspot-dims-verify.prod-news.svc.cluster.local:80/*
+via: 1.1 google
+alt-svc: h3=":443"; ma=86400
+age: 1793
+accept-ranges: bytes
+last-modified: Tue, 17 Nov 2026 10:29:33 GMT
+cf-cache-status: HIT
+cf-ray: a5be39de7f6250a3-IAD

@@ -1,0 +1,23 @@
+GET https://static.files.bbci.co.uk/fonts/reith/2.512/BBCReithSans_W_Md.woff2
+200 OK
+x-amz-id-2: BodC0wx37KsdUKduFd6+NM3FzuAZMY44zkffvKiTMfkb0kVBOiqVhqIlH+HqWJa88Jal9lahuTM=
+x-amz-request-id: 7N03G467RAXRFXNX
+last-modified: Wed, 20 May 2026 13:09:12 GMT
+etag: "7c60423ccf6f2997c6bb5e80966aa9b7"
+x-amz-server-side-encryption: AES256
+cache-control: public, max-age=31536000, immutable
+x-amz-version-id: wlfXIvx7oFSp_E9dfH6hCxTLczqLdW0N
+accept-ranges: bytes
+content-type: font/woff2
+content-length: 65312
+server: AmazonS3
+date: Tue, 17 Nov 2026 11:00:55 GMT
+nel: {"report_to":"default","max_age": 604800,"include_subdomains":true,"failure_fraction":0.01}
+report-to: {"group":"default","max_age":3600,"endpoints":[{"url":"https://assets.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+timing-allow-origin: https://www.bbc.co.uk, https://www.bbc.com
+strict-transport-security: max-age=31536000
+access-control-max-age: 300
+access-control-allow-credentials: false
+access-control-allow-headers: *
+access-control-allow-methods: HEAD,GET
+access-control-allow-origin: *

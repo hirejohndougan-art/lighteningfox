@@ -1,0 +1,20 @@
+GET https://i0.wp.com/wordpress.org/files/2023/10/Harvard.png?w=319&ssl=1
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 11:01:49 GMT
+content-type: image/png
+content-length: 3615
+last-modified: Sat, 22 Nov 2025 17:41:34 GMT
+expires: Tue, 23 Nov 2027 05:41:34 GMT
+cache-control: public, max-age=63115200
+link: <https://wordpress.org/files/2023/10/Harvard.png>; rel="canonical"
+x-content-type-options: nosniff
+etag: "a85436cefb1885ba"
+x-bytes-saved: 6849
+vary: Accept
+alt-svc: clear
+x-nc: HIT dca 8
+server-timing: a8c-cdn, dc;desc=dca, cache;desc=HIT;dur=2.0
+access-control-allow-origin: *
+access-control-allow-methods: GET, HEAD
+timing-allow-origin: *

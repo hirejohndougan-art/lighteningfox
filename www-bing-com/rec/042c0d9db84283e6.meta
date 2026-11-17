@@ -1,0 +1,23 @@
+GET https://www.bing.com/rp/C29j_SFE6-a8s0cWL6Cq81juG44.br.js
+200 OK
+content-type: text/javascript; charset=utf-8
+content-md5: hfCm7ykNQeXhmeBB8ShwMA==
+last-modified: Thu, 11 Jun 2026 23:31:17 GMT
+etag: 0x8DEC81189612198
+x-ms-request-id: 3b295405-a01e-0043-6bd8-1978a0000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+x-cdn-traceid: 0.c9292117.1794913253.1b2cec57
+alt-svc: h3=":443"; ma=93600
+akamai-grn: 0.c578ce17.1784736940.1e39d1a3
+timing-allow-origin: *
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingaotak"}]}
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":1.0}
+akamai-amd-bc-debug: [a=23.33.41.204,b=746957822,c=p,d=1790135153,h=200,k=1,l=0,n=US_NJ_PISCATAWAY,o=20940,r=2,p=730]
+cache-control: public, no-transform, max-age=26745697
+expires: Thu, 23 Sep 2027 00:22:30 GMT
+date: Tue, 17 Nov 2026 11:00:53 GMT
+vary: Accept-Encoding
+quic-version: 0x00000001

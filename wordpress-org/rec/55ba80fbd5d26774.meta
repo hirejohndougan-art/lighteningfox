@@ -1,0 +1,16 @@
+GET https://stats.wp.com/e-202647.js
+200 OK
+server: nginx
+date: Tue, 17 Nov 2026 11:01:48 GMT
+content-type: application/javascript
+vary: Accept-Encoding
+x-minify: t
+x-minify-cache: hit
+etag: W/7134-1790152644995.5479
+expires: Wed, 10 Nov 2027 11:04:04 GMT
+cache-control: max-age=31536000
+a8c-edge-cache: cache
+alt-svc: h3=":443"; ma=86400
+access-control-allow-methods: GET, HEAD
+access-control-allow-origin: *
+x-nc: HIT dca

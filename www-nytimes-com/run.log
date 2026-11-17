@@ -1,0 +1,27 @@
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x (||googletagmanager.com^$third-party)
+[js log] {}
+[js debug] [nyt-betamax] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for page to load
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for page to load
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js error] https://static01.nyt.com/video-static/betamax/video-feed-0.3.50-DaA5I5pM.js: Error: Custom element with tag nyt-betamax is already defined
+[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax is already defined
+[js error] https://static01.nyt.com/video-static/betamax/pool-0.3.50-DvQFLz0N.js: Error: Custom element with tag nyt-betamax-pool is already defined
+[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax-pool is already defined
+[js error] https://static01.nyt.com/elections-assets/pages/assets/index-Da47sTkl.js: TypeError: cannot convert 'null' or 'undefined' to object
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+[js error] https://www.nytimes.com/vi-assets/static-assets/main-DkmgquAA.js: TypeError: not a callable function
+[js error] Uncaught (in promise): TypeError: not a callable function
+[js error] https://www.nytimes.com/vi-assets/static-assets/adslot-D_67OE_I.js: TypeError: not a callable function
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x (||googletagmanager.com^$third-party)
+[js] couldn't load https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x: https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x: blocked by filter rule ||googletagmanager.com^$third-party
+[js error] Uncaught (in promise): TypeError: not a callable function
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with SSRed props
+[js error] Uncaught (in promise): ReferenceError: crypto is not defined
+[js warn] XMLHttpRequest failed: https://eg.nytimes.com/api/v1/events: blocked by CORS (no Access-Control-Allow-Origin for https://www.nytimes.com)
+https://www.nytimes.com/: 10693 nodes, 12557 display items, 1280x768 px, 27.477808262s total | JS: 27 scripts, 11 errors, 6.905034521s
+exit 0

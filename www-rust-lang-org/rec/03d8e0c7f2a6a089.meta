@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/scripts/init.js
+200 OK
+server: GitHub.com
+content-type: application/javascript; charset=utf-8
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-30"
+expires: Tue, 17 Nov 2026 01:41:53 GMT
+cache-control: max-age=600
+x-proxy-cache: HIT
+x-github-request-id: B936:2EAE79:B2F89F:C6B781:6AFBAE91
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 545
+date: Tue, 17 Nov 2026 11:01:46 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1794913307.927072,VS0,VE1
+vary: Accept-Encoding
+x-fastly-request-id: e36ea3c9bed7cced0840f3a75207f5197fd0d2cc
+content-length: 48

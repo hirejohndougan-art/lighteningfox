@@ -1,0 +1,1 @@
+sj_be(document,"mousedown",function(e){_w.si_ct(sb_ie?_w.event.srcElement:e.target,!1,_w.event||e)},!1);

@@ -1,0 +1,22 @@
+GET https://www.bing.com/rp/cRIqisp5rICex9L0jRaBkn0oNbg.br.js
+200 OK
+content-type: text/javascript; charset=utf-8
+content-md5: nmVKsve7NzDaii3IZQjwhg==
+last-modified: Fri, 07 Aug 2026 22:58:13 GMT
+etag: 0x8DEF4D75BF9553B
+x-ms-request-id: a69092f8-b01e-0075-587a-41d5f2000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+x-cdn-traceid: 0.c9292117.1794913253.1b2cec0a
+alt-svc: h3=":443"; ma=93600
+vary: Accept-Encoding
+akamai-grn: 0.cf78ce17.1790864479.fc4e1e3
+timing-allow-origin: *
+report-to: {"group":"network-errors","max_age":604800,"endpoints":[{"url":"https://aefd.nelreports.net/api/report?cat=bingaotak"}]}
+nel: {"report_to":"network-errors","max_age":604800,"success_fraction":0.001,"failure_fraction":1.0}
+cache-control: public, no-transform, max-age=28772240
+expires: Sat, 16 Oct 2027 11:18:13 GMT
+date: Tue, 17 Nov 2026 11:00:53 GMT
+quic-version: 0x00000001

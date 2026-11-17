@@ -1,0 +1,2 @@
+function e(e,t){if(typeof window>`u`){console.error(e,t);return}window?.Sentry?.withScope(n=>{Object.keys(t||{}).forEach(e=>{n.setTag({[e]:t[e]})}),window.Sentry.captureException(e)}),window?.DD_RUM&&typeof window.DD_RUM.addError!=`function`&&window.DD_RUM.onReady(()=>window.DD_RUM.addError(e,t)),e instanceof Error&&t&&(e.dd_context={...e.dd_context,...t}),console.error(e,t)}export{e as t};
+//# sourceMappingURL=captureError-DZhg7ppj.js.map

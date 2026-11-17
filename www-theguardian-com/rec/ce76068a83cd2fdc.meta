@@ -1,0 +1,9 @@
+GET https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&experiences=adapted%2Cdotcom-rendering
+204 No Content
+date: Tue, 17 Nov 2026 11:01:36 GMT
+cache-control: no-cache, no-store
+referrer-policy: origin-when-cross-origin, strict-origin-when-cross-origin
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-content-type-options: nosniff
+x-permitted-cross-domain-policies: master-only

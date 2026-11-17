@@ -1,0 +1,24 @@
+GET https://rust-lang.org/static/fonts/woff2/FiraSans-Regular.vietnamese.woff2
+200 OK
+server: GitHub.com
+content-type: font/woff2
+x-origin-cache: HIT
+last-modified: Tue, 17 Nov 2026 01:21:24 GMT
+access-control-allow-origin: *
+etag: "6afbac14-1d7c"
+expires: Tue, 17 Nov 2026 11:11:47 GMT
+cache-control: max-age=600
+x-proxy-cache: MISS
+x-github-request-id: 6740:1B49FF:10727C7:138971A:6AFC341A
+x-github-edge-region: iad
+accept-ranges: bytes
+age: 0
+date: Tue, 17 Nov 2026 11:01:47 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kiad7000049-IAD
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1794913307.956972,VS0,VE70
+vary: Accept-Encoding
+x-fastly-request-id: 392f85e63c33ef3be31e0517f76e2ccfab224848
+content-length: 7548

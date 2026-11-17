@@ -1,0 +1,29 @@
+GET https://assets.apnews.com/resource/00000188-2a81-d28a-a1fd-7bfb6ccb0000/assets/fonts/APCustomFont/APW05-CondensedBold.6e5f3d10491d025b55a82beebf812af9.woff2
+200 OK
+x-guploader-uploadid: AKhXX7JkPIIJW78r1mlbXEFZX1pKU7U0UHjDi23Ri3q5Jq9a0KQZynVbHHA6vPhuM9iNy20x
+x-goog-generation: 1686087702327824
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 51648
+x-goog-hash: crc32c=jKxSag==
+x-goog-hash: md5=acFL0+YBF2iRhbKw3swZDA==
+x-goog-storage-class: STANDARD
+accept-ranges: bytes
+server-timing: cfExtPri
+server: cloudflare
+date: Tue, 17 Nov 2026 10:59:29 GMT
+expires: Thu, 28 Oct 2027 04:49:09 GMT
+cache-control: public, max-age=31536000
+last-modified: Tue, 06 Jun 2023 21:41:42 GMT
+etag: "69c14bd3e60117689185b2b0decc190c"
+content-type: application/octet-stream
+vary: Origin
+age: 1750219
+alt-svc: h3=":443"; ma=86400
+cf-cache-status: HIT
+reporting-endpoints: cf-csp-endpoint="https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=e1izA8cLtAO7G9Zrk3NwTsdSh1x1gnRzdQS_VpJ0oKc-1794913169.1417377-1.0.1.1-Os8D4.2eWlJaSy9UY8eerve4s1sFUvFBTZU9sylKpnnco0nvBw7ZAc096DjTXuYKOXJHXIxcwHc5ubrquUsOUdRv4TBDx4JgZxPEq10yj6D.XyGA5cxf7P8sKLCK43Pg2N2zSJOHOSbncZwVx5EotgbuAUF7wmYO5BkKsBw9pPo0uWH.bMb_pQR25nUw2wiV"
+content-security-policy-report-only: script-src 'unsafe-inline' 'unsafe-eval'; report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=e1izA8cLtAO7G9Zrk3NwTsdSh1x1gnRzdQS_VpJ0oKc-1794913169.1417377-1.0.1.1-Os8D4.2eWlJaSy9UY8eerve4s1sFUvFBTZU9sylKpnnco0nvBw7ZAc096DjTXuYKOXJHXIxcwHc5ubrquUsOUdRv4TBDx4JgZxPEq10yj6D.XyGA5cxf7P8sKLCK43Pg2N2zSJOHOSbncZwVx5EotgbuAUF7wmYO5BkKsBw9pPo0uWH.bMb_pQR25nUw2wiV; report-to cf-csp-endpoint
+priority: u=3,i=?0
+report-to: {"group":"cf-csp-endpoint","max_age":86400,"endpoints":[{"url":"https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=e1izA8cLtAO7G9Zrk3NwTsdSh1x1gnRzdQS_VpJ0oKc-1794913169.1417377-1.0.1.1-Os8D4.2eWlJaSy9UY8eerve4s1sFUvFBTZU9sylKpnnco0nvBw7ZAc096DjTXuYKOXJHXIxcwHc5ubrquUsOUdRv4TBDx4JgZxPEq10yj6D.XyGA5cxf7P8sKLCK43Pg2N2zSJOHOSbncZwVx5EotgbuAUF7wmYO5BkKsBw9pPo0uWH.bMb_pQR25nUw2wiV"}]}
+cf-ray: a5be39eb1ffb29bc-IAD
+content-length: 51648

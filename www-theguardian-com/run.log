@@ -1,0 +1,19 @@
+[js error] TypeError: cannot convert 'null' or 'undefined' to object
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&edition=US: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&experiences=adapted%2Cdotcom-rendering: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&inPrivateBrowsingMode=false: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&experiences=adapted%2Cdotcom-rendering%2Cpoor-page-performance: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/1?v=17&platform=next-gen&url=https%3A%2F%2Fwww.theguardian.com%2Fus&ref=&tz=0&contentType=network%20front&frontsTestExposure=%7B%22variant%22%3A%22a%22%2C%22dt%22%3A1794913296000%2C%22path%22%3A%22%2Fus%22%7D&viewId=mwkl16gw2noelf4bdt59: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&attentionMs=0: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+[js warn] fetch failed: https://ophan.theguardian.com/img/2?viewId=mwkl16gw2noelf4bdt59&adUnitWasHidden=true: blocked by CORS (no Access-Control-Allow-Origin for https://www.theguardian.com)
+[js error] Uncaught (in promise): TypeError: Failed to fetch
+https://www.theguardian.com/us: 6055 nodes, 7898 display items, 1280x16000 px, 9.248805782s total | JS: 17 scripts, 8 errors, 3.374907771s
+exit 0

@@ -1,0 +1,36 @@
+GET https://www.bbc.com/news
+200 OK
+content-type: text/html; charset=utf-8
+belfrage-cache-status: MISS
+bid: joan
+brequestid: f16ab48e964b4db3b382dfec9e9f18e5
+bsig: dbbc8ba7bc41ff9f463c38fdd7539655
+alt-svc: h3=":443";ma=86400,h3-29=":443";ma=86400,h3-27=":443";ma=86400
+etag: "4z5bvo454n8979"
+referrer-policy: no-referrer-when-downgrade
+req-svc-chain: FASTLY,GTM,BELFRAGE,BBCX
+via: 1.1 BBC-GTM, 1.1 Belfrage, 1.1 varnish
+x-content-type-options: nosniff
+x-correlation-id: 59ea7d35-d9de-4503-aea8-2e153f6fa69f
+x-frame-options: SAMEORIGIN
+origin-agent-cluster: ?0
+nel: {"report_to":"default","max_age":2592000,"include_subdomains":true,"failure_fraction":0.25}
+x-bbc-edge-cache-status: STALE
+report-to: {"group":"default","max_age":2592000,"endpoints":[{"url":"https://default.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+server: BBC-GTM
+strict-transport-security: max-age=31536000; preload
+x-robots-tag: bingbot: noarchive
+fastly-restarts: 1
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:55 GMT
+x-fastly-cache-status: HIT-CLUSTER
+x-served-by: cache-iad-khef600060-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1794913255.417408,VS0,VE4
+x-fastly-pre-flight-cache: MISS, HIT
+x-fastly-pre-flight-cache-status: HIT-STALE-CLUSTER
+x-cache-age: 12
+x-lb-nocache: true
+cache-control: private, stale-if-error=90, stale-while-revalidate=30, max-age=0, must-revalidate
+vary: X-BBC-Edge-Scheme,bbc-mvt-1,bbc-mvt-2,bbc-mvt-3,bbc-mvt-4,bbc-mvt-5,bbc-mvt-6,bbc-mvt-7,bbc-mvt-8,bbc-mvt-9,bbc-mvt-10,Accept-Encoding

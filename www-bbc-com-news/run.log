@@ -1,0 +1,13 @@
+[js error] https://cdn.tinypass.com/api/tinypass.min.js: TypeError: not a callable function (unknown at :1:504579)
+    at Qe (unknown at :1:40128)
+    at <main> (unknown at :1:65351)
+    at <main> (unknown at :1:66465)
+    at <main> (unknown at :1:70653)
+    at <main> (unknown at :1:76394)
+    at <main> (unknown at :1:504574)
+    at <main> (unknown at :1:504579)
+[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object
+[js error] {}
+[js error] A client-side exception has occurred, see here for more info: https://nextjs.org/docs/messages/client-side-exception-occurred
+https://www.bbc.com/news: 1701 nodes, 4780 display items, 1280x9315 px, 1.727230151s total | JS: 55 scripts, 2 errors, 720.725297ms
+exit 0

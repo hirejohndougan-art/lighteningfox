@@ -1,0 +1,19 @@
+GET https://apnews.com/
+200 OK
+date: Tue, 17 Nov 2026 10:59:25 GMT
+content-type: text/html;charset=UTF-8
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+content-security-policy: frame-ancestors 'self' https://cms.apnews.com/
+cache-control: public, max-age=120, stale-if-error=86400
+x-powered-by: Brightspot
+vary: Accept-Encoding
+set-cookie: __cf_bm=xm4ZcCCTFAR.adlFuyL603uFeKmX2AG5J4Eb1EkgXS8-1794913165.2151508-1.0.1.1-Hhd23GHRY6ZQxrkTA0EH5AFHa5JBteCSC_9kwIxfFgs7bcwlOI.MA9Tw8cbotkh3vOrKXUoMWYbW8VO3D4fo.wQBTsKYX5SPd90XQ8wOt3loCe3kdNsCqtPgvJ6AMTbrZipjtB.prLK6VxGAFuxjzg; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=apnews.com; Expires=Tue, 17 Nov 2026 11:29:25 GMT
+x-envoy-upstream-service-time: 1120
+x-envoy-decorator-operation: brightspot-frontend-verify.prod-news.svc.cluster.local:80/*
+via: 1.1 google
+alt-svc: h3=":443"; ma=86400
+age: 113
+last-modified: Tue, 17 Nov 2026 10:57:31 GMT
+cf-cache-status: HIT
+cf-ray: a5be39d29e587fb8-IAD

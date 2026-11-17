@@ -1,0 +1,3 @@
+[js error] Uncaught (in promise): TypeError: not a callable function
+https://developer.mozilla.org/en-US/: 2380 nodes, 2428 display items, 1280x8104 px, 1.040064766s total | JS: 6 scripts, 1 errors, 178.319613ms
+exit 0

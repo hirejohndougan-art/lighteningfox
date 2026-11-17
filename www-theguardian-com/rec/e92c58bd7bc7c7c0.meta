@@ -1,0 +1,28 @@
+GET https://i.guim.co.uk/img/media/6867a504ee9f1517fd061cefaae7d7c4d9e3fca1/589_0_6880_5504/master/6880.jpg?width=98&dpr=1&s=none&crop=1%3A1
+200 OK
+cache-control: max-age=31536000
+content-type: image/jpeg
+etag: "CbLoiIu0f7RgI6fbyzB0g4bwN95BxIosnBB3NOO8q4M"
+fastly-io-info: ifsz=8397133 idim=6880x5504 ifmt=jpeg ofsz=2867 odim=98x98 ofmt=jpeg
+fastly-io-served-by: vpop-etou8240192
+fastly-io-transform-stats: ifsz=8397133 ofsz=2867 ofmt=jpeg
+fastly-stats: io=1
+server: AmazonS3
+x-amz-meta-aspect-ratio: 5:4
+x-amz-meta-bounds-height: 5504
+x-amz-meta-bounds-width: 6880
+x-amz-meta-bounds-x: 589
+x-amz-meta-bounds-y: 0
+x-amz-server-side-encryption: AES256
+via: 1.1 varnish, 1.1 varnish
+timing-allow-origin: https://www.theguardian.com
+accept-ranges: bytes
+age: 68316
+date: Tue, 17 Nov 2026 11:01:34 GMT
+x-served-by: cache-lcy-egml8630061-LCY, cache-iad-khef600022-IAD
+x-cache: HIT, MISS
+x-cache-hits: 1, 0
+x-timer: S1794913294.034831,VS0,VE82
+access-control-allow-origin: *
+vary: Accept, Accept-Encoding
+content-length: 2867

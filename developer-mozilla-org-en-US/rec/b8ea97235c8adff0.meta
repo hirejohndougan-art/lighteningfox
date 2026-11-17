@@ -1,0 +1,30 @@
+GET https://developer.mozilla.org/static/client/styles-mandala.8fbfeb0567dbde40.css
+200 OK
+last-modified: Tue, 19 Aug 2025 15:41:12 GMT
+expires: Tue, 09 Dec 2025 16:52:29 GMT
+origin-trial: AxVILwizhbMjxFeHOn1P3R8niO1RJY/smaK4B4d1rLzc1gTaxtXMSaTi+FoigYgCw40uFRDwFcEAeqDR+vVLOW4AAABfeyJvcmlnaW4iOiJodHRwczovL2RldmVsb3Blci5tb3ppbGxhLm9yZyIsImZlYXR1cmUiOiJQcml2YXRlQXR0cmlidXRpb25WMiIsImV4cGlyeSI6MTc0MjA3OTYwMH0=
+x-goog-metageneration: 1
+x-goog-storage-class: STANDARD
+x-goog-generation: 1755618072724913
+cache-control: public, max-age=31536000
+x-goog-hash: crc32c=XTToFA==, md5=in/glTIn2Fc/b1ZgnkNL1Q==
+server: Google Frontend
+via: 1.1 google, 1.1 varnish, 1.1 varnish, 1.1 varnish
+referrer-policy: strict-origin-when-cross-origin
+x-goog-stored-content-length: 495
+x-goog-stored-content-encoding: identity
+x-cloud-trace-context: b3e199277e36e802ee9b465439a0ff3b
+x-frame-options: DENY
+x-content-type-options: nosniff
+x-guploader-uploadid: AHVrFxO914Oh_TGoqURLj1m46ZOdhtsCG4OYBNWMlNdkYrn62b-1bjlSbmwHLLeqCmLamr6ulh9KAok
+content-type: text/css
+etag: "8a7fe0953227d8573f6f56609e434bd5"
+strict-transport-security: max-age=63072000
+vary: Accept-Encoding
+accept-ranges: bytes
+date: Tue, 17 Nov 2026 11:00:49 GMT
+age: 1095007
+x-served-by: cache-bfi-kbfi7400065-BFI, cache-bfi-kbfi7400065-BFI, cache-iad-kcgs7200138-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 5380, 2
+x-timer: S1794913250.659469,VS0,VE0
