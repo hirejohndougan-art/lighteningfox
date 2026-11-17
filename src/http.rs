@@ -223,7 +223,7 @@ pub struct Stream {
     pub status_text: String,
     /// Lower-case names; repeated headers (set-cookie) appear once per value.
     pub headers: Vec<(String, String)>,
-    pub body: reqwest::blocking::Response,
+    pub body: Box<dyn std::io::Read + Send>,
 }
 
 impl Stream {
@@ -281,7 +281,23 @@ pub fn requests_since(since: Option<Instant>) -> Vec<Logged> {
 /// `[proxy]` or `[net]`. `timeout` covers the whole transfer (long for downloads).
 pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Result<Stream, String> {
     let started = Instant::now();
-    let r = open_inner(method, url, headers, body, timeout);
+    let r = if let Some(dir) = crate::record::replaying() {
+        match crate::record::load(&dir, method, url) {
+            Some(s) => Ok(Stream { status: s.status, status_text: s.status_text, headers: s.headers, body: Box::new(std::io::Cursor::new(s.body)) }),
+            None => Err(format!("[net] {url}: not in the recording")),
+        }
+    } else {
+        let r = open_inner(method, url, headers, body, timeout);
+        match (r, crate::record::recording()) {
+            (Ok(st), Some(dir)) => {
+                let bytes = crate::record::read_body(st.body, MAX_BODY).map_err(|e| format!("[net] {url}: {e}"))?;
+                let saved = crate::record::Saved { status: st.status, status_text: st.status_text, headers: st.headers, body: bytes };
+                crate::record::save(&dir, method, url, &saved);
+                Ok(Stream { status: saved.status, status_text: saved.status_text, headers: saved.headers, body: Box::new(std::io::Cursor::new(saved.body)) })
+            }
+            (r, _) => r,
+        }
+    };
     log_request(method, url, started, &r);
     r
 }
@@ -329,7 +345,7 @@ fn start(client: reqwest::blocking::Client, http3: bool, method: &str, url: &str
         status: status.as_u16(),
         status_text: status.canonical_reason().unwrap_or("").to_string(),
         headers,
-        body: resp,
+        body: Box::new(resp),
     })
 }
 

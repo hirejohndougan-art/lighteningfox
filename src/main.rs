@@ -32,6 +32,7 @@ mod geometry;
 mod grid;
 mod html;
 mod http;
+mod record;
 mod hsts;
 mod tokenizer;
 mod a11y;
