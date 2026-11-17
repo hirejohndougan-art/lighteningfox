@@ -170,7 +170,7 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** new `tools/webidl/`, generated `src/bindings/`
 
 ### T10. Media Source Extensions
-**Status:** free
+**Status:** claimed by chat-opus-x5 2026-11-17 16:30
 **After:** T09
 **Checklist:** §7 "Media Source Extensions (needed for YouTube and most streaming)"
 **Files:** `src/media.rs`
