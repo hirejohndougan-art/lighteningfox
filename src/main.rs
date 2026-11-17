@@ -27,6 +27,7 @@ mod http;
 mod hsts;
 mod icon;
 mod tokenizer;
+mod a11y;
 mod chrome;
 mod favicon;
 mod devtools;
@@ -1304,6 +1305,8 @@ fn browser_main() {
     // Whether a page was named on the command line (else: restore the last session or go home).
     let mut explicit = false;
     let mut png: Option<String> = None;
+    // Print the page's accessibility tree instead of opening a window.
+    let mut a11y_dump = false;
     let mut width = 1024usize;
     let mut i = 0;
     while i < args.len() {
@@ -1335,6 +1338,7 @@ fn browser_main() {
                 png = args.get(i + 1).cloned();
                 i += 1;
             }
+            "--a11y" => a11y_dump = true,
             "--width" => {
                 width = args.get(i + 1).and_then(|w| w.parse().ok()).unwrap_or(width);
                 i += 1;
@@ -1368,6 +1372,14 @@ fn browser_main() {
         log!("[mem] + page loaded: {} MB", rss());
         let lay = page.layout(fonts, width as f32, 768.0);
         log!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
+        return;
+    }
+    if a11y_dump {
+        let (page, _, _) = render_page(fonts, &url, width);
+        print!("{}", js::with_dom(|d| a11y::dump(&match d.composed() {
+            Some(c) => a11y::build(&c, Some(&page.styles), None),
+            None => a11y::build(d, Some(&page.styles), None),
+        })));
         return;
     }
     match png {
