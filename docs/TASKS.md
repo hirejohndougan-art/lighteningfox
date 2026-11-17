@@ -696,6 +696,27 @@ events, `runtime.connect` ports, `alarms`, `contextMenus`, toolbar buttons and p
 about:extensions page and installing packed extensions (.xpi/.crx). Goal: uBlock Origin and Dark
 Reader run unmodified.
 
+### O8. Theming: light, dark and follow the system
+**Status:** free
+**After:** —
+**Checklist:** §18 "Theming"
+**Files:** `src/settings.rs`, `src/chrome.rs` (browser UI colors), `src/css.rs` and `src/prelude.js` (`prefers-color-scheme`, now always light), `src/style.rs` (default `color-scheme`), `src/start.html`, the settings page, internal pages (error pages, downloads, history, devtools)
+A **Theme** setting with three choices: **System** (the default), **Light** and **Dark**.
+
+- System follows the desktop's light/dark preference through the XDG desktop portal
+  (`org.freedesktop.appearance` `color-scheme`, which GNOME and KDE both set), falling back to
+  the GTK theme name, and switches live when the desktop changes, with no restart.
+- The whole browser UI follows it: tab strip, toolbar, address bar and its dropdown, menus,
+  dialogs, prompts, panels, the settings page, the start page, error pages and devtools. Keep
+  every color in one palette table per theme (no colors scattered through drawing code), and
+  check text contrast with `src/contrast.rs` (4.5:1 or better).
+- Pages see it too: `prefers-color-scheme` in CSS and in `matchMedia` answers from the theme,
+  pages that declare `color-scheme: light dark` get dark form controls and scrollbars, and
+  `matchMedia` listeners fire when it changes. Pages that don't ask for dark stay as they are.
+- High contrast (forced colors) still wins over the theme.
+- Screenshot tests for the browser UI and the start page in both themes; a test page with
+  `prefers-color-scheme` rules.
+
 ## Not for the chats
 
 ### X21. Windows and macOS builds (from batch J)
