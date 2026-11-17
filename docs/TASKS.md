@@ -82,7 +82,8 @@ rust-lang.org and WordPress.org render badly. Start with the crash. Find the cau
 fix it in the engine (no site-specific hacks), and add a small test page for each cause.
 
 ### X2. Binary bodies in `fetch()`
-**Status:** claimed by chat-opus-x2 2026-11-17 05:00
+**Status:** done
+**Left undone:** `Response.body` / `Request.body` as a ReadableStream, and `Request.arrayBuffer()`/`blob()`/`text()` (Request has no body readers yet). XHR `responseText` on a binary response is decoded once up front, not lazily.
 **After:** —
 **Checklist:** none
 **Files:** the fetch parts of `src/js.rs` / `src/prelude.js`, `src/net.rs`
