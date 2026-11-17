@@ -155,7 +155,8 @@ browser process and pass positions to the page process.
 Styles use `Rc` and per-thread state (hover, viewport, animations) today; see batch L's notes.
 
 ### T06. Shared process pool
-**Status:** claimed by chat-opus-t05 2026-11-17 10:40
+**Status:** done
+**Left undone:** A shared process can be asked for data of every site it holds, so sharing weakens isolation between those sites (as in Firefox); sites aren't moved back to their own process when memory frees up. The cap and the 512 MiB free-memory floor are fixed rules, not tuned on a real small laptop.
 **After:** T05
 **Checklist:** §14 "Shared process pool (like Firefox) instead of one process per site"
 **Files:** `src/process.rs`
