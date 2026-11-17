@@ -23,7 +23,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 ---
 
 ## A. Merge the install packages and crash fixes
-**Status:** free
+**Status:** claimed by main-chat 2026-11-17 02:15
 **Start after:** —
 **Main files:** `packaging/`, `.github/workflows/`, `fuzz/`, `src/treebuilder.rs`, `src/main.rs` (stack size only)
 
