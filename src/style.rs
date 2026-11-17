@@ -544,6 +544,7 @@ fn rewrite_host(rule: &str, root: NodeId) -> String {
 pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let ua = css::parse(UA_CSS);
     let scoped = if dom.render_scope.is_empty() { HashMap::new() } else { shadow_sheets(dom) };
+    let min_font = crate::settings::get().min_font_size as f32;
     let hidden = Rc::new(Style { display: Display::None, ..Style::default() });
     let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
     styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
@@ -634,6 +635,10 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         }
         if !hinted {
             presentational_hints(dom, id, &mut st, &parent_style);
+        }
+        // The reader's minimum font size (Settings → Appearance).
+        if min_font > 0.0 && st.font_size < min_font {
+            st.font_size = min_font;
         }
         // Borders without a color of their own use the text color.
         if !st.border_color_set {

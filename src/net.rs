@@ -345,6 +345,8 @@ pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), Strin
     let mut body = req.body.map(<[u8]>::to_vec);
     let timeout = if req.top.is_none() && req.method.eq_ignore_ascii_case("GET") { 24 * 3600 } else { 30 };
     for _ in 0..20 {
+        // HSTS hosts, and anything an HTTPS page loads, only over HTTPS.
+        url = crate::hsts::upgrade(&url, req.top);
         let first_party = req.top.unwrap_or(&url).to_string();
         let mut headers: Vec<(String, String)> = Vec::new();
         let accept = if req.top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" };
@@ -366,6 +368,9 @@ pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), Strin
             }
         }
         let resp = crate::http::open(&method, &url, &headers, body.as_deref(), std::time::Duration::from_secs(timeout))?;
+        if let Some(h) = resp.header("strict-transport-security") {
+            crate::hsts::record(&url, h);
+        }
         if req.cookies {
             let set: Vec<String> = resp.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
             crate::cookies::receive(&url, &first_party, &set);

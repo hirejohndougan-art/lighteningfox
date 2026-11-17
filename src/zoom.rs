@@ -61,6 +61,14 @@ pub fn set(url: &str, z: f32) {
     }
 }
 
+/// Forget every site's zoom (Clear browsing data).
+pub fn clear() {
+    with(|m| m.clear());
+    if let Some(f) = file() {
+        let _ = std::fs::remove_file(f);
+    }
+}
+
 /// The next level in or out from `z`.
 pub fn step(z: f32, zoom_in: bool) -> f32 {
     if zoom_in {

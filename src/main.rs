@@ -24,6 +24,7 @@ mod geometry;
 mod grid;
 mod html;
 mod http;
+mod hsts;
 mod icon;
 mod tokenizer;
 mod chrome;
@@ -936,6 +937,8 @@ fn error_page(url: &str, err: &str) -> String {
 fn main() {
     crashlog::install_panic_hook();
     prefer_x11();
+    // A private window keeps nothing: its own empty profile folder, deleted when it closes.
+    let private_profile = start_private_profile();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
     // Whether a page was named on the command line (else: restore the last session or go home).
@@ -1005,7 +1008,15 @@ fn main() {
     }
     match png {
         Some(out) => render_png(fonts, &url, width, &out),
-        None => run_window(fonts, &url, width, explicit),
+        None => {
+            run_window(fonts, &url, width, explicit);
+            if let Some(dir) = &private_profile {
+                let _ = std::fs::remove_dir_all(dir);
+            } else if settings::get().clear_on_exit {
+                log!("[privacy] clearing cookies and site data on exit");
+                settings::clear_data(false);
+            }
+        }
     }
 }
 
@@ -1268,6 +1279,35 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
     })
 }
 
+/// In a private window (IRONSWIFT_PRIVATE=1, or opened with Ctrl+Shift+N): use a fresh
+/// profile folder in the temporary directory. Returns it so it can be deleted on exit.
+fn start_private_profile() -> Option<std::path::PathBuf> {
+    if !std::env::var("IRONSWIFT_PRIVATE").is_ok_and(|v| v == "1") || std::env::var("IRONSWIFT_PROFILE").is_ok() {
+        return None;
+    }
+    let dir = std::env::temp_dir().join(format!("ironswift-private-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    // Safe here: nothing else is running yet (no threads have started).
+    unsafe { std::env::set_var("IRONSWIFT_PROFILE", &dir) };
+    Some(dir)
+}
+
+/// Ctrl+Shift+N: a new private window, as its own process.
+fn open_private_window() {
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new(exe).arg("about:home").env("IRONSWIFT_PRIVATE", "1").env_remove("IRONSWIFT_PROFILE").spawn();
+    }
+}
+
+fn is_private() -> bool {
+    std::env::var("IRONSWIFT_PRIVATE").is_ok_and(|v| v == "1")
+}
+
 fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // Without a page on the command line, reopen last session's tabs (if that's the setting),
     // else open the home page.
@@ -1356,7 +1396,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
     let mut dropdown: Option<Dropdown> = None;
-    window.set_title(&format!("{} — Ironswift", if page.title.is_empty() { &page.url } else { &page.title }));
+    window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
     // (its own slot holds None).
@@ -1456,7 +1496,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
             scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
-            window.set_title(&format!("{} — Ironswift", page.label()));
+            window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
             dirty = true;
         }};
     }
@@ -1644,6 +1684,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Key::S if p.ctrl => ui_action = Some(Ctx::SavePdf),
                 Key::U if p.ctrl => ui_action = Some(Ctx::ViewSource),
                 Key::I if p.ctrl && p.shift => ui_action = Some(Ctx::Inspect),
+                Key::N if p.ctrl && p.shift => open_private_window(),
                 Key::F12 => ui_action = Some(Ctx::Inspect),
                 Key::F3 if find.is_some() => ui_action = Some(if p.shift { Ctx::FindPrev } else { Ctx::FindNext }),
                 Key::F3 => ui_action = Some(Ctx::Find),
@@ -2498,7 +2539,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             navigate = None;
             loading = None;
             address = page.url.clone();
-            window.set_title(&format!("{} — Ironswift", if page.title.is_empty() { &page.url } else { &page.title }));
+            window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
             dirty = true;
         }
         // History changes from scripts (pushState, location.hash, history.back…).
@@ -2685,7 +2726,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             preview_of = None;
             scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
             address = page.url.clone();
-            window.set_title(&format!("{} — Ironswift", page.label()));
+            window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
             dirty = true;
         }
         // While downloads run, keep their progress on screen (the chip, and about:downloads).
@@ -3036,12 +3077,14 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     let bar = TOOL_BOTTOM as f32;
     let top = TAB_H;
     // Tab strip
-    canvas.fill_rect(0.0, 0.0, w, top, Color::rgb(222, 222, 228));
+    // A private window's tab strip is purple.
+    let private = is_private();
+    canvas.fill_rect(0.0, 0.0, w, top, if private { Color::rgb(91, 61, 160) } else { Color::rgb(222, 222, 228) });
     let toolbar_bg = Color::rgb(236, 236, 240);
     for (i, ((label, loading), &(tx, tw))) in ui.tabs.iter().zip(tab_rects(w, ui.tabs.len()).iter()).enumerate() {
         let is_active = i == ui.active;
         let hovered = matches!(ui.tab_hover, Some(TabHit::Tab(j) | TabHit::Close(j)) if j == i);
-        let bg = if is_active { toolbar_bg } else if hovered { Color::rgb(232, 232, 238) } else { Color::rgb(222, 222, 228) };
+        let bg = if is_active { toolbar_bg } else if hovered { Color::rgb(232, 232, 238) } else if private { Color::rgb(201, 189, 236) } else { Color::rgb(222, 222, 228) };
         canvas.fill_rect(tx, 5.0, tw - 2.0, top - 5.0, bg);
         if !is_active && i + 1 != ui.active && i + 1 < ui.tabs.len() {
             canvas.fill_rect(tx + tw - 2.0, 11.0, 1.0, top - 18.0, Color::rgb(190, 190, 198));
@@ -3075,7 +3118,12 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     if ui.tab_hover == Some(TabHit::New) {
         canvas.fill_rect(end + 4.0, 7.0, NEW_TAB_W, top - 12.0, Color::rgb(205, 205, 212));
     }
-    canvas.draw_text(fonts, end + 4.0 + (NEW_TAB_W - fonts.width(font::REGULAR, "+", 18.0)) / 2.0, 26.0, "+", font::REGULAR, 18.0, Color::rgb(60, 60, 70));
+    canvas.draw_text(fonts, end + 4.0 + (NEW_TAB_W - fonts.width(font::REGULAR, "+", 18.0)) / 2.0, 26.0, "+", font::REGULAR, 18.0, if private { Color::rgb(255, 255, 255) } else { Color::rgb(60, 60, 70) });
+    if private {
+        let label = "Private";
+        let lw = fonts.width(font::BOLD, label, 12.0);
+        canvas.draw_text(fonts, w - lw - 12.0, 22.0, label, font::BOLD, 12.0, Color::rgb(255, 255, 255));
+    }
 
     // Toolbar, and the bookmarks bar under it
     canvas.fill_rect(0.0, top, w, bar_h() as f32 - top, toolbar_bg);

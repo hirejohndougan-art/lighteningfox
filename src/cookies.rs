@@ -350,7 +350,6 @@ pub fn script_set(url: &str, s: &str) {
 }
 
 /// Forget every cookie (for "clear browsing data").
-#[allow(dead_code)]
 pub fn clear() {
     if let Ok(mut j) = jar().lock() {
         j.cookies.clear();
