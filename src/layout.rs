@@ -517,7 +517,7 @@ impl<'a> Ctx<'a> {
 
         let cx = x + ml + bl + pl;
         let cy = top + bt + pt;
-        let align = st.text_align;
+        let align = st.effective_align();
         let is_flex = st.flex.container;
         // overflow: hidden and display: flow-root start a new float context that contains its floats.
         let new_bfc = st.clip || st.flow_root;
@@ -1005,7 +1005,7 @@ impl<'a> Ctx<'a> {
         let fl = self.styles[id].flex;
         let col_gap = fl.column_gap.resolve(w);
         let row_gap = fl.row_gap.resolve(definite_h.unwrap_or(w));
-        let container_align = self.styles[id].text_align;
+        let container_align = self.styles[id].effective_align();
 
         // Gather items: every child element, plus runs of loose non-blank text.
         let mut items: Vec<FlexItem> = Vec::new();
@@ -2349,6 +2349,11 @@ impl<'a> Ctx<'a> {
                 }
             }
         }
+        // Right-to-left text: put each line's words in visual order.
+        let base_rtl = run.first().and_then(|&n| self.dom.nodes[n].parent).is_some_and(|p| self.styles[p].rtl);
+        for line in lines.iter_mut() {
+            bidi_reorder(line, &toks, base_rtl);
+        }
         // Emit lines.
         let mut cy = y;
         // Inline boxes still open from earlier lines: (node, depth).
@@ -2420,8 +2425,14 @@ impl<'a> Ctx<'a> {
                             // ("Hello world" instead of "Hello" + "world"): far fewer items.
                             let space = self.fonts.advance(font, ' ', size);
                             let joined = match (last_text, self.items.last_mut()) {
+                                // Right-to-left words stay separate: the line's word order was
+                                // already resolved, and shaping a mixed run would reverse it.
                                 (Some((n, end)), Some(Item::Text { text: t, .. }))
-                                    if n == *node && !s.underline && (px - end - space).abs() < 0.5 =>
+                                    if n == *node
+                                        && !s.underline
+                                        && (px - end - space).abs() < 0.5
+                                        && !text.chars().any(crate::style::is_rtl_char)
+                                        && !t.chars().any(crate::style::is_rtl_char) =>
                                 {
                                     t.push(' ');
                                     t.push_str(text);
@@ -2591,4 +2602,93 @@ fn justify_offsets(j: Justify, free: f32, n: usize) -> (f32, f32) {
         Justify::SpaceAround => (free / n / 2.0, free / n),
         Justify::SpaceEvenly => (free / (n + 1.0), free / (n + 1.0)),
     }
+}
+
+/// Reorder a line's items for bidirectional text (the Unicode Bidi Algorithm at word
+/// granularity): each word takes the direction of its first strong letter, neutral items
+/// (numbers, punctuation, images) take their neighbours' direction, then runs are reversed
+/// level by level (rule L2). Shaping already put the letters inside each word in visual order.
+fn bidi_reorder(line: &mut Line, toks: &[Tok], base_rtl: bool) {
+    if line.items.len() < 1 {
+        return;
+    }
+    let dirs: Vec<Option<bool>> = line
+        .items
+        .iter()
+        .map(|p| match &toks[p.tok] {
+            Tok::Word { text, .. } => crate::style::first_strong_rtl(text),
+            _ => None,
+        })
+        .collect();
+    if !base_rtl && !dirs.iter().any(|d| *d == Some(true)) {
+        return;
+    }
+    let n = dirs.len();
+    // Resolve neutrals: same strong direction on both sides wins, else the base direction.
+    let resolved: Vec<bool> = (0..n)
+        .map(|i| match dirs[i] {
+            Some(d) => d,
+            None => {
+                let before = dirs[..i].iter().rev().find_map(|d| *d).unwrap_or(base_rtl);
+                let after = dirs[i + 1..].iter().find_map(|d| *d).unwrap_or(base_rtl);
+                if before == after { before } else { base_rtl }
+            }
+        })
+        .collect();
+    let levels: Vec<u8> = resolved
+        .iter()
+        .map(|&r| match (base_rtl, r) {
+            (false, false) => 0,
+            (false, true) => 1,
+            (true, true) => 1,
+            (true, false) => 2,
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..n).collect();
+    let max = *levels.iter().max().unwrap_or(&0);
+    let min_odd = levels.iter().copied().filter(|l| l % 2 == 1).min().unwrap_or(1);
+    let mut level = max;
+    while level >= min_odd && level > 0 {
+        let mut i = 0;
+        while i < n {
+            if levels[order[i]] >= level {
+                let start = i;
+                while i < n && levels[order[i]] >= level {
+                    i += 1;
+                }
+                order[start..i].reverse();
+            } else {
+                i += 1;
+            }
+        }
+        level -= 1;
+    }
+    if order.iter().enumerate().all(|(i, &o)| i == o) {
+        return;
+    }
+    // Lay the items out again in visual order, keeping the spaces between them.
+    let gap = |i: usize| if i == 0 { 0.0 } else { line.items[i].x - (line.items[i - 1].x + line.items[i - 1].w) };
+    let mut new_x = vec![0.0f32; n];
+    let mut pen = line.items[0].x;
+    for (k, &i) in order.iter().enumerate() {
+        if k > 0 {
+            let prev = order[k - 1];
+            pen += gap(i.max(prev)).max(0.0);
+        }
+        new_x[i] = pen;
+        pen += line.items[i].w;
+    }
+    let mut items: Vec<Placed> = std::mem::take(&mut line.items);
+    for (i, p) in items.iter_mut().enumerate() {
+        let dx = new_x[i] - p.x;
+        p.x += dx;
+        for o in p.opens.iter_mut() {
+            o.1 += dx;
+        }
+        for c in p.closes.iter_mut() {
+            c.1 += dx;
+        }
+    }
+    let mut slots: Vec<Option<Placed>> = items.into_iter().map(Some).collect();
+    line.items = order.iter().map(|&i| slots[i].take().expect("each item once")).collect();
 }

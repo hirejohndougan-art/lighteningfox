@@ -85,10 +85,89 @@ pub struct Metrics {
     pub ymin: i32,
     pub width: usize,
     pub height: usize,
-    pub advance_width: f32,
 }
 
 type Key = (u8, char, u16);
+
+/// Fonts for characters the chosen font lacks (Chinese, Japanese, Korean, Hindi, Thai,
+/// Hebrew…): file names searched for under the system font folders, in order of preference.
+const FALLBACK_NAMES: &[&str] = &[
+    "NotoSans-Regular.ttf",
+    "NotoSansArabic-Regular.ttf",
+    "NotoSansHebrew-Regular.ttf",
+    "NotoSansDevanagari-Regular.ttf",
+    "NotoSansBengali-Regular.ttf",
+    "NotoSansTamil-Regular.ttf",
+    "NotoSansThai-Regular.ttf",
+    "NotoSansSymbols-Regular.ttf",
+    "NotoSansSymbols2-Regular.ttf",
+    "FreeSerif.ttf",
+    "FreeSerif.otf",
+    "FreeSans.ttf",
+    "NotoSansCJK-Regular.ttc",
+    "NotoSansCJKsc-Regular.otf",
+    "NotoSansCJKjp-Regular.otf",
+    "wqy-zenhei.ttc",
+    "wqy-microhei.ttc",
+    "fonts-japanese-gothic.ttf",
+];
+
+/// Face ids: system styles are 0…, web fonts start here, fallback fonts at FALLBACK_BASE.
+const WEB_BASE: u16 = 1000;
+const FALLBACK_BASE: u16 = 2000;
+
+/// One positioned glyph of shaped text (pixels).
+#[derive(Clone, Copy, Debug)]
+pub struct ShapedGlyph {
+    pub face: u16,
+    pub id: u16,
+    pub x: f32,
+    pub y: f32,
+}
+
+/// A run of text after shaping: glyphs in visual order, and its total advance.
+#[derive(Debug, Default)]
+pub struct Shaped {
+    pub glyphs: Vec<ShapedGlyph>,
+    pub width: f32,
+}
+
+fn find_fallbacks() -> Vec<std::path::PathBuf> {
+    let mut found: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let mut dirs: Vec<std::path::PathBuf> = vec!["/usr/share/fonts".into(), "/usr/local/share/fonts".into()];
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(std::path::PathBuf::from(&home).join(".local/share/fonts"));
+        dirs.push(std::path::PathBuf::from(&home).join(".fonts"));
+    }
+    // A bounded walk: font folders are shallow.
+    let mut stack: Vec<(std::path::PathBuf, u8)> = dirs.into_iter().map(|d| (d, 0)).collect();
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        for e in rd.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                if depth < 4 {
+                    stack.push((path, depth + 1));
+                }
+            } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if FALLBACK_NAMES.contains(&name) {
+                    found.entry(name.to_string()).or_insert(path);
+                }
+            }
+        }
+    }
+    FALLBACK_NAMES.iter().filter_map(|n| found.remove(*n)).collect()
+}
+
+/// rustybuzz faces borrow the font bytes; the fonts they come from are never dropped
+/// (the Fonts value lives for the whole program), so the borrow is extended to 'static.
+fn buzz_face(font: &Rc<FontVec>) -> Option<rustybuzz::Face<'static>> {
+    let data: &[u8] = font.as_slice();
+    // SAFETY: `font` is kept in Fonts (files, web or fallbacks) for the life of the program and
+    // its byte buffer is never moved or freed, so the slice stays valid.
+    let data: &'static [u8] = unsafe { std::mem::transmute::<&[u8], &'static [u8]>(data) };
+    rustybuzz::Face::from_slice(data, 0)
+}
 
 pub struct Fonts {
     /// Index into `files` for each style slot (missing faces reuse the regular one).
@@ -97,8 +176,15 @@ pub struct Fonts {
     /// Web fonts added while browsing (ids 6 and up), each with the system style to use
     /// for characters it doesn't have.
     web: RefCell<Vec<(Rc<FontVec>, u8)>>,
-    glyphs: RefCell<HashMap<Key, (Metrics, Vec<u8>)>>,
     advances: RefCell<HashMap<Key, f32>>,
+    /// Fallback font files found on the system, loaded the first time they're needed.
+    fallback_paths: Vec<std::path::PathBuf>,
+    fallbacks: RefCell<Vec<Option<Option<Rc<FontVec>>>>>,
+    /// Which fallback (face id) covers a character missing from the main fonts.
+    char_fallback: RefCell<HashMap<char, Option<u16>>>,
+    buzz: RefCell<HashMap<u16, Rc<rustybuzz::Face<'static>>>>,
+    shaped: RefCell<HashMap<(u8, u16, String), Rc<Shaped>>>,
+    glyphs_by_id: RefCell<HashMap<(u16, u16, u16), (Metrics, Vec<u8>)>>,
 }
 
 /// fontdue-compatible pixel size: ab_glyph scales by ascent-minus-descent height,
@@ -126,7 +212,19 @@ impl Fonts {
                 None => return Err("DejaVu Sans not found. Install it (e.g. `sudo apt install fonts-dejavu-core`).".into()),
             }
         }
-        Ok(Fonts { slots, files, web: RefCell::default(), glyphs: RefCell::default(), advances: RefCell::default() })
+        let fallback_paths = find_fallbacks();
+        Ok(Fonts {
+            slots,
+            files,
+            web: RefCell::default(),
+            advances: RefCell::default(),
+            fallbacks: RefCell::new(vec![None; fallback_paths.len()]),
+            fallback_paths,
+            char_fallback: RefCell::default(),
+            buzz: RefCell::default(),
+            shaped: RefCell::default(),
+            glyphs_by_id: RefCell::default(),
+        })
     }
 
     /// The font file for an id; for a web font missing `c`, its system fallback.
@@ -191,53 +289,231 @@ impl Fonts {
     }
 
     pub fn width(&self, font: u8, text: &str, size: f32) -> f32 {
-        text.chars().map(|c| self.advance(font, c, size)).sum()
+        // Plain ASCII without kerning pairs is the common case; everything goes through the
+        // shaper so kerning, ligatures and fallback fonts measure the way they draw.
+        self.shape(font, text, size).width
     }
 
     pub fn ascent(&self, font: u8, size: f32) -> f32 {
         let f = self.font(font);
         f.as_scaled(scale_for(&f, size)).ascent()
     }
+}
 
-    /// Calls `f` with the glyph's metrics and 8-bit coverage bitmap.
-    pub fn with_glyph<R>(&self, font: u8, c: char, size: f32, f: impl FnOnce(&Metrics, &[u8]) -> R) -> R {
-        let k = Self::key(font, c, size);
-        let mut cache = self.glyphs.borrow_mut();
+impl Fonts {
+    /// The font file behind a face id.
+    fn face_file(&self, face: u16) -> Option<Rc<FontVec>> {
+        if face >= FALLBACK_BASE {
+            let i = (face - FALLBACK_BASE) as usize;
+            let mut fb = self.fallbacks.borrow_mut();
+            let slot = fb.get_mut(i)?;
+            if slot.is_none() {
+                let font = std::fs::read(&self.fallback_paths[i]).ok().and_then(|b| FontVec::try_from_vec_and_index(b, 0).ok()).map(Rc::new);
+                *slot = Some(font);
+            }
+            slot.clone().flatten()
+        } else if face >= WEB_BASE {
+            self.web.borrow().get((face - WEB_BASE) as usize).map(|w| w.0.clone())
+        } else {
+            self.files.get(face as usize).cloned()
+        }
+    }
+
+    /// The face a style id draws with first.
+    fn primary_face(&self, font: u8) -> u16 {
+        if font < FIRST_WEB {
+            self.slots[font as usize] as u16
+        } else if ((font - FIRST_WEB) as usize) < self.web.borrow().len() {
+            WEB_BASE + (font - FIRST_WEB) as u16
+        } else {
+            self.slots[0] as u16
+        }
+    }
+
+    fn has_glyph(&self, face: u16, c: char) -> bool {
+        self.face_file(face).is_some_and(|f| f.glyph_id(c).0 != 0)
+    }
+
+    /// The face to draw `c` with: the font itself, its system style (for web fonts), then
+    /// the fallback fonts.
+    fn face_for(&self, font: u8, c: char) -> u16 {
+        let primary = self.primary_face(font);
+        if self.has_glyph(primary, c) {
+            return primary;
+        }
+        if font >= FIRST_WEB {
+            let sys = self.web.borrow().get((font - FIRST_WEB) as usize).map_or(0, |w| w.1);
+            let f = self.slots[sys as usize] as u16;
+            if self.has_glyph(f, c) {
+                return f;
+            }
+        }
+        if let Some(&hit) = self.char_fallback.borrow().get(&c) {
+            return hit.unwrap_or(primary);
+        }
+        let mut hit = None;
+        for i in 0..self.fallback_paths.len() {
+            let face = FALLBACK_BASE + i as u16;
+            if self.has_glyph(face, c) {
+                hit = Some(face);
+                break;
+            }
+        }
+        self.char_fallback.borrow_mut().insert(c, hit);
+        hit.unwrap_or(primary)
+    }
+
+    fn buzz_for(&self, face: u16) -> Option<Rc<rustybuzz::Face<'static>>> {
+        if let Some(f) = self.buzz.borrow().get(&face) {
+            return Some(f.clone());
+        }
+        let file = self.face_file(face)?;
+        let f = Rc::new(buzz_face(&file)?);
+        self.buzz.borrow_mut().insert(face, f.clone());
+        Some(f)
+    }
+
+    /// Shape `text` (one word or run) in a style: font fallback per character, then
+    /// HarfBuzz-style shaping (kerning, ligatures, joining scripts) per run.
+    pub fn shape(&self, font: u8, text: &str, size: f32) -> Rc<Shaped> {
+        let key = (font, (size * 4.0).round() as u16, text.to_string());
+        if let Some(s) = self.shaped.borrow().get(&key) {
+            return s.clone();
+        }
+        let shaped = Rc::new(self.shape_uncached(font, text, size));
+        let mut cache = self.shaped.borrow_mut();
+        if cache.len() > 30_000 {
+            cache.clear();
+        }
+        cache.insert(key, shaped.clone());
+        shaped
+    }
+
+    fn shape_uncached(&self, font: u8, text: &str, size: f32) -> Shaped {
+        // A right-to-left word with numbers or Latin in it ("ו-123", "مرحبا2024"): the
+        // left-to-right pieces keep their own order, and the pieces go right to left.
+        if text.chars().any(crate::style::is_rtl_char) && text.chars().any(|c| c.is_ascii_alphanumeric()) {
+            let mut pieces: Vec<(bool, usize, usize)> = Vec::new();
+            for (i, c) in text.char_indices() {
+                let ltr = c.is_ascii_alphanumeric() || (c.is_alphabetic() && !crate::style::is_rtl_char(c));
+                // Separators inside a number ("1,000.5") stay with it.
+                let joins_number = matches!(c, '.' | ',' | ':' | '/') && pieces.last().is_some_and(|p| p.0)
+                    && text[i + c.len_utf8()..].chars().next().is_some_and(|n| n.is_ascii_digit());
+                let ltr = ltr || joins_number;
+                match pieces.last_mut() {
+                    Some(p) if p.0 == ltr => p.2 = i + c.len_utf8(),
+                    _ => pieces.push((ltr, i, i + c.len_utf8())),
+                }
+            }
+            let mut out = Shaped::default();
+            for &(ltr, a, b) in pieces.iter().rev() {
+                let part = self.shape_dir(font, &text[a..b], size, Some(!ltr));
+                for g in &part.glyphs {
+                    out.glyphs.push(ShapedGlyph { x: g.x + out.width, ..*g });
+                }
+                out.width += part.width;
+            }
+            return out;
+        }
+        self.shape_dir(font, text, size, None)
+    }
+
+    /// Shape with a fixed direction (Some(true) = right to left), or guess it from the text.
+    fn shape_dir(&self, font: u8, text: &str, size: f32, rtl: Option<bool>) -> Shaped {
+        // Split into runs that share a face. Spaces and combining marks stay with the run
+        // they're in, so a mark is shaped together with its base letter.
+        let mut runs: Vec<(u16, usize, usize)> = Vec::new();
+        for (i, c) in text.char_indices() {
+            let joins = c.is_whitespace() || is_mark(c) || c == '\u{200d}' || c == '\u{200c}';
+            let face = match runs.last() {
+                Some(&(f, _, _)) if joins => f,
+                _ => self.face_for(font, c),
+            };
+            match runs.last_mut() {
+                Some(r) if r.0 == face => r.2 = i + c.len_utf8(),
+                _ => runs.push((face, i, i + c.len_utf8())),
+            }
+        }
+        let mut out = Shaped::default();
+        for (face, a, b) in runs {
+            let piece = &text[a..b];
+            let Some(bf) = self.buzz_for(face) else {
+                // No shaping data: lay out with plain advances.
+                for c in piece.chars() {
+                    let adv = self.advance(font, c, size);
+                    out.glyphs.push(ShapedGlyph { face, id: self.face_file(face).map_or(0, |f| f.glyph_id(c).0), x: out.width, y: 0.0 });
+                    out.width += adv;
+                }
+                continue;
+            };
+            let mut buf = rustybuzz::UnicodeBuffer::new();
+            buf.push_str(piece);
+            buf.guess_segment_properties();
+            if let Some(r) = rtl {
+                buf.set_direction(if r { rustybuzz::Direction::RightToLeft } else { rustybuzz::Direction::LeftToRight });
+            }
+            let res = rustybuzz::shape(&bf, &[], buf);
+            let scale = size / bf.units_per_em() as f32;
+            for (info, pos) in res.glyph_infos().iter().zip(res.glyph_positions()) {
+                let adv = pos.x_advance as f32 * scale;
+                out.glyphs.push(ShapedGlyph {
+                    face,
+                    id: info.glyph_id as u16,
+                    x: out.width + pos.x_offset as f32 * scale,
+                    y: pos.y_offset as f32 * scale,
+                });
+                out.width += adv;
+            }
+        }
+        out
+    }
+
+    /// Calls `f` with a glyph's metrics and coverage bitmap, by face and glyph id.
+    pub fn with_glyph_id<R>(&self, face: u16, id: u16, size: f32, f: impl FnOnce(&Metrics, &[u8]) -> R) -> R {
+        let k = (face, id, (size * 4.0).round() as u16);
+        let mut cache = self.glyphs_by_id.borrow_mut();
         if !cache.contains_key(&k) {
-            let entry = self.rasterize(font, c, size);
-            // Keep the cache bounded: text in many sizes and scripts can add up.
+            let entry = match self.face_file(face) {
+                Some(fnt) => rasterize_id(&fnt, ab_glyph::GlyphId(id), size),
+                None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0 }, Vec::new()),
+            };
             if cache.len() > 20_000 {
                 cache.clear();
             }
             cache.insert(k, entry);
         }
-        let entry = &cache[&k];
-        f(&entry.0, &entry.1)
+        let e = &cache[&k];
+        f(&e.0, &e.1)
     }
+}
 
-    fn rasterize(&self, font: u8, c: char, size: f32) -> (Metrics, Vec<u8>) {
-        let fnt = self.font_for(font, Some(c));
-        let scale = scale_for(&fnt, size);
-        let sf = fnt.as_scaled(scale);
-        let id = fnt.glyph_id(c);
-        let advance_width = sf.h_advance(id);
-        let glyph = id.with_scale_and_position(scale, ab_glyph::point(0.0, 0.0));
-        match fnt.outline_glyph(glyph) {
-            Some(og) => {
-                let b = og.px_bounds();
-                let (width, height) = (b.width() as usize, b.height() as usize);
-                let mut bmp = vec![0u8; width * height];
-                og.draw(|x, y, cov| {
-                    let i = y as usize * width + x as usize;
-                    if i < bmp.len() {
-                        bmp[i] = (cov.clamp(0.0, 1.0) * 255.0) as u8;
-                    }
-                });
-                // Painting places the bitmap's top at baseline - height - ymin.
-                let ymin = -(b.min.y as i32) - height as i32;
-                (Metrics { xmin: b.min.x as i32, ymin, width, height, advance_width }, bmp)
-            }
-            None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0, advance_width }, Vec::new()),
+/// Combining marks (accents, vowel signs) belong with the letter before them.
+fn is_mark(c: char) -> bool {
+    matches!(c as u32,
+        0x0300..=0x036F | 0x0483..=0x0489 | 0x0591..=0x05BD | 0x05BF | 0x05C1..=0x05C2 | 0x05C4..=0x05C5 | 0x05C7
+        | 0x0610..=0x061A | 0x064B..=0x065F | 0x0670 | 0x06D6..=0x06DC | 0x06DF..=0x06E4 | 0x06E7..=0x06E8 | 0x06EA..=0x06ED
+        | 0x0900..=0x0903 | 0x093A..=0x094F | 0x0951..=0x0957 | 0x0962..=0x0963
+        | 0x0981..=0x0983 | 0x09BC..=0x09D7 | 0x0E31 | 0x0E34..=0x0E3A | 0x0E47..=0x0E4E
+        | 0x1AB0..=0x1AFF | 0x1DC0..=0x1DFF | 0x20D0..=0x20FF | 0xFE00..=0xFE0F | 0xFE20..=0xFE2F)
+}
+
+fn rasterize_id(fnt: &FontVec, id: ab_glyph::GlyphId, size: f32) -> (Metrics, Vec<u8>) {
+    let scale = scale_for(fnt, size);
+    let glyph = id.with_scale_and_position(scale, ab_glyph::point(0.0, 0.0));
+    match fnt.outline_glyph(glyph) {
+        Some(og) => {
+            let b = og.px_bounds();
+            let (width, height) = (b.width() as usize, b.height() as usize);
+            let mut bmp = vec![0u8; width * height];
+            og.draw(|x, y, cov| {
+                let i = y as usize * width + x as usize;
+                if i < bmp.len() {
+                    bmp[i] = (cov.clamp(0.0, 1.0) * 255.0) as u8;
+                }
+            });
+            let ymin = -(b.min.y as i32) - height as i32;
+            (Metrics { xmin: b.min.x as i32, ymin, width, height }, bmp)
         }
+        None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0 }, Vec::new()),
     }
 }

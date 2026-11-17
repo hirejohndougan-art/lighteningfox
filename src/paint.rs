@@ -204,15 +204,12 @@ impl Canvas {
         if baseline + size < 0.0 || baseline - size > self.h as f32 {
             return;
         }
-        let mut pen = x;
-        for ch in text.chars() {
-            if ch == ' ' || ch == '\u{a0}' {
-                pen += fonts.advance(font, ' ', size);
-                continue;
-            }
-            let adv = fonts.with_glyph(font, ch, size, |m, bmp| {
-                let gx = pen.round() as i32 + m.xmin;
-                let gy = baseline.round() as i32 - m.height as i32 - m.ymin;
+        let shaped = fonts.shape(font, text, size);
+        for g in &shaped.glyphs {
+            let (gxp, gyp) = (x + g.x, baseline - g.y);
+            fonts.with_glyph_id(g.face, g.id, size, |m, bmp| {
+                let gx = gxp.round() as i32 + m.xmin;
+                let gy = gyp.round() as i32 - m.height as i32 - m.ymin;
                 for row in 0..m.height {
                     for col in 0..m.width {
                         let cov = bmp[row * m.width + col];
@@ -221,9 +218,7 @@ impl Canvas {
                         }
                     }
                 }
-                m.advance_width
             });
-            pen += adv;
         }
     }
 

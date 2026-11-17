@@ -252,6 +252,10 @@ pub struct Style {
     pub family: Option<Rc<str>>,
     pub underline: bool,
     pub text_align: Align,
+    /// text-align: start / end (0 = neither), which follow the writing direction.
+    pub align_logical: u8,
+    /// Right-to-left writing direction (`direction: rtl` or `dir="rtl"`).
+    pub rtl: bool,
     pub line_height: f32,
     pub pre: bool,
     pub list_style: ListStyle,
@@ -316,6 +320,8 @@ impl Default for Style {
             family: None,
             underline: false,
             text_align: Align::Left,
+            align_logical: 1,
+            rtl: false,
             line_height: 1.25,
             pre: false,
             list_style: ListStyle::Disc,
@@ -369,6 +375,8 @@ impl Style {
             family: parent.family.clone(),
             underline: parent.underline,
             text_align: parent.text_align,
+            align_logical: parent.align_logical,
+            rtl: parent.rtl,
             line_height: parent.line_height,
             pre: parent.pre,
             list_style: parent.list_style,
@@ -483,10 +491,12 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         // Same parent style + same rules + same attributes that affect style = same result.
         let attr_key: String = attrs
             .iter()
-            .filter(|(k, _)| matches!(k.as_str(), "style" | "bgcolor" | "color" | "align" | "valign" | "width" | "border" | "cellpadding" | "cellspacing" | "hidden"))
+            .filter(|(k, _)| matches!(k.as_str(), "style" | "bgcolor" | "color" | "align" | "valign" | "width" | "border" | "cellpadding" | "cellspacing" | "hidden" | "dir"))
             .map(|(k, v)| format!("{k}={v};"))
             .collect::<String>()
-            + tag;
+            + tag
+            // dir="auto" depends on the element's own text.
+            + &if dom.attr(id, "dir").is_some_and(|d| d.eq_ignore_ascii_case("auto")) { format!("#{id}") } else { String::new() };
         let key = (Rc::as_ptr(&parent_style) as usize, matched.iter().map(|m| m.decl as *const Decl as usize).collect(), attr_key);
         if let Some(s) = shared.get(&key) {
             styles[id] = s.clone();
@@ -538,6 +548,15 @@ fn presentational_hints(dom: &Dom, id: NodeId, st: &mut Style, parent: &Style) {
     if let Some(c) = dom.attr(id, "bgcolor").and_then(parse_color) {
         st.background = c;
         st.bg.color = c;
+    }
+    // dir="rtl" / "ltr" / "auto" (auto: the first strongly directional letter decides).
+    if let Some(d) = dom.attr(id, "dir") {
+        match d.trim().to_ascii_lowercase().as_str() {
+            "rtl" => st.rtl = true,
+            "ltr" => st.rtl = false,
+            "auto" => st.rtl = first_strong_rtl(&dom.text_content(id)).unwrap_or(false),
+            _ => {}
+        }
     }
     if dom.tag(id) == Some("font") {
         if let Some(c) = dom.attr(id, "color").and_then(parse_color) {
@@ -1715,8 +1734,18 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 "center" | "-webkit-center" | "middle" => Align::Center,
                 "right" | "end" => Align::Right,
                 _ => Align::Left,
-            }
+            };
+            st.align_logical = match lower.as_str() {
+                "start" | "justify" | "initial" => 1,
+                "end" => 2,
+                _ => 0,
+            };
         }
+        "direction" => match lower.as_str() {
+            "rtl" => st.rtl = true,
+            "ltr" => st.rtl = false,
+            _ => {}
+        },
         "white-space" => st.pre = lower.starts_with("pre") && lower != "pre-line",
         "text-decoration" | "text-decoration-line" => st.underline = lower.contains("underline"),
         "list-style" | "list-style-type" => {
@@ -1840,3 +1869,33 @@ mod tests {
     }
 }
 
+
+impl Style {
+    /// text-align after start/end are resolved against the writing direction.
+    pub fn effective_align(&self) -> Align {
+        match (self.align_logical, self.rtl) {
+            (1, true) => Align::Right,
+            (2, true) => Align::Left,
+            _ => self.text_align,
+        }
+    }
+}
+
+/// Hebrew, Arabic, Syriac, Thaana, N'Ko and other right-to-left scripts.
+pub fn is_rtl_char(c: char) -> bool {
+    matches!(c as u32, 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF | 0x10800..=0x10FFF | 0x1E800..=0x1EFFF)
+}
+
+/// Some(true) if the first strongly directional letter is right-to-left, Some(false) if
+/// left-to-right, None if there is none (digits and punctuation only).
+pub fn first_strong_rtl(text: &str) -> Option<bool> {
+    text.chars().find_map(|c| {
+        if is_rtl_char(c) && c.is_alphabetic() {
+            Some(true)
+        } else if c.is_alphabetic() {
+            Some(false)
+        } else {
+            None
+        }
+    })
+}
