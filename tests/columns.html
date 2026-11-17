@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html><head><title>Multi-column layout</title>
+<style>
+  body { font-family: serif; margin: 16px; font-size: 14px; line-height: 1.45; }
+  h2 { font-family: sans-serif; font-size: 15px; margin: 18px 0 6px; color: #334155; }
+  .news { column-count: 3; column-gap: 28px; column-rule: 1px solid #cbd5e1; border-top: 3px double #0f172a; padding-top: 8px; }
+  .news p { margin: 0 0 8px 0; text-align: left; }
+  .list { columns: 160px; background: #f8fafc; padding: 8px; font-family: sans-serif; }
+  .list ul { margin: 0; padding-left: 18px; }
+  .cards { column-count: 2; column-gap: 12px; }
+  .card { background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 8px; padding: 8px; margin: 0 0 12px 0; font-family: sans-serif; }
+  .card.tall { height: 90px; }
+  .narrow { width: 300px; columns: 200px 4; column-rule: 2px dashed #f97316; background: #fff7ed; padding: 6px; }
+</style></head>
+<body>
+  <h2>Three balanced columns with rules</h2>
+  <div class="news">
+    <p>The Galveston County Historical Commission met on Tuesday to review the restoration plans for the old interurban depot. Members heard from architects who described how the original brick could be cleaned and repointed without damaging the surface.</p>
+    <p>Volunteers have catalogued more than four hundred photographs from the collection, many showing the bayou before the 1915 storm. Each image is scanned, labeled with the date and place when known, and stored with notes from the families who donated it.</p>
+    <p>The commission also approved a marker for the site of the first schoolhouse. The text will be finished this winter and the dedication is planned for the spring, with students from the nearby elementary school taking part in the ceremony.</p>
+  </div>
+
+  <h2>column-width: as many 160px columns as fit</h2>
+  <div class="list"><ul>
+    <li>Arcadia</li><li>Bacliff</li><li>Bayou Vista</li><li>Clear Lake Shores</li><li>Dickinson</li><li>Friendswood</li>
+    <li>Galveston</li><li>Hitchcock</li><li>Jamaica Beach</li><li>Kemah</li><li>La Marque</li><li>League City</li>
+    <li>San Leon</li><li>Santa Fe</li><li>Texas City</li><li>Tiki Island</li>
+  </ul></div>
+
+  <h2>Cards stay whole</h2>
+  <div class="cards">
+    <div class="card">Card one</div>
+    <div class="card tall">Card two (taller)</div>
+    <div class="card">Card three</div>
+    <div class="card">Card four</div>
+    <div class="card">Card five</div>
+  </div>
+
+  <h2>Width and count together, in a narrow box: one 200px column fits</h2>
+  <div class="narrow">Only one column fits in 300 pixels when each must be at least 200 wide, so this text flows normally and no rule is drawn.</div>
+</body></html>

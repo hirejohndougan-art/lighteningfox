@@ -539,6 +539,7 @@ impl<'a> Ctx<'a> {
             || st.float.is_some()
             || matches!(st.position, Position::Absolute | Position::Fixed)
             || st.display == Display::InlineBlock
+            || st.multicol.is_some_and(|m| m.count.is_some() || m.width.is_some())
             || self.dom.nodes[id].parent == Some(Dom::ROOT)
             || matches!(self.dom.tag(id), Some("img" | "iframe" | "input" | "select" | "textarea" | "button"))
     }
@@ -760,6 +761,7 @@ impl<'a> Ctx<'a> {
             }
             None if self.styles[id].grid.is_some() => (self.grid_children(id, cx, cy, w, definite), 0.0),
             None if is_flex => (self.flex_children(id, cx, cy, w, definite), 0.0),
+            None if self.columns_of(id, w).is_some() => (self.multicol(id, cx, cy, w, align), 0.0),
             None => self.block_children(id, cx, cy, w, align),
         };
         self.cb_heights.pop();
@@ -2272,6 +2274,154 @@ impl<'a> Ctx<'a> {
             cy += h;
         }
         (cy - y, prev_mb)
+    }
+
+    /// Multi-column: (number of columns, column width, gap) for a content width `w`.
+    fn columns_of(&self, id: NodeId, w: f32) -> Option<(usize, f32, f32)> {
+        let st = &self.styles[id];
+        let mc = st.multicol?;
+        let gap = if st.column_gap_set { st.flex.column_gap.resolve(w) } else { st.font_size };
+        let n = match (mc.count, mc.width) {
+            (None, None) => return None,
+            (Some(c), None) => c as usize,
+            (c, Some(cw)) => {
+                let fit = (((w + gap) / (cw + gap)).floor() as usize).max(1);
+                c.map_or(fit, |c| fit.min(c as usize))
+            }
+        }
+        .clamp(1, 1000);
+        let cw = ((w - gap * (n - 1) as f32) / n as f32).max(1.0);
+        Some((n, cw, gap))
+    }
+
+    /// Lay out a multi-column container's content: all of it in one column of the column
+    /// width, then cut that into balanced columns between lines (or between boxes with a
+    /// background, which are kept whole) and set the pieces side by side.
+    fn multicol(&mut self, id: NodeId, x: f32, y: f32, w: f32, align: Align) -> f32 {
+        let Some((n, cw, gap)) = self.columns_of(id, w) else { return 0.0 };
+        let d = self.detach(|cx| {
+            let (h, mb) = cx.block_children(id, 0.0, 0.0, cw, align);
+            (cw, h - mb)
+        });
+        // Vertical extents of everything that must not be cut.
+        let mut spans: Vec<(f32, f32)> = Vec::new();
+        for it in &d.items {
+            match *it {
+                Item::Rect { y, h, .. } | Item::Image { y, h, .. } | Item::Box { y, h, .. } | Item::Ring { y, h, .. } | Item::ClipPush { y, h, .. } => spans.push((y, y + h)),
+                Item::Shadow { y, h, blur, .. } => spans.push((y - blur, y + h + blur)),
+                Item::Text { y, size, .. } => spans.push((y - size, y + size * 0.3)),
+                _ => {}
+            }
+        }
+        // Line boxes (from the hit areas of their text) are what columns break between.
+        for (r, _) in &d.hits {
+            spans.push((r.y, r.y + r.h));
+        }
+        spans.retain(|(a, b)| b > a);
+        spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+        // Merge overlapping extents into groups; columns may start at any group's top.
+        let mut groups: Vec<(f32, f32)> = Vec::new();
+        for (a, b) in spans {
+            match groups.last_mut() {
+                Some(g) if a < g.1 - 0.5 => g.1 = g.1.max(b),
+                _ => groups.push((a, b)),
+            }
+        }
+        // Column starts for a given column height: fill greedily.
+        let starts_for = |limit: f32| -> Vec<f32> {
+            let mut starts = vec![0.0f32];
+            for &(a, b) in &groups {
+                let s = *starts.last().unwrap();
+                if b - s > limit && a > s + 0.5 {
+                    starts.push(a);
+                }
+            }
+            starts
+        };
+        let total = d.h.max(groups.last().map_or(0.0, |g| g.1));
+        let tallest = groups.iter().map(|(a, b)| b - a).fold(0.0f32, f32::max);
+        // Balance: the shortest column height that fits everything in n columns.
+        let (mut lo, mut hi) = ((total / n as f32).max(tallest), total.max(1.0));
+        if starts_for(lo).len() <= n {
+            hi = lo;
+        } else {
+            for _ in 0..24 {
+                let mid = (lo + hi) / 2.0;
+                if starts_for(mid).len() <= n {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+        }
+        let mut starts = starts_for(hi);
+        starts.truncate(n);
+        let col_of = |y: f32| starts.iter().rposition(|&s| y >= s - 0.5).unwrap_or(0);
+        let offset = |c: usize| (x + c as f32 * (cw + gap), y - starts[c]);
+        // Move each item into its column. Pops follow their push.
+        let mut stack: Vec<usize> = Vec::new();
+        let mut last = 0usize;
+        let mut height = 0.0f32;
+        for mut it in d.items {
+            let c = match &it {
+                Item::Rect { y, .. }
+                | Item::Image { y, .. }
+                | Item::Box { y, .. }
+                | Item::Ring { y, .. }
+                | Item::Mark { y, .. }
+                | Item::ScrollArea { y, .. }
+                | Item::ClipPush { y, .. }
+                | Item::TransformPush { y, .. }
+                | Item::StickyPush { y, .. } => col_of(*y),
+                Item::Shadow { y, blur, .. } => col_of(*y - *blur),
+                Item::Text { y, size, .. } => col_of(*y - *size),
+                Item::ClipPop | Item::TransformPop | Item::StickyPop | Item::FixedPop => stack.pop().unwrap_or(last),
+                Item::FixedPush => last,
+            };
+            if matches!(it, Item::ClipPush { .. } | Item::TransformPush { .. } | Item::StickyPush { .. } | Item::FixedPush) {
+                stack.push(c);
+            }
+            last = c;
+            let (dx, dy) = offset(c);
+            if let Item::Rect { y, h, .. } | Item::Box { y, h, .. } | Item::Image { y, h, .. } = &it {
+                height = height.max(y + h - starts[c]);
+            } else if let Item::Text { y, size, .. } = &it {
+                height = height.max(y + size * 0.3 - starts[c]);
+            }
+            shift_item(&mut it, dx, dy);
+            self.items.push(it);
+        }
+        for (mut r, l) in d.links {
+            let (dx, dy) = offset(col_of(r.y));
+            r.x += dx;
+            r.y += dy;
+            self.links.push((r, l));
+        }
+        for (mut r, node) in d.hits {
+            let (dx, dy) = offset(col_of(r.y));
+            r.x += dx;
+            r.y += dy;
+            height = height.max(r.y + r.h - y);
+            self.hits.push((r, node));
+        }
+        // The last column holds whatever is left, so measure columns from their starts.
+        for (i, &s) in starts.iter().enumerate() {
+            let end = starts.get(i + 1).copied().unwrap_or(total);
+            height = height.max(end - s);
+        }
+        let height = height.min(total).max(0.0);
+        // Rules between columns that have content.
+        let st = &self.styles[id];
+        if let Some(mc) = st.multicol {
+            if mc.rule_width > 0.0 && !st.hidden {
+                let color = mc.rule_color.unwrap_or(st.color);
+                for c in 1..starts.len() {
+                    let rx = x + c as f32 * (cw + gap) - gap / 2.0 - mc.rule_width / 2.0;
+                    border_side(&mut self.items, if mc.rule_dashed { 1 } else { 0 }, rx, y, mc.rule_width, height, color);
+                }
+            }
+        }
+        height
     }
 
     /// Lay out an element as a block at (0, 0), away from the main display list.

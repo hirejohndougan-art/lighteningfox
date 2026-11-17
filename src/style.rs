@@ -173,6 +173,17 @@ pub enum TableRole {
     Caption,
 }
 
+/// A multi-column container's settings.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct MultiCol {
+    pub count: Option<u32>,
+    pub width: Option<f32>,
+    /// column-rule: width (0 = none), color (None = the text color).
+    pub rule_width: f32,
+    pub rule_color: Option<Color>,
+    pub rule_dashed: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VAlign {
     Baseline,
@@ -314,6 +325,10 @@ pub struct Style {
     pub clear: (bool, bool),
     /// display: flow-root (starts a new block formatting context, contains floats)
     pub flow_root: bool,
+    /// Multi-column layout (column-count, column-width, column-rule), when set.
+    pub multicol: Option<MultiCol>,
+    /// column-gap or gap was given (multi-column's default gap is 1em, not 0).
+    pub column_gap_set: bool,
     pub table_role: TableRole,
     /// CSS grid container and its templates (kept as written; resolved at layout time).
     pub grid: Option<Rc<GridTemplate>>,
@@ -381,6 +396,8 @@ impl Default for Style {
             float: None,
             clear: (false, false),
             flow_root: false,
+            multicol: None,
+            column_gap_set: false,
             table_role: TableRole::None,
             grid: None,
             grid_place: None,
@@ -1855,6 +1872,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         }
         "order" => st.flex.order = lower.parse().unwrap_or(0),
         "gap" | "grid-gap" => {
+            st.column_gap_set = true;
             let parts: Vec<Len> = lower.split_whitespace().filter_map(|t| parse_len(t, fs)).collect();
             if let Some(&r) = parts.first() {
                 st.flex.row_gap = r;
@@ -1867,9 +1885,47 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "column-gap" | "grid-column-gap" => {
+            st.column_gap_set = lower != "normal";
             if let Some(l) = parse_len(&lower, fs) {
                 st.flex.column_gap = l;
             }
+        }
+        "column-count" => st.multicol.get_or_insert_with(Default::default).count = lower.parse::<u32>().ok().filter(|n| *n > 0),
+        "column-width" => st.multicol.get_or_insert_with(Default::default).width = parse_len(&lower, fs).and_then(|l| if let Len::Px(v) = l { Some(v) } else { None }).filter(|v| *v > 0.0),
+        "columns" => {
+            // `columns: 3`, `columns: 12em`, `columns: 12em 3` in either order; `auto` leaves one unset.
+            let mc = st.multicol.get_or_insert_with(Default::default);
+            mc.count = None;
+            mc.width = None;
+            for t in lower.split_whitespace() {
+                if let Ok(n) = t.parse::<u32>() {
+                    mc.count = Some(n).filter(|n| *n > 0);
+                } else if let Some(Len::Px(v)) = parse_len(t, fs) {
+                    mc.width = Some(v).filter(|v| *v > 0.0);
+                }
+            }
+        }
+        "column-rule" => {
+            let (w, c) = border_shorthand(&lower, fs);
+            let mc = st.multicol.get_or_insert_with(Default::default);
+            mc.rule_width = w;
+            mc.rule_color = c;
+            mc.rule_dashed = lower.contains("dashed") || lower.contains("dotted");
+        }
+        "column-rule-width" => {
+            if let Some(w) = border_width_word(lower.trim(), fs) {
+                st.multicol.get_or_insert_with(Default::default).rule_width = w;
+            }
+        }
+        "column-rule-color" => st.multicol.get_or_insert_with(Default::default).rule_color = parse_color(&lower),
+        "column-rule-style" => {
+            let mc = st.multicol.get_or_insert_with(Default::default);
+            if matches!(lower.as_str(), "none" | "hidden") {
+                mc.rule_width = 0.0;
+            } else if mc.rule_width == 0.0 {
+                mc.rule_width = 3.0;
+            }
+            mc.rule_dashed = matches!(lower.as_str(), "dashed" | "dotted");
         }
         "grid-template-columns" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).columns = v.to_string(),
         "grid-template-rows" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).rows = v.to_string(),
