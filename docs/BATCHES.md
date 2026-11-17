@@ -82,7 +82,7 @@ points at another file isn't loaded (browsers don't either).
 - §13 Fingerprinting: per-site noise on canvas readouts (the noise function already exists)
 
 ## E. Effects and animation
-**Status:** claimed by effects-chat 2026-11-17 02:20
+**Status:** done (effects-chat 2026-11-17)
 **Start after:** —
 **Main files:** `src/paint.rs`, `src/tiles.rs`, `src/gpu.rs`, the drawing and scrolling parts of `src/main.rs`
 
@@ -92,6 +92,12 @@ points at another file isn't loaded (browsers don't either).
 - §8 Only repaint damaged regions
 - §8 HiDPI screens
 - §8 Smooth scrolling at 60 frames per second
+
+Left undone:
+- `transitionend` / `animationend` events aren't fired yet.
+- HiDPI scales the page but not the browser's own tabs and toolbar; that needs winit's scale-change events (batch J).
+- A running animation restyles and lays out the whole page each frame (only repainting is incremental); incremental restyle/relayout is batch K / N.
+- `filter` applies to block boxes, not inline elements (spans); `scroll-behavior: smooth` isn't supported.
 
 ## F. Forms and iframes
 **Status:** claimed by forms-chat 2026-11-17 02:22
