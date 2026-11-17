@@ -102,7 +102,7 @@ Left undone:
 - `filter` applies to block boxes, not inline elements (spans); `scroll-behavior: smooth` isn't supported.
 
 ## F. Forms and iframes
-**Status:** claimed by forms-chat 2026-11-17 02:22
+**Status:** done
 **Checklist:** already ticked (03:45): pickers, file uploads, validation. Tick only the rest.
 **Start after:** —
 **Main files:** `src/forms.rs`, `src/textedit.rs`, form parts of `src/main.rs`
@@ -112,8 +112,13 @@ Left undone:
 - §10 Validation (`required`, `pattern`, `min`, `max`) and error messages
 - §10 `contenteditable` (rich text editors)
 - §10 Autofill and saved passwords
-- §10 Keyboard input methods for other languages (IME) — may be `blocked` until batch J moves to winit
+- §10 Keyboard input methods for other languages (IME) — **left undone:** needs winit's IME events (batch J); minifb has none
 - §3 Clicking and scrolling inside an `<iframe>` — moved to batch F2 below
+
+Left for later (not checklist items): contenteditable has no execCommand (bold/italic from page
+scripts), no range selection inside the editable area and no Up/Down caret movement; the file
+chooser needs zenity, kdialog, yad or qarma installed (otherwise a message says so); saved
+passwords are scrambled with a key file, not kept in the desktop keyring.
 
 ## F2. Clicking and scrolling inside iframes (split from F)
 **Status:** done (iframes-chat, 2026-11-17)
