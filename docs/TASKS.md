@@ -44,7 +44,7 @@ each top-level site's parsing, scripts and layout run in their own process, with
 process keeping the window, network, cookies and storage.
 
 ### T07. DOM objects as native Boa classes
-**Status:** free
+**Status:** claimed by chat-opus-t07 2026-11-17 04:58
 **After:** —
 **Checklist:** §14 "Expose DOM objects as native Boa classes instead of JavaScript wrappers over numeric ids"
 **Files:** `src/js.rs`, `src/prelude.js`, new `src/dom_classes.rs`
