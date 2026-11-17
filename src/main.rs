@@ -650,10 +650,15 @@ fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url
         }
     }
     let loaded = LOADED_FONT_URLS.lock().map(|l| l.clone()).unwrap_or_default();
-    let wanted: Vec<(&css::FontFace, String)> = sheets
+    // Fonts split by unicode-range (Google Fonts and many sites serve a family as several
+    // subsets: latin, latin-ext, cyrillic…): faces aren't chosen per character yet, so for each
+    // family, weight and style the subset with basic Latin is used and the others are skipped.
+    let faces: Vec<&css::FontFace> = sheets.iter().flat_map(|s| &s.font_faces).filter(|f| used.contains(&f.family)).collect();
+    let has_latin = |f: &css::FontFace| faces.iter().any(|g| g.family == f.family && g.weight == f.weight && g.italic == f.italic && g.covers('a'));
+    let wanted: Vec<(&css::FontFace, String)> = faces
         .iter()
-        .flat_map(|s| &s.font_faces)
-        .filter(|f| used.contains(&f.family))
+        .copied()
+        .filter(|f| f.covers('a') || !has_latin(f))
         .filter_map(|f| f.best_url().map(|u| (f, u)))
         .take(24)
         .collect();

@@ -22,9 +22,17 @@ pub struct FontFace {
     /// font-weight range it covers (a variable font covers e.g. 100–900).
     pub weight: (u16, u16),
     pub italic: bool,
+    /// `unicode-range` as inclusive code point ranges (empty: every character).
+    pub unicode_range: Vec<(u32, u32)>,
 }
 
 impl FontFace {
+    /// Does this face cover the character (its unicode-range, if it has one)?
+    pub fn covers(&self, c: char) -> bool {
+        let c = c as u32;
+        self.unicode_range.is_empty() || self.unicode_range.iter().any(|&(a, b)| a <= c && c <= b)
+    }
+
     /// The URL to download: the first WOFF2, else WOFF, else TrueType/OpenType source.
     pub fn best_url(&self) -> Option<String> {
         let mut found: Vec<(u8, String)> = Vec::new();
@@ -389,14 +397,32 @@ impl Builder<'_> {
             let lo = ws.next().unwrap_or(400);
             let hi = ws.next().unwrap_or(lo).max(lo);
             let st = get("font-style").unwrap_or_default().to_ascii_lowercase();
+            let unicode_range = get("unicode-range").map(|r| parse_unicode_range(&r)).unwrap_or_default();
             self.faces.push(FontFace {
                 family: family.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_ascii_lowercase(),
                 src,
                 weight: (lo, hi),
                 italic: st.starts_with("italic") || st.starts_with("oblique"),
+                unicode_range,
             });
         }
     }
+}
+
+/// `U+0000-00FF, U+0131, U+4??` as inclusive ranges (wildcards cover every digit).
+pub fn parse_unicode_range(v: &str) -> Vec<(u32, u32)> {
+    v.split(',')
+        .filter_map(|part| {
+            let p = part.trim().to_ascii_uppercase();
+            let p = p.strip_prefix("U+")?;
+            let hex = |h: &str| u32::from_str_radix(h, 16).ok();
+            match p.split_once('-') {
+                Some((a, b)) => Some((hex(a)?, hex(b)?)),
+                None if p.contains('?') => Some((hex(&p.replace('?', "0"))?, hex(&p.replace('?', "F"))?)),
+                None => hex(p).map(|c| (c, c)),
+            }
+        })
+        .collect()
 }
 
 /// A nested selector's full form: `&` stands for the parent selectors; without one, it's
@@ -1188,6 +1214,13 @@ mod tests {
 #[cfg(test)]
 mod syntax_tests {
     use super::*;
+
+    #[test]
+    fn unicode_ranges() {
+        assert_eq!(parse_unicode_range("U+0000-00FF, U+0131,u+4??"), vec![(0, 0xff), (0x131, 0x131), (0x400, 0x4ff)]);
+        let sheet = parse("@font-face{font-family:X;src:url(a.woff2);unicode-range:U+0400-045F}");
+        assert!(!sheet.font_faces[0].covers('a') && sheet.font_faces[0].covers('Ж'));
+    }
 
     #[test]
     fn supports_conditions() {
