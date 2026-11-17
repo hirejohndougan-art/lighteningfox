@@ -131,6 +131,23 @@ const FALLBACK_NAMES: &[&str] = &[
     "wqy-zenhei.ttc",
     "wqy-microhei.ttc",
     "fonts-japanese-gothic.ttf",
+    // Windows
+    "seguiemj.ttf",
+    "segoeui.ttf",
+    "seguisym.ttf",
+    "tahoma.ttf",
+    "Nirmala.ttf",
+    "msyh.ttc",
+    "YuGothM.ttc",
+    "malgun.ttf",
+    // macOS
+    "Apple Color Emoji.ttc",
+    "Arial Unicode.ttf",
+    "PingFang.ttc",
+    "Hiragino Sans GB.ttc",
+    "AppleSDGothicNeo.ttc",
+    "Kohinoor.ttc",
+    "Thonburi.ttc",
 ];
 
 /// Face ids: system styles are 0…, web fonts start here, fallback fonts at FALLBACK_BASE.
@@ -208,11 +225,8 @@ impl PlanRef<'_> {
 
 fn find_fallbacks() -> Vec<std::path::PathBuf> {
     let mut found: HashMap<String, std::path::PathBuf> = HashMap::new();
-    let mut dirs: Vec<std::path::PathBuf> = vec!["/usr/share/fonts".into(), "/usr/local/share/fonts".into()];
-    if let Some(home) = std::env::var_os("HOME") {
-        dirs.push(std::path::PathBuf::from(&home).join(".local/share/fonts"));
-        dirs.push(std::path::PathBuf::from(&home).join(".fonts"));
-    }
+    let mut dirs = crate::platform::font_dirs();
+    dirs.extend(crate::platform::bundled_font_dirs());
     // A bounded walk: font folders are shallow.
     let mut stack: Vec<(std::path::PathBuf, u8)> = dirs.into_iter().map(|d| (d, 0)).collect();
     while let Some((dir, depth)) = stack.pop() {
@@ -291,9 +305,18 @@ impl Fonts {
         let mut files: Vec<Rc<FontVec>> = Vec::new();
         let mut slots = [0usize; 6];
         for (i, file) in FILES.iter().enumerate() {
-            // IRONSWIFT_FONT_DIR (set by the AppImage, which carries its own DejaVu) comes first.
-            let extra = std::env::var("IRONSWIFT_FONT_DIR").ok();
-            let path = extra.iter().map(String::as_str).chain(DIRS.iter().copied()).map(|d| format!("{d}/{file}")).find(|p| std::path::Path::new(p).exists());
+            // IRONSWIFT_FONT_DIR (set by the AppImage, which carries its own DejaVu) comes first,
+            // then the DejaVu the Windows and macOS packages carry beside the program, then the
+            // system's DejaVu, then the system's own equivalents (Arial, Consolas…).
+            let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("IRONSWIFT_FONT_DIR").map(std::path::PathBuf::from).into_iter().collect();
+            dirs.extend(crate::platform::bundled_font_dirs());
+            dirs.extend(DIRS.iter().map(std::path::PathBuf::from));
+            let path = dirs
+                .iter()
+                .map(|d| d.join(file))
+                .chain(crate::platform::base_font_alternatives(i))
+                .find(|p| p.exists())
+                .map(|p| p.to_string_lossy().into_owned());
             match path {
                 Some(p) => {
                     let bytes = std::fs::read(&p).map_err(|e| format!("{p}: {e}"))?;
@@ -302,6 +325,7 @@ impl Fonts {
                     files.push(Rc::new(font));
                 }
                 None if i > 0 => slots[i] = slots[0],
+                None if cfg!(any(windows, target_os = "macos")) => return Err("No font found: put DejaVu Sans in the `fonts` folder beside ironswift.".into()),
                 None => return Err("DejaVu Sans not found. Install it (e.g. `sudo apt install fonts-dejavu-core`).".into()),
             }
         }

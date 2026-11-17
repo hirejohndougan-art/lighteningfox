@@ -15,18 +15,26 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction};
+#[cfg(target_os = "linux")]
 use zbus::blocking::Connection;
+#[cfg(target_os = "linux")]
 use zbus::zvariant::OwnedObjectPath;
 
+#[cfg(target_os = "linux")]
 const SERVICE: &str = "org.freedesktop.GeoClue2";
+#[cfg(target_os = "linux")]
 const MANAGER_PATH: &str = "/org/freedesktop/GeoClue2/Manager";
+#[cfg(target_os = "linux")]
 /// GeoClue matches this against its list of apps (our desktop file is ironswift.desktop).
 const DESKTOP_ID: &str = "ironswift";
+#[cfg(target_os = "linux")]
 /// GeoClue accuracy levels: street level normally, exact (GPS) when a page asks for it.
 const LEVEL_STREET: u32 = 6;
+#[cfg(target_os = "linux")]
 const LEVEL_EXACT: u32 = 8;
 /// How often the thread looks for a new position and for pages that stopped waiting.
 const POLL: Duration = Duration::from_millis(200);
+#[cfg(target_os = "linux")]
 /// GeoClue reports unknown altitude as -DBL_MAX and unknown speed/heading as -1.
 const UNKNOWN_ALTITUDE: f64 = -1.0e300;
 
@@ -233,7 +241,10 @@ fn thread_main() {
         }
         return;
     }
+    #[cfg(target_os = "linux")]
     let result = Connection::system().map_err(|e| format!("No location service is available ({e})")).and_then(|c| serve(&c));
+    #[cfg(not(target_os = "linux"))]
+    let result: Result<(), String> = Err("Location isn't available on this system yet".into());
     if let Err(msg) = result {
         log!("[geolocation] {msg}");
         // Fail everyone waiting and end the thread, under one lock so no request is left behind.
@@ -264,6 +275,7 @@ fn now_ms() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0.0, |d| d.as_secs_f64() * 1000.0)
 }
 
+#[cfg(target_os = "linux")]
 fn proxy<'a>(conn: &Connection, path: &'a str, iface: &'a str) -> zbus::Result<zbus::blocking::Proxy<'a>> {
     zbus::blocking::proxy::Builder::<zbus::blocking::Proxy<'a>>::new(conn)
         .destination(SERVICE)?
@@ -273,6 +285,7 @@ fn proxy<'a>(conn: &Connection, path: &'a str, iface: &'a str) -> zbus::Result<z
         .build()
 }
 
+#[cfg(target_os = "linux")]
 /// A GeoClue client for this browser, started at `level`.
 fn start_client(conn: &Connection, level: u32) -> zbus::Result<(OwnedObjectPath, zbus::blocking::Proxy<'static>)> {
     let manager = proxy(conn, MANAGER_PATH, "org.freedesktop.GeoClue2.Manager")?;
@@ -290,6 +303,7 @@ fn start_client(conn: &Connection, level: u32) -> zbus::Result<(OwnedObjectPath,
     Ok((path, client))
 }
 
+#[cfg(target_os = "linux")]
 /// Read a Location object.
 fn read_location(conn: &Connection, path: &str) -> zbus::Result<Position> {
     let loc = proxy(conn, path, "org.freedesktop.GeoClue2.Location")?;
@@ -307,6 +321,7 @@ fn read_location(conn: &Connection, path: &str) -> zbus::Result<Position> {
     Ok(Position { latitude: f("Latitude")?, longitude: f("Longitude")?, accuracy: f("Accuracy")?, altitude, speed, heading, timestamp })
 }
 
+#[cfg(target_os = "linux")]
 /// Talk to GeoClue until nobody is waiting any more.
 fn serve(conn: &Connection) -> Result<(), String> {
     let explain = |e: zbus::Error| match &e {
@@ -355,7 +370,7 @@ fn serve(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     use std::sync::Arc;

@@ -87,7 +87,7 @@ fn key() -> Option<[u8; 32]> {
         }
     }
     let mut k = [0u8; 32];
-    std::fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut k)).ok()?;
+    getrandom::getrandom(&mut k).ok()?;
     write_private(&path, &k);
     Some(k)
 }
@@ -110,7 +110,10 @@ fn keystream(key: &[u8; 32], nonce: &[u8], n: usize) -> Vec<u8> {
 fn seal(key: &[u8; 32], plain: &str) -> String {
     use base64::Engine;
     let mut nonce = [0u8; 12];
-    let _ = std::fs::File::open("/dev/urandom").and_then(|mut f| std::io::Read::read_exact(&mut f, &mut nonce));
+    // A sealed value must never reuse a nonce: with no randomness, don't save it at all.
+    if getrandom::getrandom(&mut nonce).is_err() {
+        return String::new();
+    }
     let ks = keystream(key, &nonce, plain.len());
     let mut out = nonce.to_vec();
     out.extend(plain.bytes().zip(ks).map(|(a, b)| a ^ b));

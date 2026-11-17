@@ -36,7 +36,7 @@ pub fn folder() -> PathBuf {
     if let Ok(d) = std::env::var("IRONSWIFT_DOWNLOADS") {
         return d.into();
     }
-    let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("."));
+    let home = crate::platform::home_dir().unwrap_or_else(|| PathBuf::from("."));
     let dirs = std::fs::read_to_string(home.join(".config/user-dirs.dirs")).unwrap_or_default();
     for line in dirs.lines() {
         if let Some(v) = line.trim().strip_prefix("XDG_DOWNLOAD_DIR=") {
@@ -206,10 +206,10 @@ pub fn page(query: &str) -> String {
         }
     } else if let Some(id) = q.strip_prefix("open=").and_then(|v| v.parse::<u32>().ok()) {
         if let Some(d) = list().into_iter().find(|d| d.id == id && d.state == State::Done) {
-            let _ = std::process::Command::new("xdg-open").arg(&d.path).spawn();
+            crate::platform::open_path(&d.path);
         }
     } else if q == "folder" {
-        let _ = std::process::Command::new("xdg-open").arg(folder()).spawn();
+        crate::platform::open_path(&folder());
     } else if q == "clear" {
         if let Ok(mut l) = LIST.lock() {
             l.retain(|d| d.state == State::Active);

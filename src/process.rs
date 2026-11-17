@@ -194,11 +194,9 @@ fn write_to(stdin: &Mutex<std::process::ChildStdin>, msg: &[u8]) -> bool {
     stdin.lock().map(|mut s| s.write_all(msg).and_then(|_| s.flush()).is_ok()).unwrap_or(false)
 }
 
-/// /proc/meminfo: (total, available) in MiB.
+/// The computer's (total, available) memory in MiB.
 fn memory_mib() -> Option<(u64, u64)> {
-    let info = std::fs::read_to_string("/proc/meminfo").ok()?;
-    let field = |name: &str| info.lines().find(|l| l.starts_with(name))?.split_whitespace().nth(1)?.parse::<u64>().ok().map(|kib| kib / 1024);
-    Some((field("MemTotal:")?, field("MemAvailable:")?))
+    crate::platform::memory_mb()
 }
 
 /// How many site processes the pool may run (each costs roughly 60–150 MB): two per GiB above

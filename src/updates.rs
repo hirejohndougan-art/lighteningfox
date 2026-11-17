@@ -103,7 +103,7 @@ fn self_updatable() -> Option<std::path::PathBuf> {
     if s.contains("/target/") || s.starts_with("/usr/") || s.starts_with("/app/") || std::env::var("FLATPAK_ID").is_ok() {
         return None;
     }
-    let home = std::env::var("HOME").ok()?;
+    let home = crate::platform::home_dir()?.to_string_lossy().into_owned();
     if !s.starts_with(&home) {
         return None;
     }

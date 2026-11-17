@@ -4,7 +4,8 @@
 //! when shown.
 
 /// Megabytes from a /proc/meminfo line such as `MemAvailable:  123456 kB`.
-fn meminfo(text: &str, key: &str) -> Option<u64> {
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn meminfo(text: &str, key: &str) -> Option<u64> {
     let line = text.lines().find(|l| l.starts_with(key))?;
     let kb: u64 = line[key.len()..].trim().trim_start_matches(':').trim().split_whitespace().next()?.parse().ok()?;
     Some(kb / 1024)
@@ -12,10 +13,7 @@ fn meminfo(text: &str, key: &str) -> Option<u64> {
 
 /// The browser's resident memory in MB.
 pub fn rss_mb() -> u64 {
-    std::fs::read_to_string("/proc/self/statm")
-        .ok()
-        .and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok())
-        .map_or(0, |pages| pages * 4 / 1024)
+    crate::platform::rss_mb()
 }
 
 /// How much memory the browser may use: 40% of the computer's memory, at most 2 GB
@@ -30,8 +28,7 @@ pub fn budget_mb(total_mb: u64) -> u64 {
 /// Should background tabs be freed? The browser is over budget, or the computer has less
 /// than 300 MB (or 8%) left.
 pub fn under_pressure() -> bool {
-    let info = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
-    let (Some(total), Some(avail)) = (meminfo(&info, "MemTotal"), meminfo(&info, "MemAvailable")) else {
+    let Some((total, avail)) = crate::platform::memory_mb() else {
         return false;
     };
     pressure(rss_mb(), total, avail)

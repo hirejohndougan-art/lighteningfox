@@ -173,7 +173,7 @@ pub fn notify(origin: &str, title: &str, body: &str) {
     let body: String = body.chars().take(400).collect();
     let host = url::Url::parse(origin).ok().and_then(|u| u.host_str().map(String::from)).unwrap_or_default();
     let shown = if host.is_empty() { body } else { format!("{body}\n— {host}") };
-    let ok = std::process::Command::new("notify-send").args(["--app-name=Ironswift", "--", &title, &shown]).spawn().is_ok();
+    let ok = crate::platform::notify(&title, &shown) || std::process::Command::new("notify-send").args(["--app-name=Ironswift", "--", &title, &shown]).spawn().is_ok();
     if !ok {
         log!("[notification] {title}: {shown}");
     }

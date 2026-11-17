@@ -80,8 +80,20 @@ pub struct Page<'a> {
     pub url: &'a str,
 }
 
+/// Windows and macOS need AccessKit's per-window adapters (accesskit_winit); until then the
+/// bridge is Linux-only and `Bridge::new` returns None elsewhere.
+#[cfg(target_os = "linux")]
+type Adapter = accesskit_unix::Adapter;
+#[cfg(not(target_os = "linux"))]
+struct Adapter;
+#[cfg(not(target_os = "linux"))]
+impl Adapter {
+    fn update_window_focus_state(&mut self, _: bool) {}
+    fn update_if_active(&mut self, _: impl FnOnce() -> TreeUpdate) {}
+}
+
 pub struct Bridge {
-    adapter: accesskit_unix::Adapter,
+    adapter: Adapter,
     requests: Receiver<ActionRequest>,
     /// Set by the activation handler: a screen reader wants a tree.
     wanted: Arc<Mutex<bool>>,
@@ -126,10 +138,18 @@ impl Bridge {
         if std::env::var("IRONSWIFT_A11Y").is_ok_and(|v| v == "0") {
             return None;
         }
-        let wanted = Arc::new(Mutex::new(false));
-        let (tx, rx) = channel();
-        let adapter = accesskit_unix::Adapter::new(Activation(wanted.clone()), Actions(Mutex::new(tx)), Deactivation(wanted.clone()));
-        Some(Bridge { adapter, requests: rx, wanted, last: None, last_key: 0 })
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (Activation(Arc::default()), Actions(Mutex::new(channel().0)), Deactivation(Arc::default()));
+            None
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let wanted = Arc::new(Mutex::new(false));
+            let (tx, rx) = channel();
+            let adapter = accesskit_unix::Adapter::new(Activation(wanted.clone()), Actions(Mutex::new(tx)), Deactivation(wanted.clone()));
+            Some(Bridge { adapter, requests: rx, wanted, last: None, last_key: 0 })
+        }
     }
 
     /// Whether a screen reader is listening.

@@ -1285,10 +1285,7 @@ pub mod isolated {
         }
         let pid = PROCS.lock().ok().and_then(|g| g.as_ref()?.get(&key).map(|p| p.child.id()));
         if let Some(pid) = pid {
-            // SAFETY: sending a signal to our own child process.
-            unsafe {
-                libc::kill(pid as i32, libc::SIGKILL);
-            }
+            crate::platform::kill(pid);
         }
     }
 

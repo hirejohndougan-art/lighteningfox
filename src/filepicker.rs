@@ -70,7 +70,7 @@ pub fn patterns(accept: &str) -> Vec<String> {
 /// The command line for one dialog program.
 fn command(program: &str, multiple: bool, filters: &[String], title: &str) -> std::process::Command {
     let mut c = std::process::Command::new(program);
-    let start = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+    let start = crate::platform::home_dir().map_or_else(|| "/".into(), |h| h.to_string_lossy().into_owned());
     match program {
         "kdialog" => {
             c.arg("--title").arg(title).arg("--getopenfilename");
@@ -99,10 +99,15 @@ fn command(program: &str, multiple: bool, filters: &[String], title: &str) -> st
 
 /// Open the chooser. Err when no dialog program is installed.
 pub fn open(node: NodeId, doc: u64, multiple: bool, accept: &str) -> Result<Pending, String> {
-    let program = DIALOGS.iter().find(|d| find_program(d).is_some()).ok_or("No file chooser found (install zenity or kdialog)")?;
     let filters = patterns(accept);
     let title = if multiple { "Choose files to upload" } else { "Choose a file to upload" };
-    let mut cmd = command(program, multiple, &filters, title);
+    let mut cmd = match crate::platform::file_chooser(multiple, &filters, title) {
+        Some(c) => c,
+        None => {
+            let program = DIALOGS.iter().find(|d| find_program(d).is_some()).ok_or("No file chooser found (install zenity or kdialog)")?;
+            command(program, multiple, &filters, title)
+        }
+    };
     let (tx, rx) = channel();
     std::thread::Builder::new()
         .name("file-chooser".into())

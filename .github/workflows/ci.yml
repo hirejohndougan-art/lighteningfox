@@ -51,3 +51,36 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release --no-default-features
+
+  windows-and-macos:
+    # The browser must build on Windows and macOS too, and draw a page there (headless, with
+    # the system's own fonts: Arial and Consolas, or Arial and Courier New).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: "--cfg reqwest_unstable -D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Draw test pages
+        shell: bash
+        run: |
+          mkdir -p shots
+          for p in css3 forms grid js-demo; do
+            ./target/release/ironswift --png "shots/$p.png" --width 1000 "tests/$p.html"
+          done
+          ls -la shots
+      - name: Unit tests that don't depend on Linux fonts
+        run: cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
+      - name: Keep the pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots-${{ matrix.os }}
+          path: shots/

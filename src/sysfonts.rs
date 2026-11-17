@@ -1,6 +1,7 @@
 //! Fonts installed on the computer, found by name for CSS `font-family`.
 //!
-//! The list comes from fontconfig (`fc-list`), the same database every Linux desktop uses,
+//! On Linux the list comes from fontconfig (`fc-list`), the same database every desktop uses;
+//! on Windows and macOS Ironswift reads the font folders itself (`scan`). Either way it is
 //! read once and kept in the profile folder (`font-index.tsv`) so the sandboxed frame
 //! process, which can't run programs, can use it too. Common Windows and Mac font names
 //! (Arial, Helvetica, Times New Roman…) map to their metric-compatible free versions, and the
@@ -34,6 +35,8 @@ pub struct Index {
 const COMMON: &[&str] = &[
     "dejavu sans", "dejavu serif", "dejavu sans mono", "liberation sans", "liberation serif", "liberation mono",
     "noto sans", "noto serif", "noto sans mono", "noto color emoji", "freesans", "freeserif", "freemono",
+    // On every Windows and Mac computer:
+    "arial", "times new roman", "courier new", "verdana", "georgia", "trebuchet ms",
 ];
 
 /// Well-known names and the free fonts with the same measurements.
@@ -111,6 +114,68 @@ fn from_fontconfig() -> Option<String> {
     Some(text)
 }
 
+/// CSS weight -> fontconfig's scale (the inverse of `css_weight`), for `scan`'s lines.
+fn fc_weight(css: u16) -> u16 {
+    const MAP: &[(u16, u16)] = &[(100, 0), (200, 40), (300, 50), (350, 75), (400, 80), (500, 100), (600, 180), (700, 200), (800, 205), (900, 210)];
+    MAP.iter().min_by_key(|m| m.0.abs_diff(css)).map_or(80, |m| m.1)
+}
+
+/// The fonts in one file as lines in the `fc-list` format `parse` reads.
+fn describe(path: &std::path::Path, data: &[u8], out: &mut String) {
+    use swash::{Style, StringId};
+    let Some(coll) = swash::FontDataRef::new(data) else { return };
+    for i in 0..coll.len() {
+        let Some(font) = coll.get(i) else { continue };
+        let strings = font.localized_strings();
+        let name = |id| strings.find_by_id(id, Some("en")).or_else(|| strings.find_by_id(id, None)).map(|s| s.to_string());
+        let mut names: Vec<String> = [StringId::TypographicFamily, StringId::Family].into_iter().filter_map(name).filter(|n| !n.trim().is_empty()).collect();
+        names.dedup();
+        if names.is_empty() {
+            continue;
+        }
+        let attrs = font.attributes();
+        let italic = !matches!(attrs.style(), Style::Normal);
+        out.push_str(&format!("{}\t\t{}\t{}\t{}\t{}\n", names.join(","), fc_weight(attrs.weight().0), if italic { 100 } else { 0 }, path.display(), i));
+    }
+}
+
+/// Without fontconfig (Windows, macOS): read the font folders ourselves, with the system's
+/// usual picks for the generic families.
+fn scan() -> String {
+    let mut out = String::new();
+    let mut stack: Vec<(std::path::PathBuf, u8)> = crate::platform::font_dirs().into_iter().map(|d| (d, 0)).collect();
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        for e in rd.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                if depth < 3 {
+                    stack.push((path, depth + 1));
+                }
+                continue;
+            }
+            let ext = path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+            if matches!(ext.as_str(), "ttf" | "otf" | "ttc" | "otc") {
+                if let Ok(data) = std::fs::read(&path) {
+                    describe(&path, &data, &mut out);
+                }
+            }
+        }
+    }
+    let generic: &[(&str, &[&str])] = if cfg!(target_os = "macos") {
+        &[("serif", &["Times", "Times New Roman"]), ("sans-serif", &["Helvetica", "Arial"]), ("monospace", &["Menlo", "Courier New"]), ("system-ui", &["SF Pro", "Helvetica Neue", "Helvetica"]), ("emoji", &["Apple Color Emoji"])]
+    } else {
+        &[("serif", &["Times New Roman"]), ("sans-serif", &["Arial"]), ("monospace", &["Consolas", "Courier New"]), ("system-ui", &["Segoe UI"]), ("emoji", &["Segoe UI Emoji"])]
+    };
+    let have = out.to_lowercase();
+    for (g, picks) in generic {
+        if let Some(f) = picks.iter().find(|f| have.contains(&format!("{}\t", f.to_lowercase())) || have.contains(&format!("{},", f.to_lowercase()))) {
+            out.push_str(&format!("#generic\t{g}\t{f}\n"));
+        }
+    }
+    out
+}
+
 /// The installed fonts (looked up once per run).
 pub fn index() -> &'static Index {
     static IDX: OnceLock<Index> = OnceLock::new();
@@ -129,7 +194,27 @@ pub fn index() -> &'static Index {
                 }
                 t
             }
-            None => index_file().and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default(),
+            None => {
+                // Kept from an earlier run (the frame process, or a system without fontconfig);
+                // without fontconfig the folders are read again once the copy is a week old.
+                let kept = index_file().filter(|p| {
+                    cfg!(target_os = "linux") || std::fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age.as_secs() < 7 * 86_400)
+                });
+                match kept.and_then(|p| std::fs::read_to_string(p).ok()) {
+                    Some(t) => t,
+                    None if cfg!(target_os = "linux") => String::new(),
+                    None => {
+                        let t = scan();
+                        if let Some(p) = index_file() {
+                            let tmp = p.with_extension("tmp");
+                            if std::fs::write(&tmp, &t).is_ok() {
+                                let _ = std::fs::rename(&tmp, &p);
+                            }
+                        }
+                        t
+                    }
+                }
+            }
         };
         parse(&text)
     })
@@ -197,5 +282,15 @@ mod tests {
         assert!(best_face(f, true, false).unwrap().path.ends_with("Bold.ttf"));
         assert!(best_face(f, false, true).unwrap().path.ends_with("Italic.ttf"));
         assert!(best_face(f, false, false).unwrap().path.ends_with("Regular.ttf"));
+    }
+
+    #[test]
+    fn scan_reads_family_weight_and_style() {
+        let Some(p) = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"].iter().map(std::path::Path::new).find(|p| p.exists()) else { return };
+        let mut out = String::new();
+        describe(p, &std::fs::read(p).unwrap(), &mut out);
+        let idx = parse(&out);
+        let faces = &idx.families["dejavu sans"];
+        assert_eq!((faces[0].weight, faces[0].italic, faces[0].index), (700, false, 0), "{out}");
     }
 }

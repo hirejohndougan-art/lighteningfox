@@ -467,12 +467,13 @@ pub fn clear() {
     }
 }
 
-/// Where the browser keeps its data: $IRONSWIFT_PROFILE, else ~/.local/share/ironswift.
+/// Where the browser keeps its data: $IRONSWIFT_PROFILE, else `ironswift` in the system's
+/// application-data folder (~/.local/share, %APPDATA%, ~/Library/Application Support).
 pub fn profile_dir() -> Option<std::path::PathBuf> {
     if let Ok(p) = std::env::var("IRONSWIFT_PROFILE") {
         return Some(p.into());
     }
-    let base = std::env::var("XDG_DATA_HOME").ok().map(std::path::PathBuf::from).or_else(|| std::env::var("HOME").ok().map(|h| std::path::Path::new(&h).join(".local/share")))?;
+    let base = crate::platform::data_dir()?;
     let dir = base.join("ironswift");
     // Profiles from the earlier names (Swiftiron, LighteningFox) move over once.
     for old in ["swiftiron", "lighteningfox"] {

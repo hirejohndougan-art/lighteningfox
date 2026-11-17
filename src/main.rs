@@ -77,6 +77,7 @@ mod jsmodules;
 mod importmap;
 mod extensions;
 mod webcrypto;
+mod platform;
 mod domindex;
 mod dom_classes;
 mod vertical;
@@ -1366,7 +1367,7 @@ fn browser_main() {
         }
         i += 1;
     }
-    let rss = || std::fs::read_to_string("/proc/self/statm").ok().and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0) * 4 / 1024;
+    let rss = crate::platform::rss_mb;
     let probe = std::env::var("IRONSWIFT_MEM_PROBE").is_ok();
     if probe {
         log!("[mem] start: {} MB", rss());
