@@ -26,6 +26,8 @@ pub struct Settings {
     pub clear_on_exit: bool,
     /// Text is never drawn smaller than this (px; 0 = no minimum).
     pub min_font_size: u32,
+    /// Tell sites to keep animation to a minimum (prefers-reduced-motion: reduce).
+    pub reduce_motion: bool,
 }
 
 impl Default for Settings {
@@ -44,6 +46,7 @@ impl Default for Settings {
             proxy_url: String::new(),
             clear_on_exit: false,
             min_font_size: 0,
+            reduce_motion: false,
         }
     }
 }
@@ -92,6 +95,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "proxy_mode" if matches!(v, "system" | "none" | "manual") => s.proxy_mode = v.to_string(),
         "proxy_url" => s.proxy_url = v.trim().replace(['\t', '\n'], ""),
         "clear_on_exit" => s.clear_on_exit = on(v),
+        "reduce_motion" => s.reduce_motion = on(v),
         "min_font_size" => s.min_font_size = v.trim().parse().unwrap_or(s.min_font_size).min(40),
         _ => {}
     }
@@ -108,7 +112,7 @@ fn save(s: &Settings) {
     }
     let b = |v: bool| if v { "1" } else { "0" };
     let body = format!(
-        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\nproxy_mode\t{}\nproxy_url\t{}\nclear_on_exit\t{}\nmin_font_size\t{}\n",
+        "home\t{}\nsearch\t{}\nrestore_tabs\t{}\nsleep_minutes\t{}\nthird_party_cookies\t{}\nstrip_tracking\t{}\nsend_gpc\t{}\nshow_bookmarks_bar\t{}\nuse_gpu\t{}\nproxy_mode\t{}\nproxy_url\t{}\nclear_on_exit\t{}\nmin_font_size\t{}\nreduce_motion\t{}\n",
         s.home.replace(['\t', '\n'], " "),
         s.search,
         b(s.restore_tabs),
@@ -121,7 +125,8 @@ fn save(s: &Settings) {
         s.proxy_mode,
         s.proxy_url,
         b(s.clear_on_exit),
-        s.min_font_size
+        s.min_font_size,
+        b(s.reduce_motion)
     );
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
@@ -193,6 +198,7 @@ pub fn page(query: &str) -> String {
         s.show_bookmarks_bar = false;
         s.use_gpu = false;
         s.clear_on_exit = false;
+        s.reduce_motion = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -246,6 +252,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <section><h2>Appearance</h2>
 <div class="row field"><label>Minimum font size (px, 0 = none)</label><input type="number" name="min_font_size" value="{min_font}" min="0" max="40"></div>
 <p class="hint" style="margin-left:0">Makes small print on pages larger. Ctrl + and Ctrl − zoom a whole site.</p>
+<div class="row"><label><input type="checkbox" name="reduce_motion" value="1"{reduce}> Reduce motion</label><p class="hint">Asks sites to keep animations to a minimum.</p></div>
 </section>
 <section><h2>Default browser</h2>
 <div class="row"><a href="about:settings?default_browser">Make Ironswift my default browser</a></div>
@@ -274,6 +281,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         tpc = check(s.third_party_cookies),
         clear_exit = check(s.clear_on_exit),
         min_font = s.min_font_size,
+        reduce = check(s.reduce_motion),
         strip = check(s.strip_tracking),
         gpc = check(s.send_gpc),
         bmbar = check(s.show_bookmarks_bar),

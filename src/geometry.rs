@@ -21,11 +21,35 @@ struct Geometry {
 }
 
 pub type Provider = Box<dyn Fn(f32, f32) -> Layout>;
+/// Computes the page's styles on demand (getComputedStyle).
+pub type Styler = Box<dyn Fn() -> Vec<std::rc::Rc<crate::style::Style>>>;
+
+/// How to compute styles on demand (set per page, alongside the layout provider).
+pub fn set_styler(s: Option<Styler>) {
+    STYLER.with(|c| *c.borrow_mut() = s);
+    STYLES.with(|c| *c.borrow_mut() = (u64::MAX, Vec::new()));
+}
+
+/// The computed style of `id` as JSON (see `style::computed_json`), restyling first if
+/// the DOM changed since last time. None when no page styles are available.
+pub fn computed_style(dom: &Dom, id: NodeId) -> Option<String> {
+    let version = GEN.with(Cell::get);
+    let stale = STYLES.with(|c| c.borrow().0 != version);
+    if stale {
+        let styles = STYLER.with(|s| s.borrow().as_ref().map(|f| f()))?;
+        STYLES.with(|c| *c.borrow_mut() = (version, styles));
+    }
+    let st = STYLES.with(|c| c.borrow().1.get(id).cloned())?;
+    let size = page_rect(dom, id).map(|(r, _)| (r.w, r.h));
+    Some(crate::style::computed_json(&st, size))
+}
 
 thread_local! {
     static GEOM: RefCell<Geometry> = RefCell::new(Geometry { view_w: 1024.0, view_h: 768.0, version: u64::MAX, ..Default::default() });
     static GEN: Cell<u64> = const { Cell::new(0) };
     static PROVIDER: RefCell<Option<Provider>> = const { RefCell::new(None) };
+    static STYLER: RefCell<Option<Styler>> = const { RefCell::new(None) };
+    static STYLES: RefCell<(u64, Vec<std::rc::Rc<crate::style::Style>>)> = const { RefCell::new((u64::MAX, Vec::new())) };
     static SCROLL_REQUEST: Cell<Option<f32>> = const { Cell::new(None) };
 }
 

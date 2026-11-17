@@ -731,6 +731,19 @@ fn n_rect(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     Ok(JsValue::from(JsString::from(format!("{},{},{},{}", r.x, r.y, r.w, r.h))))
 }
 
+/// __computed(id) -> JSON of the element's computed style, or "" if unavailable.
+fn n_computed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let ok = with_dom(|d| id >= 0 && (id as usize) < d.nodes.len());
+    let s = if ok {
+        // Shared borrows nest, so styling and layout may read the DOM again inside.
+        with_dom(|d| crate::geometry::computed_style(d, id as NodeId)).unwrap_or_default()
+    } else {
+        String::new()
+    };
+    Ok(JsValue::from(JsString::from(s)))
+}
+
 /// __viewport() -> "width,height,scrollY,documentHeight"
 fn n_viewport(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let (w, h, s, d) = crate::geometry::viewport();
@@ -909,6 +922,7 @@ impl Js {
             ("__netStart", 8, n_net_start),
             ("__resolve", 2, n_resolve),
             ("__rect", 1, n_rect),
+            ("__computed", 1, n_computed),
             ("__viewport", 0, n_viewport),
             ("__scrollTo", 1, n_scroll_to),
             ("__elScroll", 1, n_el_scroll),

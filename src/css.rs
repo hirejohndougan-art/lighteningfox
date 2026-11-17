@@ -50,6 +50,9 @@ impl FontFace {
 pub struct Rule {
     pub selectors: Vec<Selector>,
     pub decls: Vec<Decl>,
+    /// The @media condition the rule sits in (nested ones joined with " && "), checked
+    /// against the window each time styles are computed.
+    pub media: Option<std::sync::Arc<str>>,
 }
 
 #[derive(Debug, Clone)]
@@ -103,7 +106,7 @@ pub fn parse(src: &str) -> Stylesheet {
     let clean = strip_comments(src);
     let mut rules = Vec::new();
     let mut font_faces = Vec::new();
-    parse_block(&clean, &mut rules, &mut font_faces);
+    parse_block(&clean, &mut rules, &mut font_faces, None);
     Stylesheet { rules, font_faces }
 }
 
@@ -141,7 +144,7 @@ pub fn parse_declarations(src: &str) -> Vec<Decl> {
         .collect()
 }
 
-fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>) {
+fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>, media: Option<&std::sync::Arc<str>>) {
     let b = src.as_bytes();
     let mut i = 0;
     while i < b.len() {
@@ -171,10 +174,19 @@ fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>) {
 
         if let Some(at) = prelude.strip_prefix('@') {
             let lower = at.to_ascii_lowercase();
-            if lower.starts_with("media") && media_matches(&lower[5..]) {
-                parse_block(body, rules, faces);
+            if lower.starts_with("media") {
+                let cond = lower[5..].trim();
+                // Print-only rules can never apply on screen: drop them now.
+                if !media_possible(cond) {
+                    continue;
+                }
+                let joined: std::sync::Arc<str> = match media {
+                    Some(outer) => format!("{outer} && {cond}").into(),
+                    None => cond.into(),
+                };
+                parse_block(body, rules, faces, Some(&joined));
             } else if lower.starts_with("supports") || lower.starts_with("layer") {
-                parse_block(body, rules, faces);
+                parse_block(body, rules, faces, media);
             } else if lower.starts_with("font-face") {
                 let decls = parse_declarations(body);
                 let get = |n: &str| decls.iter().rev().find(|d| d.name == n).map(|d| d.value.clone());
@@ -203,33 +215,149 @@ fn parse_block(src: &str, rules: &mut Vec<Rule>, faces: &mut Vec<FontFace>) {
         if selectors.is_empty() {
             continue;
         }
-        rules.push(Rule { selectors, decls: parse_declarations(body) });
+        rules.push(Rule { selectors, decls: parse_declarations(body), media: media.cloned() });
     }
 }
 
-/// Pretend to be a desktop screen ~1024px wide.
-fn media_matches(q: &str) -> bool {
-    if q.contains("print") && !q.contains("screen") {
-        return false;
+// ---------------------------------------------------------------- media queries
+
+/// The window media queries are checked against: (width, height) in CSS pixels, and the
+/// reader's preferences.
+static VIEWPORT: std::sync::Mutex<(f32, f32)> = std::sync::Mutex::new((1024.0, 768.0));
+
+pub fn set_viewport(w: f32, h: f32) {
+    if let Ok(mut v) = VIEWPORT.lock() {
+        *v = (w, h);
     }
-    if let Some(pos) = q.find("max-width") {
-        if let Some(px) = number_after(&q[pos..]) {
-            return px >= 1024.0;
-        }
-    }
-    if let Some(pos) = q.find("min-width") {
-        if let Some(px) = number_after(&q[pos..]) {
-            return px <= 1024.0;
-        }
-    }
-    !q.contains("prefers-color-scheme: dark") && !q.contains("prefers-color-scheme:dark")
 }
 
-fn number_after(s: &str) -> Option<f32> {
-    let s = s.split_once(':')?.1.trim_start();
-    let num: String = s.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
-    let v: f32 = num.parse().ok()?;
-    Some(if s[num.len()..].starts_with("em") { v * 16.0 } else { v })
+pub fn viewport() -> (f32, f32) {
+    VIEWPORT.lock().map(|v| *v).unwrap_or((1024.0, 768.0))
+}
+
+/// A query that can't match a screen at any size (print-only): its rules are dropped.
+fn media_possible(q: &str) -> bool {
+    q.split(',').any(|part| {
+        let p = part.trim();
+        !(p == "print" || p.starts_with("print ") || p == "speech" || p.starts_with("only print"))
+    })
+}
+
+/// Does `q` (a media query list, or several joined with " && ") match the window now?
+pub fn media_matches(q: &str) -> bool {
+    let (w, h) = viewport();
+    q.split(" && ").all(|list| query_list(list, w, h))
+}
+
+fn query_list(list: &str, w: f32, h: f32) -> bool {
+    let list = list.trim();
+    list.is_empty() || list.split(',').any(|q| one_query(q.trim(), w, h))
+}
+
+fn one_query(q: &str, w: f32, h: f32) -> bool {
+    let (negate, q) = match q.strip_prefix("not ") {
+        Some(rest) => (true, rest.trim()),
+        None => (false, q.strip_prefix("only ").unwrap_or(q).trim()),
+    };
+    let mut ok = true;
+    for part in q.split(" and ") {
+        let part = part.trim();
+        let matched = match part {
+            "" | "all" | "screen" => true,
+            "print" | "speech" | "tv" | "handheld" | "projection" | "braille" | "embossed" | "aural" | "tty" => false,
+            p if p.starts_with('(') => feature(p.trim_start_matches('(').trim_end_matches(')').trim(), w, h),
+            // Unknown media types don't match.
+            _ => false,
+        };
+        ok &= matched;
+    }
+    ok != negate
+}
+
+/// One media feature: `min-width: 600px`, `orientation: landscape`, `width >= 600px`,
+/// `400px <= width <= 700px`, `prefers-color-scheme: dark`…
+fn feature(f: &str, w: f32, h: f32) -> bool {
+    let px = |v: &str| -> Option<f32> {
+        let v = v.trim();
+        let num: String = v.chars().take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-').collect();
+        let n: f32 = num.parse().ok()?;
+        Some(match v[num.len()..].trim() {
+            "em" | "rem" => n * 16.0,
+            "" | "px" => n,
+            "dppx" | "x" => n,
+            "dpi" => n / 96.0,
+            _ => n,
+        })
+    };
+    // Range syntax.
+    for op in [">=", "<=", ">", "<", "="] {
+        if f.contains(op) && !f.contains(':') {
+            let parts: Vec<&str> = f.split(['<', '>', '=']).map(str::trim).filter(|p| !p.is_empty()).collect();
+            let ops: Vec<&str> = f.split(|c: char| !matches!(c, '<' | '>' | '=')).filter(|p| !p.is_empty()).collect();
+            let val = |name: &str| match name {
+                "width" => Some(w),
+                "height" => Some(h),
+                "aspect-ratio" => Some(w / h.max(1.0)),
+                _ => None,
+            };
+            let cmp = |a: f32, op: &str, b: f32| match op {
+                ">=" => a >= b,
+                "<=" => a <= b,
+                ">" => a > b,
+                "<" => a < b,
+                _ => (a - b).abs() < 0.5,
+            };
+            return match (parts.as_slice(), ops.as_slice()) {
+                ([name, v], [op]) => match (val(name), px(v)) {
+                    (Some(a), Some(b)) => cmp(a, op, b),
+                    _ => match (px(name), val(v)) {
+                        (Some(a), Some(b)) => cmp(a, op, b),
+                        _ => false,
+                    },
+                },
+                ([lo, name, hi], [op1, op2]) => match (px(lo), val(name), px(hi)) {
+                    (Some(a), Some(x), Some(b)) => cmp(a, op1, x) && cmp(x, op2, b),
+                    _ => false,
+                },
+                _ => false,
+            };
+        }
+    }
+    let (name, value) = match f.split_once(':') {
+        Some((n, v)) => (n.trim(), Some(v.trim())),
+        None => (f.trim(), None),
+    };
+    let reduced = crate::settings::get().reduce_motion;
+    match (name, value) {
+        ("min-width", Some(v)) => px(v).is_some_and(|v| w >= v),
+        ("max-width", Some(v)) => px(v).is_some_and(|v| w <= v),
+        ("width", Some(v)) => px(v).is_some_and(|v| (w - v).abs() < 0.5),
+        ("min-height", Some(v)) => px(v).is_some_and(|v| h >= v),
+        ("max-height", Some(v)) => px(v).is_some_and(|v| h <= v),
+        ("min-device-width", Some(v)) => px(v).is_some_and(|v| w >= v),
+        ("max-device-width", Some(v)) => px(v).is_some_and(|v| w <= v),
+        ("orientation", Some(v)) => (v == "landscape") == (w >= h),
+        ("min-aspect-ratio" | "max-aspect-ratio", Some(v)) => {
+            let r = v.split_once('/').and_then(|(a, b)| Some(a.trim().parse::<f32>().ok()? / b.trim().parse::<f32>().ok()?.max(1e-6))).or_else(|| v.parse().ok());
+            r.is_some_and(|r| if name.starts_with("min") { w / h.max(1.0) >= r } else { w / h.max(1.0) <= r })
+        }
+        ("prefers-color-scheme", Some(v)) => v == "light",
+        ("prefers-reduced-motion", Some(v)) => (v == "reduce") == reduced,
+        ("prefers-reduced-motion", None) => reduced,
+        ("prefers-contrast", Some(v)) => v == "no-preference",
+        ("prefers-reduced-transparency", Some(v)) => v == "no-preference",
+        ("forced-colors", Some(v)) => v == "none",
+        ("hover" | "any-hover", Some(v)) => v == "hover",
+        ("pointer" | "any-pointer", Some(v)) => v == "fine",
+        ("hover" | "any-hover" | "pointer" | "any-pointer" | "color" | "width" | "height" | "orientation", None) => true,
+        ("min-resolution" | "min-device-pixel-ratio" | "-webkit-min-device-pixel-ratio", Some(v)) => px(v).is_some_and(|v| 1.0 >= v),
+        ("max-resolution" | "max-device-pixel-ratio" | "-webkit-max-device-pixel-ratio", Some(v)) => px(v).is_some_and(|v| 1.0 <= v),
+        ("color", Some(_)) | ("min-color", Some(_)) => true,
+        ("display-mode", Some(v)) => v == "browser",
+        ("scripting", Some(v)) => v == "enabled",
+        ("update", Some(v)) => v == "fast",
+        _ => false,
+    }
 }
 
 fn matching_brace(b: &[u8], open: usize) -> usize {
@@ -567,10 +695,20 @@ mod tests {
     }
 
     #[test]
-    fn media_queries_for_a_desktop_screen() {
+    fn media_queries_follow_the_window() {
         let s = parse("@media screen and (min-width: 768px) { a { x: 1 } } @media print { b { x: 2 } } @media (max-width: 600px) { c { x: 3 } }");
-        assert_eq!(s.rules.len(), 1);
-        assert_eq!(s.rules[0].selectors[0].parts[0].tag.as_deref(), Some("a"));
+        // Print-only rules are dropped; the others keep their condition.
+        assert_eq!(s.rules.len(), 2);
+        assert!(one_query("screen and (min-width: 768px)", 1024.0, 700.0));
+        assert!(!one_query("screen and (min-width: 768px)", 500.0, 700.0));
+        assert!(one_query("(max-width: 600px)", 500.0, 700.0));
+        assert!(one_query("not print", 500.0, 700.0));
+        assert!(query_list("print, (orientation: portrait)", 500.0, 700.0));
+        assert!(feature("width >= 600px", 800.0, 600.0));
+        assert!(!feature("400px <= width <= 700px", 800.0, 600.0));
+        assert!(feature("400px <= width <= 700px", 500.0, 600.0));
+        assert!(feature("min-width: 40em", 700.0, 600.0));
+        assert!(!feature("prefers-color-scheme: dark", 700.0, 600.0));
     }
 
     #[test]

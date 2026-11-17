@@ -251,6 +251,17 @@ pub struct Style {
     /// The `font-family` list, lower-case (web fonts are matched against it).
     pub family: Option<Rc<str>>,
     pub underline: bool,
+    pub line_through: bool,
+    pub overline: bool,
+    /// text-decoration-color (else the text color).
+    pub deco_color: Option<Color>,
+    /// text-transform: 0 none, 1 uppercase, 2 lowercase, 3 capitalize.
+    pub text_transform: u8,
+    /// text-indent of a block's first line.
+    pub text_indent: Len,
+    /// The mouse pointer over it: 0 auto, 1 pointer (hand), 2 text, 3 default arrow,
+    /// 4 not-allowed/wait (arrow), 5 move/grab.
+    pub cursor: u8,
     pub text_align: Align,
     /// text-align: start / end (0 = neither), which follow the writing direction.
     pub align_logical: u8,
@@ -260,6 +271,8 @@ pub struct Style {
     pub pre: bool,
     pub list_style: ListStyle,
     pub hidden: bool,
+    /// The product of this element's and its ancestors' opacity (applied to its colors).
+    pub fade: f32,
     /// CSS custom properties (`--name: value`), inherited. Shared until changed.
     pub vars: Rc<HashMap<String, String>>,
     // not inherited
@@ -271,6 +284,12 @@ pub struct Style {
     /// top, right, bottom, left
     pub inset: [Len; 4],
     pub z_index: i32,
+    /// opacity (0–1); not inherited — layout fades everything the element draws.
+    pub opacity: f32,
+    /// Border line style: 0 solid, 1 dashed, 2 dotted, 3 double (one style for all sides).
+    pub border_line: u8,
+    /// aspect-ratio (width / height), when set.
+    pub aspect_ratio: Option<f32>,
     pub clip: bool,
     /// overflow: auto / scroll: the box scrolls its content instead of only clipping it.
     pub scrolls: bool,
@@ -319,6 +338,12 @@ impl Default for Style {
             mono: false,
             family: None,
             underline: false,
+            line_through: false,
+            overline: false,
+            deco_color: None,
+            text_transform: 0,
+            text_indent: Len::Px(0.0),
+            cursor: 0,
             text_align: Align::Left,
             align_logical: 1,
             rtl: false,
@@ -334,6 +359,10 @@ impl Default for Style {
             position: Position::Static,
             inset: [Len::Auto; 4],
             z_index: 0,
+            opacity: 1.0,
+            border_line: 0,
+            aspect_ratio: None,
+            fade: 1.0,
             clip: false,
             scrolls: false,
             shadow: None,
@@ -374,6 +403,12 @@ impl Style {
             mono: parent.mono,
             family: parent.family.clone(),
             underline: parent.underline,
+            line_through: parent.line_through,
+            overline: parent.overline,
+            deco_color: parent.deco_color,
+            text_transform: parent.text_transform,
+            text_indent: parent.text_indent,
+            cursor: parent.cursor,
             text_align: parent.text_align,
             align_logical: parent.align_logical,
             rtl: parent.rtl,
@@ -381,6 +416,7 @@ impl Style {
             pre: parent.pre,
             list_style: parent.list_style,
             hidden: parent.hidden,
+            fade: parent.fade,
             vars: parent.vars.clone(),
             border_spacing: parent.border_spacing,
             border_collapse: parent.border_collapse,
@@ -578,6 +614,9 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         for (origin, sheet) in std::iter::once(&ua).chain(page.into_iter()).enumerate() {
             let origin = if origin == 0 { 0 } else { 1 };
             for rule in &sheet.rules {
+                if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) {
+                    continue;
+                }
                 let best = rule
                     .selectors
                     .iter()
@@ -639,6 +678,26 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         // The reader's minimum font size (Settings → Appearance).
         if min_font > 0.0 && st.font_size < min_font {
             st.font_size = min_font;
+        }
+        // opacity: approximated by fading the element's colors (and, through `fade`,
+        // its descendants'). An inherited text color already carries the parent's fade.
+        let own = st.opacity;
+        st.fade = parent_style.fade * own;
+        if st.fade < 1.0 {
+            let mul = |c: &mut Color, f: f32| c.a = (c.a as f32 * f).round() as u8;
+            let inherited = st.color == parent_style.color;
+            mul(&mut st.color, if inherited { own } else { st.fade });
+            let f = st.fade;
+            mul(&mut st.background, f);
+            mul(&mut st.bg.color, f);
+            if st.border_color_set {
+                mul(&mut st.border_color, f);
+            }
+            if st.deco_color != parent_style.deco_color {
+                if let Some(c) = st.deco_color.as_mut() {
+                    mul(c, f);
+                }
+            }
         }
         // Borders without a color of their own use the text color.
         if !st.border_color_set {
@@ -901,6 +960,8 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
                 } else if let Some(arg) = other.strip_prefix("nth-of-type(").and_then(|a| a.strip_suffix(')')) {
                     let same: Vec<NodeId> = element_siblings(dom, id).into_iter().filter(|&s| dom.tag(s) == Some(tag)).collect();
                     same.iter().position(|&e| e == id).map_or(false, |i| nth_matches(arg, i + 1))
+                } else if let Some(arg) = other.strip_prefix("has(").and_then(|a| a.strip_suffix(')')) {
+                    has_matches(dom, id, arg)
                 } else if let Some(arg) = other.strip_prefix("not(").and_then(|a| a.strip_suffix(')')) {
                     !css::parse_selector_list(arg).iter().any(|s| matches(dom, id, s))
                 } else if let Some(arg) = ["is(", "where(", "matches(", "-webkit-any("]
@@ -919,6 +980,131 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
         }
     }
     true
+}
+
+/// `:has(...)`: relative selectors — "img" (a descendant), "> img" (a child),
+/// "+ p" (the next sibling) and "~ p" (a later sibling).
+fn has_matches(dom: &Dom, id: NodeId, arg: &str) -> bool {
+    css::split_top(arg, ',').iter().any(|part| {
+        let part = part.trim();
+        let (comb, rest) = match part.chars().next() {
+            Some(c @ ('>' | '+' | '~')) => (c, part[1..].trim()),
+            _ => (' ', part),
+        };
+        let sels = css::parse_selector_list(rest);
+        let hit = |n: NodeId| dom.tag(n).is_some() && sels.iter().any(|s| matches(dom, n, s));
+        match comb {
+            '>' => dom.nodes[id].children.iter().any(|&c| hit(c)),
+            '+' | '~' => {
+                let sibs = element_siblings(dom, id);
+                let after = sibs.iter().skip_while(|&&s| s != id).skip(1);
+                if comb == '+' {
+                    after.take(1).any(|&s| hit(s))
+                } else {
+                    after.into_iter().any(|&s| hit(s))
+                }
+            }
+            _ => {
+                let mut stack: Vec<NodeId> = dom.nodes[id].children.clone();
+                while let Some(n) = stack.pop() {
+                    if hit(n) {
+                        return true;
+                    }
+                    stack.extend(dom.nodes[n].children.iter().copied());
+                }
+                false
+            }
+        }
+    })
+}
+
+/// getComputedStyle: the element's used values as a JSON object of CSS property names.
+/// `size` is the element's border box (width, height) when it has been laid out.
+pub fn computed_json(st: &Style, size: Option<(f32, f32)>) -> String {
+    let rgb = |c: Color| if c.a == 255 { format!("rgb({}, {}, {})", c.r, c.g, c.b) } else { format!("rgba({}, {}, {}, {})", c.r, c.g, c.b, (c.a as f32 / 255.0 * 1000.0).round() / 1000.0) };
+    let px = |v: f32| format!("{}px", (v * 100.0).round() / 100.0);
+    let len = |l: Len| match l {
+        Len::Px(v) => px(v),
+        Len::Pct(p) => format!("{p}%"),
+        Len::Mix(a, p) => format!("calc({p}% + {a}px)"),
+        Len::Auto => "auto".into(),
+    };
+    let display = match st.display {
+        Display::None => "none",
+        _ if st.grid.is_some() => if st.display == Display::InlineBlock { "inline-grid" } else { "grid" },
+        _ if st.flex.container => if st.display == Display::InlineBlock { "inline-flex" } else { "flex" },
+        Display::Block => "block",
+        Display::Inline => "inline",
+        Display::InlineBlock => "inline-block",
+        Display::ListItem => "list-item",
+    };
+    let position = match st.position {
+        Position::Static => "static",
+        Position::Relative => "relative",
+        Position::Absolute => "absolute",
+        Position::Fixed => "fixed",
+        Position::Sticky => "sticky",
+    };
+    let align = match (st.align_logical, st.text_align) {
+        (1, _) if !st.rtl => "start",
+        (_, Align::Left) => "left",
+        (_, Align::Center) => "center",
+        (_, Align::Right) => "right",
+    };
+    let mut deco: Vec<&str> = Vec::new();
+    if st.underline { deco.push("underline"); }
+    if st.overline { deco.push("overline"); }
+    if st.line_through { deco.push("line-through"); }
+    let sides = ["top", "right", "bottom", "left"];
+    let mut m: Vec<(String, String)> = vec![
+        ("display".into(), display.into()),
+        ("position".into(), position.into()),
+        ("color".into(), rgb(st.color)),
+        ("background-color".into(), rgb(if st.bg.color.a > 0 { st.bg.color } else { st.background })),
+        ("font-size".into(), px(st.font_size)),
+        ("font-weight".into(), if st.bold { "700" } else { "400" }.into()),
+        ("font-style".into(), if st.italic { "italic" } else { "normal" }.into()),
+        ("font-family".into(), st.family.as_deref().unwrap_or(if st.mono { "monospace" } else { "sans-serif" }).into()),
+        ("line-height".into(), px(st.line_height * st.font_size)),
+        ("text-align".into(), align.into()),
+        ("direction".into(), if st.rtl { "rtl" } else { "ltr" }.into()),
+        ("text-decoration-line".into(), if deco.is_empty() { "none".into() } else { deco.join(" ") }),
+        ("text-transform".into(), ["none", "uppercase", "lowercase", "capitalize"][st.text_transform.min(3) as usize].into()),
+        ("visibility".into(), if st.hidden { "hidden" } else { "visible" }.into()),
+        ("opacity".into(), format!("{}", st.opacity)),
+        ("overflow".into(), if st.clip { "hidden" } else { "visible" }.into()),
+        ("z-index".into(), if st.z_index == 0 { "auto".into() } else { st.z_index.to_string() }),
+        ("box-sizing".into(), if st.border_box { "border-box" } else { "content-box" }.into()),
+        ("cursor".into(), ["auto", "pointer", "text", "default", "default", "move"][st.cursor.min(5) as usize].into()),
+        ("white-space".into(), if st.pre { "pre" } else { "normal" }.into()),
+    ];
+    for i in 0..4 {
+        m.push((format!("margin-{}", sides[i]), len(st.margin[i])));
+        m.push((format!("padding-{}", sides[i]), len(st.padding[i])));
+        m.push((format!("border-{}-width", sides[i]), px(st.border[i])));
+        m.push((format!("border-{}-color", sides[i]), rgb(st.border_color)));
+        m.push((format!("border-{}-style", sides[i]), if st.border[i] > 0.0 { ["solid", "dashed", "dotted", "double"][st.border_line.min(3) as usize] } else { "none" }.into()));
+        m.push((sides[i].to_string(), len(st.inset[i])));
+    }
+    // width/height: the used content size when laid out, else the specified value.
+    let (w, h) = match size {
+        Some((w, h)) if st.display != Display::None => {
+            let edge = |a: usize, b: usize| if st.border_box { 0.0 } else { st.padding[a].resolve(w) + st.padding[b].resolve(w) + st.border[a] + st.border[b] };
+            (px((w - edge(1, 3)).max(0.0)), px((h - edge(0, 2)).max(0.0)))
+        }
+        _ => (len(st.width), len(st.height)),
+    };
+    m.push(("width".into(), w));
+    m.push(("height".into(), h));
+    let mut o = String::from("{");
+    for (i, (k, v)) in m.iter().enumerate() {
+        if i > 0 {
+            o.push(',');
+        }
+        o.push_str(&format!("{:?}:{:?}", k, v));
+    }
+    o.push('}');
+    o
 }
 
 // ---------------------------------------------------------------- values
@@ -1120,6 +1306,128 @@ pub fn parse_len(v: &str, font_size: f32) -> Option<Len> {
     })
 }
 
+/// hsl(), hwb(), lab(), lch(), oklab(), oklch() — in either the comma or space syntax, with an
+/// optional alpha after "/" (or as a 4th comma argument).
+fn color_function(v: &str) -> Option<Color> {
+    let (name, rest) = v.split_once('(')?;
+    let name = name.trim();
+    if !matches!(name, "hsl" | "hsla" | "hwb" | "lab" | "lch" | "oklab" | "oklch") {
+        return None;
+    }
+    let inner = rest.trim_end().trim_end_matches(')');
+    let (main, alpha) = match inner.split_once('/') {
+        Some((m, a)) => (m, Some(a.trim())),
+        None => (inner, None),
+    };
+    let mut parts: Vec<&str> = main.split(|c: char| c == ',' || c.is_whitespace()).filter(|p| !p.is_empty()).collect();
+    let alpha = alpha.or_else(|| if parts.len() == 4 { parts.pop() } else { None });
+    if parts.len() != 3 {
+        return None;
+    }
+    // A number, with % scaled to `pct_of` (100% = pct_of); "none" = 0.
+    let num = |s: &str, pct_of: f32| -> Option<f32> {
+        if s == "none" {
+            return Some(0.0);
+        }
+        match s.strip_suffix('%') {
+            Some(p) => p.parse::<f32>().ok().map(|v| v / 100.0 * pct_of),
+            None => s.parse::<f32>().ok(),
+        }
+    };
+    let hue = |s: &str| -> Option<f32> {
+        let s = s.trim();
+        let deg = if let Some(v) = s.strip_suffix("deg") {
+            v.parse::<f32>().ok()?
+        } else if let Some(v) = s.strip_suffix("grad") {
+            v.parse::<f32>().ok()? * 0.9
+        } else if let Some(v) = s.strip_suffix("rad") {
+            v.parse::<f32>().ok()?.to_degrees()
+        } else if let Some(v) = s.strip_suffix("turn") {
+            v.parse::<f32>().ok()? * 360.0
+        } else if s == "none" {
+            0.0
+        } else {
+            s.parse::<f32>().ok()?
+        };
+        Some(deg.rem_euclid(360.0))
+    };
+    let a = match alpha {
+        Some(a) => num(a, 1.0)?.clamp(0.0, 1.0),
+        None => 1.0,
+    };
+    let to8 = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let hsl_rgb = |h: f32, s: f32, l: f32| -> (f32, f32, f32) {
+        let f = |n: f32| {
+            let k = (n + h / 30.0) % 12.0;
+            l - s * l.min(1.0 - l) * (k - 3.0).min(9.0 - k).clamp(-1.0, 1.0)
+        };
+        (f(0.0), f(8.0), f(4.0))
+    };
+    // Linear-light sRGB to the sRGB curve.
+    let gamma = |x: f32| if x <= 0.0031308 { 12.92 * x } else { 1.055 * x.max(0.0).powf(1.0 / 2.4) - 0.055 };
+    let (r, g, b) = match name {
+        "hsl" | "hsla" => {
+            let (h, s, l) = (hue(parts[0])?, num(parts[1], 1.0)? / if parts[1].ends_with('%') { 1.0 } else { 100.0 }, num(parts[2], 1.0)? / if parts[2].ends_with('%') { 1.0 } else { 100.0 });
+            hsl_rgb(h, s.clamp(0.0, 1.0), l.clamp(0.0, 1.0))
+        }
+        "hwb" => {
+            let (h, mut wh, mut bl) = (hue(parts[0])?, num(parts[1], 1.0)? / if parts[1].ends_with('%') { 1.0 } else { 100.0 }, num(parts[2], 1.0)? / if parts[2].ends_with('%') { 1.0 } else { 100.0 });
+            if wh + bl >= 1.0 {
+                let gray = wh / (wh + bl);
+                (gray, gray, gray)
+            } else {
+                let (r, g, b) = hsl_rgb(h, 1.0, 0.5);
+                wh = wh.max(0.0);
+                bl = bl.max(0.0);
+                let f = |c: f32| c * (1.0 - wh - bl) + wh;
+                (f(r), f(g), f(b))
+            }
+        }
+        "oklab" | "oklch" => {
+            let l = num(parts[0], 1.0)?;
+            let (aa, bb) = if name == "oklab" {
+                (num(parts[1], 0.4)?, num(parts[2], 0.4)?)
+            } else {
+                let c = num(parts[1], 0.4)?;
+                let h = hue(parts[2])?.to_radians();
+                (c * h.cos(), c * h.sin())
+            };
+            let l_ = l + 0.396_337_78 * aa + 0.215_803_76 * bb;
+            let m_ = l - 0.105_561_346 * aa - 0.063_854_17 * bb;
+            let s_ = l - 0.089_484_18 * aa - 1.291_485_5 * bb;
+            let (l3, m3, s3) = (l_.powi(3), m_.powi(3), s_.powi(3));
+            (
+                gamma(4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3),
+                gamma(-1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3),
+                gamma(-0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3),
+            )
+        }
+        _ => {
+            // CIE lab()/lch() (D50 white), via XYZ to sRGB.
+            let l = num(parts[0], 100.0)?;
+            let (aa, bb) = if name == "lab" {
+                (num(parts[1], 125.0)?, num(parts[2], 125.0)?)
+            } else {
+                let c = num(parts[1], 150.0)?;
+                let h = hue(parts[2])?.to_radians();
+                (c * h.cos(), c * h.sin())
+            };
+            let fy = (l + 16.0) / 116.0;
+            let (fx, fz) = (fy + aa / 500.0, fy - bb / 200.0);
+            let inv = |t: f32| if t.powi(3) > 0.008856 { t.powi(3) } else { (116.0 * t - 16.0) / 903.3 };
+            let (x, y, z) = (0.964_22 * inv(fx), if l > 8.0 { fy.powi(3) } else { l / 903.3 }, 0.825_21 * inv(fz));
+            // D50 → D65 (Bradford), then XYZ → linear sRGB.
+            let (x6, y6, z6) = (0.955_576_6 * x - 0.023_039_3 * y + 0.063_163_6 * z, -0.028_289_5 * x + 1.009_941_6 * y + 0.021_007_7 * z, 0.012_298_2 * x - 0.020_483 * y + 1.329_909_8 * z);
+            (
+                gamma(3.240_97 * x6 - 1.537_383 * y6 - 0.498_611 * z6),
+                gamma(-0.969_244 * x6 + 1.875_968 * y6 + 0.041_555 * z6),
+                gamma(0.055_63 * x6 - 0.203_977 * y6 + 1.056_972 * z6),
+            )
+        }
+    };
+    Some(Color { r: to8(r), g: to8(g), b: to8(b), a: to8(a) })
+}
+
 pub fn parse_color(v: &str) -> Option<Color> {
     let v = v.trim().to_ascii_lowercase();
     if let Some(hex) = v.strip_prefix('#') {
@@ -1150,6 +1458,9 @@ pub fn parse_color(v: &str) -> Option<Color> {
             None => 255,
         };
         return Some(Color { r: comp(parts.first()?)?, g: comp(parts.get(1)?)?, b: comp(parts.get(2)?)?, a });
+    }
+    if let Some(c) = color_function(&v) {
+        return Some(c);
     }
     Some(match v.as_str() {
         "transparent" => Color::TRANSPARENT,
@@ -1420,6 +1731,18 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     let lens = |s: &str| -> Option<Vec<Len>> {
         css::split_top(s, ' ').iter().filter(|t| !t.trim().is_empty()).map(|t| parse_len(t, fs)).collect()
     };
+    if name.starts_with("border") && !name.contains("radius") && !name.contains("spacing") && !name.contains("collapse") && !name.contains("image") && !name.contains("color") && !name.contains("width") {
+        for w in lower.split_whitespace() {
+            match w {
+                "solid" | "groove" | "ridge" | "inset" | "outset" => st.border_line = 0,
+                "dashed" => st.border_line = 1,
+                "dotted" => st.border_line = 2,
+                "double" => st.border_line = 3,
+                _ => continue,
+            }
+            break;
+        }
+    }
     match name {
         "display" => {
             st.display = match lower.as_str() {
@@ -1597,6 +1920,28 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "box-sizing" => st.border_box = lower == "border-box",
+        "opacity" => {
+            let v = lower.trim();
+            let n = match v.strip_suffix('%') {
+                Some(p) => p.parse::<f32>().ok().map(|p| p / 100.0),
+                None => v.parse::<f32>().ok(),
+            };
+            if let Some(n) = n {
+                st.opacity = n.clamp(0.0, 1.0);
+            }
+        }
+        "aspect-ratio" => {
+            // "16 / 9", "1.5", "auto 4/3" (auto is ignored: we use the ratio).
+            let v = lower.replace("auto", "");
+            let v = v.trim();
+            st.aspect_ratio = match v.split_once('/') {
+                Some((a, b)) => match (a.trim().parse::<f32>(), b.trim().parse::<f32>()) {
+                    (Ok(a), Ok(b)) if a > 0.0 && b > 0.0 => Some(a / b),
+                    _ => None,
+                },
+                None => v.parse::<f32>().ok().filter(|r| *r > 0.0),
+            };
+        }
         "border-spacing" => {
             if let Some(l) = lower.split_whitespace().next().and_then(|t| parse_len(t, fs)) {
                 st.border_spacing = l.resolve(0.0);
@@ -1855,7 +2200,41 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             _ => {}
         },
         "white-space" => st.pre = lower.starts_with("pre") && lower != "pre-line",
-        "text-decoration" | "text-decoration-line" => st.underline = lower.contains("underline"),
+        "text-decoration" | "text-decoration-line" => {
+            st.underline = lower.contains("underline");
+            st.line_through = lower.contains("line-through");
+            st.overline = lower.contains("overline");
+            if name == "text-decoration" {
+                // The shorthand may carry a color too: text-decoration: underline red.
+                if let Some(c) = lower.split_whitespace().filter(|w| !matches!(*w, "underline" | "overline" | "line-through" | "none" | "solid" | "double" | "dotted" | "dashed" | "wavy")).find_map(parse_color) {
+                    st.deco_color = Some(c);
+                }
+            }
+        }
+        "text-decoration-color" => st.deco_color = parse_color(&lower),
+        "text-transform" => {
+            st.text_transform = match lower.trim() {
+                "uppercase" => 1,
+                "lowercase" => 2,
+                "capitalize" => 3,
+                _ => 0,
+            }
+        }
+        "text-indent" => {
+            if let Some(l) = parse_len(lower.split_whitespace().next().unwrap_or("0"), st.font_size) {
+                st.text_indent = l;
+            }
+        }
+        "cursor" => {
+            let first = lower.rsplit(',').next().unwrap_or("").trim();
+            st.cursor = match first {
+                "pointer" => 1,
+                "text" | "vertical-text" => 2,
+                "default" | "not-allowed" | "wait" | "progress" | "help" | "context-menu" | "no-drop" | "cell" | "crosshair" => 3,
+                "move" | "grab" | "grabbing" | "all-scroll" => 5,
+                _ => 0,
+            }
+        }
         "list-style" | "list-style-type" => {
             if lower.contains("none") {
                 st.list_style = ListStyle::None;
@@ -1954,6 +2333,30 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod color_tests {
+    use super::*;
+
+    #[test]
+    fn color_functions() {
+        let c = |s: &str| parse_color(s).map(|c| (c.r, c.g, c.b, c.a));
+        assert_eq!(c("hsl(0, 100%, 50%)"), Some((255, 0, 0, 255)));
+        assert_eq!(c("hsl(120deg 100% 25% / 50%)"), Some((0, 128, 0, 128)));
+        assert_eq!(c("hsla(240, 100%, 50%, 0.5)"), Some((0, 0, 255, 128)));
+        assert_eq!(c("hwb(0 0% 0%)"), Some((255, 0, 0, 255)));
+        assert_eq!(c("hwb(0 50% 50%)"), Some((128, 128, 128, 255)));
+        // oklch / lab of pure colors land within a step or two of the sRGB values.
+        let near = |s: &str, want: (u8, u8, u8)| {
+            let (r, g, b, _) = c(s).unwrap();
+            assert!((r as i32 - want.0 as i32).abs() <= 2 && (g as i32 - want.1 as i32).abs() <= 2 && (b as i32 - want.2 as i32).abs() <= 2, "{s} -> {r},{g},{b}");
+        };
+        near("oklch(62.8% 0.2577 29.23)", (255, 0, 0));
+        near("oklab(1 0 0)", (255, 255, 255));
+        near("lab(54.29 80.82 69.91)", (255, 0, 0));
+        near("lch(0 0 0)", (0, 0, 0));
     }
 }
 

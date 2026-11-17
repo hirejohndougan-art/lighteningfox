@@ -343,6 +343,7 @@ impl Page {
             doc: 0,
             form_defaults: Vec::new(),
             loaded_at: Instant::now(),
+            styled_for: (0.0, 0.0),
         }
     }
 
@@ -394,11 +395,16 @@ struct Page {
     form_defaults: Vec<(dom::NodeId, Option<String>, bool)>,
     /// When it loaded (developer tools show what happened since).
     loaded_at: Instant,
+    /// The window size (CSS px) its styles were computed for, for @media rules.
+    styled_for: (f32, f32),
 }
 
 impl Page {
     /// Re-run the cascade after the DOM changed.
     fn restyle(&mut self) {
+        if self.styled_for.0 > 0.0 {
+            css::set_viewport(self.styled_for.0, self.styled_for.1);
+        }
         self.styles = js::with_dom(|d| match d.composed() {
             Some(c) => style::compute(&c, &self.sheets),
             None => style::compute(d, &self.sheets),
@@ -412,9 +418,17 @@ impl Page {
     /// Lay the page out for a window `width`×`viewport_h` device pixels. At a zoom other than
     /// 100% the page is laid out narrower (in CSS pixels) and drawn scaled up, so it reflows
     /// like in other browsers; scripts see CSS pixels.
-    fn layout(&self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
+    fn layout(&mut self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
         let z = zoom::get(&self.url);
         let (cw, ch) = (width / z, viewport_h / z);
+        // @media rules follow the window: a new size can mean different styles.
+        if (cw, ch) != self.styled_for {
+            self.styled_for = (cw, ch);
+            css::set_viewport(cw, ch);
+            if self.sheets.iter().any(|s| s.rules.iter().any(|r| r.media.is_some())) {
+                self.restyle();
+            }
+        }
         let lay = js::with_dom(|d| match d.composed() {
             Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
             None => layout::layout(d, &self.styles, fonts, &self.images, cw, ch),
@@ -852,6 +866,15 @@ fn build_page(p: Prepared) -> Page {
         }) as Box<dyn Fn(f32, f32) -> layout::Layout>
     });
     geometry::set_provider(provider);
+    {
+        let sheets = sheets.clone();
+        geometry::set_styler(Some(Box::new(move || {
+            js::with_dom(|d| {
+                let c = d.composed();
+                style::compute(c.as_ref().unwrap_or(d), &sheets)
+            })
+        })));
+    }
     let js = has_scripts.then(|| {
         let mut js = js::Js::new(&url);
         // Parse again with the scripts running as they're reached (the first parse found
@@ -870,7 +893,7 @@ fn build_page(p: Prepared) -> Page {
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now() };
+    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0) };
     page.restyle();
     release_free_memory();
     page
@@ -1000,7 +1023,7 @@ fn main() {
         let js = js::Js::new("about:blank");
         log!("[mem] + one JS engine: {} MB", rss());
         drop(js);
-        let page = load(&url);
+        let mut page = load(&url);
         log!("[mem] + page loaded: {} MB", rss());
         let lay = page.layout(fonts, width as f32, 768.0);
         log!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
@@ -2113,8 +2136,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 hover = btn;
                 dirty = true;
             }
-            window.set_cursor_style(if hit.is_some() || btn.is_some() {
+            // The page's own `cursor` property, for what's under the mouse (nearest
+            // ancestor with one set, since the property is inherited).
+            let page_cursor = if my >= bar_h() as f32 && hit.is_none() && btn.is_none() {
+                lay.hit_at(mx, view_y, scroll).and_then(|n| page.styles.get(n)).map(|s| s.cursor).unwrap_or(0)
+            } else {
+                0
+            };
+            window.set_cursor_style(if hit.is_some() || btn.is_some() || page_cursor == 1 {
                 CursorStyle::ClosedHand
+            } else if page_cursor == 2 {
+                CursorStyle::Ibeam
+            } else if page_cursor == 5 {
+                CursorStyle::ResizeAll
             } else if my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= FIELD_X {
                 CursorStyle::Ibeam
             } else {

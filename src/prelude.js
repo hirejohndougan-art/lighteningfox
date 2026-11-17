@@ -1315,6 +1315,129 @@
     };
   }
 
+  // MutationObserver: the natives that change the tree are wrapped to record what
+  // changed; records are delivered to matching observers in a microtask.
+  {
+    const regs = []; // { obs, target (id), opts }
+    const pending = new Set();
+    let queued = false;
+    const ancestors = (id) => { const out = []; let n = id, guard = 0; while (n >= 0 && guard++ < 10000) { out.push(n); n = __parent(n); } return out; };
+    const deliver = () => {
+      queued = false;
+      const list = [...pending];
+      pending.clear();
+      for (const o of list) {
+        const recs = o.__records.splice(0);
+        if (recs.length) { try { o.__cb.call(o, recs, o); } catch (e) { __log("error", "MutationObserver callback: " + e); } }
+      }
+    };
+    const record = (type, targetId, extra) => {
+      if (!regs.length) return;
+      const chain = ancestors(targetId);
+      const seen = new Set();
+      for (const r of regs) {
+        if (seen.has(r.obs)) continue;
+        const depth = chain.indexOf(r.target);
+        if (depth < 0 || (depth > 0 && !r.opts.subtree)) continue;
+        const o = r.opts;
+        if (type === "childList" && !o.childList) continue;
+        if (type === "attributes" && (!o.attributes || (o.attributeFilter && !o.attributeFilter.includes(extra.attributeName)))) continue;
+        if (type === "characterData" && !o.characterData) continue;
+        seen.add(r.obs);
+        const rec = {
+          type, target: wrap(targetId),
+          addedNodes: extra.added || [], removedNodes: extra.removed || [],
+          previousSibling: extra.prev || null, nextSibling: extra.next || null,
+          attributeName: extra.attributeName == null ? null : extra.attributeName, attributeNamespace: null,
+          oldValue: (type === "attributes" && o.attributeOldValue) || (type === "characterData" && o.characterDataOldValue) ? extra.oldValue : null,
+        };
+        r.obs.__records.push(rec);
+        pending.add(r.obs);
+      }
+      if (pending.size && !queued) { queued = true; Promise.resolve().then(deliver); }
+    };
+    const kids = (id) => Array.from(__children(id) || []);
+    const hook = (name, fn) => {
+      const orig = g[name];
+      if (typeof orig !== "function") return;
+      g[name] = function (...args) { return regs.length ? fn(orig, ...args) : orig.apply(this, args); };
+    };
+    hook("__insert", (orig, p, c, b) => {
+      const old = __parent(c);
+      if (old >= 0) {
+        const sib = kids(old), i = sib.indexOf(c);
+        const r = orig(p, c, b);
+        record("childList", old, { removed: [wrap(c)], prev: wrap(sib[i - 1]), next: wrap(sib[i + 1]) });
+        const now = kids(p), j = now.indexOf(c);
+        record("childList", p, { added: [wrap(c)], prev: wrap(now[j - 1]), next: wrap(now[j + 1]) });
+        return r;
+      }
+      const r = orig(p, c, b);
+      const now = kids(p), j = now.indexOf(c);
+      record("childList", p, { added: [wrap(c)], prev: wrap(now[j - 1]), next: wrap(now[j + 1]) });
+      return r;
+    });
+    hook("__detach", (orig, id) => {
+      const p = __parent(id);
+      if (p < 0) return orig(id);
+      const sib = kids(p), i = sib.indexOf(id);
+      const r = orig(id);
+      record("childList", p, { removed: [wrap(id)], prev: wrap(sib[i - 1]), next: wrap(sib[i + 1]) });
+      return r;
+    });
+    hook("__setAttr", (orig, id, name, value) => {
+      const old = __getAttr(id, name);
+      const r = orig(id, name, value);
+      record("attributes", id, { attributeName: String(name), oldValue: old });
+      return r;
+    });
+    hook("__removeAttr", (orig, id, name) => {
+      const old = __getAttr(id, name);
+      const r = orig(id, name);
+      if (old != null) record("attributes", id, { attributeName: String(name), oldValue: old });
+      return r;
+    });
+    const replaceAll = (orig, id, v) => {
+      if (__type(id) === 3 || __type(id) === 8) {
+        const old = __text(id);
+        const r = orig(id, v);
+        record("characterData", id, { oldValue: old });
+        return r;
+      }
+      const before = kids(id).map(wrap);
+      const r = orig(id, v);
+      const after = kids(id).map(wrap);
+      if (before.length || after.length) record("childList", id, { removed: before, added: after });
+      return r;
+    };
+    hook("__setText", replaceAll);
+    hook("__setHTML", replaceAll);
+    g.MutationObserver = class MutationObserver {
+      constructor(cb) {
+        if (typeof cb !== "function") throw new TypeError("MutationObserver needs a callback");
+        this.__cb = cb;
+        this.__records = [];
+      }
+      observe(target, opts = {}) {
+        const id = idOf(target);
+        if (id < 0) throw new TypeError("observe() needs a Node");
+        const o = Object.assign({}, opts);
+        if (o.attributeOldValue || o.attributeFilter) o.attributes = o.attributes !== false;
+        if (o.characterDataOldValue) o.characterData = o.characterData !== false;
+        if (!o.childList && !o.attributes && !o.characterData) throw new TypeError("observe() needs childList, attributes or characterData");
+        const existing = regs.find((r) => r.obs === this && r.target === id);
+        if (existing) existing.opts = o; else regs.push({ obs: this, target: id, opts: o });
+      }
+      disconnect() {
+        for (let i = regs.length - 1; i >= 0; i--) if (regs[i].obs === this) regs.splice(i, 1);
+        this.__records = [];
+        pending.delete(this);
+      }
+      takeRecords() { const r = this.__records.splice(0); pending.delete(this); return r; }
+    };
+    g.WebKitMutationObserver = g.MutationObserver;
+  }
+
   // Node type constants (Node.ELEMENT_NODE …), on the class and its instances.
   const NODE_TYPES = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4, ENTITY_REFERENCE_NODE: 5, ENTITY_NODE: 6, PROCESSING_INSTRUCTION_NODE: 7, COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_TYPE_NODE: 10, DOCUMENT_FRAGMENT_NODE: 11, NOTATION_NODE: 12, DOCUMENT_POSITION_DISCONNECTED: 1, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4, DOCUMENT_POSITION_CONTAINS: 8, DOCUMENT_POSITION_CONTAINED_BY: 16, DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: 32 };
   for (const [k, v] of Object.entries(NODE_TYPES)) {
@@ -1364,7 +1487,33 @@
     scroll(a, b) { g.scrollTo(a, b); },
     focus() {}, blur() {}, print() {}, close() {},
     alert: (m) => __log("alert", String(m)), confirm: () => false, prompt: () => null,
-    getComputedStyle: (el) => el.style,
+    getComputedStyle: (el, pseudo) => {
+      // The engine's computed values, readable as cs.fontSize, cs["font-size"] and
+      // cs.getPropertyValue("font-size"). Anything it doesn't compute falls back to
+      // the inline style, then "".
+      let json = "";
+      if (!pseudo && el && el.__id != null) json = __computed(el.__id);
+      const vals = json ? JSON.parse(json) : {};
+      const inline = (el && el.style) || {};
+      const camel = (k) => k.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      const kebab = (k) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+      const get = (k) => {
+        k = String(k);
+        const kk = k.includes("-") || k.startsWith("--") ? k : kebab(k);
+        if (kk in vals) return vals[kk];
+        if (kk === "margin" || kk === "padding") return ["top", "right", "bottom", "left"].map((s) => vals[kk + "-" + s]).join(" ");
+        if (kk === "border-width") return vals["border-top-width"] || "0px";
+        if (kk === "border-color") return vals["border-top-color"] || "";
+        if (kk === "border-style") return vals["border-top-style"] || "none";
+        if (kk === "background") return vals["background-color"] || "";
+        if (kk === "font") return (vals["font-style"] || "") + " " + (vals["font-weight"] || "") + " " + (vals["font-size"] || "") + " " + (vals["font-family"] || "");
+        const v = inline[camel(kk)];
+        return v == null || typeof v === "function" ? "" : String(v);
+      };
+      const cs = { getPropertyValue: get, getPropertyPriority: () => "", item: (i) => Object.keys(vals)[i] || "", get length() { return Object.keys(vals).length; }, cssText: "" };
+      for (const k of Object.keys(vals)) { cs[k] = vals[k]; cs[camel(k)] = vals[k]; }
+      return new Proxy(cs, { get(t, k) { if (k in t || typeof k !== "string") return t[k]; return get(k); } });
+    },
     matchMedia: (q) => {
       // Width, height, orientation and preference queries, joined with "and" / ",".
       const test = (part) => {
@@ -1402,7 +1551,6 @@
     console: { log: consoleFn("log"), info: consoleFn("info"), debug: consoleFn("debug"),
                warn: consoleFn("warn"), error: consoleFn("error"), trace: consoleFn("trace"),
                dir: consoleFn("log"), table: consoleFn("log"), group() {}, groupEnd() {}, time() {}, timeEnd() {} },
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     IntersectionObserver: class { observe() {} unobserve() {} disconnect() {} },
     ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
     CSS: { supports: () => false, escape: (s) => String(s).replace(/([^\w-])/g, "\\$1") },

@@ -626,6 +626,11 @@ impl<'a> Ctx<'a> {
         }
         let st = &self.styles[id];
         let natural_h = content_h;
+        if let (Len::Auto, Some(r), None) = (st.height, st.aspect_ratio, replaced) {
+            // aspect-ratio gives an auto height from the width (content may still grow it).
+            let h = if st.border_box { (w + pl + pr + bl + br) / r - vsizing } else { w / r };
+            content_h = content_h.max(h);
+        }
         if let (Len::Px(h), None) = (st.height, replaced) {
             // A clipping box keeps exactly its height; others grow to fit (for now).
             content_h = if st.clip { h - vsizing } else { content_h.max(h - vsizing) };
@@ -732,7 +737,7 @@ impl<'a> Ctx<'a> {
                 (bx + box_w - br, top, br, box_h),
             ] {
                 if rw > 0.0 && rh > 0.0 {
-                    self.items.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, color: c });
+                    border_side(&mut self.items, st.border_line, rx, ry, rw, rh, c);
                 }
             }
         }
@@ -2218,7 +2223,7 @@ impl<'a> Ctx<'a> {
                             out.push(Tok::Break { node: id });
                         }
                         if !line.is_empty() {
-                            out.push(Tok::Word { text: line.to_string(), node: id, link: link.map(String::from) });
+                            out.push(Tok::Word { text: transform(line, self.styles[id].text_transform), node: id, link: link.map(String::from) });
                         }
                     }
                     return;
@@ -2232,7 +2237,7 @@ impl<'a> Ctx<'a> {
                         out.push(Tok::Space { node: id });
                     }
                     first = false;
-                    out.push(Tok::Word { text: word.to_string(), node: id, link: link.map(String::from) });
+                    out.push(Tok::Word { text: transform(word, self.styles[id].text_transform), node: id, link: link.map(String::from) });
                 }
                 if !first && t.ends_with(|c: char| c.is_ascii_whitespace()) {
                     out.push(Tok::Space { node: id });
@@ -2381,6 +2386,19 @@ impl<'a> Ctx<'a> {
         // an estimate of where each line will sit vertically.
         let mut est_y = y;
         let mut lines: Vec<Line> = vec![self.new_line(x, w, y)];
+        // text-indent moves the first line of a block in (only the block's first run).
+        if let Some(&first) = run.first() {
+            if let Some(p) = self.dom.nodes[first].parent {
+                if self.dom.nodes[p].children.first() == Some(&first) {
+                    let ind = self.styles[p].text_indent.resolve(w);
+                    if ind != 0.0 {
+                        let l = &mut lines[0];
+                        l.x_off += ind;
+                        l.max_w -= ind;
+                    }
+                }
+            }
+        }
         let mut pending_space = 0.0f32;
         let mut pending_opens: Vec<(NodeId, f32)> = Vec::new();
         for (i, t) in toks.iter().enumerate() {
@@ -2512,6 +2530,8 @@ impl<'a> Ctx<'a> {
                                 (Some((n, end)), Some(Item::Text { text: t, .. }))
                                     if n == *node
                                         && !s.underline
+                                        && !s.line_through
+                                        && !s.overline
                                         && (px - end - space).abs() < 0.5
                                         && !text.chars().any(crate::style::is_rtl_char)
                                         && !t.chars().any(crate::style::is_rtl_char) =>
@@ -2525,15 +2545,26 @@ impl<'a> Ctx<'a> {
                             if !joined {
                                 self.items.push(Item::Text { x: px, y: baseline, text: text.clone(), font, size, color: s.color });
                             }
-                            last_text = if s.underline { None } else { Some((*node, px + p.w)) };
-                            if s.underline {
-                                // Extend the underline back across the space before this word.
+                            let deco = s.underline || s.line_through || s.overline;
+                            last_text = if deco { None } else { Some((*node, px + p.w)) };
+                            if deco {
+                                // Extend the lines back across the space before this word.
                                 let start = match prev_underline_end {
                                     Some((end, n)) if n == *node => end,
                                     _ => px,
                                 };
                                 let th = (size / 14.0).max(1.0);
-                                self.items.push(Item::Rect { x: start, y: baseline + th + 1.0, w: px + p.w - start, h: th, color: s.color });
+                                let color = s.deco_color.unwrap_or(s.color);
+                                let w = px + p.w - start;
+                                if s.underline {
+                                    self.items.push(Item::Rect { x: start, y: baseline + th + 1.0, w, h: th, color });
+                                }
+                                if s.line_through {
+                                    self.items.push(Item::Rect { x: start, y: baseline - size * 0.3, w, h: th, color });
+                                }
+                                if s.overline {
+                                    self.items.push(Item::Rect { x: start, y: baseline - self.fonts.ascent(font, size), w, h: th, color });
+                                }
                                 prev_underline_end = Some((px + p.w, *node));
                             } else {
                                 prev_underline_end = None;
@@ -2773,4 +2804,55 @@ fn bidi_reorder(line: &mut Line, toks: &[Tok], base_rtl: bool) {
     }
     let mut slots: Vec<Option<Placed>> = items.into_iter().map(Some).collect();
     line.items = order.iter().map(|&i| slots[i].take().expect("each item once")).collect();
+}
+
+/// Applies `text-transform` (1 uppercase, 2 lowercase, 3 capitalize) to a word.
+fn transform(word: &str, how: u8) -> String {
+    match how {
+        1 => word.to_uppercase(),
+        2 => word.to_lowercase(),
+        3 => {
+            let mut c = word.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().chain(c).collect(),
+                None => String::new(),
+            }
+        }
+        _ => word.to_string(),
+    }
+}
+
+/// Draws one border side as rectangles: solid, dashed, dotted (square dots) or double.
+fn border_side(items: &mut Vec<Item>, line: u8, x: f32, y: f32, w: f32, h: f32, color: Color) {
+    let horizontal = w >= h;
+    let thick = if horizontal { h } else { w };
+    let len = if horizontal { w } else { h };
+    match line {
+        1 | 2 if len > thick * 3.0 => {
+            // Dashes are 3× the width long with equal gaps; dots are width-sized.
+            let (on, off) = if line == 1 { (thick * 3.0, thick * 3.0) } else { (thick, thick) };
+            let n = ((len + off) / (on + off)).floor().max(1.0);
+            // Stretch the gaps so the pattern ends flush at both corners.
+            let gap = if n > 1.0 { (len - n * on) / (n - 1.0) } else { 0.0 };
+            for i in 0..n as usize {
+                let p = i as f32 * (on + gap);
+                if horizontal {
+                    items.push(Item::Rect { x: x + p, y, w: on, h, color });
+                } else {
+                    items.push(Item::Rect { x, y: y + p, w, h: on, color });
+                }
+            }
+        }
+        3 if thick >= 3.0 => {
+            let t = (thick / 3.0).round().max(1.0);
+            if horizontal {
+                items.push(Item::Rect { x, y, w, h: t, color });
+                items.push(Item::Rect { x, y: y + h - t, w, h: t, color });
+            } else {
+                items.push(Item::Rect { x, y, w: t, h, color });
+                items.push(Item::Rect { x: x + w - t, y, w: t, h, color });
+            }
+        }
+        _ => items.push(Item::Rect { x, y, w, h, color }),
+    }
 }
