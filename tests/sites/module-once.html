@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): its video player module is a <script type=module> in the
+     page, and the player adds a second <script type=module> with the same src when it doesn't
+     find the first one in <head>. Browsers keep one module per URL, so it must run once (it
+     threw "Custom element with tag nyt-betamax is already defined" on the second run). -->
+<html><head><title>One module per URL</title></head>
+<body><p id="out"></p>
+<script type="module" src="dyn/once-module.js"></script>
+<script type="module">
+  import { runs } from "./dyn/once-module.js";
+  const again = document.createElement("script");
+  again.type = "module";
+  again.src = "dyn/once-module.js";
+  again.onload = async () => {
+    const m = await import("./dyn/once-module.js");
+    document.getElementById("out").textContent = [runs(), m.runs(), window.moduleRuns].join(";");
+  };
+  document.head.appendChild(again);
+</script></body></html>

@@ -32,6 +32,22 @@ impl Loader {
         Module::parse(Source::from_bytes(code.as_bytes()).with_path(path), None, ctx)
     }
 
+    /// The module for a `<script type=module src=url>`: the one already loaded from that URL
+    /// (by an import or an earlier script element) if there is one, so it runs only once, as
+    /// in browsers' module map; otherwise `code` parsed and remembered. Inline modules
+    /// (`#inline-` URLs) are never shared.
+    pub fn for_script(&self, code: &str, url: &str, ctx: &mut Context) -> JsResult<Module> {
+        if url.contains("#inline-") {
+            return self.parse(code, url, ctx);
+        }
+        if let Some(m) = self.cache.borrow().get(url) {
+            return Ok(m.clone());
+        }
+        let module = self.parse(code, url, ctx)?;
+        self.cache.borrow_mut().insert(url.to_string(), module.clone());
+        Ok(module)
+    }
+
     fn fetch(&self, url: &str, page: &str, json: bool, ctx: &mut Context) -> JsResult<Module> {
         if let Some(m) = self.cache.borrow().get(url) {
             return Ok(m.clone());

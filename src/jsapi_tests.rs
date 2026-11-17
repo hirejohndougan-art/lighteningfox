@@ -430,3 +430,10 @@ fn template_inner_html_and_custom_property_order() {
     let _page = open("tests/sites/lit-template.html");
     assert_eq!(text_of("out"), "2;0;name/?hidden$lit$;true;rgb(0, 128, 0);rgb(0, 128, 0);rgb(0, 0, 255)");
 }
+
+#[test]
+fn module_scripts_run_once_per_url() {
+    let _serial = serial();
+    let _page = open("tests/sites/module-once.html");
+    assert_eq!(text_of("out"), "1;1;1");
+}

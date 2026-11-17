@@ -1728,7 +1728,7 @@ impl Js {
     /// Parse, load (with its imports), link and run a module.
     fn run_module(&mut self, code: &str, url: &str, label: &str) {
         let t = Instant::now();
-        let module = match self.modules.parse(code, url, &mut self.ctx) {
+        let module = match self.modules.for_script(code, url, &mut self.ctx) {
             Ok(m) => m,
             Err(e) => {
                 self.stats.errors += 1;
