@@ -46,6 +46,7 @@ mod page_images;
 mod js;
 mod jsnest;
 mod jsmodules;
+mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
 mod layout;
@@ -1817,6 +1818,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut address = page.url.clone();
     let mut dirty = true;
     let mut was_down = false;
+    // The mouse as the page's scripts have seen it (for mouseover, mousedown… events).
+    let mut pointer = userinput::Pointer::default();
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
     let mut dropdown: Option<Dropdown> = None;
@@ -2053,6 +2056,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             page_version += 1;
             dirty = true;
         }
+        // Scroll and resize events, IntersectionObserver and ResizeObserver.
+        if let Some(js) = page.js.as_mut() {
+            js.after_layout();
+        }
         // Images: lazy ones scrolling into reach, and animation frames (page_images.rs).
         let it = page.images_tick(&lay, scroll, h.saturating_sub(bar_h()) as f32);
         if it.relayout {
@@ -2204,6 +2211,29 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let chars: Vec<char> = typed.borrow_mut().drain(..).collect();
         let finding = find.is_some() && !editing;
         let typing = !finding && !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
+        // keydown/keyup for the page; a cancelled keydown doesn't reach the browser or field.
+        let mut chars = chars;
+        if !finding && !editing {
+            if let Some(js) = page.js.as_mut() {
+                let mut typed_cancelled = false;
+                presses.retain(|p| {
+                    let ok = userinput::key(js, p.key, false, false, userinput::Mods { ctrl: p.ctrl, shift: p.shift, alt: p.alt });
+                    typed_cancelled |= !ok && userinput::names(p.key, p.shift).0.chars().count() == 1;
+                    ok
+                });
+                if typed_cancelled {
+                    chars.clear();
+                }
+                let mods = userinput::Mods {
+                    ctrl: window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl),
+                    shift: window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),
+                    alt: window.is_key_down(Key::LeftAlt) || window.is_key_down(Key::RightAlt),
+                };
+                for k in window.get_keys_released() {
+                    userinput::key(js, k, true, false, mods);
+                }
+            }
+        }
         let ctrl_down = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
         let shift_down = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
         let edit_keys_now: Vec<KeyPress> = if typing || editing || finding { presses.clone() } else { Vec::new() };
@@ -2448,20 +2478,31 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         } else if let Some((_, dy)) = window.get_scroll_wheel() {
             // About 45px per wheel click (minifb reports roughly 2 per click on X11).
             let delta = -dy * 22.0;
+            // The page may cancel the wheel event (maps, carousels); then nothing scrolls.
+            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= bar_h() as f32);
+            let z = page.zoom();
+            let wanted = match (page.js.as_mut(), mouse) {
+                (Some(js), Some((mx, my))) => {
+                    let node = lay.hit_at(mx, my - bar_h() as f32, scroll);
+                    userinput::wheel(js, node, mx / z, (my - bar_h() as f32) / z, 0.0, delta / z, userinput::Mods::default())
+                }
+                _ => true,
+            };
             // The wheel scrolls the innermost scrollable box under the mouse, else the page.
-            let inner = window
-                .get_mouse_pos(MouseMode::Discard)
-                .filter(|&(_, my)| my >= bar_h() as f32)
-                .and_then(|(mx, my)| lay.scroller_at(mx, my - bar_h() as f32, scroll, delta));
+            let inner = mouse.filter(|_| wanted).and_then(|(mx, my)| lay.scroller_at(mx, my - bar_h() as f32, scroll, delta));
             match inner {
                 Some((id, max)) => {
                     layout::set_element_scroll(id, (layout::element_scroll(id) + delta).clamp(0.0, max));
+                    if let Some(js) = page.js.as_mut() {
+                        userinput::scrolled(js, id);
+                    }
                     reflow = true;
                 }
-                None => {
+                None if wanted => {
                     scroll += delta;
                     dirty = true;
                 }
+                None => {}
             }
         }
         if let Some(y) = geometry::take_scroll_request() {
@@ -2545,6 +2586,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let view_y = my - bar_h() as f32;
             let hit = if my >= bar_h() as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
+            // Mouse events for the page's scripts (moves, hover changes, button presses).
+            if pointer.changed(mx, my, [down, mid, right]) {
+                let z = page.zoom();
+                if let Some(js) = page.js.as_mut() {
+                    if my >= bar_h() as f32 && ctx_menu.is_none() {
+                        let node = lay.hit_at(mx, view_y, scroll);
+                        let mods = userinput::Mods { ctrl: ctrl_down, shift: shift_down, alt: false };
+                        pointer.update(js, node, mx / z, view_y / z, [down, mid, right], mods);
+                    } else {
+                        pointer.left(js);
+                    }
+                }
+            }
             // The status bar shows where a link goes.
             let status = hit.as_ref().map(|h| net::resolve(&page.url, h)).filter(|h| !h.starts_with("javascript:"));
             if status != status_link {

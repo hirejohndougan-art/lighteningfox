@@ -68,3 +68,30 @@ fn intersection_and_resize_observers() {
     js.settle(std::time::Duration::from_millis(200));
     assert_eq!(text_of("ro"), "box:200x50/210;box:300x50/310;");
 }
+
+#[test]
+fn user_events() {
+    let mut page = open("tests/user-events.html");
+    let (btn, outer, field) = js::with_dom(|d| {
+        let find = |id: &str| d.descendants(crate::dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(id)).unwrap();
+        (find("btn"), find("outer"), find("field"))
+    });
+    let js = page.js.as_mut().unwrap();
+    let mut p = crate::userinput::Pointer::default();
+    let m = crate::userinput::Mods::default();
+    p.update(js, Some(btn), 10.0, 12.0, [false; 3], m);
+    p.update(js, Some(btn), 10.0, 12.0, [true, false, false], m);
+    js.click(btn);
+    p.update(js, Some(btn), 10.0, 12.0, [false; 3], m);
+    p.update(js, None, 500.0, 500.0, [false; 3], m);
+    let _ = outer;
+    js.dispatch(field, "focus");
+    assert!(crate::userinput::key(js, minifb::Key::A, false, false, m));
+    assert!(!crate::userinput::key(js, minifb::Key::X, false, false, m), "cancelled keydown");
+    assert!(!crate::userinput::wheel(js, Some(btn), 1.0, 1.0, 0.0, 45.0, m), "cancelled wheel");
+    assert_eq!(
+        text_of("log"),
+        "mouseover;outer-enter;mouseenter;mousedown@10,12;click;mouseup;mouseout;mouseleave;outer-leave;\
+         focus true false;focusin;keydown a KeyA true;keydown x KeyX true;wheel 45;"
+    );
+}

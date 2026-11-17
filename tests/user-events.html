@@ -1,0 +1,15 @@
+<!doctype html><html><body>
+<div id=outer><button id=btn>Press</button></div>
+<input id=field><div id=log></div>
+<script>
+const log = (s) => { document.getElementById('log').textContent += s + ';'; };
+const btn = document.getElementById('btn'), outer = document.getElementById('outer'), field = document.getElementById('field');
+for (const t of ['mouseover', 'mouseenter', 'mousedown', 'mouseup', 'click', 'mouseout', 'mouseleave'])
+  btn.addEventListener(t, (e) => log(t + (e.isTrusted ? '' : '!') + (e instanceof MouseEvent ? '' : '?') + (t === 'mousedown' ? '@' + e.clientX + ',' + e.clientY : '')));
+outer.addEventListener('mouseenter', () => log('outer-enter'));
+outer.addEventListener('mouseleave', () => log('outer-leave'));
+field.addEventListener('focus', (e) => log('focus ' + (document.activeElement === field) + ' ' + e.bubbles));
+document.addEventListener('focusin', () => log('focusin'));
+document.addEventListener('keydown', (e) => { log('keydown ' + e.key + ' ' + e.code + ' ' + (e.target === field)); if (e.key === 'x') e.preventDefault(); });
+document.addEventListener('wheel', (e) => { log('wheel ' + e.deltaY); e.preventDefault(); }, { passive: false });
+</script></body></html>
