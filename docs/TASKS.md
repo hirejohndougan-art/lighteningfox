@@ -51,7 +51,8 @@ process keeping the window, network, cookies and storage.
 Measure before and after with the JavaScript benchmark page and `tools/perf_check.py`.
 
 ### T09. `<video>` and `<audio>` playback
-**Status:** claimed by chat-opus-t09 2026-11-17 04:52
+**Status:** done
+**Left undone:** media is downloaded whole before playing (no streaming, Range requests or Media Source Extensions, so blob:/MSE sites like YouTube don't play); no <track> captions, fullscreen or picture-in-picture; controls are always shown (no hide-on-idle, no volume slider or keyboard keys); unmuted autoplay is blocked but script play() isn't gated on user activation; canvas drawImage(video) still draws nothing; needs the ffmpeg/ffprobe programs at run time (and sandboxed frame processes must be allowed to start them).
 **After:** —
 **Checklist:** §7 "`<video>` and `<audio>` playback"
 **Files:** new `src/media.rs`, a new JS file for HTMLMediaElement, replaced-element parts of `src/layout.rs`
