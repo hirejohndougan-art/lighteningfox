@@ -201,9 +201,27 @@ impl Canvas {
         let shaped = fonts.shape(font, text, size);
         for g in &shaped.glyphs {
             let (gxp, gyp) = (x + g.x, baseline - g.y);
-            fonts.with_glyph_id(g.face, g.id, size, |m, bmp| {
-                let gx = gxp.round() as i32 + m.xmin;
+            // Whole pixels, plus a quarter-pixel step drawn into the glyph itself.
+            let steps = crate::font::SUBPIXEL_STEPS;
+            let q = (gxp * steps).round() / steps;
+            let (whole, subpx) = (q.floor(), ((q - q.floor()) * steps).round() as u8 % steps as u8);
+            fonts.with_glyph_id(g.face, g.id, size, subpx, |m, bmp| {
+                let gx = whole as i32 + m.xmin;
                 let gy = gyp.round() as i32 - m.height as i32 - m.ymin;
+                if m.color {
+                    // A color glyph (emoji): its own colors, faded with the text's opacity.
+                    for row in 0..m.height {
+                        for col in 0..m.width {
+                            let i = (row * m.width + col) * 4;
+                            let Some(px) = bmp.get(i..i + 4) else { continue };
+                            if px[3] > 0 {
+                                let a = (px[3] as f32 * c.a as f32 / 255.0) as u8;
+                                self.blend(gx + col as i32, gy + row as i32, Color { r: px[0], g: px[1], b: px[2], a }, 1.0);
+                            }
+                        }
+                    }
+                    return;
+                }
                 for row in 0..m.height {
                     for col in 0..m.width {
                         let cov = bmp[row * m.width + col];

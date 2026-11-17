@@ -91,13 +91,22 @@ pub struct Metrics {
     pub ymin: i32,
     pub width: usize,
     pub height: usize,
+    /// The bitmap is RGBA color (an emoji), not a coverage mask.
+    pub color: bool,
 }
+
+/// Glyphs are drawn at quarter-pixel horizontal positions (subpixel positioning), so the
+/// spacing between letters stays even instead of snapping each glyph to whole pixels.
+pub const SUBPIXEL_STEPS: f32 = 4.0;
 
 type Key = (u8, char, u16);
 
 /// Fonts for characters the chosen font lacks (Chinese, Japanese, Korean, Hindi, Thai,
 /// Hebrew…): file names searched for under the system font folders, in order of preference.
 const FALLBACK_NAMES: &[&str] = &[
+    "NotoColorEmoji.ttf",
+    "NotoColorEmoji-Regular.ttf",
+    "TwemojiMozilla.ttf",
     "NotoSans-Regular.ttf",
     "NotoSansArabic-Regular.ttf",
     "NotoSansHebrew-Regular.ttf",
@@ -196,7 +205,9 @@ pub struct Fonts {
     char_fallback: RefCell<HashMap<char, Option<u16>>>,
     buzz: RefCell<HashMap<u16, Rc<rustybuzz::Face<'static>>>>,
     shaped: RefCell<HashMap<(u8, u16, String), Rc<Shaped>>>,
-    glyphs_by_id: RefCell<HashMap<(u16, u16, u16), (Metrics, Vec<u8>)>>,
+    glyphs_by_id: RefCell<HashMap<(u16, u16, u16, u8), (Metrics, Vec<u8>)>>,
+    /// Glyph rasterizer with TrueType hinting and color glyph support (swash).
+    scaler: RefCell<swash::scale::ScaleContext>,
 }
 
 /// fontdue-compatible pixel size: ab_glyph scales by ascent-minus-descent height,
@@ -241,6 +252,7 @@ impl Fonts {
             buzz: RefCell::default(),
             shaped: RefCell::default(),
             glyphs_by_id: RefCell::default(),
+            scaler: RefCell::new(swash::scale::ScaleContext::new()),
         })
     }
 
@@ -424,6 +436,24 @@ impl Fonts {
     /// The face to draw `c` with: the font itself, its system style (for web fonts), then
     /// the fallback fonts.
     fn face_for(&self, font: u8, c: char) -> u16 {
+        // Emoji are drawn in color from an emoji font when there is one, even where the page's
+        // font has a black-and-white version.
+        if is_emoji(c) {
+            if let Some(&hit) = self.char_fallback.borrow().get(&c) {
+                if let Some(h) = hit {
+                    return h;
+                }
+            } else {
+                let emoji_face = (0..self.fallback_paths.len())
+                    .filter(|&i| self.fallback_paths[i].file_name().and_then(|n| n.to_str()).is_some_and(|n| n.to_ascii_lowercase().contains("emoji")))
+                    .map(|i| FALLBACK_BASE + i as u16)
+                    .find(|&f| self.has_glyph(f, c));
+                if let Some(f) = emoji_face {
+                    self.char_fallback.borrow_mut().insert(c, Some(f));
+                    return f;
+                }
+            }
+        }
         let primary = self.primary_face(font);
         if self.has_glyph(primary, c) {
             return primary;
@@ -513,7 +543,19 @@ impl Fonts {
         let mut runs: Vec<(u16, usize, usize)> = Vec::new();
         for (i, c) in text.char_indices() {
             let joins = c.is_whitespace() || is_mark(c) || c == '\u{200d}' || c == '\u{200c}';
+            // U+FE0F after a symbol asks for its emoji (color) form.
+            if text[i + c.len_utf8()..].starts_with('\u{FE0F}') && !is_emoji(c) {
+                if let Some(f) = self.emoji_face_for(c) {
+                    match runs.last_mut() {
+                        Some(r) if r.0 == f => r.2 = i + c.len_utf8(),
+                        _ => runs.push((f, i, i + c.len_utf8())),
+                    }
+                    continue;
+                }
+            }
             let face = match runs.last() {
+                // A space after emoji goes back to the text font (emoji fonts have wide spaces).
+                Some(&(f, _, _)) if c.is_whitespace() && self.is_emoji_face(f) => self.face_for(font, c),
                 Some(&(f, _, _)) if joins => f,
                 _ => self.face_for(font, c),
             };
@@ -556,14 +598,19 @@ impl Fonts {
         out
     }
 
-    /// Calls `f` with a glyph's metrics and coverage bitmap, by face and glyph id.
-    pub fn with_glyph_id<R>(&self, face: u16, id: u16, size: f32, f: impl FnOnce(&Metrics, &[u8]) -> R) -> R {
-        let k = (face, id, (size * 4.0).round() as u16);
+    /// Calls `f` with a glyph's metrics and bitmap (coverage, or RGBA for color glyphs), by
+    /// face and glyph id, drawn `subpx` quarter-pixels to the right of a whole pixel.
+    pub fn with_glyph_id<R>(&self, face: u16, id: u16, size: f32, subpx: u8, f: impl FnOnce(&Metrics, &[u8]) -> R) -> R {
+        let k = (face, id, (size * 4.0).round() as u16, subpx);
         let mut cache = self.glyphs_by_id.borrow_mut();
         if !cache.contains_key(&k) {
             let entry = match self.face_file(face) {
-                Some(fnt) => rasterize_id(&fnt, ab_glyph::GlyphId(id), size),
-                None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0 }, Vec::new()),
+                Some(fnt) => {
+                    let index = if (WEB_BASE..FALLBACK_BASE).contains(&face) { self.web_index.borrow().get((face - WEB_BASE) as usize).copied().unwrap_or(0) } else { 0 };
+                    self.rasterize_swash(&fnt, index, id, size, subpx as f32 / SUBPIXEL_STEPS)
+                        .unwrap_or_else(|| rasterize_id(&fnt, ab_glyph::GlyphId(id), size))
+                }
+                None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0, color: false }, Vec::new()),
             };
             if cache.len() > 20_000 {
                 cache.clear();
@@ -574,6 +621,57 @@ impl Fonts {
         f(&e.0, &e.1)
     }
 }
+
+impl Fonts {
+    /// Rasterize with swash: TrueType hinting (sharper stems on low-resolution screens),
+    /// a horizontal subpixel offset, and color glyphs (emoji bitmaps and color outlines).
+    fn rasterize_swash(&self, font: &FontVec, index: u32, id: u16, size: f32, dx: f32) -> Option<(Metrics, Vec<u8>)> {
+        use swash::scale::{image::Content, Render, Source, StrikeWith};
+        let data: &[u8] = font.as_slice();
+        let fref = swash::FontRef::from_index(data, index as usize)?;
+        let mut ctx = self.scaler.borrow_mut();
+        // Hinting helps small text; large text keeps its true shapes.
+        let mut scaler = ctx.builder(fref).size(size).hint(size <= 28.0).build();
+        let img = Render::new(&[Source::ColorOutline(0), Source::ColorBitmap(StrikeWith::BestFit), Source::Outline])
+            .offset(swash::zeno::Vector::new(dx, 0.0))
+            .render(&mut scaler, id)?;
+        let p = img.placement;
+        let (width, height) = (p.width as usize, p.height as usize);
+        let color = img.content == Content::Color;
+        let data = match img.content {
+            Content::Mask => img.data,
+            Content::Color => img.data,
+            // A subpixel (RGB) mask isn't requested; use its green channel as coverage.
+            Content::SubpixelMask => img.data.chunks(4).map(|c| c[1]).collect(),
+        };
+        Some((Metrics { xmin: p.left, ymin: p.top - height as i32, width, height, color }, data))
+    }
+}
+
+impl Fonts {
+    /// The color emoji font, if it has `c`.
+    fn emoji_face_for(&self, c: char) -> Option<u16> {
+        (0..self.fallback_paths.len()).map(|i| FALLBACK_BASE + i as u16).find(|&f| self.is_emoji_face(f) && self.has_glyph(f, c))
+    }
+
+    fn is_emoji_face(&self, face: u16) -> bool {
+        face >= FALLBACK_BASE
+            && self.fallback_paths.get((face - FALLBACK_BASE) as usize).and_then(|p| p.file_name()).and_then(|n| n.to_str()).is_some_and(|n| n.to_ascii_lowercase().contains("emoji"))
+    }
+}
+
+/// Characters drawn as emoji (in color) by default.
+fn is_emoji(c: char) -> bool {
+    matches!(c as u32, 0x1F000..=0x1FAFF | 0x2600..=0x27BF | 0x2B50 | 0x2B55 | 0x231A..=0x231B | 0x23E9..=0x23FA)
+        && !matches!(c as u32, 0x2600..=0x27BF if !EMOJI_PRESENTATION.contains(&(c as u32)))
+}
+
+/// Symbols in the 2600–27BF block that show as emoji even without U+FE0F.
+const EMOJI_PRESENTATION: &[u32] = &[
+    0x2614, 0x2615, 0x2648, 0x2649, 0x264A, 0x264B, 0x264C, 0x264D, 0x264E, 0x264F, 0x2650, 0x2651, 0x2652, 0x2653, 0x267F, 0x2693, 0x26A1,
+    0x26AA, 0x26AB, 0x26BD, 0x26BE, 0x26C4, 0x26C5, 0x26CE, 0x26D4, 0x26EA, 0x26F2, 0x26F3, 0x26F5, 0x26FA, 0x26FD, 0x2705, 0x270A, 0x270B,
+    0x2728, 0x274C, 0x274E, 0x2753, 0x2754, 0x2755, 0x2757, 0x2795, 0x2796, 0x2797, 0x27B0, 0x27BF,
+];
 
 /// Combining marks (accents, vowel signs) belong with the letter before them.
 fn is_mark(c: char) -> bool {
@@ -600,8 +698,8 @@ fn rasterize_id(fnt: &FontVec, id: ab_glyph::GlyphId, size: f32) -> (Metrics, Ve
                 }
             });
             let ymin = -(b.min.y as i32) - height as i32;
-            (Metrics { xmin: b.min.x as i32, ymin, width, height }, bmp)
+            (Metrics { xmin: b.min.x as i32, ymin, width, height, color: false }, bmp)
         }
-        None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0 }, Vec::new()),
+        None => (Metrics { xmin: 0, ymin: 0, width: 0, height: 0, color: false }, Vec::new()),
     }
 }

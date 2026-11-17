@@ -4134,6 +4134,7 @@ mod screenshot_tests {
         ("tests/text-wrapping.html", 600),
         ("tests/pseudo.html", 900),
         ("tests/cascade.html", 1024),
+        ("tests/emoji-and-small-text.html", 700),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),
