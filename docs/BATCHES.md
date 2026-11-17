@@ -111,7 +111,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §9 Developer console: show errors and run JavaScript
 
 ## H. JavaScript APIs, part 2
-**Status:** free
+**Status:** claimed by netapi-chat 2026-11-17 02:22
 **Start after:** —
 **Main files:** new `src/*.js` files, `src/js.rs` natives, `src/net.rs`
 
