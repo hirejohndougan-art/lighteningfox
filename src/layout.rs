@@ -241,7 +241,7 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
     crate::preshape::run(dom, styles, fonts);
     // Layout works on the box tree (anonymous boxes, ::before/::after, markers,
     // display: contents); hits and element boxes are reported in DOM ids.
-    let tree = crate::boxtree::build(dom, styles);
+    let tree = crate::boxtree::build_cached(dom, styles);
     // Boxes whose subtree didn't change are put back from the last pass (relayout.rs).
     let fps = crate::relayout::fingerprints(&tree, FOCUS.with(|f| f.get()).map(|f| f.0), crate::editing::host());
     let mut env = crate::relayout::hasher();

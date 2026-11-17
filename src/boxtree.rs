@@ -74,6 +74,63 @@ impl BoxTree {
     }
 }
 
+thread_local! {
+    /// The last tree built and a hash of what it was built from (see `build_cached`).
+    static LAST: std::cell::RefCell<Option<(u64, Rc<BoxTree>)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The box tree for a styled DOM, reusing the last one when the DOM and styles are the
+/// same (a relayout for a scroll, a resize, a loaded image or a cached box changed nothing
+/// the tree is made of). The last tree holds its styles, so no new style can take the
+/// address of one the hash saw.
+pub fn build_cached(dom: &Dom, styles: &[Rc<Style>]) -> Rc<BoxTree> {
+    let key = inputs(dom, styles);
+    if let Some(t) = LAST.with(|l| l.borrow().as_ref().filter(|(k, _)| *k == key).map(|(_, t)| t.clone())) {
+        return t;
+    }
+    // Drop the old tree before building the new one, so both aren't held at once.
+    LAST.with(|l| *l.borrow_mut() = None);
+    let t = Rc::new(build(dom, styles));
+    LAST.with(|l| *l.borrow_mut() = Some((key, t.clone())));
+    t
+}
+
+/// A hash of everything `build` and layout read from the DOM and styles: each node's data,
+/// children, namespace and picked files, and each style's identity.
+fn inputs(dom: &Dom, styles: &[Rc<Style>]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (dom.nodes.len(), styles.len(), dom.quirks as u8).hash(&mut h);
+    for (id, n) in dom.nodes.iter().enumerate() {
+        match &n.data {
+            NodeData::Element { tag, attrs } => {
+                1u8.hash(&mut h);
+                tag.hash(&mut h);
+                attrs.hash(&mut h);
+                (dom.ns_of(id) as u8).hash(&mut h);
+                if let Some(nn) = dom.ns_names.get(&id) {
+                    (&nn.uri, &nn.prefix).hash(&mut h);
+                }
+                if let Some(files) = dom.form_state.files.get(&id) {
+                    files.iter().for_each(|f| f.name.hash(&mut h));
+                }
+            }
+            NodeData::Text(t) => {
+                2u8.hash(&mut h);
+                t.hash(&mut h);
+            }
+            other => {
+                3u8.hash(&mut h);
+                format!("{other:?}").hash(&mut h);
+            }
+        }
+        n.parent.hash(&mut h);
+        n.children.hash(&mut h);
+        styles.get(id).map(|s| Rc::as_ptr(s) as usize).hash(&mut h);
+    }
+    h.finish()
+}
+
 /// Build the box tree for a styled DOM.
 pub fn build(dom: &Dom, styles: &[Rc<Style>]) -> BoxTree {
     let real = dom.nodes.len();
@@ -471,6 +528,29 @@ mod tests {
         (dom, t)
     }
 
+    /// An unchanged DOM with the same styles gets the same tree back; any edit, or a new
+    /// style, builds a new one.
+    #[test]
+    fn unchanged_inputs_reuse_the_tree() {
+        let mut dom = crate::html::parse("<ul><li>a</li><li>b <b>c</b></li></ul><p>text</p>");
+        let styles = crate::style::compute(&dom, &[]);
+        let a = build_cached(&dom, &styles);
+        let b = build_cached(&dom, &styles);
+        assert!(Rc::ptr_eq(&a, &b));
+        let p = dom.find_all("p")[0];
+        dom.set_attr(p, "class", "x");
+        let c = build_cached(&dom, &styles);
+        assert!(!Rc::ptr_eq(&b, &c));
+        let restyled = crate::style::compute(&dom, &[]);
+        let d = build_cached(&dom, &restyled);
+        assert!(!Rc::ptr_eq(&c, &d));
+        let t = dom.nodes[p].children[0];
+        dom.nodes[t].data = NodeData::Text("other".into());
+        let e = build_cached(&dom, &restyled);
+        assert!(!Rc::ptr_eq(&d, &e));
+        assert_eq!(kids(&e, p), ["#other"]);
+    }
+
     fn kids(t: &BoxTree, id: NodeId) -> Vec<String> {
         t.dom.nodes[id]
             .children
@@ -571,3 +651,5 @@ mod tests {
         assert_eq!(kids(&t, anon), vec!["#a", "span", "#b"]);
     }
 }
+
+
