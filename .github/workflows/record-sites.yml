@@ -70,4 +70,15 @@ jobs:
           git config user.email "289271172+hirejohndougan-art@users.noreply.github.com"
           git add -A
           git commit -qm "Site recordings: ${{ inputs.urls }}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "$BRANCH"
+          # GitHub refuses pushes with API keys in them (sites' public tokens): blank out the
+          # ones it names and try again (tools/scrub_secrets.py).
+          remote="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          for try in 1 2 3 4; do
+            if git push -f "$remote" "$BRANCH" > ../push.txt 2>&1; then cat ../push.txt; exit 0; fi
+            cat ../push.txt
+            changed=$(python3 ../tools/scrub_secrets.py ../push.txt)
+            [ -n "$changed" ] || exit 1
+            echo "Blanked secrets in: $changed"
+            git add -A; git commit -q --amend --no-edit
+          done
+          exit 1
