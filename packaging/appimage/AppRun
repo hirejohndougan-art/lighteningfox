@@ -1,0 +1,6 @@
+#!/bin/sh
+# Ironswift AppImage entry point: use the DejaVu fonts carried inside the image when the
+# system has none, then start the browser.
+HERE="$(dirname "$(readlink -f "$0")")"
+export IRONSWIFT_FONT_DIR="${IRONSWIFT_FONT_DIR:-$HERE/usr/share/fonts/truetype/dejavu}"
+exec "$HERE/usr/bin/ironswift" "$@"

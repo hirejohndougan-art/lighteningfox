@@ -1,33 +1,83 @@
 name: Release
-# Push a tag like v0.2.0 to publish a release. Installed copies of Ironswift (per-user
-# installs) find it within a day, check the SHA-256 sum and update themselves on exit.
+# Push a tag like v0.2.0 to publish a release (or run it by hand to just build the packages).
+# It attaches:
+#   ironswift-linux-x86_64 (+ .sha256)   the program; installed copies update themselves from
+#                                        this within a day (src/updates.rs checks the SHA-256)
+#   ironswift_<v>_amd64.deb              Debian, Ubuntu, Mint, Pop!_OS…
+#   Ironswift-<v>-x86_64.AppImage        any distribution
+#   ironswift-<v>-linux-x86_64.tar.gz    unpack-and-run, installs into your home folder
+#   Ironswift-<v>.flatpak                Flatpak bundle
+#   SHA256SUMS                           checksums of everything above
+# Built on the oldest supported Ubuntu so the packages run on more systems (glibc 2.35+).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 # an older glibc, so the program runs on more systems
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: System packages
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libxkbcommon-dev libwayland-dev libx11-dev libfuse2
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Version matches the tag
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Cargo.toml says $v, tag is $GITHUB_REF_NAME"; exit 1; }
       - name: Build
         run: cargo build --release
-      - name: Package
+      - name: Packages (.deb, AppImage, .tar.gz)
+        run: SKIP_BUILD=1 sh packaging/build-packages.sh all
+      - name: The program on its own (for automatic updates)
         run: |
-          mkdir dist
           cp target/release/ironswift dist/ironswift-linux-x86_64
           strip dist/ironswift-linux-x86_64
           (cd dist && sha256sum ironswift-linux-x86_64 > ironswift-linux-x86_64.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/
+
+  flatpak:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: Ironswift.flatpak
+          manifest-path: packaging/flatpak/io.github.hirejohndougan_art.Ironswift.yml
+          cache-key: flatpak-${{ github.sha }}
+          upload-artifact: true
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, flatpak]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Gather files and checksums
+        run: |
+          mkdir dist
+          find artifacts -type f -exec cp {} dist/ \;
+          v=${GITHUB_REF_NAME#v}
+          [ -f dist/Ironswift.flatpak ] && mv dist/Ironswift.flatpak "dist/Ironswift-$v.flatpak"
+          (cd dist && rm -f SHA256SUMS && sha256sum * > SHA256SUMS)
+          ls -l dist
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.hirejohndougan_art.Ironswift</id>
+  <name>Ironswift</name>
+  <summary>A light web browser built from scratch in Rust</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Ironswift is a web browser with its own HTML, CSS and layout engine written from scratch
+    in Rust, the Boa JavaScript engine, built-in ad and tracker blocking, private windows and
+    no telemetry.</p>
+  </description>
+  <launchable type="desktop-id">ironswift.desktop</launchable>
+  <url type="homepage">https://github.com/hirejohndougan-art/lighteningfox</url>
+  <categories>
+    <category>Network</category>
+    <category>WebBrowser</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

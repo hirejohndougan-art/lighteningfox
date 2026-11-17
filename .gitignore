@@ -1,3 +1,6 @@
 /target
 /conformance
 /site-check
+/dist/
+/build-flatpak/
+/.flatpak-builder/

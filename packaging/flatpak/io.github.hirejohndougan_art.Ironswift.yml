@@ -1,0 +1,46 @@
+# Flatpak for Ironswift. It packages the program built by the release workflow
+# (dist/ironswift-linux-x86_64, made on Ubuntu 22.04, which runs on this runtime's newer glibc)
+# rather than compiling Rust inside the Flatpak build.
+#
+# By hand:
+#   cargo build --release && mkdir -p dist && cp target/release/ironswift dist/ironswift-linux-x86_64
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/flatpak/io.github.hirejohndougan_art.Ironswift.yml
+#   flatpak run io.github.hirejohndougan_art.Ironswift
+id: io.github.hirejohndougan_art.Ironswift
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: ironswift
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  # Downloads and "Save as PDF" go to the Downloads folder.
+  - --filesystem=xdg-download
+  # Opening a downloaded file or folder, and "set as default browser".
+  - --talk-name=org.freedesktop.portal.OpenURI
+  - --talk-name=org.freedesktop.Notifications
+  # The browser's own seccomp filter and sandboxed frame process work inside Flatpak's sandbox.
+modules:
+  - name: ironswift
+    buildsystem: simple
+    build-commands:
+      - install -D -m 755 ironswift-linux-x86_64 /app/bin/ironswift
+      - install -D -m 644 ironswift.desktop /app/share/applications/io.github.hirejohndougan_art.Ironswift.desktop
+      - sed -i 's/^Icon=.*/Icon=io.github.hirejohndougan_art.Ironswift/' /app/share/applications/io.github.hirejohndougan_art.Ironswift.desktop
+      - install -D -m 644 ironswift.metainfo.xml /app/share/metainfo/io.github.hirejohndougan_art.Ironswift.metainfo.xml
+      - sed -i 's|<id>.*</id>|<id>io.github.hirejohndougan_art.Ironswift</id>|; s|<launchable type="desktop-id">.*</launchable>|<launchable type="desktop-id">io.github.hirejohndougan_art.Ironswift.desktop</launchable>|' /app/share/metainfo/io.github.hirejohndougan_art.Ironswift.metainfo.xml
+      - for n in 16 24 32 48 64 128 256 512; do install -D -m 644 png/ironswift-$n.png /app/share/icons/hicolor/${n}x${n}/apps/io.github.hirejohndougan_art.Ironswift.png; done
+    sources:
+      - type: file
+        path: ../../dist/ironswift-linux-x86_64
+      - type: file
+        path: ../linux/ironswift.desktop
+      - type: file
+        path: ../linux/ironswift.metainfo.xml
+      - type: dir
+        path: ../../assets/icon/png
+        dest: png

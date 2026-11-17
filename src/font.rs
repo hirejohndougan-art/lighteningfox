@@ -200,7 +200,9 @@ impl Fonts {
         let mut files: Vec<Rc<FontVec>> = Vec::new();
         let mut slots = [0usize; 6];
         for (i, file) in FILES.iter().enumerate() {
-            let path = DIRS.iter().map(|d| format!("{d}/{file}")).find(|p| std::path::Path::new(p).exists());
+            // IRONSWIFT_FONT_DIR (set by the AppImage, which carries its own DejaVu) comes first.
+            let extra = std::env::var("IRONSWIFT_FONT_DIR").ok();
+            let path = extra.iter().map(String::as_str).chain(DIRS.iter().copied()).map(|d| format!("{d}/{file}")).find(|p| std::path::Path::new(p).exists());
             match path {
                 Some(p) => {
                     let bytes = std::fs::read(&p).map_err(|e| format!("{p}: {e}"))?;
