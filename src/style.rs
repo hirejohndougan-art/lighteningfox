@@ -91,6 +91,16 @@ pub enum BgImage {
     Radial { stops: Vec<(Color, Option<f32>)> },
 }
 
+/// object-fit: fill (stretch, the default), contain, cover, none, scale-down.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ObjectFit {
+    Fill,
+    Contain,
+    Cover,
+    None,
+    ScaleDown,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BgSize {
     Auto,
@@ -307,6 +317,10 @@ pub struct Style {
     pub border_line: u8,
     /// aspect-ratio (width / height), when set.
     pub aspect_ratio: Option<f32>,
+    /// object-fit for images: how the picture fills its box.
+    pub object_fit: ObjectFit,
+    /// object-position (x, y): where the picture sits in its box; 50% 50% by default.
+    pub object_position: (Len, Len),
     pub clip: bool,
     /// overflow: auto / scroll: the box scrolls its content instead of only clipping it.
     pub scrolls: bool,
@@ -390,6 +404,8 @@ impl Default for Style {
             opacity: 1.0,
             border_line: 0,
             aspect_ratio: None,
+            object_fit: ObjectFit::Fill,
+            object_position: (Len::Pct(50.0), Len::Pct(50.0)),
             fade: 1.0,
             clip: false,
             scrolls: false,
@@ -2045,6 +2061,16 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 st.opacity = n.clamp(0.0, 1.0);
             }
         }
+        "object-fit" => {
+            st.object_fit = match lower.as_str() {
+                "contain" => ObjectFit::Contain,
+                "cover" => ObjectFit::Cover,
+                "none" => ObjectFit::None,
+                "scale-down" => ObjectFit::ScaleDown,
+                _ => ObjectFit::Fill,
+            }
+        }
+        "object-position" => st.object_position = parse_bg_pos(&lower, fs),
         "aspect-ratio" => {
             // "16 / 9", "1.5", "auto 4/3" (auto is ignored: we use the ratio).
             let v = lower.replace("auto", "");

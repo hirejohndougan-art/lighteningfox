@@ -37,6 +37,8 @@ mod zoom;
 mod effects;
 mod anim;
 mod images;
+mod srcset;
+mod page_images;
 mod js;
 mod jsnest;
 mod jsmodules;
@@ -1413,6 +1415,7 @@ fn browser_main() {
 
 /// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
+    images::freeze_animations();
     geometry::set_viewport(width as f32, 768.0);
     let mut page = load(url);
     // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
@@ -1422,7 +1425,11 @@ fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout,
             page.restyle();
         }
     }
-    let lay = page.layout(fonts, width as f32, 768.0);
+    let mut lay = page.layout(fonts, width as f32, 768.0);
+    // Lazy images the first screen would show load before the snapshot.
+    if page.load_lazy_now(&lay, 768.0) {
+        lay = page.layout(fonts, width as f32, 768.0);
+    }
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
     canvas.clear(lay.page_bg);
@@ -2028,6 +2035,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;
             dirty = true;
+        }
+        // Images: lazy ones scrolling into reach, and animation frames (page_images.rs).
+        let it = page.images_tick(&lay, scroll, h.saturating_sub(bar_h()) as f32);
+        if it.relayout {
+            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+        }
+        if it.relayout || it.repaint {
+            page_version += 1;
+            dirty = true;
+            animating |= it.repaint;
         }
         if let Some(target) = js::take_navigation() {
             let target = net::resolve(&page.url, &target);
@@ -3404,7 +3421,7 @@ fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fon
     }
     let y = view_y + scroll;
     let image = lay.items.iter().rev().find_map(|it| match it {
-        paint::Item::Image { x, y: iy, w, h, src } if mx >= *x && mx < x + w && y >= *iy && y < iy + h && !src.starts_with("iframe:") => Some(src.clone()),
+        paint::Item::Image { x, y: iy, w, h, src, .. } if mx >= *x && mx < x + w && y >= *iy && y < iy + h && !src.starts_with("iframe:") => Some(src.clone()),
         _ => None,
     });
     if let Some(src) = image {
@@ -3758,6 +3775,7 @@ mod screenshot_tests {
         ("tests/transforms.html", 900),
         ("tests/history.html", 800),
         ("tests/webfonts.html", 900),
+        ("tests/images-modern.html", 1024),
         ("tests/text-shaping.html", 900),
         ("tests/vertical-align.html", 800),
         ("tests/margins.html", 760),

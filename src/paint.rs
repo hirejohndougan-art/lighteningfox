@@ -9,7 +9,9 @@ pub enum Item {
     Rect { x: f32, y: f32, w: f32, h: f32, color: Color },
     /// `y` is the text baseline.
     Text { x: f32, y: f32, text: String, font: u8, size: f32, color: Color },
-    Image { x: f32, y: f32, w: f32, h: f32, src: String },
+    /// An image filling its box. `view`, when set (object-fit), is where the whole picture
+    /// sits relative to the box (dx, dy, w, h); only the part inside the box is drawn.
+    Image { x: f32, y: f32, w: f32, h: f32, src: String, view: Option<Box<[f32; 4]>> },
     /// A background: color and/or image/gradient, clipped to rounded corners.
     Box { x: f32, y: f32, w: f32, h: f32, radius: f32, bg: Box<Background> },
     /// A uniform border following rounded corners.
@@ -274,6 +276,22 @@ impl Canvas {
         }
     }
 
+    /// Draw `img` at (x, y), only where it falls inside `clip` (x, y, w, h).
+    fn draw_image_clipped(&mut self, img: &image::RgbaImage, x: f32, y: f32, clip: (f32, f32, f32, f32)) {
+        let (x0, y0) = (x.round() as i32, y.round() as i32);
+        let (cx0, cy0, cx1, cy1) = self.span(clip.0, clip.1, clip.2, clip.3);
+        let (cx0, cy0) = (cx0.max(clip.0.round() as i32), cy0.max(clip.1.round() as i32));
+        let (cx1, cy1) = (cx1.min((clip.0 + clip.2).round() as i32), cy1.min((clip.1 + clip.3).round() as i32));
+        for py in cy0.max(y0)..cy1.min(y0 + img.height() as i32) {
+            for px in cx0.max(x0)..cx1.min(x0 + img.width() as i32) {
+                let [r, g, b, a] = img.get_pixel((px - x0) as u32, (py - y0) as u32).0;
+                if a > 0 {
+                    self.blend(px, py, Color { r, g, b, a }, 1.0);
+                }
+            }
+        }
+    }
+
     /// Pixel range covered by a box, clipped to the canvas.
     fn span(&self, x: f32, y: f32, w: f32, h: f32) -> (i32, i32, i32, i32) {
         (
@@ -524,10 +542,19 @@ impl Canvas {
                         self.stroke_ring(x + dx, y + dy, *w, *rh, *radius, *width, *color);
                     }
                 }
-                Item::Image { x, y, w, h: ih, src } => {
+                Item::Image { x, y, w, h: ih, src, view } => {
                     if y + dy + ih >= 0.0 && y + dy <= h {
-                        if let Some(img) = images.scaled(src, w.round() as u32, ih.round() as u32) {
-                            self.draw_image(&img, x + dx, y + dy);
+                        match view {
+                            None => {
+                                if let Some(img) = images.scaled(src, w.round() as u32, ih.round() as u32) {
+                                    self.draw_image(&img, x + dx, y + dy);
+                                }
+                            }
+                            Some(v) => {
+                                if let Some(img) = images.scaled(src, v[2].round() as u32, v[3].round() as u32) {
+                                    self.draw_image_clipped(&img, x + dx + v[0], y + dy + v[1], (x + dx, y + dy, *w, *ih));
+                                }
+                            }
                         }
                     }
                 }

@@ -91,7 +91,7 @@ impl Layout {
             .map(|it| match it {
                 Item::Rect { x, y, w, h, color } => Item::Rect { x: x * z, y: y * z, w: w * z, h: h * z, color: *color },
                 Item::Text { x, y, text, font, size, color } => Item::Text { x: x * z, y: y * z, text: text.clone(), font: *font, size: size * z, color: *color },
-                Item::Image { x, y, w, h, src } => Item::Image { x: x * z, y: y * z, w: w * z, h: h * z, src: src.clone() },
+                Item::Image { x, y, w, h, src, view } => Item::Image { x: x * z, y: y * z, w: w * z, h: h * z, src: src.clone(), view: view.as_ref().map(|v| Box::new(v.map(|c| c * z))) },
                 Item::Box { x, y, w, h, radius, bg } => {
                     let mut bg = bg.clone();
                     bg.pos = (len(bg.pos.0), len(bg.pos.1));
@@ -754,7 +754,7 @@ impl<'a> Ctx<'a> {
             Some((rw, rh)) => {
                 let src = self.replaced_src(id);
                 if !self.styles[id].hidden {
-                    self.items.push(Item::Image { x: cx, y: cy, w: rw, h: rh, src });
+                    self.push_image(id, cx, cy, rw, rh, src);
                 }
                 self.hits.push((Rect { x: cx, y: cy, w: rw, h: rh }, id));
                 (rh, 0.0)
@@ -2497,16 +2497,54 @@ impl<'a> Ctx<'a> {
         if self.dom.tag(id) == Some("iframe") {
             frame_key(self.dom, id)
         } else {
-            self.dom.attr(id, "src").unwrap_or("").trim().to_string()
+            // srcset / <picture> pick the picture (srcset.rs).
+            crate::srcset::current_src(self.dom, id).unwrap_or_default()
         }
     }
 
     /// Size of an <img> (or iframe): CSS width/height, else the width/height attributes, else
     /// the image's own size, keeping its aspect ratio; then shrunk to fit `max-width`.
+    /// An <img>'s own size in CSS px: its picture's pixel size divided by the srcset density.
+    fn image_size(&self, id: NodeId) -> Option<(f32, f32)> {
+        let (src, density) = crate::srcset::current(self.dom, id)?;
+        self.images.size(&src).map(|(w, h)| (w / density.max(1e-3), h / density.max(1e-3)))
+    }
+
+    /// Draw an image filling the box (x, y, w, h) as `object-fit` and `object-position` say,
+    /// clipped to the box when it spills over.
+    fn push_image(&mut self, id: NodeId, x: f32, y: f32, w: f32, h: f32, src: String) {
+        let st = &self.styles[id];
+        let (fit, pos) = (st.object_fit, st.object_position);
+        let natural = if self.dom.tag(id) == Some("img") { self.image_size(id) } else { None };
+        let Some((iw, ih)) = natural.filter(|_| fit != crate::style::ObjectFit::Fill).filter(|(a, b)| *a > 0.0 && *b > 0.0) else {
+            self.items.push(Item::Image { x, y, w, h, src, view: None });
+            return;
+        };
+        use crate::style::ObjectFit as F;
+        let contain = (w / iw).min(h / ih);
+        let s = match fit {
+            F::Contain => contain,
+            F::Cover => (w / iw).max(h / ih),
+            F::None => 1.0,
+            F::ScaleDown => contain.min(1.0),
+            F::Fill => 1.0,
+        };
+        let (dw, dh) = (iw * s, ih * s);
+        let place = |l: Len, free: f32| match l {
+            Len::Pct(p) => free * p / 100.0,
+            Len::Mix(px, p) => px + free * p / 100.0,
+            other => other.resolve(0.0),
+        };
+        let (ox, oy) = (place(pos.0, w - dw), place(pos.1, h - dh));
+        // The item keeps the element's box (for sizing and hit tests); the picture inside it
+        // is placed by `view` and cut off at the box.
+        self.items.push(Item::Image { x, y, w, h, src, view: Some(Box::new([ox, oy, dw, dh])) });
+    }
+
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {
         let st = &self.styles[id];
         // An iframe is 300×150 unless sized; its content doesn't change that.
-        let intrinsic = if self.dom.tag(id) == Some("iframe") { Some((300.0, 150.0)) } else { self.dom.attr(id, "src").and_then(|s| self.images.size(s.trim())) };
+        let intrinsic = if self.dom.tag(id) == Some("iframe") { Some((300.0, 150.0)) } else { self.image_size(id) };
         let attr = |a: &str| self.dom.attr(id, a).and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok());
         let w = match st.width {
             Len::Auto => attr("width"),
@@ -3075,7 +3113,8 @@ impl<'a> Ctx<'a> {
                         let loaded = src.as_deref().filter(|s| self.images.get(s).is_some());
                         if self.styles[*node].hidden {
                         } else if let Some(src) = loaded {
-                            self.items.push(Item::Image { x: r.x, y: r.y, w: r.w, h: r.h, src: src.to_string() });
+                            let src = src.to_string();
+                            self.push_image(*node, r.x, r.y, r.w, r.h, src);
                         } else {
                             let c = Color { r: 200, g: 200, b: 200, a: 255 };
                             self.items.push(Item::Rect { x: r.x, y: r.y, w: r.w, h: r.h, color: c });

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html><head><title>Images: formats, object-fit, srcset</title>
+<style>
+body { font: 14px sans-serif; margin: 16px; }
+h2 { font-size: 15px; margin: 14px 0 6px; }
+.row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+figure { margin: 0; font-size: 12px; text-align: center; }
+.fit { width: 130px; height: 100px; background: #e5e7eb; border: 1px solid #94a3b8; display: block; }
+.svgbg { width: 240px; height: 60px; background: url(img/logo.svg) 0 0 / 60px 30px repeat; border: 1px solid #94a3b8; }
+</style></head>
+<body>
+<h2>Formats: SVG (drawn at 2× its size, still sharp), AVIF, animated GIF and WebP</h2>
+<div class="row">
+  <img src="img/logo.svg" width="240" height="120">
+  <img src="img/landscape.avif" width="200">
+  <img src="img/spin.gif"> <img src="img/spin.webp">
+  <div class="svgbg"></div>
+</div>
+<h2>object-fit: fill, contain, cover, none, scale-down, cover + object-position: left top</h2>
+<div class="row">
+  <figure><img class="fit" src="img/landscape.png">fill</figure>
+  <figure><img class="fit" src="img/landscape.png" style="object-fit: contain">contain</figure>
+  <figure><img class="fit" src="img/landscape.png" style="object-fit: cover">cover</figure>
+  <figure><img class="fit" src="img/landscape.png" style="object-fit: none">none</figure>
+  <figure><img class="fit" src="img/landscape.png" style="object-fit: scale-down">scale-down</figure>
+  <figure><img class="fit" src="img/landscape.png" style="object-fit: cover; object-position: left top">left top</figure>
+</div>
+<h2>srcset and &lt;picture&gt; (window is 1024px wide)</h2>
+<div class="row">
+  <figure><img srcset="img/size160.png 160w, img/size320.png 320w, img/size640.png 640w" sizes="300px" src="img/size160.png">sizes=300px → 320w</figure>
+  <figure><img srcset="img/size160.png 160w, img/size320.png 320w, img/size640.png 640w" sizes="(max-width: 500px) 100px, 50vw">50vw → 640w</figure>
+  <figure><picture>
+    <source srcset="img/size160.png" media="(max-width: 600px)">
+    <source srcset="img/missing.jxl" type="image/jxl">
+    <source srcset="img/size640.png" media="(min-width: 601px)">
+    <img src="img/size320.png" width="160">
+  </picture><br>picture → 640 (wide window)</figure>
+</div>
+<h2>Lazy loading: the image just below loads (near the window); one far down the page doesn't</h2>
+<img loading="lazy" src="img/landscape.jpg" width="200" height="100">
+<div style="height: 3000px"></div>
+<img loading="lazy" src="img/never-requested.png" width="200" height="100" alt="far away">
+</body></html>
