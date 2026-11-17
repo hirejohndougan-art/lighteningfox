@@ -25,7 +25,8 @@ Status values: `free`, `claimed by …`, `done`, `blocked: <reason>`, `not for c
 ## Checklist tasks you can start now
 
 ### T01. A real box tree
-**Status:** claimed by chat-opus-a 2026-11-17 04:50
+**Status:** done
+**Left undone:** anonymous table objects (CSS 2 §17.2.1: stray cells/rows get no anonymous table wrapper yet); floats beside text still end an inline run instead of sitting in the anonymous block's lines (kept as layout did before); `counter-reset: list-item` scopes inside lists and a few reversed-list counter edge cases (WPT li-value-reversed-005/020/023–030).
 **After:** —
 **Checklist:** §5 "A real box tree (layout tree separate from the DOM)"
 **Files:** `src/layout.rs` (split into new `src/boxtree.rs`), `src/paint.rs` callers
