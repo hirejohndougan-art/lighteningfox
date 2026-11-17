@@ -113,7 +113,7 @@ Left undone:
 - §3 Clicking and scrolling inside an `<iframe>`
 
 ## G. JavaScript APIs, part 1
-**Status:** claimed by jsapi-chat 2026-11-17 02:25
+**Status:** done
 **Start after:** —
 **Main files:** `src/js.rs`, `src/prelude.js` (add new APIs in new `src/*.js` files where possible)
 
@@ -123,6 +123,12 @@ Left undone:
 - §9 Keyboard, mouse, scroll, focus, input and form events from the user
 - §9 Promises and `async`/`await` tied to network and timers (check what's missing; may already work)
 - §9 Developer console: show errors and run JavaScript
+
+Left undone in G:
+- Import maps (`<script type=importmap>`): bare specifiers like `"react"` still fail to load. Needs its own small task.
+- Custom elements: customized built-ins (`is="…"`, which Safari also lacks), the `:defined` CSS selector (style.rs, batch K's file), `adoptedCallback`, and ElementInternals beyond the basics (ARIA, form validation). WPT custom-elements: 156/745 subtests. Most of the rest are ElementInternals ARIA tests and tests that use iframes.
+- The browser still fires `click` on mouse press, so the order is mousedown → click → mouseup. Moving click to release would change how every page click behaves, so I left it. `dblclick` and `contextmenu` aren't fired yet.
+- Developer console: it runs in the about:devtools snapshot page. There's no live-updating log, no autocomplete and no docked panel.
 
 ## H. JavaScript APIs, part 2
 **Status:** claimed by netapi-chat 2026-11-17 02:22
