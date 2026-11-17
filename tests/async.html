@@ -1,0 +1,20 @@
+<!doctype html><html><body><div id=log></div>
+<script>
+const log = (s) => { document.getElementById('log').textContent += s + ';'; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+log('start');
+(async () => {
+  await null; log('microtask');
+  await sleep(20); log('timer');
+  const r = await fetch('data.json'); const j = await r.json(); log('fetch ' + Object.keys(j).length);
+  const t = await (await fetch('data.json')).text(); log('text ' + (t.length > 0));
+  try { await fetch('missing-file-xyz.json').then((r) => { if (!r.ok) throw new Error('status ' + r.status); }); } catch (e) { log('caught'); }
+  const all = await Promise.all([sleep(5).then(() => 1), Promise.resolve(2)]); log('all ' + all.join(','));
+  log('done');
+})();
+setTimeout(() => log('t0'), 0);
+Promise.resolve().then(() => log('then'));
+addEventListener('unhandledrejection', (e) => { log('unhandled ' + e.reason); e.preventDefault(); });
+Promise.reject('oops');
+log('sync end');
+</script></body></html>

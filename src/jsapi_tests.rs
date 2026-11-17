@@ -95,3 +95,12 @@ fn user_events() {
          focus true false;focusin;keydown a KeyA true;keydown x KeyX true;wheel 45;"
     );
 }
+
+#[test]
+fn promises_with_timers_and_network() {
+    let _page = open("tests/async.html");
+    assert_eq!(
+        text_of("log"),
+        "start;sync end;microtask;then;unhandled oops;t0;timer;fetch 2;text true;caught;all 1,2;done;"
+    );
+}

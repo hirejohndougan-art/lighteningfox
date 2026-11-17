@@ -139,6 +139,20 @@
     }
   };
 
+  // A promise was rejected and nothing handled it by the end of the task. Returns true if
+  // the error should still be reported (the page didn't call preventDefault()).
+  if (!g.PromiseRejectionEvent) {
+    g.PromiseRejectionEvent = class PromiseRejectionEvent extends Event {
+      constructor(type, init = {}) { super(type, init); this.promise = init.promise; this.reason = init.reason; }
+    };
+  }
+  g.__unhandledRejection = function (promise, reason) {
+    const ev = new g.PromiseRejectionEvent("unhandledrejection", { cancelable: true, promise, reason });
+    Object.defineProperty(ev, "isTrusted", { value: true });
+    EventTarget.prototype.__fire.call(g, ev);
+    return !ev.defaultPrevented;
+  };
+
   // After each layout: scroll and resize events, then observers (IntersectionObserver…).
   let lastScroll = null, lastSize = null;
   const hooks = (g.__layoutHooks ||= []);

@@ -96,7 +96,29 @@ fn page_ctx<R>(ctx: &Context, f: impl FnOnce(&PageCtx) -> R) -> Option<R> {
 /// is only allowed when the page's Content Security Policy allows it.
 struct Hooks;
 
+thread_local! {
+    /// Promises rejected with no handler yet; reported (unhandledrejection) after the
+    /// current task's microtasks have run, unless a handler is added by then.
+    static REJECTED: RefCell<Vec<boa_engine::JsObject<boa_engine::builtins::promise::Promise>>> = const { RefCell::new(Vec::new()) };
+}
+
 impl boa_engine::context::HostHooks for Hooks {
+    fn promise_rejection_tracker(
+        &self,
+        promise: &boa_engine::JsObject<boa_engine::builtins::promise::Promise>,
+        operation: boa_engine::builtins::promise::OperationType,
+        _context: &mut Context,
+    ) {
+        use boa_engine::builtins::promise::OperationType;
+        REJECTED.with(|r| {
+            let mut r = r.borrow_mut();
+            match operation {
+                OperationType::Reject => r.push(promise.clone()),
+                OperationType::Handle => r.retain(|p| !boa_engine::JsObject::equals(p, promise)),
+            }
+        });
+    }
+
     fn ensure_can_compile_strings(
         &self,
         _realm: boa_engine::realm::Realm,
@@ -1253,6 +1275,7 @@ impl Js {
         let t = Instant::now();
         let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
         let _ = self.ctx.run_jobs();
+        self.report_rejections();
         self.stats.script_time += t.elapsed();
         match r {
             Ok(v) => Some(v),
@@ -1299,6 +1322,33 @@ impl Js {
         self.eval(&format!("__pointerMove({id}, {x}, {y}, {init})"), "mousemove");
     }
 
+    /// Fire unhandledrejection for promises rejected with no handler during this task.
+    fn report_rejections(&mut self) {
+        for _ in 0..8 {
+            let list = REJECTED.with(|r| std::mem::take(&mut *r.borrow_mut()));
+            if list.is_empty() {
+                return;
+            }
+            for p in list {
+                let Ok(jp) = boa_engine::object::builtins::JsPromise::from_object(p.clone().upcast()) else { continue };
+                let reason = match jp.state() {
+                    boa_engine::builtins::promise::PromiseState::Rejected(v) => v,
+                    _ => continue,
+                };
+                let f = self.ctx.global_object().get(js_string!("__unhandledRejection"), &mut self.ctx).ok();
+                let shown = f.as_ref().and_then(|f| f.as_callable()).and_then(|f| {
+                    f.call(&JsValue::undefined(), &[JsValue::from(p.clone().upcast()), reason.clone()], &mut self.ctx).ok()
+                });
+                let _ = self.ctx.run_jobs();
+                if shown.is_none_or(|v| v.to_boolean()) {
+                    self.stats.errors += 1;
+                    let msg = reason.to_string(&mut self.ctx).map(|s| s.to_std_string_escaped()).unwrap_or_default();
+                    log!("[js error] Uncaught (in promise): {msg}");
+                }
+            }
+        }
+    }
+
     /// Call a global function by name without parsing any code.
     fn call_global(&mut self, name: &str, args: &[JsValue]) -> Option<JsValue> {
         let t = Instant::now();
@@ -1306,6 +1356,7 @@ impl Js {
         let f = f.as_callable()?;
         let r = f.call(&JsValue::undefined(), args, &mut self.ctx);
         let _ = self.ctx.run_jobs();
+        self.report_rejections();
         self.stats.script_time += t.elapsed();
         match r {
             Ok(v) => Some(v),
