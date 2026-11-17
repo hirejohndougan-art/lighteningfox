@@ -331,7 +331,19 @@ the media bytes through a pipe instead of a temp file, and lock the decoders dow
 parse untrusted files: no network, no writing, read-only system files). Sound is played by the
 browser. Check with `tools/site_process_check.py media.html` and `cargo test --release media`.
 ### X9. Geolocation in Flatpak and with site isolation
-**Status:** claimed by chat-mseX17 2026-11-17 15:45
+**Status:** done
+**Result:** `geo.rs` falls back to `org.freedesktop.portal.Location` (session bus) inside Flatpak
+or when the system bus or GeoClue can't be reached; tested against a pretend portal over a socket
+pair (`geo::tests::talks_to_the_location_portal`, including the user saying no). Pages in site
+processes get positions from the browser process through `geo_relay.rs` (`geo_start`/`geo_stop`/
+`geo_gone`/`geo_poll`, checked against the browser's permission list and the process's pages);
+tested end to end with a real sandboxed renderer. The Flatpak manifest needs no finish-arg for the
+portal (always reachable; Flathub rejects `--talk-name` for portals): a comment says so. No WPT
+change (geolocation WPTs need a permission prompt to be answered).
+**Left undone:** permission *prompts* from site processes aren't forwarded to the window (for any
+permission: location, notifications, camera, microphone), and a site process reads
+`permissions.tsv` once when it starts. So with site isolation on, only sites allowed beforehand get
+a position; a new request waits forever. Not tried on a real Flatpak or a real portal (none here).
 **After:** —
 **Checklist:** none
 **Files:** `src/geo.rs`, the location parts of `src/process.rs`, `packaging/flatpak/`
