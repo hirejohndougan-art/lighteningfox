@@ -78,7 +78,7 @@ rust-lang.org and WordPress.org render badly. Start with the crash. Find the cau
 fix it in the engine (no site-specific hacks), and add a small test page for each cause.
 
 ### X2. Binary bodies in `fetch()`
-**Status:** free
+**Status:** claimed by chat-opus-x2 2026-11-17 05:00
 **After:** —
 **Checklist:** none
 **Files:** the fetch parts of `src/js.rs` / `src/prelude.js`, `src/net.rs`
