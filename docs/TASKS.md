@@ -101,7 +101,7 @@ first screenful and has no script errors of its own (ads and trackers missing is
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
 
 ### X1b. Make the New York Times render like Chrome
-**Status:** free
+**Status:** claimed by chat-opus-x1b 2026-11-17 13:03
 **After:** —
 **Checklist:** none
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
