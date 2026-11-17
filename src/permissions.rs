@@ -17,6 +17,8 @@ pub enum Kind {
     Microphone,
     Location,
     Notifications,
+    /// Reading what you copied (navigator.clipboard.readText).
+    ClipboardRead,
 }
 
 impl Kind {
@@ -26,6 +28,7 @@ impl Kind {
             "microphone" | "audio" => Kind::Microphone,
             "geolocation" | "location" => Kind::Location,
             "notifications" | "notification" => Kind::Notifications,
+            "clipboard-read" => Kind::ClipboardRead,
             _ => return None,
         })
     }
@@ -36,6 +39,7 @@ impl Kind {
             Kind::Microphone => "microphone",
             Kind::Location => "geolocation",
             Kind::Notifications => "notifications",
+            Kind::ClipboardRead => "clipboard-read",
         }
     }
 
@@ -45,6 +49,7 @@ impl Kind {
             Kind::Microphone => "wants to use your microphone",
             Kind::Location => "wants to know your location",
             Kind::Notifications => "wants to show notifications",
+            Kind::ClipboardRead => "wants to see what you copied",
         }
     }
 }

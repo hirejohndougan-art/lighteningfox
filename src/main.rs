@@ -55,6 +55,8 @@ mod jsapi_tests;
 mod layout;
 mod library;
 mod cache;
+mod channels;
+mod clipboard;
 mod downloads;
 mod entities;
 mod conformance;
@@ -67,6 +69,8 @@ mod text;
 mod blocklist;
 mod permissions;
 mod updates;
+mod websocket;
+mod worker;
 mod sandbox;
 mod tiles;
 #[cfg(feature = "gpu")]

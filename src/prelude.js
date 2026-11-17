@@ -803,6 +803,8 @@
   // Kept for older callers: run everything that's due in one go.
   g.__tick = function (now) { let n = 0; while (n < 1000 && g.__runTask(now)) n++; return n; };
   g.__pendingTimers = () => timers.size;
+  // The same, counting repeating timers too (a worker sleeps until then).
+  g.__nextTimerAny = () => { let m = -1; for (const t of timers.values()) if (m < 0 || t.due < m) m = t.due; return m < 0 ? -1 : Math.max(0, m - __nowMs); };
 
   // Called from Rust when a node is clicked. Returns true if the default action should run.
   g.__dispatch = function (id, type) {
@@ -1586,6 +1588,7 @@
       if (!__permRequest(id, kind)) { permWaiters.delete(id); res(false); }
     });
   }
+  g.__permAskPublic = (kind) => permAsk(kind);
   g.__permDone = function (id, granted) {
     const r = permWaiters.get(id);
     permWaiters.delete(id);

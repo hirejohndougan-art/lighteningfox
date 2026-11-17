@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Workers, WebSockets and the clipboard</title>
+<style>
+  body { font: 16px sans-serif; margin: 20px; }
+  li { margin: 4px 0; }
+  .pass { color: #0a7d32; } .fail { color: #b00020; }
+</style>
+<h1>Workers, WebSockets, clipboard</h1>
+<p>Each line turns green when that feature works. WebSocket lines need an echo server at
+<code>ws://127.0.0.1:8765/</code> (<code>python3 tools/ws_echo.py</code>).</p>
+<ul id="out"></ul>
+<script>
+  const out = document.getElementById("out");
+  const rows = {};
+  function row(name) { const li = document.createElement("li"); li.textContent = name + ": waiting"; li.className = "fail"; out.appendChild(li); rows[name] = li; }
+  function pass(name, detail) { rows[name].textContent = name + ": ok" + (detail ? " (" + detail + ")" : ""); rows[name].className = "pass"; console.log("PASS " + name); }
+  function fail(name, why) { rows[name].textContent = name + ": " + why; console.log("FAIL " + name + ": " + why); }
+  ["worker from a file", "worker from a blob", "structured clone", "worker errors", "nested worker",
+   "WebSocket text", "WebSocket binary", "WebSocket close", "clipboard"].forEach(row);
+
+  const w = new Worker("worker-echo.js");
+  w.onmessage = (e) => {
+    const d = e.data;
+    if (d.kind === "echo") {
+      const ok = d.value.date instanceof Date && d.value.date.getTime() === 86400000 && d.value.map instanceof Map &&
+        d.value.map.get("k") === 7 && d.value.bytes instanceof Uint8Array && d.value.bytes[2] === 3 && d.value.self === d.value;
+      ok ? pass("structured clone") : fail("structured clone", JSON.stringify(d));
+      d.inWorker === "undefined,object" ? pass("worker from a file", "no document, has self") : fail("worker from a file", d.inWorker);
+    } else if (d.kind === "nested") {
+      d.value === 6 ? pass("nested worker") : fail("nested worker", String(d.value));
+    }
+  };
+  w.onerror = (e) => { e.preventDefault(); /^.*boom/.test(e.message) ? pass("worker errors", e.message) : fail("worker errors", e.message); };
+  const v = { date: new Date(86400000), map: new Map([["k", 7]]), bytes: new Uint8Array([1, 2, 3]) };
+  v.self = v;
+  w.postMessage({ kind: "echo", value: v });
+  w.postMessage({ kind: "nested" });
+  w.postMessage({ kind: "throw" });
+
+  const blob = new Blob(["onmessage = (e) => postMessage(e.data.split('').reverse().join(''));"], { type: "text/javascript" });
+  const bw = new Worker(URL.createObjectURL(blob));
+  bw.onmessage = (e) => e.data === "olleh" ? pass("worker from a blob") : fail("worker from a blob", e.data);
+  bw.postMessage("hello");
+
+  try {
+    const ws = new WebSocket("ws://127.0.0.1:8765/");
+    ws.binaryType = "arraybuffer";
+    let step = 0;
+    ws.onopen = () => ws.send("ping ✓");
+    ws.onmessage = (e) => {
+      if (step === 0) { e.data === "ping ✓" ? pass("WebSocket text") : fail("WebSocket text", String(e.data)); step++; ws.send(new Uint8Array([9, 8, 7])); }
+      else if (step === 1) { const b = new Uint8Array(e.data); b.length === 3 && b[0] === 9 ? pass("WebSocket binary") : fail("WebSocket binary", String(b)); step++; ws.close(1000, "done"); }
+    };
+    ws.onclose = (e) => e.code === 1000 && e.wasClean ? pass("WebSocket close", "code " + e.code) : fail("WebSocket close", "code " + e.code);
+    ws.onerror = () => fail("WebSocket text", "couldn't connect");
+  } catch (e) { fail("WebSocket text", String(e)); }
+
+  // Without a click, writing must be refused.
+  navigator.clipboard.writeText("sneaky").then(() => fail("clipboard", "wrote without a click"),
+    (e) => e.name === "NotAllowedError" ? pass("clipboard", "refused without a click") : fail("clipboard", e.name));
+</script>

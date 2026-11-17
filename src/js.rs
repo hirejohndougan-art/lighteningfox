@@ -55,17 +55,19 @@ pub struct PageCtx {
     pub policy: std::sync::Arc<crate::security::PagePolicy>,
     /// Handler attribute code a policy allowed, waiting for `new Function` to compile it.
     approved: Vec<String>,
+    /// This page's script engine (see `EPOCH`); its background results are tagged with it.
+    pub epoch: u64,
 }
 
 impl PageCtx {
     /// A sandboxed frame without allow-same-origin has an opaque origin: no cookies or storage,
     /// and it counts as a stranger to every site.
-    fn opaque(&self) -> bool {
+    pub(crate) fn opaque(&self) -> bool {
         self.sandbox.as_ref().is_some_and(|s| !s.same_origin)
     }
 
     /// The URL to use as "the page" for network rules.
-    fn net_page(&self) -> String {
+    pub(crate) fn net_page(&self) -> String {
         if self.opaque() { "about:sandbox".into() } else { self.url.clone() }
     }
 
@@ -88,7 +90,7 @@ impl PageCtx {
     }
 }
 
-fn page_ctx<R>(ctx: &Context, f: impl FnOnce(&PageCtx) -> R) -> Option<R> {
+pub(crate) fn page_ctx<R>(ctx: &Context, f: impl FnOnce(&PageCtx) -> R) -> Option<R> {
     ctx.get_data::<RefCell<PageCtx>>().map(|p| f(&p.borrow()))
 }
 
@@ -269,7 +271,7 @@ fn arg_id(args: &[JsValue], i: usize, ctx: &mut Context) -> JsResult<i64> {
     Ok(arg(args, i).to_number(ctx)? as i64)
 }
 
-fn arg_str(args: &[JsValue], i: usize, ctx: &mut Context) -> JsResult<String> {
+pub(crate) fn arg_str(args: &[JsValue], i: usize, ctx: &mut Context) -> JsResult<String> {
     Ok(arg(args, i).to_string(ctx)?.to_std_string_escaped())
 }
 
@@ -805,7 +807,7 @@ fn n_page_url(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
 }
 
 /// JSON string literal (also valid JavaScript).
-fn json_str(s: &str, out: &mut String) {
+pub(crate) fn json_str(s: &str, out: &mut String) {
     out.push('"');
     for c in s.chars() {
         match c {
@@ -894,7 +896,8 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         return Ok(JsValue::from(JsString::from(response_js(&r))));
     }
     NET_IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let epoch = EPOCH.load(std::sync::atomic::Ordering::SeqCst);
+    // Tag the result with the page that asked (a worker has its own engine and epoch).
+    let epoch = page_ctx(ctx, |p| p.epoch).unwrap_or_else(|| EPOCH.load(std::sync::atomic::Ordering::SeqCst));
     std::thread::spawn(move || {
         let r = run();
         if let Ok(mut q) = NET_DONE.lock() {
@@ -1028,7 +1031,12 @@ fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 
 /// True while any background request is still running or waiting to be delivered.
 pub fn network_busy() -> bool {
-    NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
+    NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false) || crate::channels::busy()
+}
+
+/// Is a user's click being handled right now (transient activation)?
+pub(crate) fn user_activated() -> bool {
+    ACTIVATION.with(Cell::get)
 }
 
 fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -1147,7 +1155,61 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 
+impl Drop for Js {
+    fn drop(&mut self) {
+        crate::channels::page_gone(self.epoch);
+    }
+}
+
 impl Js {
+    /// The script engine for a Web Worker, on the worker's own thread. `url` is the origin it
+    /// acts for, `script_url` where its script came from (shown as `location`).
+    pub fn for_worker(url: &str, script_url: &str, top: &str, policy: std::sync::Arc<crate::security::PagePolicy>, name: &str) -> Js {
+        let mut js = Js::with_policy(url, policy);
+        if let Some(p) = js.ctx.get_data::<RefCell<PageCtx>>() {
+            p.borrow_mut().top = top.to_string();
+        }
+        let mut code = String::from("globalThis.name = ");
+        json_str(name, &mut code);
+        if !script_url.starts_with("blob:") {
+            code.push_str("; __url = ");
+            json_str(script_url, &mut code);
+        }
+        js.eval(&code, "worker setup");
+        js
+    }
+
+    /// Run a script; an uncaught exception comes back as its message.
+    pub(crate) fn run_code(&mut self, code: &str, label: &str) -> Result<(), String> {
+        let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
+        let _ = self.ctx.run_jobs();
+        r.map(|_| ()).map_err(|e| {
+            self.stats.errors += 1;
+            log!("[js error] {label}: {e}");
+            e.to_string()
+        })
+    }
+
+    /// Why a script doesn't parse, if it doesn't.
+    pub(crate) fn syntax_error(&mut self, code: &str) -> Option<String> {
+        boa_engine::Script::parse(Source::from_bytes(code.as_bytes()), None, &mut self.ctx).err().map(|e| e.to_string())
+    }
+
+    /// Milliseconds until the next timer is due (-1 if none).
+    pub(crate) fn next_timer_ms(&mut self) -> f64 {
+        let now = self.start.elapsed().as_secs_f64() * 1000.0;
+        self.ctx.global_object().set(js_string!("__nowMs"), JsValue::from(now), false, &mut self.ctx).ok();
+        self.eval("__nextTimerAny()", "timers").and_then(|v| v.to_number(&mut self.ctx).ok()).unwrap_or(-1.0)
+    }
+
+    /// A worker's message from its page (a structured-clone string).
+    pub(crate) fn deliver_message(&mut self, json: &str) {
+        let mut code = String::from("__wMessage(");
+        json_str(json, &mut code);
+        code.push(')');
+        self.eval(&code, "worker message");
+    }
+
     pub fn new(url: &str) -> Js {
         let policy = crate::security::policy_for(url).unwrap_or_default();
         Js::with_policy(url, policy)
@@ -1167,7 +1229,7 @@ impl Js {
             (Some(a), Some(b)) => Some(a.and(b)),
             (a, b) => a.clone().or_else(|| b.clone()),
         };
-        ctx.insert_data(RefCell::new(PageCtx { url: url.to_string(), top: frame.map_or_else(|| url.to_string(), |f| f.top), sandbox, policy, approved: Vec::new() }));
+        ctx.insert_data(RefCell::new(PageCtx { url: url.to_string(), top: frame.map_or_else(|| url.to_string(), |f| f.top), sandbox, policy, approved: Vec::new(), epoch }));
         // Keep runaway scripts from freezing the browser.
         ctx.runtime_limits_mut().set_loop_iteration_limit(200_000_000);
         ctx.runtime_limits_mut().set_recursion_limit(2_000);
@@ -1262,6 +1324,7 @@ impl Js {
                 log!("[ironswift] {file} failed: {e}");
             }
         }
+        crate::channels::install(&mut ctx);
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
 
@@ -1526,7 +1589,7 @@ impl Js {
                 .and_then(|v| v.to_number(&mut self.ctx).ok())
                 .is_some_and(|ms| (0.0..=500.0).contains(&ms));
             let more_frames = frames < 30 && self.wants_frame();
-            if !network_busy() && !soon && !more_frames || t.elapsed() >= max {
+            if !network_busy() && !crate::channels::settling() && !soon && !more_frames || t.elapsed() >= max {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -1546,10 +1609,15 @@ impl Js {
                 mine
             })
             .unwrap_or_default();
-        let delivered = !done.is_empty();
+        let mut delivered = !done.is_empty();
         for (_, id, r) in done {
             let code = format!("__netDone({id}, {})", response_js(&r));
             self.eval(&code, "network");
+        }
+        // Messages from workers, WebSocket traffic.
+        for code in crate::channels::take_events(epoch) {
+            self.eval(&code, "worker/socket event");
+            delivered = true;
         }
         delivered | self.tick_timers()
     }
