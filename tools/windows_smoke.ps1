@@ -13,6 +13,10 @@ public static class Mouse {
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
   public static void Click(int x, int y) { SetCursorPos(x, y); mouse_event(2, 0, 0, 0, IntPtr.Zero); mouse_event(4, 0, 0, 0, IntPtr.Zero); }
 }
@@ -47,17 +51,29 @@ Remove-Item Env:IRONSWIFT_EXIT_AFTER_FIRST_FRAME
 Write-Output "first-frame run: $first"
 
 # 2. The window itself.
+# Out of the way: the runner's own console windows would cover the browser.
+(New-Object -ComObject Shell.Application).MinimizeAll()
+Start-Sleep -Seconds 1
 $page = Resolve-Path "tests\forms.html"
 $p = Start-Process -FilePath $exe -ArgumentList "`"$page`"" -PassThru -RedirectStandardError "win-stderr.txt" -RedirectStandardOutput "win-stdout.txt"
 Start-Sleep -Seconds 12
-$shell = New-Object -ComObject WScript.Shell
-$null = $shell.AppActivate($p.Id)
+$p.Refresh()
+$h = $p.MainWindowHandle
+Write-Output "browser window handle: $h (title: $($p.MainWindowTitle))"
+if ($h -eq [IntPtr]::Zero) { Write-Output "NO BROWSER WINDOW"; Stop-Process -Id $p.Id -Force; exit 1 }
+# Windows only lets the foreground program hand over the foreground; a tap of Alt counts as
+# user input, which lifts that restriction for SetForegroundWindow.
+[Mouse]::ShowWindow($h, 9) | Out-Null
+[Mouse]::keybd_event(0x12, 0, 0, [IntPtr]::Zero); [Mouse]::keybd_event(0x12, 0, 2, [IntPtr]::Zero)
+[Mouse]::BringWindowToTop($h) | Out-Null
+[Mouse]::SetForegroundWindow($h) | Out-Null
 Start-Sleep -Seconds 1
+Write-Output "foreground is the browser: $([Mouse]::GetForegroundWindow() -eq $h)"
 Shot "1-loaded"
 
-# 3. Click the first text field ("Your name") and type into it.
+# 3. Tab to the first text field ("Your name") and type into it.
 $r = New-Object Mouse+RECT
-$null = [Mouse]::GetWindowRect([Mouse]::GetForegroundWindow(), [ref]$r)
+$null = [Mouse]::GetWindowRect($h, [ref]$r)
 Write-Output "window rect: $($r.Left),$($r.Top) - $($r.Right),$($r.Bottom)"
 [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
 Start-Sleep -Milliseconds 500
@@ -83,6 +99,7 @@ if ($alive) { Stop-Process -Id $p.Id -Force }
 Start-Sleep -Seconds 1
 Write-Output "----- browser output -----"
 Get-Content "win-stdout.txt", "win-stderr.txt" -ErrorAction SilentlyContinue | Select-Object -First 80
+if ([Mouse]::GetForegroundWindow() -ne $h -and $alive) { Write-Output "warning: the browser lost the foreground during the test" }
 if (-not $alive) { Write-Output "BROWSER EXITED EARLY (exit code $($p.ExitCode))"; exit 1 }
 if ($first -notmatch "first frame on screen after") { Write-Output "NO FIRST FRAME"; exit 1 }
 Write-Output "window test passed"
