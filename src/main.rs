@@ -50,6 +50,7 @@ mod grid;
 mod html;
 mod http;
 mod record;
+mod dynscripts;
 mod hsts;
 mod tokenizer;
 mod a11y;
@@ -536,7 +537,7 @@ impl Page {
         if (cw, ch) != self.styled_for {
             self.styled_for = (cw, ch);
             css::set_viewport(cw, ch);
-            if self.sheets.iter().any(|s| s.rules.iter().any(|r| r.media.is_some())) {
+            if self.sheets.iter().any(css::depends_on_viewport) || js::with_dom(css::inline_viewport_units) {
                 self.restyle();
             }
         }
@@ -996,6 +997,7 @@ fn refused_frame(w: u32, h: u32) -> image::RgbaImage {
 fn draw_frame(prepared: Prepared, fonts: &'static Fonts, w: u32, h: u32) -> Option<image::RgbaImage> {
     // (Set after preparing: nested frames rendered meanwhile use their own size.)
     geometry::set_viewport(w as f32, h as f32);
+    css::set_viewport(w as f32, h as f32); // vw/vh and @media while scripts run at load
     let mut page = build_page(prepared);
     if let Some(js) = page.js.as_mut() {
         js.settle(std::time::Duration::from_millis(1500));
@@ -1399,6 +1401,7 @@ fn browser_main() {
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
     images::freeze_animations();
     geometry::set_viewport(width as f32, 768.0);
+    css::set_viewport(width as f32, 768.0); // vw/vh and @media while scripts run at load
     let mut page = load(url);
     // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
     if let Some(js) = page.js.as_mut() {
@@ -1924,6 +1927,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut last_spin = Instant::now();
     let (mut w, mut h) = window.get_size();
     geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
+    css::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32); // vw/vh and @media while scripts run at load
     let mut page = load(start);
     crashlog::set_url(&page.url);
     library::visit(&page.url, &page.title);

@@ -939,6 +939,8 @@
   };
   const consoleFn = (level) => (...a) => __log(level, a.map((x) => {
     if (typeof x === "string") return x;
+    // Errors have no enumerable fields (JSON gives "{}"): show "Name: message" and where.
+    if (x instanceof Error) return String(x) + (x.stack ? "\n" + String(x.stack).split("\n").slice(0, 4).join("\n") : "");
     try { return JSON.stringify(x) ?? String(x); } catch { return String(x); }
   }).join(" "));
 

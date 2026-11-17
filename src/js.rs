@@ -445,8 +445,32 @@ fn n_insert(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
     if let (Some(p), Some(c)) = (valid(p), valid(c)) {
         let before = valid(b);
         with_dom_mut(|d| d.insert(p, c, before));
+        // Scripts the page adds itself: inline ones run now, external ones on the next tick.
+        for id in with_dom(|d| crate::dynscripts::inserted(d, c)) {
+            run_inserted_inline(id, ctx);
+        }
     }
     Ok(JsValue::undefined())
+}
+
+/// Run an inline `<script>` a page just inserted, as the insertion's last step.
+fn run_inserted_inline(id: NodeId, ctx: &mut Context) {
+    let (code, ty, nonce) = with_dom(|d| (d.text_content(id), d.attr(id, "type").unwrap_or("").to_ascii_lowercase(), d.attr(id, "nonce").map(String::from)));
+    let ty = ty.trim();
+    if !(ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript")) {
+        return; // data blocks; inserted inline modules aren't run here
+    }
+    let policy = page_ctx(ctx, |p| p.policy.clone());
+    if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &code, nonce.as_deref())) {
+        return;
+    }
+    let prev = CURRENT_SCRIPT.with(|c| c.replace(id as i64));
+    let _ = ctx.global_object().set(js_string!("__currentScript"), JsValue::from(id as f64), false, ctx);
+    if let Err(e) = ctx.eval(Source::from_bytes(code.as_bytes())) {
+        log!("[js error] inserted inline script #{id}: {e}");
+    }
+    CURRENT_SCRIPT.with(|c| c.set(prev));
+    let _ = ctx.global_object().set(js_string!("__currentScript"), JsValue::from(prev as f64), false, ctx);
 }
 
 fn n_detach(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -548,6 +572,8 @@ fn n_set_html(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
             d.remove_children(id);
             d.graft(&frag, Dom::ROOT, id);
         });
+        // Scripts in markup set this way never run, even when moved into the document later.
+        with_dom(|d| crate::dynscripts::mark_subtree(d, id));
     }
     Ok(JsValue::undefined())
 }
@@ -1236,6 +1262,8 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("customelements.js", include_str!("customelements.js")),
     ("userevents.js", include_str!("userevents.js")),
     ("observers.js", include_str!("observers.js")),
+    ("traversal.js", include_str!("traversal.js")),
+    ("cssom.js", include_str!("cssom.js")),
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 
@@ -1311,6 +1339,8 @@ impl Js {
 
     /// A script engine for the page at `url`, under the page's security policy.
     pub fn with_policy(url: &str, policy: std::sync::Arc<crate::security::PagePolicy>) -> Js {
+        // A new page: the last one's inserted scripts are forgotten.
+        crate::dynscripts::reset();
         let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         THREAD_EPOCH.with(|e| e.set(epoch));
         let modules = std::rc::Rc::new(crate::jsmodules::Loader::default());
@@ -1509,7 +1539,15 @@ impl Js {
                 if shown.is_none_or(|v| v.to_boolean()) {
                     self.stats.errors += 1;
                     let msg = reason.to_string(&mut self.ctx).map(|s| s.to_std_string_escaped()).unwrap_or_default();
-                    log!("[js error] Uncaught (in promise): {msg}");
+                    // Where it was thrown, when the reason is an Error with a stack.
+                    let stack = reason
+                        .as_object()
+                        .and_then(|o| o.get(js_string!("stack"), &mut self.ctx).ok())
+                        .filter(|v| v.is_string())
+                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                        .map(|s| format!("\n{}", s.lines().take(6).collect::<Vec<_>>().join("\n")))
+                        .unwrap_or_default();
+                    log!("[js error] Uncaught (in promise): {msg}{stack}");
                 }
             }
         }
@@ -1569,22 +1607,23 @@ impl Js {
     }
 
     /// Run one `<script>` element (inline or external). Non-JavaScript types are skipped.
-    fn run_script(&mut self, id: NodeId, base_url: &str, prefetched: &HashMap<String, String>) {
+    fn run_script(&mut self, id: NodeId, base_url: &str, prefetched: &HashMap<String, String>) -> bool {
+        crate::dynscripts::mark_started(id);
         let (ty, src, inline) = with_dom(|d| {
             (d.attr(id, "type").unwrap_or("").to_ascii_lowercase(), d.attr(id, "src").map(String::from), d.text_content(id))
         });
         if ty.trim() == "importmap" {
             self.run_import_map(id, base_url);
-            return;
+            return true;
         }
         let is_module = ty.trim() == "module";
         let is_js = ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript");
         if !is_js && !is_module {
-            return; // JSON, templates and other data blocks: not scripts
+            return true; // JSON, templates and other data blocks: not scripts
         }
         // `nomodule` scripts are fallbacks for browsers without modules; this one has them.
         if !is_module && with_dom(|d| d.attr(id, "nomodule").is_some()) {
-            return;
+            return true;
         }
         let nonce = with_dom(|d| d.attr(id, "nonce").map(String::from));
         let policy = page_ctx(&self.ctx, |p| p.policy.clone());
@@ -1592,7 +1631,7 @@ impl Js {
             Some(src) => {
                 let url = net::resolve(base_url, &src);
                 if policy.as_ref().is_some_and(|p| !p.csp.allows_url(crate::security::Dest::Script, &url, nonce.as_deref(), true)) {
-                    return;
+                    return false;
                 }
                 let fetched = match prefetched.get(&url) {
                     Some(body) => Ok((url.clone(), body.clone())),
@@ -1602,13 +1641,13 @@ impl Js {
                     Ok((_, body)) => (body, url),
                     Err(e) => {
                         log!("[js] couldn't load {url}: {e}");
-                        return;
+                        return false;
                     }
                 }
             }
             None => {
                 if policy.as_ref().is_some_and(|p| !p.csp.allows_inline(crate::security::Inline::Script, &inline, nonce.as_deref())) {
-                    return;
+                    return false;
                 }
                 (inline, format!("inline script #{id}"))
             }
@@ -1624,6 +1663,27 @@ impl Js {
         } else {
             self.eval(&code, &label);
         }
+        true
+    }
+
+    /// External scripts the page inserted (dynscripts.rs): fetch and run each, then fire its
+    /// `load` or `error` event. Returns true if any ran.
+    fn run_inserted_scripts(&mut self) -> bool {
+        let pending = crate::dynscripts::take_pending();
+        if pending.is_empty() {
+            return false;
+        }
+        let page = page_ctx(&self.ctx, |p| p.url.clone()).unwrap_or_default();
+        let base = with_dom(|d| d.find_all("base").first().and_then(|&b| d.attr(b, "href")).map(|h| net::resolve(&page, h))).unwrap_or(page);
+        for id in pending {
+            let prev = CURRENT_SCRIPT.with(Cell::get);
+            let ok = self.run_script(id, &base, &HashMap::new());
+            CURRENT_SCRIPT.with(|c| c.set(prev));
+            let _ = self.ctx.global_object().set(js_string!("__currentScript"), JsValue::from(prev as f64), false, &mut self.ctx);
+            self.dispatch(id, if ok { "load" } else { "error" });
+        }
+        let _ = self.ctx.run_jobs();
+        true
     }
 
     /// `<script type="importmap">`: add its entries to the page's import map.
@@ -1740,6 +1800,7 @@ impl Js {
 
     /// Advance timers to "now" and deliver finished requests. Returns true if anything ran.
     pub fn tick(&mut self) -> bool {
+        let ran_scripts = self.run_inserted_scripts();
         // Take only this page's finished requests; other tabs' wait in the queue.
         let epoch = self.epoch;
         let done: Vec<_> = NET_DONE
@@ -1761,7 +1822,7 @@ impl Js {
             delivered = true;
         }
         crate::extensions::content::poll_page(self);
-        delivered | self.tick_timers()
+        delivered | ran_scripts | self.tick_timers()
     }
 
     /// Run due tasks (messages, timers) one at a time, with a microtask checkpoint after

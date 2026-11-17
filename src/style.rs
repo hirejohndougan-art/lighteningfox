@@ -104,7 +104,6 @@ pub fn uses_hover(sheets: &[Stylesheet]) -> bool {
     sheets.iter().any(|sh| sh.rules.iter().any(|r| r.selectors.iter().any(|s| s.parts.iter().any(|p| p.pseudo.iter().any(|x| x == "hover")))))
 }
 
-pub const VIEWPORT_W: f32 = 1024.0;
 
 thread_local! {
     /// The root element's font size, which `rem` is relative to (16px until it's styled).
@@ -412,6 +411,8 @@ pub struct Style {
     pub list_inside: bool,
     /// `display: contents`: the element makes no box; its children take its place.
     pub contents: bool,
+    /// The used `color-scheme` is dark (`light-dark()` picks its second color). Inherited.
+    pub dark_scheme: bool,
     pub hidden: bool,
     /// The product of this element's and its ancestors' opacity (applied to its colors).
     pub fade: f32,
@@ -601,6 +602,7 @@ impl Default for Style {
             appearance_none: false,
             border_colors: None,
             svg_decls: None,
+            dark_scheme: false,
         }
     }
 }
@@ -637,6 +639,7 @@ impl Style {
             vars: parent.vars.clone(),
             border_spacing: parent.border_spacing,
             border_collapse: parent.border_collapse,
+            dark_scheme: parent.dark_scheme,
             ..Style::default()
         }
     }
@@ -659,6 +662,7 @@ th { text-align: center; }
 li { display: list-item; }
 head, script, style, title, meta, link, noscript, template, base, datalist, dialog { display: none; }
 [hidden] { display: none; }
+slot { display: contents; }
 body { margin: 8px; }
 p, dl, blockquote, figure { margin-top: 1em; margin-bottom: 1em; }
 h1 { font-size: 2em; margin-top: 0.67em; margin-bottom: 0.67em; font-weight: bold; }
@@ -862,10 +866,37 @@ fn shadow_sheets(dom: &Dom) -> HashMap<NodeId, (Stylesheet, Stylesheet)> {
         .map(|(root, css)| {
             let (mut host, mut inner) = (String::new(), String::new());
             for rule in split_rules(&css) {
-                if rule.split('{').next().unwrap_or("").contains(":host") {
-                    host.push_str(&rewrite_host(&rule, root));
-                } else {
+                let sel = rule.split('{').next().unwrap_or("");
+                if !sel.contains(":host") || sel.trim_start().starts_with('@') {
                     inner.push_str(&rule);
+                } else {
+                    // `:host(…)` as the subject styles the host; as an ancestor
+                    // (`:host([open]) .panel`) it styles nodes inside, which see the host as
+                    // their ancestor in the flat tree.
+                    let body = &rule[sel.len()..];
+                    let (mut on_host, mut inside) = (Vec::new(), Vec::new());
+                    for one in split_top_level(sel, ',') {
+                        // The subject: what follows the last combinator outside brackets.
+                        let one_t = one.trim();
+                        let mut depth = 0i32;
+                        let mut cut = 0;
+                        for (i, c) in one_t.char_indices() {
+                            match c {
+                                '(' | '[' => depth += 1,
+                                ')' | ']' => depth -= 1,
+                                ' ' | '>' | '+' | '~' if depth == 0 => cut = i + 1,
+                                _ => {}
+                            }
+                        }
+                        let last = &one_t[cut..];
+                        if last.contains(":host") { on_host.push(one) } else { inside.push(one) }
+                    }
+                    if !on_host.is_empty() {
+                        host.push_str(&rewrite_host(&format!("{}{body}", on_host.join(",")), root));
+                    }
+                    if !inside.is_empty() {
+                        inner.push_str(&rewrite_host(&format!("{}{body}", inside.join(",")), root));
+                    }
                 }
                 host.push('\n');
                 inner.push('\n');
@@ -873,6 +904,25 @@ fn shadow_sheets(dom: &Dom) -> HashMap<NodeId, (Stylesheet, Stylesheet)> {
             (root, (css::parse(&host), css::parse(&inner)))
         })
         .collect()
+}
+
+/// Split `s` at `sep` outside parentheses and brackets (selector lists, compounds).
+fn split_top_level(s: &str, sep: char) -> Vec<&str> {
+    let (mut out, mut depth, mut start) = (Vec::new(), 0i32, 0);
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth -= 1,
+            c if c == sep && depth == 0 => {
+                out.push(&s[start..i]);
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    out.push(&s[start..]);
+    out.retain(|p| !p.trim().is_empty());
+    out
 }
 
 /// Split CSS text into top-level rules (`selector { … }`, or an @-rule with its block).
@@ -1063,6 +1113,14 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         }
         // HTML attributes like bgcolor and cellpadding beat the browser defaults
         // but lose to the page's own CSS, so they go in between.
+        // color-scheme first: light-dark() in any other property depends on it.
+        if let Some(m) = matched.iter().filter(|m| m.decl.name == "color-scheme").next_back() {
+            let v = substitute_vars(&m.decl.value, &st.vars, 0);
+            if let Some(d) = scheme_is_dark(&v) {
+                st.dark_scheme = d;
+            }
+        }
+        DARK_SCHEME.with(|d| d.set(st.dark_scheme));
         let mut hinted = false;
         for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
             if !hinted && (m.origin > 0 || m.important) {
@@ -1316,7 +1374,7 @@ fn match_from(dom: &Dom, id: NodeId, sel: &Selector, idx: usize) -> bool {
     if idx == 0 {
         return true;
     }
-    let mut cur = dom.nodes[id].parent;
+    let mut cur = sel_parent(dom, id);
     match sel.combinators[idx - 1] {
         Combinator::Adjacent => prev_element(dom, id).map_or(false, |p| match_from(dom, p, sel, idx - 1)),
         Combinator::Sibling => {
@@ -1335,11 +1393,30 @@ fn match_from(dom: &Dom, id: NodeId, sel: &Selector, idx: usize) -> bool {
                 if match_from(dom, p, sel, idx - 1) {
                     return true;
                 }
-                cur = dom.nodes[p].parent;
+                cur = sel_parent(dom, p);
             }
             false
         }
     }
+}
+
+/// The parent selectors see. In the flat tree a slotted element sits inside its `<slot>`, but
+/// the page's selectors (`my-el > button`) see the light tree: there the parent is the host.
+fn sel_parent(dom: &Dom, id: NodeId) -> Option<NodeId> {
+    let p = dom.nodes[id].parent?;
+    let Some(&scope) = dom.render_scope.get(&p) else { return Some(p) };
+    if dom.tag(p) != Some("slot") || dom.render_scope.get(&id) == Some(&scope) {
+        return Some(p);
+    }
+    // Climb out of the shadow tree to its host.
+    let mut cur = Some(p);
+    while let Some(n) = cur {
+        if dom.render_scope.get(&n) != Some(&scope) {
+            return Some(n);
+        }
+        cur = dom.nodes[n].parent;
+    }
+    None
 }
 
 fn prev_element(dom: &Dom, id: NodeId) -> Option<NodeId> {
@@ -1750,7 +1827,7 @@ impl Calc<'_> {
                 }
                 self.i += 1;
                 // min/max/clamp of mixed units can't stay symbolic; resolve % against the viewport.
-                let flat = |v: CalcVal| v.px + v.pct * VIEWPORT_W / 100.0;
+                let flat = |v: CalcVal| v.px + v.pct * css::viewport().0 / 100.0;
                 let pick = |better: fn(f32, f32) -> bool| {
                     args.iter().copied().reduce(|a, b| if better(flat(b), flat(a)) { b } else { a })
                 };
@@ -1831,8 +1908,11 @@ pub fn parse_len(v: &str, font_size: f32) -> Option<Len> {
         "rem" => Len::Px(num * ROOT_FONT.with(std::cell::Cell::get)),
         "%" => Len::Pct(num),
         "pt" => Len::Px(num * 4.0 / 3.0),
-        "vw" => Len::Px(num * VIEWPORT_W / 100.0),
-        "vh" => Len::Px(num * 7.68),
+        // Viewport units follow the window (css::viewport), not a fixed 1024x768.
+        "vw" | "svw" | "lvw" | "dvw" => Len::Px(num * css::viewport().0 / 100.0),
+        "vh" | "svh" | "lvh" | "dvh" => Len::Px(num * css::viewport().1 / 100.0),
+        "vmin" => Len::Px(num * css::viewport().0.min(css::viewport().1) / 100.0),
+        "vmax" => Len::Px(num * css::viewport().0.max(css::viewport().1) / 100.0),
         "ch" | "ex" => Len::Px(num * font_size * 0.5),
         _ => return None,
     })
@@ -1960,8 +2040,37 @@ fn color_function(v: &str) -> Option<Color> {
     Some(Color { r: to8(r), g: to8(g), b: to8(b), a: to8(a) })
 }
 
+/// The used color scheme for a `color-scheme` value: dark only when dark is offered and light
+/// isn't (this browser prefers light). None for values that leave it as inherited.
+fn scheme_is_dark(v: &str) -> Option<bool> {
+    let v = v.trim().to_ascii_lowercase();
+    if v.is_empty() || css::is_wide_keyword(&v) {
+        return None;
+    }
+    let words: Vec<&str> = v.split_whitespace().collect();
+    Some(words.contains(&"dark") && !words.contains(&"light"))
+}
+
+thread_local! {
+    /// The color scheme of the element being styled, for `light-dark()`.
+    static DARK_SCHEME: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 pub fn parse_color(v: &str) -> Option<Color> {
     let v = v.trim().to_ascii_lowercase();
+    if let Some(inner) = v.strip_prefix("light-dark(").and_then(|r| r.strip_suffix(')')) {
+        let mut depth = 0;
+        let comma = inner.char_indices().find(|&(_, c)| {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ => {}
+            }
+            c == ',' && depth == 0
+        })?;
+        let (light, dark) = (&inner[..comma.0], &inner[comma.0 + 1..]);
+        return parse_color(if DARK_SCHEME.with(std::cell::Cell::get) { dark } else { light });
+    }
     if let Some(hex) = v.strip_prefix('#') {
         let h = |s: &str| u8::from_str_radix(s, 16).ok();
         let d = |c: char| h(&format!("{c}{c}"));

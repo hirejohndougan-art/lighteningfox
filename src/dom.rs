@@ -252,11 +252,15 @@ impl Dom {
                         _ => false,
                     })
                     .collect();
-                if assigned.is_empty() {
-                    out.extend(self.compose_children(c, k, root, light));
-                } else {
-                    out.extend(assigned);
+                // The slot stays in the flat tree (display: contents by default) with what's
+                // assigned to it, or its fallback content, inside: its own styles apply to them
+                // (a `display: none` slot hides them) and they inherit from it.
+                let kids = if assigned.is_empty() { self.compose_children(c, k, root, light) } else { assigned };
+                for &kk in &kids {
+                    c.nodes[kk].parent = Some(k);
                 }
+                c.nodes[k].children = kids;
+                out.push(k);
                 continue;
             }
             let kids = self.compose_children(c, k, root, light);

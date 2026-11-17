@@ -283,3 +283,31 @@ fn flex_end_menu_shrinks_to_its_items() {
     assert_eq!(eval(&mut page, "document.getElementById('menu').getBoundingClientRect().top === document.getElementById('brand').getBoundingClientRect().top"), "true");
     assert_eq!(eval(&mut page, "document.getElementById('menu').getBoundingClientRect().width < 400"), "true");
 }
+
+#[test]
+fn tree_walker_and_node_iterator() {
+    let _serial = serial();
+    let _page = open("tests/sites/tree-walker.html");
+    assert_eq!(text_of("out"), "P,!c,B,SPAN");
+    assert_eq!(text_of("it"), "a,b,s");
+    // A rejected <p> hides its <b>; parentNode() from <span> may return the root itself.
+    assert_eq!(text_of("filt"), "SPAN;DIV");
+}
+
+#[test]
+fn light_dark_follows_color_scheme() {
+    let _serial = serial();
+    let mut page = open("tests/sites/light-dark.html");
+    let bg = |page: &mut crate::Page, id: &str| eval(page, &format!("getComputedStyle(document.getElementById('{id}')).backgroundColor"));
+    assert_eq!(bg(&mut page, "light"), "\"rgb(255, 255, 255)\"");
+    assert_eq!(bg(&mut page, "dark"), "\"rgb(27, 27, 27)\"");
+    assert_eq!(bg(&mut page, "short"), "\"rgb(0, 0, 200)\"");
+    assert_eq!(eval(&mut page, "getComputedStyle(document.getElementById('inner')).color"), "\"rgb(255, 255, 255)\"");
+}
+
+#[test]
+fn scripts_the_page_inserts_run() {
+    let _serial = serial();
+    let _page = open("tests/sites/dynamic-scripts.html");
+    assert_eq!(text_of("out"), "inline true;async true;innerHTML true;load 1 ext;runs 1;error");
+}

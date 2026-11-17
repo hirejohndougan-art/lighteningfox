@@ -1,0 +1,14 @@
+<!doctype html>
+<!-- MDN (2026-11): Lit walks its templates with document.createTreeWalker at load. -->
+<html><head><title>TreeWalker</title></head>
+<body><div id="root"><p>a<!--c--><b>b</b></p><span>s</span></div><p id="out"></p><p id="it"></p><p id="filt"></p>
+<script>
+  const root = document.getElementById("root");
+  const names = (w) => { const o = []; let n; while ((n = w.nextNode())) o.push(n.nodeType === 1 ? n.nodeName : n.nodeType === 3 ? "#" + n.data : "!" + n.data); return o.join(","); };
+  document.getElementById("out").textContent = names(document.createTreeWalker(root, 129));
+  const it = document.createNodeIterator(root, NodeFilter.SHOW_TEXT);
+  const t = []; let n; while ((n = it.nextNode())) t.push(n.data);
+  document.getElementById("it").textContent = t.join(",");
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, (x) => x.nodeName === "P" ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT);
+  document.getElementById("filt").textContent = names(w) + ";" + (w.parentNode() && w.currentNode.nodeName);
+</script></body></html>

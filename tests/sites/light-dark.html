@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- MDN (2026-11): colors come from custom properties set to light-dark(…) on :root, and
+     sections opt into color-scheme: dark. light-dark() picks by each element's used scheme. -->
+<html><head><title>light-dark</title>
+<style>
+:root { color-scheme: light dark; --bg: light-dark(rgb(255, 255, 255), rgb(27, 27, 27)); --fg: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)) }
+div { background-color: var(--bg); color: var(--fg); padding: 8px }
+.dark { color-scheme: dark }
+.short { background: light-dark(rgb(200, 0, 0), rgb(0, 0, 200)) }
+</style></head>
+<body><div id="light">light section</div><div class="dark" id="dark">dark section <span id="inner">inherits</span></div>
+<div class="dark short" id="short">shorthand</div>
+<script>/* scripts make the page measurable from tests */</script></body></html>

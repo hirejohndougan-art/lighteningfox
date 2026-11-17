@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Scripts a page adds itself (webpack chunks, analytics tags): MDN, BBC, NYT and most sites
+     load code this way (2026-11). -->
+<html><head><title>Inserted scripts</title></head>
+<body><p id="out"></p>
+<script>
+  const log = [];
+  const inl = document.createElement("script");
+  inl.textContent = "window.inlineRan = true;";
+  document.body.appendChild(inl);
+  log.push("inline " + (window.inlineRan === true));          // runs during appendChild
+  const ext = document.createElement("script");
+  ext.id = "ext"; ext.src = "dyn/ext.js";
+  ext.onload = () => {
+    log.push("load " + window.extRuns + " " + window.extSawCurrent);
+    document.body.appendChild(ext);                             // moving it: no second run
+    setTimeout(() => {
+      log.push("runs " + window.extRuns);
+      const bad = document.createElement("script");
+      bad.src = "dyn/missing.js";
+      bad.onerror = () => { log.push("error"); document.getElementById("out").textContent = log.join(";"); };
+      document.head.appendChild(bad);
+    }, 0);
+  };
+  document.head.appendChild(ext);
+  log.push("async " + (window.extRuns === undefined));          // external ones run later
+  const holder = document.createElement("div");
+  holder.innerHTML = "<script>window.fromInnerHTML = true<\/script>";
+  document.body.appendChild(holder);
+  log.push("innerHTML " + (window.fromInnerHTML === undefined)); // stays inert
+</script></body></html>

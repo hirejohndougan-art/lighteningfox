@@ -557,6 +557,30 @@ pub fn viewport() -> (f32, f32) {
     VIEWPORT.lock().map(|v| *v).unwrap_or((1024.0, 768.0))
 }
 
+/// Does a stylesheet's result depend on the window size (@media rules, or vw/vh/vmin/vmax
+/// lengths)? Such pages are styled again when the window changes size.
+pub fn depends_on_viewport(sheet: &Stylesheet) -> bool {
+    sheet.rules.iter().any(|r| r.media.is_some() || r.decls.iter().any(|d| has_viewport_unit(&d.value)))
+}
+
+/// The same for `style` attributes.
+pub fn inline_viewport_units(dom: &crate::dom::Dom) -> bool {
+    dom.nodes.iter().any(|n| match &n.data {
+        crate::dom::NodeData::Element { attrs, .. } => attrs.iter().any(|(k, v)| k == "style" && has_viewport_unit(v)),
+        _ => false,
+    })
+}
+
+fn has_viewport_unit(v: &str) -> bool {
+    // A number followed by vw, vh, vmin, vmax (or the sv/lv/dv variants).
+    let b = v.as_bytes();
+    (1..b.len()).any(|i| {
+        let rest = &b[i..];
+        (b[i - 1].is_ascii_digit() || b[i - 1] == b'.')
+            && [&b"vw"[..], b"vh", b"vmin", b"vmax", b"svw", b"svh", b"lvw", b"lvh", b"dvw", b"dvh"].iter().any(|u| rest.starts_with(u))
+    })
+}
+
 /// A query that can't match a screen at any size (print-only): its rules are dropped.
 fn media_possible(q: &str) -> bool {
     q.split(',').any(|part| {
