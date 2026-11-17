@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Swiftiron
+GenericName=Web Browser
+Comment=A light, fast web browser built from scratch in Rust
+Exec=swiftiron %u
+Icon=swiftiron
+Terminal=false
+StartupNotify=true
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+Keywords=browser;web;internet;

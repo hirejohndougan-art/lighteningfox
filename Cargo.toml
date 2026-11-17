@@ -19,6 +19,7 @@ ab_glyph = "0.2"
 rustybuzz = "0.20.1"
 wgpu = { version = "30.0.2", default-features = false, features = ["vulkan", "gles", "wgsl"], optional = true }
 pollster = { version = "1.0.1", optional = true }
+raw-window-handle = "0.6"
 
 [profile.release]
 opt-level = 3

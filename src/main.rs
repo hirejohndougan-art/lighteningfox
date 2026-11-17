@@ -23,6 +23,7 @@ mod forms;
 mod geometry;
 mod grid;
 mod html;
+mod icon;
 mod images;
 mod js;
 mod layout;
@@ -343,6 +344,13 @@ fn prepared_title(p: &Prepared) -> String {
 
 const START_PAGE: &str = include_str!("start.html");
 
+/// The start page, with the app icon put in as a data: URL.
+fn start_page() -> String {
+    use base64::Engine;
+    let icon = base64::engine::general_purpose::STANDARD.encode(include_bytes!("../assets/icon/png/swiftiron-128.png"));
+    START_PAGE.replace("{{ICON}}", &format!("data:image/png;base64,{icon}"))
+}
+
 struct Page {
     url: String,
     title: String,
@@ -486,7 +494,7 @@ fn install_fonts(fonts: Vec<WebFont>) {
 /// Runs on a worker thread; touches nothing the UI thread owns.
 fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let (final_url, body) = if url == "about:home" || url.is_empty() {
-        ("about:home".to_string(), START_PAGE.to_string())
+        ("about:home".to_string(), start_page())
     } else if url == "about:blank" {
         ("about:blank".to_string(), String::new())
     } else if let Some(q) = url.strip_prefix("about:history") {
@@ -1012,6 +1020,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             std::process::exit(1);
         });
     window.set_target_fps(60);
+    icon::set_window_icon(&mut window);
     // Draw with the graphics card when there is one (see gpu.rs); otherwise in software.
     #[cfg(feature = "gpu")]
     let mut gpu = {

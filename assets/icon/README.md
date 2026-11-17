@@ -1,5 +1,14 @@
 # Swiftiron icon
 
-`swiftiron-source.jpg` is the original artwork for the Swiftiron icon: an iron bird in flight
-(1024×1024, white background). The app icons (window icon, desktop entry, favicon sizes) will be
-made from it when packaging; that step removes the white background so the bird stands on its own.
+The iron bird. `swiftiron-source.jpg` is the original artwork (1024×1024, white background).
+Everything else here is made from it by `python3 tools/make_icon.py`:
+
+| File | Use |
+|---|---|
+| `swiftiron.png` | Full-size icon with a transparent background |
+| `png/swiftiron-N.png` (16–512) | App icons: the window (32, 64, 128 are built into the program), the applications menu (installed by `packaging/linux/install.sh`), the start page (128) |
+| `swiftiron.ico` | Windows icon, for a future Windows build |
+| `preview.png` | Every size on light and dark backgrounds, for checking |
+
+To change the icon, replace `swiftiron-source.jpg` (keep a plain white background) and run the
+script again.

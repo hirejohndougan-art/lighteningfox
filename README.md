@@ -56,6 +56,14 @@ cargo build --release
 If the build complains about missing X11/Wayland headers:
 `sudo apt install libxkbcommon-dev libwayland-dev libx11-dev`.
 
+## Install (Linux)
+
+```bash
+cargo build --release
+sh packaging/linux/install.sh            # adds Swiftiron, with its icon, to your applications menu
+sh packaging/linux/install.sh --remove   # uninstall (keeps your bookmarks and history)
+```
+
 ## Controls
 
 | Action | Keys |
