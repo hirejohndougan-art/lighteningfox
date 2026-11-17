@@ -479,16 +479,64 @@
 
   // ------------------------------------------------------------ window
   Object.setPrototypeOf(g, EventTarget.prototype);
-  const u = (() => {
-    const m = /^([a-z]+:)\/\/([^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/i.exec(__url) || [];
-    return { protocol: m[1] || "about:", host: m[2] || "", pathname: m[3] || "/", search: m[4] || "", hash: m[5] || "" };
-  })();
+  // location reflects the current URL, which pushState and in-page links change.
+  const parts = () => {
+    const m = /^([a-z][a-z0-9+.-]*:)(?:\/\/([^/?#]*))?([^?#]*)(\?[^#]*)?(#.*)?$/i.exec(__url) || [];
+    return { protocol: (m[1] || "about:").toLowerCase(), host: m[2] || "", pathname: m[3] || "/", search: m[4] && m[4] !== "?" ? m[4] : "", hash: m[5] && m[5] !== "#" ? m[5] : "" };
+  };
+  const sameDoc = (a, b) => a.split("#")[0] === b.split("#")[0];
+  const go = (url, replace) => {
+    const abs = __resolve(__url, String(url));
+    if (sameDoc(abs, __url) && abs.includes("#")) __history(replace ? "hash-replace" : "hash", abs, "");
+    else __navigate(abs);
+  };
+  const withPart = (k, v) => { const p = parts(); p[k] = v; return p.protocol + (p.host || p.protocol === "file:" ? "//" : "") + p.host + p.pathname + p.search + p.hash; };
   const location = {
-    href: __url, protocol: u.protocol, host: u.host, hostname: u.host.split(":")[0],
-    port: u.host.split(":")[1] || "", pathname: u.pathname, search: u.search, hash: u.hash,
-    origin: u.protocol + "//" + u.host,
-    assign(url) { __navigate(String(url)); }, replace(url) { __navigate(String(url)); },
+    get href() { return __url; }, set href(v) { go(v); },
+    get protocol() { return parts().protocol; },
+    get host() { return parts().host; },
+    get hostname() { return parts().host.replace(/:\d+$/, ""); },
+    get port() { const m = /:(\d+)$/.exec(parts().host); return m ? m[1] : ""; },
+    get pathname() { return parts().pathname; }, set pathname(v) { go(withPart("pathname", "/" + String(v).replace(/^\//, ""))); },
+    get search() { return parts().search; }, set search(v) { const s = String(v).replace(/^\?/, ""); go(withPart("search", s ? "?" + s : "")); },
+    get hash() { return parts().hash; }, set hash(v) { const h = String(v).replace(/^#/, ""); go(__url.split("#")[0] + "#" + h); },
+    get origin() { const p = parts(); return /^https?:$/.test(p.protocol) ? p.protocol + "//" + p.host : "null"; },
+    assign(url) { go(url); }, replace(url) { go(url, true); },
     reload() { __navigate(__url); }, toString() { return __url; },
+  };
+  // History: entries pushed by the page share this document; the browser keeps the list.
+  let histState = null, histLength = 1;
+  const clone = (v) => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
+  const history = {
+    get length() { return histLength; },
+    get state() { return histState; },
+    scrollRestoration: "auto",
+    pushState(state, _title, url) { change("push", state, url); histLength++; },
+    replaceState(state, _title, url) { change("replace", state, url); },
+    back() { __history("go", "-1", ""); }, forward() { __history("go", "1", ""); },
+    go(n) { __history("go", String(Number(n) || 0), ""); },
+  };
+  function change(kind, state, url) {
+    const abs = url == null || url === "" ? __url : __resolve(__url, String(url));
+    const origin = (x) => { const m = /^([a-z]+:)\/\/([^/?#]*)/i.exec(x); return m ? m[1] + m[2] : x.split(/[?#]/)[0]; };
+    if (origin(abs) !== origin(__url)) throw new DOMException("pushState: URL must be on the same origin", "SecurityError");
+    histState = clone(state);
+    __url = abs;
+    __history(kind, abs, JSON.stringify(histState));
+  }
+  // Called by the browser when it moves within this document's history (Back, Forward, #links).
+  g.__historyMoved = function (url, stateJson, popstate) {
+    const old = __url;
+    __url = url;
+    if (popstate) {
+      histState = stateJson ? JSON.parse(stateJson) : null;
+      const ev = new Event("popstate"); ev.state = histState;
+      EventTarget.prototype.__fire.call(g, ev);
+    }
+    if (old.split("#")[1] !== url.split("#")[1] && sameDoc(old, url)) {
+      const ev = new Event("hashchange"); ev.oldURL = old; ev.newURL = url;
+      EventTarget.prototype.__fire.call(g, ev);
+    }
   };
   const storage = () => {
     const m = new Map();
@@ -833,7 +881,7 @@
       return { matches, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } };
     },
     localStorage: storage(), sessionStorage: storage(),
-    history: { length: 1, state: null, pushState() {}, replaceState() {}, back() {}, forward() {}, go() {} },
+    history,
     performance: { now: () => __nowMs, mark() {}, measure() {}, getEntriesByType: () => [], timing: {} },
     console: { log: consoleFn("log"), info: consoleFn("info"), debug: consoleFn("debug"),
                warn: consoleFn("warn"), error: consoleFn("error"), trace: consoleFn("trace"),

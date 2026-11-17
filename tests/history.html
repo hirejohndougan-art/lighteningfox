@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head><title>History test</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; color: #1e293b; }
+  nav button { margin-right: 6px; padding: 6px 12px; }
+  #view { margin: 16px 0; padding: 16px; border-radius: 8px; background: #eef2ff; font-size: 18px; }
+  #log { font-size: 13px; color: #475569; white-space: pre; font-family: monospace; }
+  .spacer { height: 1400px; background: linear-gradient(#fff, #f1f5f9); }
+  #bottom { background: #fef3c7; padding: 12px; }
+</style></head>
+<body>
+<h1>History test</h1>
+<nav><button id="home">Home</button><button id="about">About</button><button id="contact">Contact</button> <a href="#bottom">Jump to bottom</a></nav>
+<div id="view"></div>
+<div id="log"></div>
+<div class="spacer"></div>
+<div id="bottom">The bottom section (id="bottom"). <a href="#top">Back to top</a></div>
+<script>
+const view = document.getElementById("view"), log = document.getElementById("log");
+const say = (m) => { log.textContent += m + "\n"; };
+const render = (page) => { view.textContent = "Page: " + page + "  (no reload; location.search = " + (location.search || "none") + ")"; };
+const pageOf = () => new URLSearchParams(location.search).get("page") || "home";
+for (const p of ["home", "about", "contact"]) {
+  document.getElementById(p).addEventListener("click", () => {
+    history.pushState({ page: p }, "", "?page=" + p);
+    render(p);
+    say("pushState → " + location.href.split("/").pop() + "  (history.length " + history.length + ")");
+  });
+}
+window.addEventListener("popstate", (e) => { render(e.state ? e.state.page : pageOf()); say("popstate, state = " + JSON.stringify(e.state)); });
+window.addEventListener("hashchange", () => say("hashchange → " + location.hash));
+render(pageOf());
+say("loaded at " + location.href.split("/").pop());
+</script>
+</body></html>

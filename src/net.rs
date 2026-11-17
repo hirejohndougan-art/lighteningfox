@@ -286,6 +286,10 @@ fn decode_data_url(rest: &str) -> Result<Vec<u8>, String> {
     }
 }
 
+pub fn percent_decode_str(s: &str) -> String {
+    percent_decode(s)
+}
+
 fn percent_decode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());

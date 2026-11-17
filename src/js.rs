@@ -28,6 +28,7 @@ thread_local! {
     static CURRENT_SCRIPT: Cell<i64> = const { Cell::new(-1) };
     /// Requests from script for the browser: submit a form, move focus.
     static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
+    static HISTORY: RefCell<Vec<HistoryOp>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Things scripts ask the browser to do that the window loop carries out.
@@ -38,6 +39,22 @@ pub enum Request {
     Reset(NodeId),
     Focus(NodeId),
     Blur(NodeId),
+}
+
+/// History changes a page's script asked for.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HistoryOp {
+    /// pushState / replaceState: (url, state as JSON)
+    Push(String, String),
+    Replace(String, String),
+    /// location.hash = …, or assign() of a same-document URL with a fragment
+    Hash(String, bool),
+    /// history.go(n), back(), forward()
+    Go(i32),
+}
+
+pub fn take_history() -> Vec<HistoryOp> {
+    HISTORY.with(|h| std::mem::take(&mut *h.borrow_mut()))
 }
 
 pub fn take_requests() -> Vec<Request> {
@@ -575,6 +592,21 @@ pub fn network_busy() -> bool {
     NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
 }
 
+fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let kind = arg_str(a, 0, ctx)?;
+    let url = arg_str(a, 1, ctx)?;
+    let state = arg_str(a, 2, ctx)?;
+    let op = match kind.as_str() {
+        "push" => HistoryOp::Push(url, state),
+        "replace" => HistoryOp::Replace(url, state),
+        "hash" => HistoryOp::Hash(url, false),
+        "hash-replace" => HistoryOp::Hash(url, true),
+        _ => HistoryOp::Go(url.parse().unwrap_or(0)),
+    };
+    HISTORY.with(|h| h.borrow_mut().push(op));
+    Ok(JsValue::undefined())
+}
+
 const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
@@ -609,6 +641,7 @@ impl Js {
             ("__log", 2, n_log),
             ("__navigate", 1, n_navigate),
             ("__request", 3, n_request),
+            ("__history", 3, n_history),
             ("__netStart", 8, n_net_start),
             ("__resolve", 2, n_resolve),
             ("__rect", 1, n_rect),
@@ -729,6 +762,16 @@ impl Js {
         let now = self.start.elapsed().as_secs_f64() * 1000.0;
         self.eval(&format!("__tick({now})"), "timers")
             .map_or(false, |v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0)
+    }
+
+    /// The browser moved within this document's history: update location, fire popstate/hashchange.
+    pub fn history_moved(&mut self, url: &str, state_json: &str, popstate: bool) {
+        let mut code = String::from("__historyMoved(");
+        json_str(url, &mut code);
+        code.push(',');
+        json_str(state_json, &mut code);
+        code.push_str(if popstate { ",true)" } else { ",false)" });
+        self.eval(&code, "history");
     }
 
     /// Fire an event (input, change, submit, focus…) at a node. Returns false if cancelled.

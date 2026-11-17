@@ -67,6 +67,8 @@ struct Page {
     js: Option<js::Js>,
     /// The page has :hover rules, so mouse moves can change its styles.
     hover_rules: bool,
+    /// Which loaded document this is (history entries pushed by its scripts share it).
+    doc: u64,
     /// Each form control's value as the page loaded, for form.reset().
     form_defaults: Vec<(dom::NodeId, Option<String>, bool)>,
 }
@@ -238,7 +240,9 @@ fn build_page(p: Prepared) -> Page {
     style::set_hover(None);
     let hover_rules = style::uses_hover(&sheets);
     let form_defaults = js::with_dom(forms::defaults);
-    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, form_defaults };
+    static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mut page = Page { url, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults };
     page.restyle();
     release_free_memory();
     page
@@ -379,6 +383,33 @@ impl minifb::InputCallback for Typed {
     }
 }
 
+/// One entry in the tab's history: a URL, the document it belongs to, and the state
+/// object a script attached with pushState (as JSON).
+#[derive(Clone, Debug)]
+struct Entry {
+    url: String,
+    doc: u64,
+    state: String,
+}
+
+fn same_document(a: &str, b: &str) -> bool {
+    a.split('#').next() == b.split('#').next()
+}
+
+/// Where a URL's #fragment points on the page (page y), if anywhere.
+fn fragment_target(url: &str) -> Option<f32> {
+    let frag = url.split_once('#')?.1;
+    let frag = net::percent_decode_str(frag);
+    if frag.is_empty() || frag.eq_ignore_ascii_case("top") {
+        return Some(0.0);
+    }
+    js::with_dom(|d| {
+        let id = d.descendants(dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(frag.as_str()))
+            .or_else(|| d.descendants(dom::Dom::ROOT).into_iter().find(|&n| d.tag(n) == Some("a") && d.attr(n, "name") == Some(frag.as_str())))?;
+        geometry::page_rect(d, id).map(|(r, _)| r.y)
+    })
+}
+
 /// An open <select> list, drawn over the page.
 struct Dropdown {
     select: dom::NodeId,
@@ -460,8 +491,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let typed = Rc::new(RefCell::new(Vec::new()));
     window.set_input_callback(Box::new(Typed(typed.clone())));
 
-    let mut back: Vec<String> = Vec::new();
-    let mut forward: Vec<String> = Vec::new();
+    let mut back: Vec<Entry> = Vec::new();
+    let mut forward: Vec<Entry> = Vec::new();
     let mut hover: Option<usize> = None;
     let mut hovered: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
@@ -484,6 +515,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut focused: Option<dom::NodeId> = None;
     let mut dropdown: Option<Dropdown> = None;
     window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
+    let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
 
     while window.is_open() {
         let mut navigate: Option<Go> = None;
@@ -843,8 +875,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     }
                     if let (true, None, Some(href)) = (allowed, ctrl, &hit) {
                     let target = net::resolve(&page.url, href);
-                    let same_page = target.split('#').next() == page.url.split('#').next() && target.contains('#');
-                    if !same_page && !target.starts_with("mailto:") && !target.starts_with("javascript:") {
+                    if !target.starts_with("mailto:") && !target.starts_with("javascript:") {
                         navigate = Some(Go::To(target));
                     }
                     }
@@ -878,12 +909,83 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
             dirty = true;
         }
+        // History changes from scripts (pushState, location.hash, history.back…).
+        let mut replace_entry = false;
+        for op in js::take_history() {
+            match op {
+                js::HistoryOp::Push(url, state) => {
+                    back.push(current.clone());
+                    forward.clear();
+                    current = Entry { url: url.clone(), doc: page.doc, state };
+                    page.url = url;
+                }
+                js::HistoryOp::Replace(url, state) => {
+                    current = Entry { url: url.clone(), doc: page.doc, state };
+                    page.url = url;
+                }
+                js::HistoryOp::Hash(url, replace) => {
+                    navigate = Some(Go::To(url));
+                    replace_entry = replace;
+                }
+                js::HistoryOp::Go(n) if n < 0 => navigate = Some(Go::Back),
+                js::HistoryOp::Go(n) if n > 0 => navigate = Some(Go::Forward),
+                js::HistoryOp::Go(_) => navigate = Some(Go::Reload),
+            }
+            if !editing {
+                address = page.url.clone();
+            }
+            dirty = true;
+        }
+        // Moves within the same document need no loading: a #fragment link, or Back/Forward
+        // to an entry a script pushed. Scroll to the fragment and tell the page's scripts.
+        let same_doc_move = match &navigate {
+            Some(Go::To(t)) if t.contains('#') && same_document(t, &page.url) => {
+                let e = Entry { url: t.clone(), doc: page.doc, state: "null".into() };
+                if replace_entry {
+                    current = e;
+                } else if e.url != current.url {
+                    back.push(std::mem::replace(&mut current, e));
+                    forward.clear();
+                }
+                Some(false)
+            }
+            Some(Go::Back) if back.last().is_some_and(|e| e.doc == page.doc) => {
+                let e = back.pop().unwrap();
+                forward.push(std::mem::replace(&mut current, e));
+                Some(true)
+            }
+            Some(Go::Forward) if forward.last().is_some_and(|e| e.doc == page.doc) => {
+                let e = forward.pop().unwrap();
+                back.push(std::mem::replace(&mut current, e));
+                Some(true)
+            }
+            _ => None,
+        };
+        if let Some(popstate) = same_doc_move {
+            navigate = None;
+            let old = std::mem::replace(&mut page.url, current.url.clone());
+            if let Some(js) = page.js.as_mut() {
+                js.history_moved(&current.url, &current.state, popstate);
+            }
+            if !popstate || old.split('#').nth(1) != current.url.split('#').nth(1) {
+                if let Some(y) = fragment_target(&current.url) {
+                    scroll = y.clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
+                }
+            }
+            address = page.url.clone();
+            editing = false;
+            if js::take_dirty() {
+                page.restyle();
+                lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+            }
+            dirty = true;
+        }
         // Start a navigation: work out the target without touching history yet;
         // history changes only once the page actually arrives.
         let target = match &navigate {
             Some(Go::To(t)) | Some(Go::Post(t, _)) => Some(t.clone()),
-            Some(Go::Back) => back.last().cloned(),
-            Some(Go::Forward) => forward.last().cloned(),
+            Some(Go::Back) => back.last().map(|e| e.url.clone()),
+            Some(Go::Forward) => forward.last().map(|e| e.url.clone()),
             Some(Go::Reload) => Some(page.url.clone()),
             None => None,
         };
@@ -903,31 +1005,37 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         // A finished load: build the page here, where JavaScript lives.
         while let Ok((g, prepared)) = rx.try_recv() {
             let Some(l) = loading.take_if(|l| l.generation == g) else { continue };
-            let old = page.url.clone();
+            let mut state = "null".to_string();
             match l.kind {
                 Go::To(_) | Go::Post(..) => {
-                    if prepared.url != old {
-                        back.push(old);
+                    if prepared.url != current.url {
+                        back.push(current.clone());
                         forward.clear();
                     }
                 }
                 Go::Back => {
-                    back.pop();
-                    forward.push(old);
+                    if let Some(e) = back.pop() {
+                        state = e.state;
+                    }
+                    forward.push(current.clone());
                 }
                 Go::Forward => {
-                    forward.pop();
-                    back.push(old);
+                    if let Some(e) = forward.pop() {
+                        state = e.state;
+                    }
+                    back.push(current.clone());
                 }
-                Go::Reload => {}
+                Go::Reload => state = current.state.clone(),
             }
             page = build_page(prepared);
+            current = Entry { url: page.url.clone(), doc: page.doc, state };
             focused = None;
             dropdown = None;
             layout::set_focus(None);
             release_free_memory();
             lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
-            scroll = 0.0;
+            // A URL with a #fragment opens scrolled to it.
+            scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
             address = page.url.clone();
             window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
             dirty = true;
@@ -1064,6 +1172,7 @@ mod screenshot_tests {
         ("tests/sticky.html", 1024),
         ("tests/scroll-box.html", 900),
         ("tests/transforms.html", 900),
+        ("tests/history.html", 800),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
