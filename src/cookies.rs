@@ -3,7 +3,7 @@
 //!
 //! Privacy defaults: a cookie is only stored or sent when the request goes to the same
 //! site as the page you're on, so ad and tracking networks embedded in pages can't follow
-//! you from site to site. Set `LF_THIRD_PARTY_COOKIES=1` to allow them.
+//! you from site to site. Set `SWIFTIRON_THIRD_PARTY_COOKIES=1` to allow them.
 
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -85,7 +85,7 @@ fn site_of_url(url: &str) -> Option<String> {
 
 /// Whether cookies may flow for a request to `url` made by a page at `top`.
 pub fn allowed(url: &str, top: &str) -> bool {
-    if std::env::var("LF_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") || crate::settings::get().third_party_cookies {
+    if std::env::var("SWIFTIRON_THIRD_PARTY_COOKIES").is_ok_and(|v| v == "1") || crate::settings::get().third_party_cookies {
         return true;
     }
     match (site_of_url(url), site_of_url(top)) {
@@ -359,13 +359,19 @@ pub fn clear() {
     }
 }
 
-/// Where the browser keeps its data: $LF_PROFILE, else ~/.local/share/lighteningfox.
+/// Where the browser keeps its data: $SWIFTIRON_PROFILE, else ~/.local/share/swiftiron.
 pub fn profile_dir() -> Option<std::path::PathBuf> {
-    if let Ok(p) = std::env::var("LF_PROFILE") {
+    if let Ok(p) = std::env::var("SWIFTIRON_PROFILE") {
         return Some(p.into());
     }
     let base = std::env::var("XDG_DATA_HOME").ok().map(std::path::PathBuf::from).or_else(|| std::env::var("HOME").ok().map(|h| std::path::Path::new(&h).join(".local/share")))?;
-    Some(base.join("lighteningfox"))
+    let dir = base.join("swiftiron");
+    // Profiles from before the rename (LighteningFox) move over once.
+    let old = base.join("lighteningfox");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    Some(dir)
 }
 
 fn cookie_file() -> Option<std::path::PathBuf> {
@@ -375,7 +381,7 @@ fn cookie_file() -> Option<std::path::PathBuf> {
 /// One cookie per line, tab-separated. Only cookies with an expiry date are kept.
 fn save_file(cookies: &[Cookie]) {
     let Some(path) = cookie_file() else { return };
-    let mut out = String::from("# LighteningFox cookies: domain\thost_only\tpath\texpires\tsecure\thttp_only\tsame_site\tname\tvalue\n");
+    let mut out = String::from("# Swiftiron cookies: domain\thost_only\tpath\texpires\tsecure\thttp_only\tsame_site\tname\tvalue\n");
     for c in cookies.iter().filter(|c| c.expires.is_some()) {
         let ss = match c.same_site {
             SameSite::Strict => "strict",

@@ -2,7 +2,7 @@
 
 use std::io::Read;
 
-pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) LighteningFox/0.1";
+pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) Swiftiron/0.1";
 
 /// Fetch a page (a top-level document) as text. Returns (final URL after redirects, body).
 pub fn fetch(url: &str) -> Result<(String, String), String> {
@@ -317,7 +317,7 @@ pub fn strip_tracking(url: &str) -> String {
         "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "mc_eid", "mc_cid", "yclid", "twclid", "ttclid", "li_fat_id",
         "igshid", "igsh", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id", "oly_enc_id", "vero_id", "wickedid", "__s", "_openstat", "srsltid", "si",
     ];
-    if std::env::var("LF_KEEP_TRACKING_PARAMS").is_ok_and(|v| v == "1") || !crate::settings::get().strip_tracking || !(url.starts_with("http://") || url.starts_with("https://")) {
+    if std::env::var("SWIFTIRON_KEEP_TRACKING_PARAMS").is_ok_and(|v| v == "1") || !crate::settings::get().strip_tracking || !(url.starts_with("http://") || url.starts_with("https://")) {
         return url.to_string();
     }
     let (before_frag, frag) = match url.split_once('#') {

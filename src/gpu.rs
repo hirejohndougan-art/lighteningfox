@@ -4,8 +4,8 @@
 //! painted or uploaded.
 //!
 //! If no usable graphics adapter is found, `Gpu::new` returns None and the window falls back
-//! to software presenting. By default only real GPUs are used; LF_GPU=1 also accepts software
-//! adapters (useful for testing), LF_GPU=0 turns the GPU off.
+//! to software presenting. By default only real GPUs are used; SWIFTIRON_GPU=1 also accepts software
+//! adapters (useful for testing), SWIFTIRON_GPU=0 turns the GPU off.
 
 use crate::tiles::{PageTiles, TILE_H};
 use std::collections::HashMap;
@@ -87,9 +87,9 @@ impl Gpu {
     }
 
     fn setup(window: &minifb::Window, w: u32, h: u32) -> Result<Gpu, String> {
-        let mode = std::env::var("LF_GPU").unwrap_or_default();
+        let mode = std::env::var("SWIFTIRON_GPU").unwrap_or_default();
         if mode == "0" {
-            return Err("turned off (LF_GPU=0)".into());
+            return Err("turned off (SWIFTIRON_GPU=0)".into());
         }
         if mode != "1" && !crate::settings::get().use_gpu {
             return Err("turned off in settings".into());
@@ -108,10 +108,10 @@ impl Gpu {
         .map_err(|e| format!("no adapter: {e}"))?;
         let info = adapter.get_info();
         if info.device_type == wgpu::DeviceType::Cpu && !allow_software {
-            return Err(format!("only a software adapter ({}); set LF_GPU=1 to use it", info.name));
+            return Err(format!("only a software adapter ({}); set SWIFTIRON_GPU=1 to use it", info.name));
         }
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("lighteningfox"),
+            label: Some("swiftiron"),
             required_limits: wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
             ..Default::default()
         }))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a subset of the Web Platform Tests (wpt.fyi) against LighteningFox.
+"""Run a subset of the Web Platform Tests (wpt.fyi) against Swiftiron.
 
     python3 tools/wpt.py /path/to/wpt dom/nodes css/css-flexbox ...
 
@@ -11,7 +11,7 @@ localhost.
 import concurrent.futures, functools, http.server, json, os, re, shutil, subprocess, sys, tempfile, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BROWSER = os.path.join(HERE, "..", "target", "release", "lighteningfox")
+BROWSER = os.path.join(HERE, "..", "target", "release", "swiftiron")
 STATUS = {0: "PASS", 1: "FAIL", 2: "TIMEOUT", 3: "NOTRUN", 4: "PRECONDITION_FAILED"}
 
 
@@ -26,7 +26,7 @@ def serve(root):
 
 
 def render(url, png, profile):
-    env = dict(os.environ, LF_PROFILE=profile, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
+    env = dict(os.environ, SWIFTIRON_PROFILE=profile, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
     try:
         p = subprocess.run([BROWSER, "--width", "800", "--png", png, url], capture_output=True, text=True, timeout=30, env=env)
         return p.stdout + p.stderr, p.returncode

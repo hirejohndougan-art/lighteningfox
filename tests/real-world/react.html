@@ -10,7 +10,7 @@ function App() {
   const [ticks, setTicks] = React.useState(0);
   React.useEffect(() => { const id = setTimeout(() => setTicks(1), 10); return () => clearTimeout(id); }, []);
   return e("div", null,
-    e("h1", null, "React " + React.version + " running in LighteningFox"),
+    e("h1", null, "React " + React.version + " running in Swiftiron"),
     e("p", null, "useEffect ran: " + (ticks ? "yes" : "not yet")),
     e("p", null, e("button", { id: "inc", onClick: () => setCount(count + 1) }, "Clicked " + count + " times")),
     e("h2", null, "Todos (" + todos.filter(x => !x.d).length + " left)"),

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>LighteningFox</title>
+<title>Swiftiron</title>
 <style>
   body { background: #f4f1ea; color: #2b2b2b; margin: 0; }
   .wrap { max-width: 640px; margin: 0 auto; padding: 48px 24px; }
@@ -15,34 +15,29 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>LighteningFox</h1>
+  <h1>Swiftiron</h1>
   <p class="tag">A web browser engine built from scratch in Rust.</p>
 
   <div class="card">
     <h2>Getting around</h2>
     <ul>
       <li>Click the address bar (or press <code>Ctrl+L</code>) and type a URL or a search.</li>
-      <li>Scroll with the mouse wheel, arrow keys, <code>Space</code> and <code>Page Up/Down</code>.</li>
-      <li>Click links. Use the ← → ↻ buttons, or <code>Alt+Left</code>, <code>Alt+Right</code> and <code>F5</code>.</li>
+      <li>Tabs: <code>Ctrl+T</code> new, <code>Ctrl+W</code> close, <code>Ctrl+Tab</code> next, <code>Ctrl+Shift+T</code> reopen. Drag tabs to reorder them.</li>
+      <li>Bookmarks: <code>Ctrl+D</code> or the ☆. History: <code>Ctrl+H</code>.</li>
+      <li>Back and forward: the ← → buttons, or <code>Alt+Left</code> and <code>Alt+Right</code>. Reload: <code>F5</code>.</li>
     </ul>
   </div>
 
   <div class="card">
-    <h2>What works so far</h2>
-    <ol>
-      <li>HTML parsing into a DOM tree</li>
-      <li>CSS parsing, selectors and the cascade</li>
-      <li>Block and inline layout with word wrapping</li>
-      <li>Text, backgrounds and borders painted by our own rasterizer</li>
-      <li>JavaScript through the Boa engine: DOM, events, timers</li>
-      <li>Images: PNG, JPEG, GIF, WebP, and <code>data:</code> URLs</li>
-      <li>CSS variables, <code>calc()</code>, and styled inline boxes</li>
-      <li>Rounded corners, gradients, background images, <code>inline-block</code></li>
-      <li>Pages load in the background; ↻ becomes ✕ to stop</li>
-      <li>Flexbox, CSS grid, positioning, shadows, <code>overflow: hidden</code></li>
-      <li>Floats, tables, <code>z-index</code>, <code>:hover</code>, <code>:nth-child()</code> and sibling selectors</li>
-    </ol>
-    <p>Not yet: tabs, bookmarks.</p>
+    <h2>Built in</h2>
+    <ul>
+      <li>Modern pages: flexbox, grid, floats, tables, sticky headers, transforms, web fonts</li>
+      <li>JavaScript (Boa engine) with fetch, forms, history and storage; React, Vue and jQuery run</li>
+      <li>Text in any script: kerning and ligatures, Chinese, Japanese, Arabic, Hebrew, Hindi</li>
+      <li>Privacy: third-party cookies blocked, tracking tags removed from links, Global Privacy Control</li>
+      <li>Light on memory: sleeping background tabs, and drawing with the graphics card when there is one</li>
+    </ul>
+    <p><a href="about:settings">Settings</a> &middot; <a href="about:bookmarks">Bookmarks</a> &middot; <a href="about:history">History</a> &middot; <a href="about:log">Debug log</a></p>
   </div>
 
   <div class="card">

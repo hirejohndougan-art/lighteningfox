@@ -1,4 +1,4 @@
-# LighteningFox
+# Swiftiron
 
 A web browser engine written from scratch in Rust.
 
@@ -19,7 +19,7 @@ and **Boa** (`boa_engine`), a JavaScript engine written in Rust.
 `__query`...). `prelude.js` builds the web API pages use on top of them: `document`, `Element`,
 `classList`, `style`, `innerHTML`, events with bubbling and `preventDefault`, `setTimeout`/`setInterval`,
 `requestAnimationFrame`, `DOMContentLoaded`/`load`, `localStorage`, `location`, `console`.
-When a script changes the DOM, LighteningFox restyles and reflows the page.
+When a script changes the DOM, Swiftiron restyles and reflows the page.
 
 Benchmark (`tests/bench.html`, this machine):
 
@@ -36,7 +36,7 @@ Benchmark (`tests/bench.html`, this machine):
 | DOM querySelectorAll x200 | 393 ms |
 | DOM innerHTML 500 items | 3 ms |
 
-Run it yourself: `./target/release/lighteningfox tests/bench.html --png /tmp/b.png`
+Run it yourself: `./target/release/swiftiron tests/bench.html --png /tmp/b.png`
 
 ## Build and run
 
@@ -48,9 +48,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo apt install fonts-dejavu-core
 
 cargo build --release
-./target/release/lighteningfox                      # start page
-./target/release/lighteningfox example.com          # open a site
-./target/release/lighteningfox page.html --png out.png --width 1024   # render to an image
+./target/release/swiftiron                      # start page
+./target/release/swiftiron example.com          # open a site
+./target/release/swiftiron page.html --png out.png --width 1024   # render to an image
 ```
 
 If the build complains about missing X11/Wayland headers:
@@ -88,7 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
-- **Bookmarks and history**: Ctrl+D or the ☆ in the address bar bookmarks a page; every visit is recorded (title, visit count, last visit) in private files in the profile folder (`LF_PRIVATE=1` records nothing); `about:history` (Ctrl+H, with "Clear history") and `about:bookmarks` (Ctrl+Shift+O); the address bar suggests bookmarks and history as you type (arrow keys or click to pick)
+- **Bookmarks and history**: Ctrl+D or the ☆ in the address bar bookmarks a page; every visit is recorded (title, visit count, last visit) in private files in the profile folder (`SWIFTIRON_PRIVATE=1` records nothing); `about:history` (Ctrl+H, with "Clear history") and `about:bookmarks` (Ctrl+Shift+O); the address bar suggests bookmarks and history as you type (arrow keys or click to pick)
 - **Text editing**: in fields, text areas and the address bar — caret movement (arrows, Home/End, Ctrl for whole words), Shift to select, Ctrl+A, Delete and Ctrl+Backspace, click to place the caret and double-click to select a word, Up/Down between lines in text areas, and Ctrl+C/X/V with the system clipboard (`arboard`, X11 and Wayland); one click in the address bar selects it
 - **Tabs**: tab strip with titles, loading dots and close buttons; Ctrl+T, Ctrl+W, Ctrl+(Shift+)Tab, Ctrl+1–9, Ctrl+Shift+T to reopen; middle-click or Ctrl+click opens links in a background tab, `target="_blank"` and `window.open()` (only during a click — pop-ups are blocked) in a new tab; hidden tabs pause their scripts, and a page that loads in the background is only built when you look at it
 - **Real-world libraries**: React 18, Vue 3, jQuery 3 and Bootstrap 5 render and respond to clicks (kept as screenshot tests in `tests/real-world/`); standard element interfaces (`HTMLInputElement`, `SVGElement`… with honest `instanceof`), `document.implementation.createHTMLDocument`, `DOMParser`
@@ -102,8 +102,8 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
 - **position: sticky**: headers, sidebars and section titles that stick while scrolling, stopping at the end of their parent
 - **Layout data for scripts**: `getBoundingClientRect`, `offsetWidth/Height/Top`, `clientWidth`, `scrollHeight`, live `innerWidth`/`scrollY`, `scrollTo`/`scrollBy`/`scrollIntoView`, and `matchMedia` width queries; if a script changed the page, it's laid out again before answering
 - **fetch() and XMLHttpRequest**: requests run on background threads and never freeze the page; JSON, text, status, headers, POST bodies, `AbortController`, sync XHR; cross-origin rules (CORS, including preflight) so a site can't read other sites' data or your local network; plus `URL`, `URLSearchParams`, `FormData`, `Headers`, `Response`
-- **Cookies**: Set-Cookie with Domain, Path, Expires/Max-Age, Secure, HttpOnly, SameSite and the `__Host-`/`__Secure-` prefixes; cookies set during redirects are kept; `document.cookie`; saved to `~/.local/share/lighteningfox/cookies.tsv` (or `$LF_PROFILE`), readable only by you
-- **Privacy by default**: third-party cookies blocked (set `LF_THIRD_PARTY_COOKIES=1` to allow), tracking parameters (utm_*, fbclid, gclid…) stripped from page URLs (`LF_KEEP_TRACKING_PARAMS=1` keeps them), Global Privacy Control sent, no telemetry
+- **Cookies**: Set-Cookie with Domain, Path, Expires/Max-Age, Secure, HttpOnly, SameSite and the `__Host-`/`__Secure-` prefixes; cookies set during redirects are kept; `document.cookie`; saved to `~/.local/share/swiftiron/cookies.tsv` (or `$SWIFTIRON_PROFILE`), readable only by you
+- **Privacy by default**: third-party cookies blocked (set `SWIFTIRON_THIRD_PARTY_COOKIES=1` to allow), tracking parameters (utm_*, fbclid, gclid…) stripped from page URLs (`SWIFTIRON_KEEP_TRACKING_PARAMS=1` keeps them), Global Privacy Control sent, no telemetry
 - **Forms**: text, password, email and other inputs, textareas, checkboxes, radio buttons, dropdowns, buttons; typing with a caret, Tab between fields, Enter to submit, GET and POST submission, reset, labels, `:focus`, and the JavaScript form APIs (`value`, `checked`, `selectedIndex`, `form.submit()`, submit/input/change events)
 - **CSS grid**: px/%/`fr`/auto/`minmax()`/`fit-content()` tracks, `repeat(N | auto-fill | auto-fit)`, named areas, line numbers (negative too), spans, auto-placement, implicit rows/columns, gaps, align-items/align-self
 - **Positioning**: `relative`, `absolute` (against the nearest positioned ancestor), `fixed` (stays put
@@ -134,7 +134,7 @@ Measured with a window open (RSS), after the memory work:
 What changed: font glyphs load on first use (was ~88 MB up front), computed styles are shared,
 JavaScript starts only on pages with scripts, words on a line are one display item, attributes are
 a short list, freed memory goes back to the OS, and the window polls slowly when idle.
-`LF_MEM_PROBE=1 lighteningfox <url>` prints memory after each loading stage.
+`SWIFTIRON_MEM_PROBE=1 swiftiron <url>` prints memory after each loading stage.
 
 ## Tests
 
@@ -158,5 +158,5 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## License
 
-LighteningFox is released under the [MIT License](LICENSE). Third-party files used only by the
+Swiftiron is released under the [MIT License](LICENSE). Third-party files used only by the
 tests keep their own licenses: see `tests/real-world/README.md` and `tests/fonts/README.md`.
