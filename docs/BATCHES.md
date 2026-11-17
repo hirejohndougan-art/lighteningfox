@@ -74,7 +74,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §13 Fingerprinting: per-site noise on canvas readouts (the noise function already exists)
 
 ## E. Effects and animation
-**Status:** free
+**Status:** claimed by effects-chat 2026-11-17 02:20
 **Start after:** —
 **Main files:** `src/paint.rs`, `src/tiles.rs`, `src/gpu.rs`, the drawing and scrolling parts of `src/main.rs`
 
