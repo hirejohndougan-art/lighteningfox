@@ -545,8 +545,19 @@ fn n_available(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
     Ok(available().into())
 }
 
+thread_local! {
+    /// Tests that play media set this: the screenshot tests freeze animations for the whole
+    /// process, and tests run in parallel.
+    static UNFROZEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Is playback held still (a snapshot is being taken)?
+fn frozen() -> bool {
+    crate::images::animations_frozen() && !UNFROZEN.with(|u| u.get())
+}
+
 fn n_frozen(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    Ok(crate::images::animations_frozen().into())
+    Ok(frozen().into())
 }
 
 /// Download `url` (for page `page`) and work out what's in it, in the background.
@@ -632,7 +643,7 @@ fn n_status(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
 fn n_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = id_of(a, ctx);
     let (t, rate) = (num(a, 1, ctx), num(a, 2, ctx));
-    let frozen = crate::images::animations_frozen();
+    let frozen = frozen();
     with(ctx, id, |m| {
         m.sound = None;
         let (Some(file), Some(info)) = (&m.file, &m.info) else { return };
@@ -1078,6 +1089,7 @@ mod page_tests {
         // SAFETY: tests only read this variable; every test sets the same kind of value.
         unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
         crate::load_fonts().expect("fonts");
+        super::UNFROZEN.with(|u| u.set(true));
         let url = crate::net::normalize_input("tests/media-api.html");
         let mut page = crate::load(&url);
         let js = page.js.as_mut().expect("scripts");
