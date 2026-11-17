@@ -8,6 +8,10 @@
 //! style pool (src/parallel.rs), and puts the results in the shaping cache that layout and
 //! painting read. A word guessed differently here than layout splits it is simply shaped later
 //! by layout, as before, so the pass can only save time, never change what's drawn.
+//!
+//! Layout then joins each line's words into one text item, which is measured again whole
+//! (`Ctx::content_right`, for shrink-to-fit edges) and drawn whole by painting. `texts` shapes
+//! those lines across cores too, once a block's lines are known and before they're measured.
 
 use std::cell::Cell;
 use std::collections::HashSet;
@@ -43,6 +47,50 @@ pub fn run(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts) {
     }
     let shared: Vec<crate::font::PlanRef> = plans.iter().map(|p| p.share()).collect();
     let shaped: Vec<crate::font::Shaped> = pool.install(|| shared.par_iter().with_min_len(16).map(|p| p.run()).collect());
+    drop(shared);
+    for (p, s) in plans.into_iter().zip(shaped) {
+        fonts.insert_shaped(p.key, p.text, s);
+    }
+}
+
+/// Forget the last pass, so the next one shapes again (benchmarks of a first layout).
+#[cfg(test)]
+pub fn forget() {
+    LAST.with(|l| l.set((0, 0, 0)));
+}
+
+/// Laid-out text items at least this many: worth looking for unshaped ones in.
+pub const MIN_ITEMS: usize = 256;
+
+/// Shape the laid-out text items (whole lines) of `items` that aren't shaped yet, in parallel.
+pub fn texts(items: &[crate::paint::Item], fonts: &Fonts) {
+    let Some(pool) = crate::parallel::pool() else { return };
+    if items.len() < MIN_ITEMS {
+        return;
+    }
+    let mut seen: HashSet<(u8, u32, &str)> = HashSet::new();
+    let mut plans = Vec::new();
+    for it in items {
+        let crate::paint::Item::Text { text, font, size, .. } = it else { continue };
+        // Text with layout's markers in it (vertical writing) is measured without them: leave
+        // it to be shaped as it's measured.
+        if plans.len() >= MAX_WORDS || (!text.is_ascii() && text.chars().any(|c| ('\u{FDD0}'..='\u{FDEF}').contains(&c))) {
+            continue;
+        }
+        if seen.insert((*font, size.to_bits(), text.as_str())) {
+            plans.extend(fonts.plan_shape(*font, text, *size));
+        }
+    }
+    if plans.len() < MIN_WORDS {
+        // Few enough to shape as they're measured; the plans' face lookups are cached anyway.
+        for p in plans {
+            let s = p.share().run();
+            fonts.insert_shaped(p.key, p.text, s);
+        }
+        return;
+    }
+    let shared: Vec<crate::font::PlanRef> = plans.iter().map(|p| p.share()).collect();
+    let shaped: Vec<crate::font::Shaped> = pool.install(|| shared.par_iter().with_min_len(8).map(|p| p.run()).collect());
     drop(shared);
     for (p, s) in plans.into_iter().zip(shaped) {
         fonts.insert_shaped(p.key, p.text, s);
@@ -115,7 +163,8 @@ mod tests {
     #[test]
     fn same_shapes_as_in_order() {
         let fonts = crate::font::Fonts::load().expect("fonts");
-        let words = ["Hello", "world,", "kerning:", "AVATAR", "Wave", "ﬁne", "naïve", "café", "x²", "emoji😀", "日本語", "Привет", "123.45", "ǅ", "e\u{301}"];
+        // Words, and whole lines as layout joins them.
+        let words = ["Hello", "world,", "kerning:", "AVATAR", "Wave", "ﬁne", "naïve", "café", "x²", "emoji😀", "日本語", "Привет", "123.45", "ǅ", "e\u{301}", "The quick brown fox jumps over", "AV To Ty, 日本語 and emoji😀 together"];
         let plans: Vec<_> = words.iter().filter_map(|w| fonts.plan_shape(crate::font::REGULAR, w, 16.0)).collect();
         assert!(plans.len() >= 10, "{}", plans.len());
         let shared: Vec<_> = plans.iter().map(|p| p.share()).collect();

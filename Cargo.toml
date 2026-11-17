@@ -47,6 +47,8 @@ unicode-bidi = "0.3"
 # Geolocation: GeoClue over D-Bus (zbus is already built for accesskit_unix).
 # Styling across CPU cores (src/parallel.rs).
 rayon = "1"
+# A fast, randomly seeded hasher for the font caches layout hits for every word (font.rs).
+foldhash = "0.2"
 
 # Linux only: screen readers over AT-SPI and the location service (GeoClue), both on D-Bus.
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -878,6 +878,10 @@ impl<'a> Ctx<'a> {
         if st.width == Len::Auto && self.items.len() > i0 {
             let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail).max(0.0);
             if tail > 0.0 {
+                // A big block's lines: shape them across cores before measuring them.
+                if self.items.len() - i0 >= crate::preshape::MIN_ITEMS {
+                    crate::preshape::texts(&self.items[i0..], self.fonts);
+                }
                 let right = self.content_right(&self.items[i0..], true);
                 if right > 0.0 {
                     self.items.push(Item::Mark { id: HIDDEN_INK, x: right, y, w: tail, h: own_extent(id) });

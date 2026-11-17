@@ -115,6 +115,9 @@ pub struct Metrics {
 pub const SUBPIXEL_STEPS: f32 = 4.0;
 
 type Key = (u8, char, u16);
+/// The caches layout hits for every word: foldhash is several times faster than the standard
+/// hasher here and still seeded at random, so a page can't pick colliding words.
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::RandomState>;
 
 /// Fonts for characters the chosen font lacks (Chinese, Japanese, Korean, Hindi, Thai,
 /// Hebrew…): file names searched for under the system font folders, in order of preference.
@@ -282,21 +285,21 @@ pub struct Fonts {
     system: RefCell<HashMap<(String, u32), u8>>,
     /// font-family list (+ bold, italic, mono) -> font id, for the current web fonts.
     /// (generation, list → font id for each weight class (100–900, or 1000) × italic × mono).
-    resolved: RefCell<(u64, HashMap<String, [Option<u8>; 40]>)>,
+    resolved: RefCell<(u64, FastMap<String, [Option<u8>; 40]>)>,
     /// The last answer (layout asks about the same family list word after word): flags,
     /// generation, id and the list.
     last_resolved: RefCell<(usize, u64, u8, String)>,
-    advances: RefCell<HashMap<Key, f32>>,
+    advances: RefCell<FastMap<Key, f32>>,
     /// Fallback font files found on the system, loaded the first time they're needed.
     fallback_paths: Vec<std::path::PathBuf>,
     fallbacks: RefCell<Vec<Option<Option<Rc<FontVec>>>>>,
     /// Which fallback (face id) covers a character missing from the main fonts.
-    char_fallback: RefCell<HashMap<char, Option<u16>>>,
+    char_fallback: RefCell<FastMap<char, Option<u16>>>,
     buzz: RefCell<HashMap<u16, Rc<rustybuzz::Face<'static>>>>,
     /// Shaped words by (font, size in quarter pixels), then text (looked up without copying
     /// the text), and how many there are in all.
-    shaped: RefCell<(usize, HashMap<(u8, u16), HashMap<String, Rc<Shaped>>>)>,
-    glyphs_by_id: RefCell<HashMap<(u16, u16, u16, u8), (Metrics, Vec<u8>)>>,
+    shaped: RefCell<(usize, FastMap<(u8, u16), FastMap<String, Rc<Shaped>>>)>,
+    glyphs_by_id: RefCell<FastMap<(u16, u16, u16, u8), (Metrics, Vec<u8>)>>,
     /// Glyph rasterizer with TrueType hinting and color glyph support (swash).
     scaler: RefCell<swash::scale::ScaleContext>,
 }
@@ -449,7 +452,7 @@ impl Fonts {
         let id = self.resolve_uncached(list, weight, italic, mono);
         let mut r = self.resolved.borrow_mut();
         if r.0 != generation || r.1.len() > 4096 {
-            *r = (generation, HashMap::new());
+            *r = (generation, FastMap::default());
         }
         r.1.entry(list.to_string()).or_insert([None; 40])[flags] = Some(id);
         id
@@ -647,7 +650,7 @@ impl Fonts {
     fn remember_shaped(&self, key: (u8, u16), text: String, shaped: Rc<Shaped>) {
         let mut cache = self.shaped.borrow_mut();
         if cache.0 >= SHAPED_MAX {
-            *cache = (0, HashMap::new());
+            *cache = (0, FastMap::default());
         }
         if cache.1.entry(key).or_default().insert(text, shaped).is_none() {
             cache.0 += 1;
@@ -754,6 +757,12 @@ impl Fonts {
     }
 
     /// Keep a word shaped elsewhere (by `ShapePlan::run`).
+    /// Forget every shaped word (benchmarks of a first layout).
+    #[cfg(test)]
+    pub fn forget_shaped(&self) {
+        *self.shaped.borrow_mut() = Default::default();
+    }
+
     pub fn insert_shaped(&self, key: (u8, u16), text: String, shaped: Shaped) {
         self.remember_shaped(key, text, Rc::new(shaped));
     }

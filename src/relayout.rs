@@ -689,9 +689,25 @@ mod bench {
     #[ignore]
     fn relayout_timing() {
         let fonts = crate::load_fonts().expect("fonts");
-        for page in ["tests/real-world/bootstrap.html", "tests/real-world/react.html", "tests/tables.html", "tests/grid.html"] {
+        let extra = std::env::var("RELAYOUT_PAGES").unwrap_or_default();
+        let pages: Vec<&str> = if extra.is_empty() { vec!["tests/real-world/bootstrap.html", "tests/real-world/react.html", "tests/tables.html", "tests/grid.html"] } else { extra.split(',').collect() };
+        for page in pages {
             let mut p = crate::load(&crate::net::normalize_input(page));
             p.restyle();
+            // A first layout (nothing shaped yet), the median of seven.
+            let mut firsts: Vec<f64> = (0..7)
+                .map(|_| {
+                    super::clear();
+                    fonts.forget_shaped();
+                    crate::preshape::forget();
+                    let t = std::time::Instant::now();
+                    p.layout(fonts, 1000.0, 700.0);
+                    t.elapsed().as_secs_f64() * 1000.0
+                })
+                .collect();
+            firsts.sort_by(f64::total_cmp);
+            let first = firsts[3];
+            super::clear();
             let time = |p: &mut crate::Page, clear: bool| {
                 let t = std::time::Instant::now();
                 for _ in 0..10 {
@@ -704,7 +720,7 @@ mod bench {
             };
             let full = time(&mut p, true);
             let same = time(&mut p, false);
-            eprintln!("{page}: full {full:.2} ms, unchanged {same:.2} ms");
+            eprintln!("{page}: first {first:.2} ms, full {full:.2} ms, unchanged {same:.2} ms");
         }
     }
 }
