@@ -82,6 +82,7 @@ mod media;
 mod channels;
 mod geo;
 mod parallel;
+mod preshape;
 mod clipboard;
 mod downloads;
 mod entities;

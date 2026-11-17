@@ -237,6 +237,8 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+    // Shape the page's new words across CPU cores first (see preshape.rs).
+    crate::preshape::run(dom, styles, fonts);
     // Layout works on the box tree (anonymous boxes, ::before/::after, markers,
     // display: contents); hits and element boxes are reported in DOM ids.
     let tree = crate::boxtree::build(dom, styles);
@@ -3862,7 +3864,7 @@ fn bidi_reorder(line: &mut Line, toks: &[Tok], base_rtl: bool) {
 }
 
 /// Applies `text-transform` (1 uppercase, 2 lowercase, 3 capitalize) to a word.
-fn transform(word: &str, how: u8) -> String {
+pub(crate) fn transform(word: &str, how: u8) -> String {
     match how {
         1 => word.to_uppercase(),
         2 => word.to_lowercase(),

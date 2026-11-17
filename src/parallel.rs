@@ -39,7 +39,7 @@ fn min_nodes() -> usize {
     }
 }
 
-fn pool() -> Option<&'static rayon::ThreadPool> {
+pub fn pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
     POOL.get_or_init(|| {
         let cores = std::thread::available_parallelism().map_or(1, |n| n.get());

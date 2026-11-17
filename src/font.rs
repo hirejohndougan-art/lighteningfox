@@ -147,6 +147,59 @@ pub struct Shaped {
     pub width: f32,
 }
 
+/// Shape one run of text that uses a single face, appending its glyphs to `out`.
+fn shape_run(bf: &rustybuzz::Face<'static>, face: u16, piece: &str, size: f32, rtl: Option<bool>, out: &mut Shaped) {
+    let mut buf = rustybuzz::UnicodeBuffer::new();
+    buf.push_str(piece);
+    buf.guess_segment_properties();
+    if let Some(r) = rtl {
+        buf.set_direction(if r { rustybuzz::Direction::RightToLeft } else { rustybuzz::Direction::LeftToRight });
+    }
+    let res = rustybuzz::shape(bf, &[], buf);
+    let scale = size / bf.units_per_em() as f32;
+    for (info, pos) in res.glyph_infos().iter().zip(res.glyph_positions()) {
+        let adv = pos.x_advance as f32 * scale;
+        out.glyphs.push(ShapedGlyph { face, id: info.glyph_id as u16, x: out.width + pos.x_offset as f32 * scale, y: pos.y_offset as f32 * scale });
+        out.width += adv;
+    }
+}
+
+/// A word ready to be shaped on another thread: everything `Fonts` decides (which face each
+/// character uses) is already decided. `faces` keeps the shaping faces alive; the plan stays
+/// on the window's thread and other threads only borrow it (`run`).
+pub struct ShapePlan {
+    pub key: (u8, u16),
+    size: f32,
+    pub text: String,
+    runs: Vec<(u16, usize, usize)>,
+    faces: Vec<Rc<rustybuzz::Face<'static>>>,
+}
+
+/// The parts of a plan another thread may read (no `Rc`s: the faces are shared read-only).
+pub struct PlanRef<'a> {
+    size: f32,
+    text: &'a str,
+    runs: &'a [(u16, usize, usize)],
+    faces: Vec<&'a rustybuzz::Face<'static>>,
+}
+
+impl ShapePlan {
+    pub fn share(&self) -> PlanRef<'_> {
+        PlanRef { size: self.size, text: &self.text, runs: &self.runs, faces: self.faces.iter().map(|f| &**f).collect() }
+    }
+}
+
+impl PlanRef<'_> {
+    /// Shape the word: the same result `Fonts::shape` gives.
+    pub fn run(&self) -> Shaped {
+        let mut out = Shaped::default();
+        for (&(face, a, b), bf) in self.runs.iter().zip(&self.faces) {
+            shape_run(bf, face, &self.text[a..b], self.size, None, &mut out);
+        }
+        out
+    }
+}
+
 fn find_fallbacks() -> Vec<std::path::PathBuf> {
     let mut found: HashMap<String, std::path::PathBuf> = HashMap::new();
     let mut dirs: Vec<std::path::PathBuf> = vec!["/usr/share/fonts".into(), "/usr/local/share/fonts".into()];
@@ -184,6 +237,9 @@ fn buzz_face(font: &Rc<FontVec>, index: u32) -> Option<rustybuzz::Face<'static>>
     rustybuzz::Face::from_slice(data, index)
 }
 
+/// Most shaped words kept (the cache starts over when it's full).
+const SHAPED_MAX: usize = 30_000;
+
 pub struct Fonts {
     /// Index into `files` for each style slot (missing faces reuse the regular one).
     slots: [usize; 6],
@@ -196,7 +252,11 @@ pub struct Fonts {
     /// Installed fonts already loaded: (file, index) -> font id.
     system: RefCell<HashMap<(String, u32), u8>>,
     /// font-family list (+ bold, italic, mono) -> font id, for the current web fonts.
-    resolved: RefCell<(u64, HashMap<(String, bool, bool, bool), u8>)>,
+    /// (generation, list → font id for each of the 8 bold/italic/mono combinations).
+    resolved: RefCell<(u64, HashMap<String, [Option<u8>; 8]>)>,
+    /// The last answer (layout asks about the same family list word after word): flags,
+    /// generation, id and the list.
+    last_resolved: RefCell<(usize, u64, u8, String)>,
     advances: RefCell<HashMap<Key, f32>>,
     /// Fallback font files found on the system, loaded the first time they're needed.
     fallback_paths: Vec<std::path::PathBuf>,
@@ -204,7 +264,9 @@ pub struct Fonts {
     /// Which fallback (face id) covers a character missing from the main fonts.
     char_fallback: RefCell<HashMap<char, Option<u16>>>,
     buzz: RefCell<HashMap<u16, Rc<rustybuzz::Face<'static>>>>,
-    shaped: RefCell<HashMap<(u8, u16, String), Rc<Shaped>>>,
+    /// Shaped words by (font, size in quarter pixels), then text (looked up without copying
+    /// the text), and how many there are in all.
+    shaped: RefCell<(usize, HashMap<(u8, u16), HashMap<String, Rc<Shaped>>>)>,
     glyphs_by_id: RefCell<HashMap<(u16, u16, u16, u8), (Metrics, Vec<u8>)>>,
     /// Glyph rasterizer with TrueType hinting and color glyph support (swash).
     scaler: RefCell<swash::scale::ScaleContext>,
@@ -245,6 +307,7 @@ impl Fonts {
             web_index: RefCell::default(),
             system: RefCell::default(),
             resolved: RefCell::default(),
+            last_resolved: RefCell::new((usize::MAX, 0, 0, String::new())),
             advances: RefCell::default(),
             fallbacks: RefCell::new(vec![None; fallback_paths.len()]),
             fallback_paths,
@@ -317,11 +380,26 @@ impl Fonts {
         let fallback = Self::pick(bold, italic, mono);
         let Some(list) = family else { return fallback };
         let generation = FAMILIES_GEN.with(|g| g.get());
-        let key = (list.to_string(), bold, italic, mono);
+        let flags = bold as usize | (italic as usize) << 1 | (mono as usize) << 2;
+        {
+            let last = self.last_resolved.borrow();
+            if last.0 == flags && last.1 == generation && last.3 == list {
+                return last.2;
+            }
+        }
+        let id = self.resolve_list(list, flags, generation, bold, italic, mono);
+        let mut last = self.last_resolved.borrow_mut();
+        last.3.clear();
+        last.3.push_str(list);
+        (last.0, last.1, last.2) = (flags, generation, id);
+        id
+    }
+
+    fn resolve_list(&self, list: &str, flags: usize, generation: u64, bold: bool, italic: bool, mono: bool) -> u8 {
         {
             let r = self.resolved.borrow();
             if r.0 == generation {
-                if let Some(&id) = r.1.get(&key) {
+                if let Some(id) = r.1.get(list).and_then(|ids| ids[flags]) {
                     return id;
                 }
             }
@@ -331,7 +409,7 @@ impl Fonts {
         if r.0 != generation || r.1.len() > 4096 {
             *r = (generation, HashMap::new());
         }
-        r.1.insert(key, id);
+        r.1.entry(list.to_string()).or_default()[flags] = Some(id);
         id
     }
 
@@ -514,17 +592,23 @@ impl Fonts {
     /// Shape `text` (one word or run) in a style: font fallback per character, then
     /// HarfBuzz-style shaping (kerning, ligatures, joining scripts) per run.
     pub fn shape(&self, font: u8, text: &str, size: f32) -> Rc<Shaped> {
-        let key = (font, (size * 4.0).round() as u16, text.to_string());
-        if let Some(s) = self.shaped.borrow().get(&key) {
+        let key = (font, (size * 4.0).round() as u16);
+        if let Some(s) = self.shaped.borrow().1.get(&key).and_then(|m| m.get(text)) {
             return s.clone();
         }
         let shaped = Rc::new(self.shape_uncached(font, text, size));
-        let mut cache = self.shaped.borrow_mut();
-        if cache.len() > 30_000 {
-            cache.clear();
-        }
-        cache.insert(key, shaped.clone());
+        self.remember_shaped(key, text.to_string(), shaped.clone());
         shaped
+    }
+
+    fn remember_shaped(&self, key: (u8, u16), text: String, shaped: Rc<Shaped>) {
+        let mut cache = self.shaped.borrow_mut();
+        if cache.0 >= SHAPED_MAX {
+            *cache = (0, HashMap::new());
+        }
+        if cache.1.entry(key).or_default().insert(text, shaped).is_none() {
+            cache.0 += 1;
+        }
     }
 
     fn shape_uncached(&self, font: u8, text: &str, size: f32) -> Shaped {
@@ -558,6 +642,26 @@ impl Fonts {
 
     /// Shape with a fixed direction (Some(true) = right to left), or guess it from the text.
     fn shape_dir(&self, font: u8, text: &str, size: f32, rtl: Option<bool>) -> Shaped {
+        let runs = self.face_runs(font, text);
+        let mut out = Shaped::default();
+        for (face, a, b) in runs {
+            let piece = &text[a..b];
+            let Some(bf) = self.buzz_for(face) else {
+                // No shaping data: lay out with plain advances.
+                for c in piece.chars() {
+                    let adv = self.advance(font, c, size);
+                    out.glyphs.push(ShapedGlyph { face, id: self.face_file(face).map_or(0, |f| f.glyph_id(c).0), x: out.width, y: 0.0 });
+                    out.width += adv;
+                }
+                continue;
+            };
+            shape_run(&bf, face, piece, size, rtl, &mut out);
+        }
+        out
+    }
+
+    /// Split `text` into runs that share a face (font fallback per character).
+    fn face_runs(&self, font: u8, text: &str) -> Vec<(u16, usize, usize)> {
         // Split into runs that share a face. Spaces and combining marks stay with the run
         // they're in, so a mark is shaped together with its base letter.
         let mut runs: Vec<(u16, usize, usize)> = Vec::new();
@@ -584,38 +688,31 @@ impl Fonts {
                 _ => runs.push((face, i, i + c.len_utf8())),
             }
         }
-        let mut out = Shaped::default();
-        for (face, a, b) in runs {
-            let piece = &text[a..b];
-            let Some(bf) = self.buzz_for(face) else {
-                // No shaping data: lay out with plain advances.
-                for c in piece.chars() {
-                    let adv = self.advance(font, c, size);
-                    out.glyphs.push(ShapedGlyph { face, id: self.face_file(face).map_or(0, |f| f.glyph_id(c).0), x: out.width, y: 0.0 });
-                    out.width += adv;
-                }
-                continue;
-            };
-            let mut buf = rustybuzz::UnicodeBuffer::new();
-            buf.push_str(piece);
-            buf.guess_segment_properties();
-            if let Some(r) = rtl {
-                buf.set_direction(if r { rustybuzz::Direction::RightToLeft } else { rustybuzz::Direction::LeftToRight });
-            }
-            let res = rustybuzz::shape(&bf, &[], buf);
-            let scale = size / bf.units_per_em() as f32;
-            for (info, pos) in res.glyph_infos().iter().zip(res.glyph_positions()) {
-                let adv = pos.x_advance as f32 * scale;
-                out.glyphs.push(ShapedGlyph {
-                    face,
-                    id: info.glyph_id as u16,
-                    x: out.width + pos.x_offset as f32 * scale,
-                    y: pos.y_offset as f32 * scale,
-                });
-                out.width += adv;
-            }
+        runs
+    }
+
+    /// Plan shaping `text` off this thread (see src/preshape.rs): its face runs and the
+    /// shaping faces they need. None when it's already cached, or when it needs more than plain
+    /// shaping (right-to-left text, a face without shaping data).
+    pub fn plan_shape(&self, font: u8, text: &str, size: f32) -> Option<ShapePlan> {
+        let key = (font, (size * 4.0).round() as u16);
+        if self.shaped.borrow().1.get(&key).is_some_and(|m| m.contains_key(text)) {
+            return None;
         }
-        out
+        if text.chars().any(crate::style::is_rtl_char) {
+            return None;
+        }
+        let runs = self.face_runs(font, text);
+        let mut faces = Vec::with_capacity(runs.len());
+        for &(face, _, _) in &runs {
+            faces.push(self.buzz_for(face)?);
+        }
+        Some(ShapePlan { key, size, text: text.to_string(), runs, faces })
+    }
+
+    /// Keep a word shaped elsewhere (by `ShapePlan::run`).
+    pub fn insert_shaped(&self, key: (u8, u16), text: String, shaped: Shaped) {
+        self.remember_shaped(key, text, Rc::new(shaped));
     }
 
     /// Calls `f` with a glyph's metrics and bitmap (coverage, or RGBA for color glyphs), by
