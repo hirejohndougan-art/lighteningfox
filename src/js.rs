@@ -780,7 +780,16 @@ impl Js {
         let t = Instant::now();
         loop {
             self.tick();
-            if !network_busy() || t.elapsed() >= max {
+            if self.wants_frame() {
+                self.run_frame();
+            }
+            // Also wait for one-off timers due within half a second (pages that fill in
+            // content "a moment later").
+            let soon = self
+                .eval("__nextTimer()", "timers")
+                .and_then(|v| v.to_number(&mut self.ctx).ok())
+                .is_some_and(|ms| (0.0..=500.0).contains(&ms));
+            if !network_busy() && !soon || t.elapsed() >= max {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -800,10 +809,34 @@ impl Js {
         delivered | self.tick_timers()
     }
 
+    /// Run due tasks (messages, timers) one at a time, with a microtask checkpoint after
+    /// each. Stops after ~50 ms so a busy page can't freeze the window.
     fn tick_timers(&mut self) -> bool {
+        let began = Instant::now();
+        let mut ran = false;
+        for _ in 0..1000 {
+            let now = self.start.elapsed().as_secs_f64() * 1000.0;
+            let did = self.eval(&format!("__runTask({now})"), "task").is_some_and(|v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0);
+            if !did {
+                break;
+            }
+            ran = true;
+            if began.elapsed().as_millis() > 50 {
+                break;
+            }
+        }
+        ran
+    }
+
+    /// Does the page want an animation frame (a pending requestAnimationFrame)?
+    pub fn wants_frame(&mut self) -> bool {
+        self.eval("__hasFrames()", "frames").is_some_and(|v| v.to_boolean())
+    }
+
+    /// Run this frame's requestAnimationFrame callbacks (call once per drawn frame).
+    pub fn run_frame(&mut self) -> bool {
         let now = self.start.elapsed().as_secs_f64() * 1000.0;
-        self.eval(&format!("__tick({now})"), "timers")
-            .map_or(false, |v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0)
+        self.eval(&format!("__runFrame({now})"), "animation frame").is_some_and(|v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0)
     }
 
     /// The browser moved within this document's history: update location, fire popstate/hashchange.

@@ -530,9 +530,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             canvas = Canvas::new(w, h);
             dirty = true;
         }
-        // JavaScript: run due timers; restyle and reflow if the DOM changed.
+        // JavaScript: run due tasks, then this frame's animation callbacks; restyle and
+        // reflow if the DOM changed.
+        let mut animating = false;
         if let Some(js) = page.js.as_mut() {
             js.tick();
+            if js.wants_frame() {
+                js.run_frame();
+                animating = true;
+            }
         }
         if js::take_dirty() {
             page.restyle();
@@ -1047,7 +1053,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
 
         // Idle: poll less often. Anything happening (input, redraws, loading) goes back to 60 fps.
-        let active = dirty || loading.is_some() || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
+        let active = dirty || animating || loading.is_some() || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
         if active {
             idle_frames = 0;
             if slow {

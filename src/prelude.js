@@ -439,28 +439,48 @@
   g.setTimeout = (fn, ms, ...args) => addTimer(fn, ms, args, false);
   g.setInterval = (fn, ms, ...args) => addTimer(fn, Math.max(4, Number(ms) || 0), args, true);
   g.clearTimeout = g.clearInterval = (id) => { timers.delete(id); };
-  g.requestAnimationFrame = (fn) => addTimer(() => fn(__nowMs), 16, [], false);
-  g.cancelAnimationFrame = g.clearTimeout;
   g.queueMicrotask = (fn) => Promise.resolve().then(fn);
   g.requestIdleCallback = (fn) => addTimer(() => fn({ timeRemaining: () => 10, didTimeout: false }), 1, [], false);
+  g.cancelIdleCallback = g.clearTimeout;
 
-  // Called from Rust: advance the clock and run timers that are due. Returns how many ran.
-  g.__tick = function (now) {
+  // The event loop. Rust runs one task per call (a queued message, else the earliest due
+  // timer) and runs promise callbacks (microtasks) after each, as browsers do.
+  const tasks = [];
+  g.__queueTask = (fn) => { tasks.push(fn); };
+  g.__runTask = function (now) {
     __nowMs = now;
-    let ran = 0;
-    for (let guard = 0; guard < 1000; guard++) {
-      let next = null;
-      for (const [id, t] of timers) if (t.due <= now && (!next || t.due < next[1].due)) next = [id, t];
-      if (!next) break;
-      const [id, t] = next;
-      if (t.repeat) t.due = Math.max(t.due + t.delay, now - t.delay + 1);
-      else timers.delete(id);
-      ran++;
-      try { typeof t.fn === "function" ? t.fn(...t.args) : (0, eval)(String(t.fn)); }
-      catch (e) { console.error(String(e)); }
+    if (tasks.length) {
+      const fn = tasks.shift();
+      try { fn(); } catch (e) { console.error(String(e)); }
+      return 1;
     }
-    return ran;
+    let next = null;
+    for (const [id, t] of timers) if (t.due <= now && (!next || t.due < next[1].due)) next = [id, t];
+    if (!next) return 0;
+    const [id, t] = next;
+    if (t.repeat) t.due = Math.max(t.due + t.delay, now - t.delay + 1);
+    else timers.delete(id);
+    try { typeof t.fn === "function" ? t.fn(...t.args) : (0, eval)(String(t.fn)); }
+    catch (e) { console.error(String(e)); }
+    return 1;
   };
+  // Animation frames: callbacks run once per drawn frame, all with the same timestamp.
+  const frames = new Map();
+  let frameId = 0;
+  g.requestAnimationFrame = (fn) => { const id = ++frameId; frames.set(id, fn); return id; };
+  g.cancelAnimationFrame = (id) => { frames.delete(id); };
+  g.__hasFrames = () => frames.size > 0;
+  // Milliseconds until the next timer is due (-1 if none), for headless rendering.
+  g.__nextTimer = () => { let m = -1; for (const t of timers.values()) if (!t.repeat && (m < 0 || t.due < m)) m = t.due; return m < 0 ? -1 : Math.max(0, m - __nowMs); };
+  g.__runFrame = function (now) {
+    __nowMs = now;
+    const due = [...frames.values()];
+    frames.clear();
+    for (const fn of due) { try { fn(now); } catch (e) { console.error(String(e)); } }
+    return due.length;
+  };
+  // Kept for older callers: run everything that's due in one go.
+  g.__tick = function (now) { let n = 0; while (n < 1000 && g.__runTask(now)) n++; return n; };
   g.__pendingTimers = () => timers.size;
 
   // Called from Rust when a node is clicked. Returns true if the default action should run.
@@ -850,6 +870,42 @@
       this.readyState = 0;
     }
   }
+
+
+  // ------------------------------------------------------------ messaging
+  if (typeof g.structuredClone !== "function") {
+    g.structuredClone = (v) => {
+      if (v === undefined) return undefined;
+      return JSON.parse(JSON.stringify(v, (k, x) => (x instanceof Map ? Object.fromEntries(x) : x instanceof Set ? [...x] : x)));
+    };
+  }
+  class MessageEvent extends Event {
+    constructor(type, init) { super(type, init); init = init || {}; this.data = init.data; this.origin = init.origin || ""; this.source = init.source || null; this.ports = init.ports || []; this.lastEventId = ""; }
+  }
+  class MessagePort extends EventTarget {
+    constructor() { super(); this.onmessage = null; this._other = null; this._closed = false; }
+    postMessage(data) {
+      const to = this._other;
+      if (!to || this._closed) return;
+      const copy = g.structuredClone(data);
+      __queueTask(() => { if (!to._closed) to.dispatchEvent(new MessageEvent("message", { data: copy })); });
+    }
+    start() {}
+    close() { this._closed = true; }
+  }
+  class MessageChannel {
+    constructor() { this.port1 = new MessagePort(); this.port2 = new MessagePort(); this.port1._other = this.port2; this.port2._other = this.port1; }
+  }
+  g.postMessage = function (data, targetOrigin) {
+    const copy = g.structuredClone(data);
+    const t = typeof targetOrigin === "object" && targetOrigin ? targetOrigin.targetOrigin : targetOrigin;
+    if (t && t !== "*" && t !== "/" && t !== location.origin) return;
+    __queueTask(() => {
+      const ev = new MessageEvent("message", { data: copy, origin: location.origin, source: g });
+      EventTarget.prototype.__fire.call(g, ev);
+    });
+  };
+  Object.assign(g, { MessageEvent, MessagePort, MessageChannel });
 
   Object.assign(g, { Headers, Response, Request, FormData, AbortController, AbortSignal, DOMException, XMLHttpRequest });
 
