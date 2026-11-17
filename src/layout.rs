@@ -98,6 +98,14 @@ impl Layout {
                     if let crate::style::BgSize::Size(a, b) = bg.size {
                         bg.size = crate::style::BgSize::Size(len(a), len(b));
                     }
+                    for p in bg.positions.iter_mut() {
+                        *p = (len(p.0), len(p.1));
+                    }
+                    for sz in bg.sizes.iter_mut() {
+                        if let crate::style::BgSize::Size(a, b) = *sz {
+                            *sz = crate::style::BgSize::Size(len(a), len(b));
+                        }
+                    }
                     Item::Box { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z, bg }
                 }
                 Item::Ring { x, y, w, h, radius, width, color } => Item::Ring { x: x * z, y: y * z, w: w * z, h: h * z, radius: radius * z, width: width * z, color: *color },

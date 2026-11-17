@@ -101,56 +101,6 @@ pub(crate) fn rounded_cov(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f
     (0.5 - d).clamp(0.0, 1.0)
 }
 
-/// Gradient stops with every position filled in (0..1), as CSS does.
-fn resolve_stops(stops: &[(Color, Option<f32>)]) -> Vec<(Color, f32)> {
-    let n = stops.len();
-    let mut pos: Vec<Option<f32>> = stops.iter().map(|s| s.1).collect();
-    if pos[0].is_none() {
-        pos[0] = Some(0.0);
-    }
-    if pos[n - 1].is_none() {
-        pos[n - 1] = Some(1.0);
-    }
-    let mut i = 0;
-    while i < n {
-        if pos[i].is_none() {
-            let start = i - 1;
-            let mut end = i;
-            while pos[end].is_none() {
-                end += 1;
-            }
-            let (a, b) = (pos[start].unwrap(), pos[end].unwrap());
-            for k in i..end {
-                pos[k] = Some(a + (b - a) * (k - start) as f32 / (end - start) as f32);
-            }
-            i = end;
-        }
-        i += 1;
-    }
-    // Positions never go backwards.
-    let mut last = 0.0f32;
-    stops.iter().zip(pos).map(|((c, _), p)| {
-        last = last.max(p.unwrap());
-        (*c, last)
-    }).collect()
-}
-
-fn gradient_at(stops: &[(Color, f32)], t: f32) -> Color {
-    let t = t.clamp(0.0, 1.0);
-    if t <= stops[0].1 {
-        return stops[0].0;
-    }
-    for pair in stops.windows(2) {
-        let ((c0, p0), (c1, p1)) = (pair[0], pair[1]);
-        if t <= p1 {
-            let f = if p1 > p0 { (t - p0) / (p1 - p0) } else { 1.0 };
-            let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
-            return Color { r: mix(c0.r, c1.r), g: mix(c0.g, c1.g), b: mix(c0.b, c1.b), a: mix(c0.a, c1.a) };
-        }
-    }
-    stops[stops.len() - 1].0
-}
-
 #[derive(Clone, Copy)]
 struct Clip {
     x: f32,
@@ -321,42 +271,59 @@ impl Canvas {
                 }
             }
         }
-        match &bg.image {
-            None => {}
-            Some(BgImage::Linear { angle, stops }) => {
-                let stops = resolve_stops(stops);
-                let a = angle.to_radians();
-                let (sa, ca) = (a.sin(), a.cos());
-                let len = (w * sa).abs() + (h * ca).abs();
-                let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+        // Image layers, bottom first (the first layer is drawn on top).
+        for layer in bg.layers().iter().rev() {
+            self.fill_layer(images, (x, y, w, h), (x0, y0, x1, y1), &cov, layer);
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn fill_layer(&mut self, images: &Images, (x, y, w, h): (f32, f32, f32, f32), (x0, y0, x1, y1): (i32, i32, i32, i32), cov: &dyn Fn(i32, i32) -> f32, layer: &crate::background::Layer) {
+        let (size, pos, repeat) = (layer.size, layer.pos, layer.repeat);
+        match layer.image {
+            BgImage::Gradient(g) => {
+                // A gradient fills the box unless background-size says otherwise; then it
+                // tiles like an image.
+                let (tw, th) = match size {
+                    BgSize::Size(a, b) => {
+                        let tw = if a == Len::Auto { w } else { a.resolve(w) };
+                        let th = if b == Len::Auto { h } else { b.resolve(h) };
+                        (tw.max(1.0), th.max(1.0))
+                    }
+                    _ => (w, h),
+                };
+                let off = |l: Len, free: f32| match l {
+                    Len::Pct(p) => free * p / 100.0,
+                    Len::Mix(px, p) => px + free * p / 100.0,
+                    other => other.resolve(0.0),
+                };
+                let (ox, oy) = (x + off(pos.0, w - tw), y + off(pos.1, h - th));
+                let prepared = g.prepare(tw, th);
                 for py in y0..y1 {
+                    let mut ty = py as f32 + 0.5 - oy;
+                    if repeat.1 {
+                        ty = ty.rem_euclid(th);
+                    } else if ty < 0.0 || ty >= th {
+                        continue;
+                    }
                     for px in x0..x1 {
+                        let mut tx = px as f32 + 0.5 - ox;
+                        if repeat.0 {
+                            tx = tx.rem_euclid(tw);
+                        } else if tx < 0.0 || tx >= tw {
+                            continue;
+                        }
                         let c = cov(px, py);
                         if c > 0.0 {
-                            let t = ((px as f32 + 0.5 - cx) * sa - (py as f32 + 0.5 - cy) * ca) / len.max(1.0) + 0.5;
-                            self.blend(px, py, gradient_at(&stops, t), c);
+                            self.blend(px, py, prepared.at(tx, ty), c);
                         }
                     }
                 }
             }
-            Some(BgImage::Radial { stops }) => {
-                let stops = resolve_stops(stops);
-                let (cx, cy) = (x + w / 2.0, y + h / 2.0);
-                let far = ((w / 2.0).powi(2) + (h / 2.0).powi(2)).sqrt().max(1.0);
-                for py in y0..y1 {
-                    for px in x0..x1 {
-                        let c = cov(px, py);
-                        if c > 0.0 {
-                            let d = ((px as f32 + 0.5 - cx).powi(2) + (py as f32 + 0.5 - cy).powi(2)).sqrt();
-                            self.blend(px, py, gradient_at(&stops, d / far), c);
-                        }
-                    }
-                }
-            }
-            Some(BgImage::Url(src)) => {
+            BgImage::Url(src) => {
                 let Some((iw, ih)) = images.size(src) else { return };
                 let ratio = iw / ih.max(1.0);
-                let (tw, th) = match bg.size {
+                let (tw, th) = match size {
                     BgSize::Auto => (iw, ih),
                     BgSize::Cover => {
                         let s = (w / iw).max(h / ih);
@@ -381,19 +348,19 @@ impl Canvas {
                     Len::Mix(px, p) => px + free * p / 100.0,
                     other => other.resolve(0.0),
                 };
-                let ox = x + off(bg.pos.0, w - tw);
-                let oy = y + off(bg.pos.1, h - th);
+                let ox = x + off(pos.0, w - tw);
+                let oy = y + off(pos.1, h - th);
                 let (twi, thi) = (tile.width() as i32, tile.height() as i32);
                 for py in y0..y1 {
                     let mut ty = py - oy.round() as i32;
-                    if bg.repeat.1 {
+                    if repeat.1 {
                         ty = ty.rem_euclid(thi);
                     } else if ty < 0 || ty >= thi {
                         continue;
                     }
                     for px in x0..x1 {
                         let mut tx = px - ox.round() as i32;
-                        if bg.repeat.0 {
+                        if repeat.0 {
                             tx = tx.rem_euclid(twi);
                         } else if tx < 0 || tx >= twi {
                             continue;

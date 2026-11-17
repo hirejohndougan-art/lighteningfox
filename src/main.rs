@@ -37,6 +37,8 @@ mod treebuilder;
 mod zoom;
 mod effects;
 mod anim;
+mod background;
+mod gradient;
 mod images;
 mod srcset;
 mod page_images;
@@ -1151,7 +1153,7 @@ fn render_frames(dom: &dom::Dom, styles: &[Rc<style::Style>], base: &str, images
 fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
     let mut urls: Vec<String> = Vec::new();
     for st in styles {
-        if let Some(style::BgImage::Url(u)) = &st.bg.image {
+        for u in st.bg.urls() {
             if !urls.contains(u) {
                 urls.push(u.clone());
             }
@@ -3829,6 +3831,7 @@ mod screenshot_tests {
         ("tests/history.html", 800),
         ("tests/webfonts.html", 900),
         ("tests/images-modern.html", 1024),
+        ("tests/gradients-layers.html", 1024),
         ("tests/text-shaping.html", 900),
         ("tests/vertical-align.html", 800),
         ("tests/margins.html", 760),

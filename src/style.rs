@@ -86,9 +86,8 @@ pub enum ListStyle {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BgImage {
     Url(String),
-    /// `angle` in degrees, CSS convention (0 = to top, 90 = to right, 180 = to bottom).
-    Linear { angle: f32, stops: Vec<(Color, Option<f32>)> },
-    Radial { stops: Vec<(Color, Option<f32>)> },
+    /// linear-, radial- or conic-gradient, maybe repeating (gradient.rs).
+    Gradient(Box<crate::gradient::Gradient>),
 }
 
 /// object-fit: fill (stretch, the default), contain, cover, none, scale-down.
@@ -116,6 +115,12 @@ pub struct Background {
     pub size: BgSize,
     pub pos: (Len, Len),
     pub repeat: (bool, bool),
+    /// Image layers below the first (`background-image: a, b, c`), top to bottom; and the
+    /// full size/position/repeat lists when more than one was given (background.rs).
+    pub more: Vec<BgImage>,
+    pub sizes: Vec<BgSize>,
+    pub positions: Vec<(Len, Len)>,
+    pub repeats: Vec<(bool, bool)>,
 }
 
 impl Default for Background {
@@ -126,6 +131,10 @@ impl Default for Background {
             size: BgSize::Auto,
             pos: (Len::Pct(0.0), Len::Pct(0.0)),
             repeat: (true, true),
+            more: Vec::new(),
+            sizes: Vec::new(),
+            positions: Vec::new(),
+            repeats: Vec::new(),
         }
     }
 }
@@ -1798,7 +1807,7 @@ fn border_shorthand(v: &str, fs: f32) -> (f32, Option<Color>) {
     (if has_style { width } else { 0.0 }, color)
 }
 
-fn parse_repeat(t: &str) -> Option<(bool, bool)> {
+pub(crate) fn parse_repeat(t: &str) -> Option<(bool, bool)> {
     Some(match t.trim() {
         "repeat" => (true, true),
         "no-repeat" => (false, false),
@@ -1811,7 +1820,7 @@ fn parse_repeat(t: &str) -> Option<(bool, bool)> {
     })
 }
 
-fn parse_bg_size(v: &str, fs: f32) -> BgSize {
+pub(crate) fn parse_bg_size(v: &str, fs: f32) -> BgSize {
     match v.trim() {
         "cover" => BgSize::Cover,
         "contain" => BgSize::Contain,
@@ -1828,7 +1837,7 @@ fn parse_bg_size(v: &str, fs: f32) -> BgSize {
 }
 
 /// `center`, `top right`, `50% 20px`, `right 10px top` (simplified) -> (x, y)
-fn parse_bg_pos(v: &str, fs: f32) -> (Len, Len) {
+pub(crate) fn parse_bg_pos(v: &str, fs: f32) -> (Len, Len) {
     let words: Vec<&str> = v.split_whitespace().collect();
     let mut x = None;
     let mut y = None;
@@ -1875,51 +1884,10 @@ pub fn parse_bg_image(v: &str) -> Option<BgImage> {
         let u = u.trim().trim_matches(|c| c == '"' || c == '\'');
         return (!u.is_empty()).then(|| BgImage::Url(u.to_string()));
     }
-    let is_linear = lower.starts_with("linear-gradient(") || lower.starts_with("-webkit-linear-gradient(") || lower.starts_with("repeating-linear-gradient(");
-    let is_radial = lower.starts_with("radial-gradient(") || lower.starts_with("repeating-radial-gradient(");
-    if !is_linear && !is_radial {
-        return None;
+    if lower.contains("gradient(") {
+        return crate::gradient::parse(v, 16.0).map(|g| BgImage::Gradient(Box::new(g)));
     }
-    let body = inner("gradient(")?;
-    let mut args: Vec<String> = css::split_top(&body, ',').into_iter().map(|a| a.trim().to_string()).collect();
-    let mut angle = 180.0;
-    if let Some(first) = args.first().map(|a| a.to_ascii_lowercase()) {
-        let is_stop = parse_color(first.split_whitespace().next().unwrap_or("")).is_some();
-        if !is_stop {
-            if is_linear {
-                angle = if let Some(d) = first.strip_suffix("deg") {
-                    d.trim().parse().unwrap_or(180.0)
-                } else if let Some(t) = first.strip_suffix("turn") {
-                    t.trim().parse::<f32>().unwrap_or(0.5) * 360.0
-                } else {
-                    let dir = first.trim_start_matches("to ").trim();
-                    match dir {
-                        "top" => 0.0,
-                        "right" => 90.0,
-                        "bottom" => 180.0,
-                        "left" => 270.0,
-                        "top right" | "right top" => 45.0,
-                        "bottom right" | "right bottom" => 135.0,
-                        "bottom left" | "left bottom" => 225.0,
-                        "top left" | "left top" => 315.0,
-                        _ => 180.0,
-                    }
-                };
-            }
-            args.remove(0);
-        }
-    }
-    let mut stops = Vec::new();
-    for a in args {
-        let parts = css::split_top(&a, ' ');
-        let Some(c) = parts.first().and_then(|c| parse_color(c.trim())) else { continue };
-        let pos = parts.get(1).and_then(|p| p.trim().strip_suffix('%')).and_then(|p| p.parse::<f32>().ok()).map(|p| p / 100.0);
-        stops.push((c, pos));
-    }
-    if stops.is_empty() {
-        return None;
-    }
-    Some(if is_linear { BgImage::Linear { angle, stops } } else { BgImage::Radial { stops } })
+    None
 }
 
 pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
@@ -2345,70 +2313,11 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 st.bg.color = c;
             }
         }
-        "background" => {
-            // Shorthand: resets everything, then reads color, image, position / size, repeat.
-            st.bg = Background::default();
-            st.background = Color::TRANSPARENT;
-            if lower == "none" {
-                return;
-            }
-            // Only the last layer carries a color; we draw the first image layer.
-            let layers = css::split_top(v, ',');
-            if let Some(first) = layers.first() {
-                st.bg.image = css::split_top(first, ' ').iter().find_map(|t| parse_bg_image(t.trim()));
-            }
-            let last = layers.last().map(|l| l.to_string()).unwrap_or_default();
-            let (pos_part, size_part) = match css::split_top(&last, '/').as_slice() {
-                [a, b, ..] => (a.clone(), Some(b.clone())),
-                [a] => (a.clone(), None),
-                _ => (String::new(), None),
-            };
-            let mut pos_words = Vec::new();
-            for t in css::split_top(&pos_part, ' ') {
-                let t = t.trim();
-                let tl = t.to_ascii_lowercase();
-                if t.is_empty() || parse_bg_image(t).is_some() {
-                    continue;
-                }
-                if let Some(c) = parse_color(&tl) {
-                    st.background = c;
-                    st.bg.color = c;
-                } else if let Some(r) = parse_repeat(&tl) {
-                    st.bg.repeat = r;
-                } else if !["scroll", "fixed", "local", "border-box", "padding-box", "content-box"].contains(&tl.as_str()) {
-                    pos_words.push(tl);
-                }
-            }
-            if !pos_words.is_empty() {
-                st.bg.pos = parse_bg_pos(&pos_words.join(" "), fs);
-            }
-            if let Some(size) = size_part {
-                // The size part may be followed by repeat/color words: take the leading size tokens.
-                let mut size_words = Vec::new();
-                for t in css::split_top(&size, ' ') {
-                    let tl = t.trim().to_ascii_lowercase();
-                    if let Some(c) = parse_color(&tl) {
-                        st.background = c;
-                        st.bg.color = c;
-                    } else if let Some(r) = parse_repeat(&tl) {
-                        st.bg.repeat = r;
-                    } else if !tl.is_empty() {
-                        size_words.push(tl);
-                    }
-                }
-                st.bg.size = parse_bg_size(&size_words.join(" "), fs);
-            }
-        }
-        "background-image" => {
-            st.bg.image = css::split_top(v, ',').first().and_then(|l| parse_bg_image(l.trim()));
-        }
-        "background-size" => st.bg.size = parse_bg_size(&lower, fs),
-        "background-position" => st.bg.pos = parse_bg_pos(&lower, fs),
-        "background-repeat" => {
-            if let Some(r) = parse_repeat(&lower) {
-                st.bg.repeat = r;
-            }
-        }
+        "background" => crate::background::apply_shorthand(st, v, fs),
+        "background-image" => crate::background::set_images(&mut st.bg, v),
+        "background-size" => crate::background::set_sizes(&mut st.bg, &lower, fs),
+        "background-position" => crate::background::set_positions(&mut st.bg, &lower, fs),
+        "background-repeat" => crate::background::set_repeats(&mut st.bg, &lower),
         "border-radius" => {
             if let Some(first) = css::split_top(&lower, ' ').first() {
                 if let Some(l) = parse_len(first.split('/').next().unwrap_or(""), fs) {
