@@ -74,7 +74,7 @@ tests that fit.
 
 ## Follow-ups (not checklist items; found by the batch chats)
 
-### X1. Fix the broken and crashing sites
+### X1. Fix the broken and crashing sites (now: AP News and MDN)
 **Status:** claimed by chat-opus-x1 2026-11-17 04:52
 **After:** —
 **Checklist:** none
@@ -82,6 +82,75 @@ tests that fit.
 `docs/SITE_COMPAT.md`: AP News crashes; MDN, Bing, BBC News, New York Times, The Guardian,
 rust-lang.org and WordPress.org render badly. Start with the crash. Find the cause of each,
 fix it in the engine (no site-specific hacks), and add a small test page for each cause.
+Progress: AP News no longer hangs and rust-lang.org is fixed; pages' own `<script>` and
+`<style>`/`<link>` insertions, shadow-DOM slots, `light-dark()`, viewport units, TreeWalker,
+CSSOM sheets and Annex B now work. BBC, NYT, The Guardian, Bing and WordPress.org moved to
+X1a–X1e; this task keeps AP News (it now panics in a sort, see `x1-data2`) and MDN.
+
+### X1a. Make BBC News render like Chrome
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
+Split out of X1. Recording: folder `www-bbc-com-news` in branch `x1-data2` (URL `https://www.bbc.com/news`). Follow
+`docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
+engine (no site-specific hacks), and add a small test page in `tests/sites/` with a test for each.
+Next.js + Emotion: X1's `document.referrer` and live-stylesheet fixes should move it on a lot. Record it again (`record-sites.yml`, branch `rec-x1a`) once the first errors
+are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
+first screenful and has no script errors of its own (ads and trackers missing is fine).
+Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+
+### X1b. Make the New York Times render like Chrome
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
+Split out of X1. Recording: folder `www-nytimes-com` in branch `x1-data2` (URL `https://www.nytimes.com/`). Follow
+`docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
+engine (no site-specific hacks), and add a small test page in `tests/sites/` with a test for each.
+Renders only 768px tall with 14 script errors (`crypto is not defined` was one) and takes ~10 s of script. Record it again (`record-sites.yml`, branch `rec-x1b`) once the first errors
+are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
+first screenful and has no script errors of its own (ads and trackers missing is fine).
+Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+
+### X1c. Make The Guardian render like Chrome
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
+Split out of X1. Recording: folder `www-theguardian-com` in branch `x1-data2` (URL `https://www.theguardian.com/`). Follow
+`docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
+engine (no site-specific hacks), and add a small test page in `tests/sites/` with a test for each.
+Redirects to `/us`; 11 script errors in the recording. Record it again (`record-sites.yml`, branch `rec-x1c`) once the first errors
+are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
+first screenful and has no script errors of its own (ads and trackers missing is fine).
+Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+
+### X1d. Make Bing render like Chrome
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
+Split out of X1. Recording: folder `www-bing-com` in branch `x1-data2` (URL `https://www.bing.com/`). Follow
+`docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
+engine (no site-specific hacks), and add a small test page in `tests/sites/` with a test for each.
+Likeness was negative: almost nothing of the page shows (291 nodes, 768px). Record it again (`record-sites.yml`, branch `rec-x1d`) once the first errors
+are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
+first screenful and has no script errors of its own (ads and trackers missing is fine).
+Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
+
+### X1e. Make WordPress.org render like Chrome
+**Status:** free
+**After:** —
+**Checklist:** none
+**Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
+Split out of X1. Recording: folder `wordpress-org` in branch `x1-data2` (URL `https://wordpress.org/`). Follow
+`docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
+engine (no site-specific hacks), and add a small test page in `tests/sites/` with a test for each.
+4 script errors (a JSON parse error among them). Record it again (`record-sites.yml`, branch `rec-x1e`) once the first errors
+are fixed: code that never ran was never recorded. Done when the replay looks like Chrome's
+first screenful and has no script errors of its own (ads and trackers missing is fine).
+Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
 
 ### X2. Binary bodies in `fetch()`
 **Status:** done

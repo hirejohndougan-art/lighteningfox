@@ -341,6 +341,7 @@ fn document_body_setter_and_create_element_ns() {
         r.trim_matches('"'),
         "HierarchyRequestError,HierarchyRequestError,fresh,1,true,1,http://www.w3.org/2000/svg,linearGradient,linearGradient,http://www.w3.org/1998/Math/MathML"
     );
+}
 
 #[test]
 fn styles_scripts_add_or_change_apply() {
