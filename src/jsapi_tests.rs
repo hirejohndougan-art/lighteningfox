@@ -226,3 +226,40 @@ fn extension_content_scripts() {
          storage {\"a\":1};bg poking;poked;"
     );
 }
+
+// Causes found on live sites (task X1); the pages in tests/sites/ say where each came from.
+
+#[test]
+fn unchanged_attribute_writes_keep_the_layout() {
+    let _serial = serial();
+    let mut page = open("tests/sites/layout-thrash.html");
+    assert_eq!(text_of("out"), "measured");
+    let before = crate::geometry::layouts_done();
+    let r = eval(
+        &mut page,
+        "let t = 0; for (const a of document.getElementById('nav').children) { t += a.clientWidth; a.removeAttribute('data-hidden'); a.setAttribute('href', '#'); a.style.setProperty('color', '#123456', 'important'); } t > 0",
+    );
+    assert_eq!(r, "true");
+    // Measuring 60 items between writes that change nothing needs at most one fresh layout.
+    assert!(crate::geometry::layouts_done() - before <= 1, "{} layouts", crate::geometry::layouts_done() - before);
+    // A real change still shows.
+    eval(&mut page, "document.querySelector('#nav a').setAttribute('data-hidden', '')");
+    assert_eq!(eval(&mut page, "document.querySelector('#nav a').clientWidth"), "0");
+}
+
+#[test]
+fn deeply_nested_flex_lays_out_quickly() {
+    let _serial = serial();
+    let started = std::time::Instant::now();
+    let mut page = open("tests/sites/nested-flex.html");
+    let w = eval(&mut page, "let e = document.getElementById('root'); while (e.firstElementChild && e.firstElementChild.tagName === 'DIV') e = e.firstElementChild; e.getBoundingClientRect().width > 0");
+    assert_eq!(w, "true");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "took {:?}", started.elapsed());
+}
+
+#[test]
+fn observer_ignores_the_widget_it_restyles() {
+    let _serial = serial();
+    let _page = open("tests/sites/mutation-theme.html");
+    assert_eq!(text_of("out"), "calls 2 rgb(255, 255, 255)");
+}

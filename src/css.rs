@@ -568,7 +568,33 @@ fn media_possible(q: &str) -> bool {
 /// Does `q` (a media query list, or several joined with " && ") match the window now?
 pub fn media_matches(q: &str) -> bool {
     let (w, h) = viewport();
-    q.split(" && ").all(|list| query_list(list, w, h))
+    // Styling asks about the same few queries for every element; answer each once per pass.
+    MEDIA_MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.0 != (w.to_bits(), h.to_bits()) {
+            m.0 = (w.to_bits(), h.to_bits());
+            m.1.clear();
+        }
+        if let Some(&r) = m.1.get(q) {
+            return r;
+        }
+        let r = q.split(" && ").all(|list| query_list(list, w, h));
+        if m.1.len() < 4096 {
+            m.1.insert(q.to_string(), r);
+        }
+        r
+    })
+}
+
+thread_local! {
+    /// Media query answers for the current window size, kept until the next styling pass
+    /// (settings such as reduced motion can change between passes).
+    static MEDIA_MEMO: std::cell::RefCell<((u32, u32), std::collections::HashMap<String, bool>)> = std::cell::RefCell::new(((0, 0), std::collections::HashMap::new()));
+}
+
+/// Forget remembered media query answers (called at the start of each styling pass).
+pub fn forget_media_answers() {
+    MEDIA_MEMO.with(|m| m.borrow_mut().1.clear());
 }
 
 fn query_list(list: &str, w: f32, h: f32) -> bool {
@@ -649,8 +675,10 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
         Some((n, v)) => (n.trim(), Some(v.trim())),
         None => (f.trim(), None),
     };
-    let reduced = crate::settings::get().reduce_motion;
-    let contrast = crate::settings::get().high_contrast;
+    // Settings are read only by the features that need them (copying them is not cheap, and
+    // this runs for every media rule on every element).
+    let reduced = || crate::settings::get().reduce_motion;
+    let contrast = || crate::settings::get().high_contrast;
     match (name, value) {
         ("min-width", Some(v)) => px(v).is_some_and(|v| w >= v),
         ("max-width", Some(v)) => px(v).is_some_and(|v| w <= v),
@@ -665,13 +693,13 @@ fn feature(f: &str, w: f32, h: f32) -> bool {
             r.is_some_and(|r| if name.starts_with("min") { w / h.max(1.0) >= r } else { w / h.max(1.0) <= r })
         }
         ("prefers-color-scheme", Some(v)) => v == "light",
-        ("prefers-reduced-motion", Some(v)) => (v == "reduce") == reduced,
-        ("prefers-reduced-motion", None) => reduced,
-        ("prefers-contrast", Some(v)) => if contrast { v == "more" || v == "custom" } else { v == "no-preference" },
-        ("prefers-contrast", None) => contrast,
-        ("forced-colors", None) => contrast,
+        ("prefers-reduced-motion", Some(v)) => (v == "reduce") == reduced(),
+        ("prefers-reduced-motion", None) => reduced(),
+        ("prefers-contrast", Some(v)) => if contrast() { v == "more" || v == "custom" } else { v == "no-preference" },
+        ("prefers-contrast", None) => contrast(),
+        ("forced-colors", None) => contrast(),
         ("prefers-reduced-transparency", Some(v)) => v == "no-preference",
-        ("forced-colors", Some(v)) => v == if contrast { "active" } else { "none" },
+        ("forced-colors", Some(v)) => v == if contrast() { "active" } else { "none" },
         ("hover" | "any-hover", Some(v)) => v == "hover",
         ("pointer" | "any-pointer", Some(v)) => v == "fine",
         ("hover" | "any-hover" | "pointer" | "any-pointer" | "color" | "width" | "height" | "orientation", None) => true,

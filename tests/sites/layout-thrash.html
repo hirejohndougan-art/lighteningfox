@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- AP News (2026-11): a "priority plus" menu measures each item, then sets or removes an
+     attribute on it, item after item. Writes that change nothing must not force a new layout. -->
+<html><head><title>Layout thrash</title>
+<style>nav { display: flex; gap: 8px } nav a[data-hidden] { display: none }</style></head>
+<body><nav id="nav"></nav><p id="out"></p>
+<script>
+  const nav = document.getElementById("nav");
+  for (let i = 0; i < 60; i++) { const a = document.createElement("a"); a.textContent = "Section " + i; a.href = "#"; nav.appendChild(a); }
+  let total = 0;
+  for (const a of nav.children) {
+    total += a.clientWidth;
+    a.removeAttribute("data-hidden");      // not there: no change
+    a.setAttribute("href", "#");           // same value: no change
+    a.style.setProperty("color", "#123456", "important");
+    a.style.setProperty("color", "#123456", "important"); // same again: no change
+  }
+  document.getElementById("out").textContent = total > 0 ? "measured" : "zero";
+</script></body></html>

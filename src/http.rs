@@ -295,7 +295,23 @@ pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<
             return Ok(Stream { status: 307, status_text: "Temporary Redirect".into(), headers: vec![("location".into(), to)], body: Box::new(std::io::Cursor::new(Vec::new())) });
         }
     }
-    let r = open_inner(method, url, headers, body, timeout);
+    let r = if let Some(dir) = crate::record::replaying() {
+        match crate::record::load(&dir, method, url) {
+            Some(s) => Ok(Stream { status: s.status, status_text: s.status_text, headers: s.headers, body: Box::new(std::io::Cursor::new(s.body)) }),
+            None => Err(format!("[net] {url}: not in the recording")),
+        }
+    } else {
+        let r = open_inner(method, url, headers, body, timeout);
+        match (r, crate::record::recording()) {
+            (Ok(st), Some(dir)) => {
+                let bytes = crate::record::read_body(st.body, MAX_BODY).map_err(|e| format!("[net] {url}: {e}"))?;
+                let saved = crate::record::Saved { status: st.status, status_text: st.status_text, headers: st.headers, body: bytes };
+                crate::record::save(&dir, method, url, &saved);
+                Ok(Stream { status: saved.status, status_text: saved.status_text, headers: saved.headers, body: Box::new(std::io::Cursor::new(saved.body)) })
+            }
+            (r, _) => r,
+        }
+    };
     log_request(method, url, started, &r);
     r
 }

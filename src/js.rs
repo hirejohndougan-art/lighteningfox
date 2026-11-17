@@ -477,7 +477,10 @@ fn n_get_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
 fn n_set_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     let (name, value) = (arg_str(a, 1, ctx)?, arg_str(a, 2, ctx)?);
-    if let Some(id) = valid(id) {
+    // Writing the value an attribute already has changes nothing: keep the layout (pages
+    // that measure, then set, in a loop would otherwise lay the page out every time).
+    let same = |id: NodeId| with_dom(|d| d.attr(id, &name) == Some(value.as_str()));
+    if let Some(id) = valid(id).filter(|&id| !same(id)) {
         with_dom_mut(|d| {
             if let NodeData::Element { attrs, .. } = &mut d.nodes[id].data {
                 match attrs.iter_mut().find(|(k, _)| *k == name) {
@@ -493,7 +496,8 @@ fn n_set_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
 fn n_remove_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     let name = arg_str(a, 1, ctx)?;
-    if let Some(id) = valid(id) {
+    // Removing an attribute that isn't there changes nothing (see n_set_attr).
+    if let Some(id) = valid(id).filter(|&id| with_dom(|d| d.attr(id, &name).is_some())) {
         with_dom_mut(|d| {
             if let NodeData::Element { attrs, .. } = &mut d.nodes[id].data {
                 attrs.retain(|(k, _)| *k != name);

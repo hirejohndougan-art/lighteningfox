@@ -1,0 +1,11 @@
+<!doctype html>
+<!-- Deeply nested flex items: each level measures its content's width, which used to lay the
+     whole subtree out again at every level (twice per level, so 2^depth layouts). -->
+<html><head><title>Nested flex</title>
+<style>div { display: flex; padding: 1px } span { flex: none }</style></head>
+<body><div id="root"></div>
+<script>
+  let el = document.getElementById("root");
+  for (let i = 0; i < 24; i++) { const d = document.createElement("div"); el.appendChild(d); el = d; }
+  el.appendChild(Object.assign(document.createElement("span"), { textContent: "deep" }));
+</script></body></html>

@@ -927,6 +927,7 @@ fn rewrite_host(rule: &str, root: NodeId) -> String {
 }
 
 pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
+    css::forget_media_answers();
     let ua = css::parse(UA_CSS);
     let scoped = if dom.render_scope.is_empty() { HashMap::new() } else { shadow_sheets(dom) };
     let min_font = crate::settings::get().min_font_size as f32;

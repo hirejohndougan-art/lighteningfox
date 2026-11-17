@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- AP News (2026-11): a MutationObserver watches <head> and the attributes of <html> and
+     <body>; its handler reads getComputedStyle up the tree and restyles a widget. The widget's
+     own changes must not wake the observer, and repeated identical style writes are free. -->
+<html><head><title>Mutation theme</title></head>
+<body style="background: rgb(20, 20, 20)"><div id="w"><span class="t">promo</span></div><p id="out"></p>
+<script>
+  const w = document.getElementById("w");
+  let calls = 0;
+  function dark() { for (let n = w; n; n = n.parentElement) { const b = getComputedStyle(n).backgroundColor; if (b && b !== "rgba(0, 0, 0, 0)") return b.match(/\d+/)[0] < 128; } return false; }
+  function apply() { calls++; const c = dark() ? "#ffffff" : "#000000"; w.style.setProperty("color", c, "important"); w.querySelector(".t").style.setProperty("color", c, "important"); }
+  apply();
+  const o = new MutationObserver(apply);
+  o.observe(document.head, { childList: true, subtree: true, attributes: true });
+  o.observe(document.documentElement, { attributes: true });
+  o.observe(document.body, { attributes: true });
+  document.head.appendChild(document.createElement("meta"));
+  setTimeout(() => { document.getElementById("out").textContent = "calls " + calls + " " + getComputedStyle(w).color; }, 50);
+</script></body></html>

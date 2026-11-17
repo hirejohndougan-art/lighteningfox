@@ -38,6 +38,7 @@ mod glsl_vm;
 mod grid;
 mod html;
 mod http;
+mod record;
 mod hsts;
 mod tokenizer;
 mod a11y;
@@ -1143,7 +1144,9 @@ fn build_page(p: Prepared) -> Page {
             js::with_dom(|d| {
                 let c = d.composed();
                 let d = c.as_ref().unwrap_or(d);
-                let styles = style::compute(d, &sheets);
+                // Styled without :visited, like getComputedStyle (which reuses these styles).
+                let styles = style::without_visited(|| style::compute(d, &sheets));
+                geometry::note_styles(&styles);
                 layout::layout(d, &styles, fonts, &images, w, h)
             })
         }) as Box<dyn Fn(f32, f32) -> layout::Layout>

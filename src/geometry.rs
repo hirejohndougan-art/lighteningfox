@@ -33,6 +33,8 @@ pub fn set_styler(s: Option<Styler>) {
 /// The computed style of `id` as JSON (see `style::computed_json`), restyling first if
 /// the DOM changed since last time. None when no page styles are available.
 pub fn computed_style(dom: &Dom, id: NodeId) -> Option<String> {
+    // Lay out first: that styles the page too and leaves the styles here (note_styles).
+    let size = page_rect(dom, id).map(|(r, _)| (r.w, r.h));
     let version = GEN.with(Cell::get);
     let stale = STYLES.with(|c| c.borrow().0 != version);
     if stale {
@@ -40,17 +42,30 @@ pub fn computed_style(dom: &Dom, id: NodeId) -> Option<String> {
         STYLES.with(|c| *c.borrow_mut() = (version, styles));
     }
     let st = STYLES.with(|c| c.borrow().1.get(id).cloned())?;
-    let size = page_rect(dom, id).map(|(r, _)| (r.w, r.h));
     Some(crate::style::computed_json(&st, size))
 }
 
 thread_local! {
     static GEOM: RefCell<Geometry> = RefCell::new(Geometry { view_w: 1024.0, view_h: 768.0, version: u64::MAX, ..Default::default() });
     static GEN: Cell<u64> = const { Cell::new(0) };
+    /// How many times scripts made the page lay out again (for tests and profiling).
+    static LAYOUTS: Cell<u64> = const { Cell::new(0) };
     static PROVIDER: RefCell<Option<Provider>> = const { RefCell::new(None) };
     static STYLER: RefCell<Option<Styler>> = const { RefCell::new(None) };
     static STYLES: RefCell<(u64, Vec<std::rc::Rc<crate::style::Style>>)> = const { RefCell::new((u64::MAX, Vec::new())) };
     static SCROLL_REQUEST: Cell<Option<f32>> = const { Cell::new(None) };
+}
+
+/// The styles a layout of the current DOM was made from, kept for getComputedStyle so it
+/// needn't style the whole page a second time.
+pub fn note_styles(styles: &[std::rc::Rc<crate::style::Style>]) {
+    let version = GEN.with(Cell::get);
+    STYLES.with(|c| *c.borrow_mut() = (version, styles.to_vec()));
+}
+
+/// How many layouts scripts' questions have caused on this thread so far.
+pub fn layouts_done() -> u64 {
+    LAYOUTS.with(Cell::get)
 }
 
 /// The DOM changed: any stored boxes are out of date.
@@ -137,6 +152,7 @@ fn ensure_fresh() {
         return;
     }
     let lay = PROVIDER.with(|p| p.borrow().as_ref().map(|f| f(w, h)));
+    LAYOUTS.with(|n| n.set(n.get() + 1));
     if let Some(lay) = lay {
         publish(&lay, w, h);
     }

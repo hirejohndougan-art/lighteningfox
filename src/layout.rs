@@ -286,6 +286,8 @@ fn layout_tree(tree: &crate::boxtree::BoxTree, fps: &[u64], fonts: &Fonts, image
         cb_heights: vec![Some(viewport_h)],
         subgrid: HashMap::new(),
         vertical_avail: Vec::new(),
+        widths_memo: HashMap::new(),
+        measured: HashMap::new(),
     };
     crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
@@ -388,6 +390,14 @@ struct Ctx<'a> {
     /// The width available to each enclosing vertical root (vertical.rs), for horizontal
     /// boxes inside vertical text.
     vertical_avail: Vec<f32>,
+    /// Min- and max-content widths already measured in this pass. Measuring lays the
+    /// subtree out twice, and nested flex items and table cells measure again inside that,
+    /// so without this the work doubles with every level of nesting.
+    widths_memo: HashMap<(NodeId, Option<u32>, Option<u32>), (f32, f32)>,
+    /// Boxes laid out while measuring, by (element, outer width, outer height, containing
+    /// block height). Nested flex items are measured several times at each level (basis,
+    /// minimum, final size), which otherwise multiplies with every level.
+    measured: HashMap<(NodeId, u32, Option<u32>, Option<Option<u32>>), Detached>,
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -518,6 +528,7 @@ enum VPos {
 }
 
 /// A piece of layout produced away from its final position (inline-blocks).
+#[derive(Clone)]
 struct Detached {
     items: Vec<Item>,
     links: Vec<(Rect, String)>,
@@ -1485,6 +1496,20 @@ impl<'a> Ctx<'a> {
 
     /// Lay out an element at a given outer width (and optionally outer height).
     fn layout_at(&mut self, id: NodeId, outer_w: f32, outer_h: Option<f32>) -> Detached {
+        let key = (id, outer_w.to_bits(), outer_h.map(f32::to_bits), self.cb_heights.last().map(|h| h.map(f32::to_bits)));
+        if self.measuring && self.vertical_avail.is_empty() {
+            if let Some(d) = self.measured.get(&key) {
+                return d.clone();
+            }
+        }
+        let d = self.layout_at_uncached(id, outer_w, outer_h);
+        if self.measuring && self.vertical_avail.is_empty() {
+            self.measured.insert(key, d.clone());
+        }
+        d
+    }
+
+    fn layout_at_uncached(&mut self, id: NodeId, outer_w: f32, outer_h: Option<f32>) -> Detached {
         let prev = self.forced.insert(id, (Some(outer_w), outer_h));
         let d = self.detach(|cx| (outer_w, cx.block(id, 0.0, 0.0, outer_w, 0.0).0));
         match prev {
@@ -1646,7 +1671,14 @@ impl<'a> Ctx<'a> {
                     let width = if pct_measure { Len::Auto } else { st.width };
                     match (st.flex.basis, width) {
                         (Len::Auto, Len::Auto) if pct_measure && self.control_kind(*n).is_some() => self.control_outer(*n, w),
-                        (Len::Auto, Len::Auto) => self.layout_detached(*n, w).w,
+                        // Only the width is needed here: measure (the item is laid out
+                        // for real once its final size is known).
+                        (Len::Auto, Len::Auto) => {
+                            let was = std::mem::replace(&mut self.measuring, true);
+                            let fit = self.layout_detached(*n, w).w;
+                            self.measuring = was;
+                            fit
+                        }
                         (Len::Auto, wl) => wl.resolve(w) + edges,
                         (b, _) => b.resolve(w) + edges,
                     }
@@ -1918,6 +1950,11 @@ impl<'a> Ctx<'a> {
             let w = self.control_outer(id, 0.0);
             return (w, w);
         }
+        let forced = self.forced.get(&id).copied().unwrap_or((None, None));
+        let key = (id, forced.0.map(f32::to_bits), forced.1.map(f32::to_bits));
+        if let Some(&r) = self.widths_memo.get(&key) {
+            return r;
+        }
         let st = &self.styles[id];
         let tail = st.padding[1].resolve(0.0) + st.border[1] + st.margin[1].resolve(0.0);
         let was = self.measuring;
@@ -1927,6 +1964,7 @@ impl<'a> Ctx<'a> {
         self.measuring = was;
         let mn = self.content_right(&narrow.items, true).ceil() + tail;
         let mx = self.content_right(&wide.items, true).ceil() + tail;
+        self.widths_memo.insert(key, (mn, mx.max(mn)));
         (mn, mx.max(mn))
     }
 
@@ -2816,6 +2854,21 @@ impl<'a> Ctx<'a> {
         if let Some((Some(fw), fh)) = self.forced.get(&id).copied() {
             return self.layout_at(id, fw, fh);
         }
+        // Shrink-to-fit while measuring: remembered like layout_at (u32::MAX marks this kind).
+        let key = (id, avail.to_bits(), Some(u32::MAX), self.cb_heights.last().map(|h| h.map(f32::to_bits)));
+        if self.measuring && self.vertical_avail.is_empty() {
+            if let Some(d) = self.measured.get(&key) {
+                return d.clone();
+            }
+        }
+        let d = self.layout_detached_uncached(id, avail);
+        if self.measuring && self.vertical_avail.is_empty() {
+            self.measured.insert(key, d.clone());
+        }
+        d
+    }
+
+    fn layout_detached_uncached(&mut self, id: NodeId, avail: f32) -> Detached {
         let st = &self.styles[id];
         let mut width = avail;
         if st.width == Len::Auto && self.control_kind(id).is_some() {
