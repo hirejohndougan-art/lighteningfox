@@ -480,9 +480,11 @@ where
                     "multiple expressions in parenthesized expression",
                 ));
             }
-            if let InnerExpression::Expression(expression) = &expressions[0] {
+            // Ironswift change: move the expression out instead of cloning it. In minified code
+            // this is often `(function () { ...the whole library... })`.
+            if let Some(InnerExpression::Expression(expression)) = expressions.pop() {
                 return Ok(ast::Expression::Parenthesized(Parenthesized::new(
-                    expression.clone(),
+                    expression,
                     Span::new(span_start.start(), span.end()),
                 ))
                 .into());

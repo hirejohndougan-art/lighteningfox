@@ -29,3 +29,26 @@ Measured with the parse/compile split on real libraries (ms, best of 3):
 | jQuery 3.7 (88 KB) | 33.2 → 32.3 | 10.1 → 8.3 |
 
 The V8 suite barely changes (its scripts are small and not minified); page load is where it shows.
+
+### Parser and compiler: stop copying syntax trees
+
+- `boa_parser/src/parser/expression/primary/mod.rs`: a parenthesized expression is moved into its
+  node instead of cloned. Minified bundles wrap the whole library in `(function(){...})`, so the
+  entire tree was copied once.
+- `boa_ast/src/operations/mod.rs`: `VarScopedDeclaration` borrows from the tree
+  (`VarScopedDeclaration<'a>`) instead of cloning each `var` initializer and function body; the
+  scope analyzer and bytecode compiler only read names from it. Callers in `scope_analyzer.rs` and
+  `boa_engine/src/bytecompiler/declarations.rs` adjusted.
+- `boa_parser/src/lexer/identifier.rs`: ASCII fast path for identifier characters (skips the
+  Unicode table lookup).
+
+On top of the scope index above (ms, best of 9, parse / compile):
+
+| Script | Scope index only | + these changes |
+|---|---|---|
+| Ironswift prelude.js (88 KB) | 20.0 / 4.7 | 14.5 / 4.3 |
+| Vue 3 | 62.4 / 22.4 | 47.2 / 13.5 |
+| lodash | 33.0 / 11.0 | 23.5 / 7.9 |
+| react-dom 18 | 51.5 / 13.8 | 38.5 / 10.1 |
+
+Instructions to load react-dom (valgrind): 510 M stock → 269 M. V8 suite unchanged (within noise).

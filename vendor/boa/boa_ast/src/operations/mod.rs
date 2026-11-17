@@ -2001,29 +2001,32 @@ impl<'ast> Visitor<'ast> for TopLevelLexicallyScopedDeclarationsVisitor<'_, 'ast
 }
 
 /// The type of a var scoped declaration.
-#[derive(Clone, Debug)]
-pub enum VarScopedDeclaration {
+///
+/// Ironswift change: holds references into the syntax tree instead of copies. Copying meant
+/// cloning every `var` initializer and every function body just to read their names.
+#[derive(Clone, Copy, Debug)]
+pub enum VarScopedDeclaration<'a> {
     /// See [`VarDeclaration`]
-    VariableDeclaration(Variable),
+    VariableDeclaration(&'a Variable),
 
     /// See [`FunctionDeclaration`]
-    FunctionDeclaration(FunctionDeclaration),
+    FunctionDeclaration(&'a FunctionDeclaration),
 
     /// See [`GeneratorDeclaration`]
-    GeneratorDeclaration(GeneratorDeclaration),
+    GeneratorDeclaration(&'a GeneratorDeclaration),
 
     /// See [`AsyncFunctionDeclaration`]
-    AsyncFunctionDeclaration(AsyncFunctionDeclaration),
+    AsyncFunctionDeclaration(&'a AsyncFunctionDeclaration),
 
     /// See [`AsyncGeneratorDeclaration`]
-    AsyncGeneratorDeclaration(AsyncGeneratorDeclaration),
+    AsyncGeneratorDeclaration(&'a AsyncGeneratorDeclaration),
 }
 
-impl VarScopedDeclaration {
+impl VarScopedDeclaration<'_> {
     /// Return the bound names of the declaration.
     #[must_use]
     pub fn bound_names(&self) -> Vec<Sym> {
-        match self {
+        match *self {
             Self::VariableDeclaration(v) => bound_names(v),
             Self::FunctionDeclaration(f) => bound_names(f),
             Self::GeneratorDeclaration(g) => bound_names(g),
@@ -2035,7 +2038,7 @@ impl VarScopedDeclaration {
     /// Return [`LinearSpan`] of this declaration (if there is).
     #[must_use]
     pub fn linear_span(&self) -> Option<LinearSpan> {
-        match self {
+        match *self {
             VarScopedDeclaration::FunctionDeclaration(f) => Some(f.linear_span()),
             VarScopedDeclaration::GeneratorDeclaration(f) => Some(f.linear_span()),
             VarScopedDeclaration::AsyncFunctionDeclaration(f) => Some(f.linear_span()),
@@ -2051,7 +2054,7 @@ impl VarScopedDeclaration {
 ///
 /// [spec]: https://tc39.es/ecma262/#sec-static-semantics-varscopeddeclarations
 #[must_use]
-pub fn var_scoped_declarations<'a, N>(node: &'a N) -> Vec<VarScopedDeclaration>
+pub fn var_scoped_declarations<'a, N>(node: &'a N) -> Vec<VarScopedDeclaration<'a>>
 where
     &'a N: Into<NodeRef<'a>>,
 {
@@ -2062,9 +2065,9 @@ where
 
 /// The [`Visitor`] used to obtain the var scoped declarations of a node.
 #[derive(Debug)]
-struct VarScopedDeclarationsVisitor<'a>(&'a mut Vec<VarScopedDeclaration>);
+struct VarScopedDeclarationsVisitor<'a, 'ast>(&'a mut Vec<VarScopedDeclaration<'ast>>);
 
-impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_> {
+impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_, 'ast> {
     type BreakTy = Infallible;
 
     // ScriptBody : StatementList
@@ -2115,7 +2118,7 @@ impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_> {
     fn visit_var_declaration(&mut self, node: &'ast VarDeclaration) -> ControlFlow<Self::BreakTy> {
         for var in node.0.as_ref() {
             self.0
-                .push(VarScopedDeclaration::VariableDeclaration(var.clone()));
+                .push(VarScopedDeclaration::VariableDeclaration(var));
         }
         ControlFlow::Continue(())
     }
@@ -2161,7 +2164,7 @@ impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_> {
     ) -> ControlFlow<Self::BreakTy> {
         if let IterableLoopInitializer::Var(var) = node.initializer() {
             self.0
-                .push(VarScopedDeclaration::VariableDeclaration(var.clone()));
+                .push(VarScopedDeclaration::VariableDeclaration(var));
         }
         self.visit(node.body())?;
         ControlFlow::Continue(())
@@ -2173,7 +2176,7 @@ impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_> {
     ) -> ControlFlow<Self::BreakTy> {
         if let IterableLoopInitializer::Var(var) = node.initializer() {
             self.0
-                .push(VarScopedDeclaration::VariableDeclaration(var.clone()));
+                .push(VarScopedDeclaration::VariableDeclaration(var));
         }
         self.visit(node.body())?;
         ControlFlow::Continue(())
@@ -2239,9 +2242,9 @@ impl<'ast> Visitor<'ast> for VarScopedDeclarationsVisitor<'_> {
 ///
 /// [spec]: https://tc39.es/ecma262/#sec-static-semantics-toplevelvarscopeddeclarations
 #[derive(Debug)]
-struct TopLevelVarScopedDeclarationsVisitor<'a>(&'a mut Vec<VarScopedDeclaration>);
+struct TopLevelVarScopedDeclarationsVisitor<'a, 'ast>(&'a mut Vec<VarScopedDeclaration<'ast>>);
 
-impl<'ast> Visitor<'ast> for TopLevelVarScopedDeclarationsVisitor<'_> {
+impl<'ast> Visitor<'ast> for TopLevelVarScopedDeclarationsVisitor<'_, 'ast> {
     type BreakTy = Infallible;
 
     fn visit_statement_list_item(
@@ -2253,19 +2256,19 @@ impl<'ast> Visitor<'ast> for TopLevelVarScopedDeclarationsVisitor<'_> {
                 match d.as_ref() {
                     Declaration::FunctionDeclaration(f) => {
                         self.0
-                            .push(VarScopedDeclaration::FunctionDeclaration(f.clone()));
+                            .push(VarScopedDeclaration::FunctionDeclaration(f));
                     }
                     Declaration::GeneratorDeclaration(f) => {
                         self.0
-                            .push(VarScopedDeclaration::GeneratorDeclaration(f.clone()));
+                            .push(VarScopedDeclaration::GeneratorDeclaration(f));
                     }
                     Declaration::AsyncFunctionDeclaration(f) => {
                         self.0
-                            .push(VarScopedDeclaration::AsyncFunctionDeclaration(f.clone()));
+                            .push(VarScopedDeclaration::AsyncFunctionDeclaration(f));
                     }
                     Declaration::AsyncGeneratorDeclaration(f) => {
                         self.0
-                            .push(VarScopedDeclaration::AsyncGeneratorDeclaration(f.clone()));
+                            .push(VarScopedDeclaration::AsyncGeneratorDeclaration(f));
                     }
                     _ => {}
                 }
@@ -2290,7 +2293,7 @@ impl<'ast> Visitor<'ast> for TopLevelVarScopedDeclarationsVisitor<'_> {
             }
             LabelledItem::FunctionDeclaration(f) => {
                 self.0
-                    .push(VarScopedDeclaration::FunctionDeclaration(f.clone()));
+                    .push(VarScopedDeclaration::FunctionDeclaration(f));
                 ControlFlow::Continue(())
             }
         }

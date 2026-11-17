@@ -34,6 +34,10 @@ impl Identifier {
     ///
     /// [spec]: https://tc39.es/ecma262/#sec-names-and-keywords
     pub(super) fn is_identifier_start(ch: u32) -> bool {
+        // Ironswift change: answer ASCII without the Unicode table lookup.
+        if ch < 0x80 {
+            return (ch as u8).is_ascii_alphabetic() || ch == 0x24 || ch == 0x5F;
+        }
         const ID_START: CodePointSetDataBorrowed<'static> = CodePointSetData::new::<IdStart>();
         matches!(ch, 0x0024 /* $ */ | 0x005F /* _ */) || ID_START.contains32(ch)
     }
@@ -45,6 +49,10 @@ impl Identifier {
     ///
     /// [spec]: https://tc39.es/ecma262/#sec-names-and-keywords
     fn is_identifier_part(ch: u32) -> bool {
+        // Ironswift change: answer ASCII without the Unicode table lookup.
+        if ch < 0x80 {
+            return (ch as u8).is_ascii_alphanumeric() || ch == 0x24 || ch == 0x5F;
+        }
         const ID_CONTINUE: CodePointSetDataBorrowed<'static> =
             CodePointSetData::new::<IdContinue>();
         matches!(
