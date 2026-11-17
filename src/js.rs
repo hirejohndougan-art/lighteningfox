@@ -207,6 +207,10 @@ fn n_type(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
             NodeData::Element { tag, .. } if tag == "#fragment" => 11,
             NodeData::Element { .. } => 1,
             NodeData::Text(_) => 3,
+            NodeData::Comment(_) => 8,
+            NodeData::Doctype { .. } => 10,
+            NodeData::ProcessingInstruction { .. } => 7,
+            NodeData::Fragment => 11,
         })
     })))
 }

@@ -5,12 +5,36 @@
 
 pub type NodeId = usize;
 
+/// The namespace of an element. Almost everything is HTML; `<svg>` and `<math>` and what's
+/// inside them are SVG and MathML.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Ns {
+    #[default]
+    Html,
+    Svg,
+    MathMl,
+}
+
+/// The document's compatibility mode, decided by its doctype.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Quirks {
+    #[default]
+    NoQuirks,
+    Limited,
+    Quirks,
+}
+
 #[derive(Debug, Clone)]
 pub enum NodeData {
     Document,
     /// Attributes as a short list: most elements have 0–3, where a hash table would waste memory.
     Element { tag: String, attrs: Vec<(String, String)> },
     Text(String),
+    Comment(String),
+    Doctype { name: String, public_id: Option<String>, system_id: Option<String> },
+    ProcessingInstruction { target: String, data: String },
+    /// A document fragment: what a `<template>` holds.
+    Fragment,
 }
 
 #[derive(Debug, Clone)]
@@ -23,11 +47,16 @@ pub struct Node {
 #[derive(Debug, Default)]
 pub struct Dom {
     pub nodes: Vec<Node>,
+    /// Elements that aren't HTML (SVG and MathML); everything else is HTML.
+    pub ns: std::collections::HashMap<NodeId, Ns>,
+    /// Each `<template>`'s contents fragment.
+    pub template_contents: std::collections::HashMap<NodeId, NodeId>,
+    pub quirks: Quirks,
 }
 
 impl Dom {
     pub fn new() -> Self {
-        Dom { nodes: vec![Node { data: NodeData::Document, parent: None, children: vec![] }] }
+        Dom { nodes: vec![Node { data: NodeData::Document, parent: None, children: vec![] }], ..Default::default() }
     }
 
     pub const ROOT: NodeId = 0;
@@ -79,6 +108,9 @@ impl Dom {
     pub fn graft(&mut self, other: &Dom, from: NodeId, to: NodeId) {
         for &c in &other.nodes[from].children {
             let id = self.create(other.nodes[c].data.clone());
+            if let Some(&ns) = other.ns.get(&c) {
+                self.ns.insert(id, ns);
+            }
             self.insert(to, id, None);
             self.graft(other, c, id);
         }
@@ -116,7 +148,14 @@ impl Dom {
                     out.push_str(&format!("</{tag}>"));
                 }
             }
-            NodeData::Document => out.push_str(&self.inner_html(id)),
+            NodeData::Comment(c) => {
+                out.push_str("<!--");
+                out.push_str(c);
+                out.push_str("-->");
+            }
+            NodeData::Doctype { name, .. } => out.push_str(&format!("<!DOCTYPE {name}>")),
+            NodeData::ProcessingInstruction { target, data } => out.push_str(&format!("<?{target} {data}>")),
+            NodeData::Document | NodeData::Fragment => out.push_str(&self.inner_html(id)),
         }
     }
 
@@ -154,6 +193,13 @@ impl Dom {
                 None => return false,
             }
         }
+    }
+
+    pub fn ns_of(&self, id: NodeId) -> Ns {
+        if self.ns.is_empty() {
+            return Ns::Html;
+        }
+        self.ns.get(&id).copied().unwrap_or_default()
     }
 
     pub fn tag(&self, id: NodeId) -> Option<&str> {

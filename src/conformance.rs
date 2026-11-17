@@ -27,7 +27,7 @@ fn parse_dat(text: &str) -> Vec<Case> {
             let start = if chunk.starts_with(&marker[1..]) { marker.len() - 1 } else { chunk.find(&marker)? + marker.len() };
             let rest = &chunk[start..];
             // A section runs until the next "#name" line (the document section runs to the end).
-            let end = if name == "document" { rest.len() } else { rest.find("\n#").map_or(rest.len(), |e| e + 1) };
+            let end = rest.find("\n#").map_or(rest.len(), |e| e + 1);
             Some(rest[..end].to_string())
         };
         let data = match chunk.find("\n#errors\n") {
@@ -60,24 +60,33 @@ pub fn html5lib(dir: &str) -> i32 {
         }
     };
     files.sort();
-    let (mut total, mut pass, mut pass_structure, mut skipped) = (0usize, 0usize, 0usize, 0usize);
+    let (mut total, mut pass, mut pass_structure, skipped) = (0usize, 0usize, 0usize, 0usize);
     let mut rows = Vec::new();
     for f in &files {
         let text = std::fs::read_to_string(f).unwrap_or_default();
         let (mut t, mut p, mut ps) = (0, 0, 0);
         for case in parse_dat(&text) {
-            if case.script_off {
-                skipped += 1;
-                continue;
+            let scripting = !case.script_off;
+            if std::env::var("IRONSWIFT_TRACE").is_ok() {
+                eprintln!("CASE {:?} {:?}", case.data, case.fragment);
             }
             let dom = match &case.fragment {
-                Some(_) => html::parse_fragment(&case.data),
-                None => html::parse(&case.data),
+                Some(ctx) => {
+                    let (ns, name) = match ctx.split_once(' ') {
+                        Some(("svg", n)) => (crate::dom::Ns::Svg, n),
+                        Some(("math", n)) => (crate::dom::Ns::MathMl, n),
+                        _ => (crate::dom::Ns::Html, ctx.as_str()),
+                    };
+                    crate::treebuilder::TreeBuilder::parse_fragment(&case.data, name, ns, scripting)
+                }
+                None => crate::treebuilder::TreeBuilder::parse_document(&case.data, scripting),
             };
             let got = html::dump(&dom).trim_end_matches('\n').to_string();
             t += 1;
             if got == case.expected {
                 p += 1;
+            } else if std::env::var("IRONSWIFT_SHOW_FAILS").is_ok() {
+                println!("--- {}\n{}\n--- expected\n{}\n--- got\n{}\n", f.display(), case.data, case.expected, got);
             }
             if got == without_doctype_and_comments(&case.expected) || got == case.expected {
                 ps += 1;

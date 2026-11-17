@@ -1030,7 +1030,7 @@ impl<'a> Ctx<'a> {
                     }
                     items.push(FlexItem::Node(c));
                 }
-                NodeData::Document => {}
+                _ => {}
             }
         }
         if text.iter().any(|&t| matches!(&self.dom.nodes[t].data, NodeData::Text(s) if !s.trim().is_empty())) {
@@ -1761,7 +1761,7 @@ impl<'a> Ctx<'a> {
                     }
                     items.push(FlexItem::Node(c));
                 }
-                NodeData::Document => {}
+                _ => {}
             }
         }
         if text.iter().any(|&t| matches!(&self.dom.nodes[t].data, NodeData::Text(s) if !s.trim().is_empty())) {
@@ -2201,7 +2201,7 @@ impl<'a> Ctx<'a> {
                     out.push(Tok::Break { node: id });
                 }
             }
-            NodeData::Document => {}
+            _ => {}
         }
     }
 

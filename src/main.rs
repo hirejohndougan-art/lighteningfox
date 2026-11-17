@@ -26,6 +26,7 @@ mod html;
 mod http;
 mod icon;
 mod tokenizer;
+mod treebuilder;
 mod images;
 mod js;
 mod layout;
@@ -549,7 +550,11 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
             }
         }
     };
+    let parse_t = Instant::now();
     let dom = html::parse(&body);
+    if std::env::var("IRONSWIFT_PARSE_TIME").is_ok() {
+        eprintln!("parse: {:?} for {} bytes", parse_t.elapsed(), body.len());
+    }
 
     // Stylesheets: inline ones in place, external ones fetched in parallel, order kept.
     enum Src {
