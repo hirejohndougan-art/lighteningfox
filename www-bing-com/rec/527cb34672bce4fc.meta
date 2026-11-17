@@ -1,0 +1,15 @@
+GET https://platform.bing.com/geo/REST/v1/Imagery/Map/RoadVibrant/48.706957,-113.817235/8?key=AsSOKo7OOz5VAtfAj0rjgaXlhCrCZI6PGbLj7GCH8IW2HUalyg4BVhqA0z77PRCj&c=en-US&od=2&shading=flat&pp=48.706957,-113.817235;S9;Glacier%20National%20Park,%20Montana&st=pp|v:false;lv:false_trs|v:false;lv:false&ml=Basemap,Landmarks&logo=no&mapSize=386,434&da=ro
+200 OK
+cache-control: public, max-age=508
+content-type: image/png
+access-control-allow-headers: Content-Type,X-FD-Features,X-FD-FLIGHT,PreferAnonymous
+access-control-allow-methods: POST, GET, OPTIONS
+access-control-allow-origin: *
+x-bm-traceid: b0d97a0c2ff54d6e934f1cd664dc30dd
+x-bm-srv: mapsplatform-frontend-5c976fb869-fz6vd, mapsplatform-imagery-service-7dc7899995-qzjd2
+x-ms-bm-ws-info: 0
+x-bm-fe-elapsed: 9
+x-cache: CONFIG_NOCACHE
+accept-ch: Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Mobile, Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version
+x-msedge-ref: Ref A: B0D97A0C2FF54D6E934F1CD664DC30DD Ref B: BL2AA2010204023 Ref C: 2026-11-17T20:01:32Z
+date: Tue, 17 Nov 2026 20:01:31 GMT

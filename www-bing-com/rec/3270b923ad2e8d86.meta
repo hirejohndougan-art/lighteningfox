@@ -1,0 +1,18 @@
+GET https://www.bing.com/rp/s7T4lgUPifvYShzg8oeVlvnY3_4.br.js
+200 OK
+alt-svc: h3=":443"; ma=93600
+content-type: text/javascript; charset=utf-8
+x-cdn-traceid: 0.c800de17.1794945691.65d2b869
+content-md5: hrNHjdQPWwQa3DuKEfB6bw==
+last-modified: Wed, 07 Oct 2026 21:22:13 GMT
+etag: 0x8DF24B90E4BFD8C
+x-ms-request-id: 176862e0-801e-0076-6ef0-56d6f5000000
+x-ms-version: 2009-09-19
+x-ms-lease-status: unlocked
+x-ms-blob-type: BlockBlob
+access-control-allow-origin: *
+akamai-amd-bc-debug: [a=23.73.206.156,b=186285,c=c,d=1791442011,h=200,k=8,l=27,n=US_VA_ASHBURN,o=20940,r=36,p=14836,j=[[a=23.212.251.201,b=186285,c=c,d=1791442011,h=200,k=9,l=14,m=3,r=26]]],[a=23.220.107.201,b=2974902734,c=c,d=1791442011,h=200,k=10,l=11,n=US_VA_ASHBURN,o=20940,r=21,p=14836,j=[[a=52.239.222.100,b=2974902734,c=o,d=1791442011,h=200,k=0,l=11,m=0,r=11,p=14836,t=cus]]]
+cache-control: public, no-transform, max-age=28032320
+expires: Fri, 08 Oct 2027 06:46:51 GMT
+date: Tue, 17 Nov 2026 20:01:31 GMT
+quic-version: 0x00000001
