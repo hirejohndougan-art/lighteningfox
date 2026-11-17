@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **fetch() and XMLHttpRequest**: requests run on background threads and never freeze the page; JSON, text, status, headers, POST bodies, `AbortController`, sync XHR; cross-origin rules (CORS, including preflight) so a site can't read other sites' data or your local network; plus `URL`, `URLSearchParams`, `FormData`, `Headers`, `Response`
 - **Cookies**: Set-Cookie with Domain, Path, Expires/Max-Age, Secure, HttpOnly, SameSite and the `__Host-`/`__Secure-` prefixes; cookies set during redirects are kept; `document.cookie`; saved to `~/.local/share/lighteningfox/cookies.tsv` (or `$LF_PROFILE`), readable only by you
 - **Privacy by default**: third-party cookies blocked (set `LF_THIRD_PARTY_COOKIES=1` to allow), tracking parameters (utm_*, fbclid, gclid…) stripped from page URLs (`LF_KEEP_TRACKING_PARAMS=1` keeps them), Global Privacy Control sent, no telemetry
 - **Forms**: text, password, email and other inputs, textareas, checkboxes, radio buttons, dropdowns, buttons; typing with a caret, Tab between fields, Enter to submit, GET and POST submission, reset, labels, `:focus`, and the JavaScript form APIs (`value`, `checked`, `selectedIndex`, `form.submit()`, submit/input/change events)
@@ -135,9 +136,8 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
-1. **`fetch()`** and `XMLHttpRequest`: most modern sites depend on these
-2. **Sticky positioning** and nested stacking contexts
-3. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
+1. **Sticky positioning** and nested stacking contexts
+2. **JavaScript speed**: optimize our DOM bindings first (querySelectorAll is the slowest),
    then profile Boa itself and work on its interpreter
-4. **Tabs and bookmarks**
-5. **GPU painting** and incremental layout for speed
+3. **Tabs and bookmarks**
+4. **GPU painting** and incremental layout for speed

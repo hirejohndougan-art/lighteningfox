@@ -288,7 +288,14 @@ fn main() {
 
 /// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
-    let page = load(url);
+    let mut page = load(url);
+    // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
+    if let Some(js) = page.js.as_mut() {
+        js.settle(std::time::Duration::from_secs(5));
+        if js::take_dirty() {
+            page.restyle();
+        }
+    }
     let lay = page.layout(fonts, width as f32, 768.0);
     let height = (lay.height.ceil() as usize).clamp(100, 16000);
     let mut canvas = Canvas::new(width, height);
@@ -876,7 +883,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
 
         // Idle: poll less often. Anything happening (input, redraws, loading) goes back to 60 fps.
-        let active = dirty || loading.is_some() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
+        let active = dirty || loading.is_some() || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
         if active {
             idle_frames = 0;
             if slow {
@@ -996,6 +1003,7 @@ mod screenshot_tests {
         ("tests/selectors.html", 700),
         ("tests/grid.html", 900),
         ("tests/forms.html", 800),
+        ("tests/fetch.html", 700),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

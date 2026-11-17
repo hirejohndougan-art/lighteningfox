@@ -32,11 +32,54 @@ pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), Strin
     load(url, None, Some(page))
 }
 
+/// A response for scripts: status, headers and body.
+#[derive(Debug, Clone, Default)]
+pub struct Response {
+    pub status: u16,
+    pub status_text: String,
+    pub url: String,
+    /// Lower-case names.
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+}
+
+impl Response {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+    }
+}
+
+/// What a request is for, which decides cookies and redirects.
+pub struct Request<'a> {
+    pub method: &'a str,
+    pub url: &'a str,
+    pub headers: &'a [(String, String)],
+    pub body: Option<&'a [u8]>,
+    /// The page making the request; `None` means the request is a page navigation.
+    pub top: Option<&'a str>,
+    /// Send and store cookies (fetch's `credentials: "omit"` turns this off).
+    pub cookies: bool,
+    /// Headers the browser itself adds (Origin, preflight headers), never filtered.
+    pub extra: &'a [(String, String)],
+}
+
 /// Load a URL: http(s) (with cookies and redirects), file:// or data:.
 /// `top` is the page making the request; `None` means the request is the page itself.
 fn load(url: &str, post: Option<&str>, top: Option<&str>) -> Result<(String, Vec<u8>), String> {
+    let headers = match post {
+        Some(_) => vec![("content-type".to_string(), "application/x-www-form-urlencoded".to_string())],
+        None => Vec::new(),
+    };
+    let r = http(&Request { method: if post.is_some() { "POST" } else { "GET" }, url, headers: &headers, body: post.map(str::as_bytes), top, cookies: true, extra: &[] })?;
+    Ok((r.url, r.body))
+}
+
+/// Make a request and return the response, whatever its status.
+pub fn http(req: &Request) -> Result<Response, String> {
+    let url = req.url;
     if let Some(rest) = url.strip_prefix("data:") {
-        return decode_data_url(rest).map(|b| (url.to_string(), b));
+        let ty = rest.split([',', ';']).next().unwrap_or("").to_string();
+        return decode_data_url(rest).map(|b| Response { status: 200, status_text: "OK".into(), url: url.into(), headers: vec![("content-type".into(), ty)], body: b });
     }
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         let path = url.strip_prefix("file://").unwrap_or(url);
@@ -46,57 +89,171 @@ fn load(url: &str, post: Option<&str>, top: Option<&str>) -> Result<(String, Vec
         let path = percent_decode(path);
         let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
         let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
-        return Ok((format!("file://{abs}{rest}"), bytes));
+        let ty = guess_type(&abs);
+        return Ok(Response { status: 200, status_text: "OK".into(), url: format!("file://{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
     }
     // Redirects are followed here rather than by ureq, so cookies set along the way are kept.
     let mut url = url.to_string();
-    let mut post = post.map(String::from);
+    let mut method = req.method.to_ascii_uppercase();
+    let mut body = req.body.map(<[u8]>::to_vec);
     for _ in 0..20 {
         let agent = ureq::AgentBuilder::new()
             .user_agent(USER_AGENT)
-            .timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(30))
             .redirects(0)
             .try_proxy_from_env(use_proxy(&url))
             .build();
-        let first_party = top.unwrap_or(&url).to_string();
-        let mut req = match post {
-            Some(_) => agent.post(&url).set("Content-Type", "application/x-www-form-urlencoded"),
-            None => agent.get(&url),
-        };
-        req = req.set("Accept", if top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" });
+        let first_party = req.top.unwrap_or(&url).to_string();
+        let mut r = agent.request(&method, &url);
+        let accept = if req.top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" };
+        r = r.set("Accept", accept);
         // Global Privacy Control: "do not sell or share my data" (honored by law in some US states).
-        req = req.set("Sec-GPC", "1");
-        if let Some(c) = crate::cookies::header_for(&url, &first_party) {
-            req = req.set("Cookie", &c);
+        r = r.set("Sec-GPC", "1");
+        for (k, v) in req.headers {
+            if !FORBIDDEN_HEADERS.contains(&k.to_ascii_lowercase().as_str()) {
+                r = r.set(k, v);
+            }
         }
-        let result = match &post {
-            Some(body) => req.send_string(body),
-            None => req.call(),
+        for (k, v) in req.extra {
+            r = r.set(k, v);
+        }
+        if req.cookies {
+            if let Some(c) = crate::cookies::header_for(&url, &first_party) {
+                r = r.set("Cookie", &c);
+            }
+        }
+        let result = match &body {
+            Some(b) => r.send_bytes(b),
+            None => r.call(),
         };
         let resp = match result {
             Ok(r) => r,
-            // Error pages (404, 500…) are still pages to show.
+            // Error responses (404, 500…) are still responses.
             Err(ureq::Error::Status(_, r)) => r,
             Err(e) => return Err(e.to_string()),
         };
-        let set: Vec<String> = resp.all("set-cookie").iter().map(|s| s.to_string()).collect();
-        crate::cookies::receive(&url, &first_party, &set);
+        if req.cookies {
+            let set: Vec<String> = resp.all("set-cookie").iter().map(|s| s.to_string()).collect();
+            crate::cookies::receive(&url, &first_party, &set);
+        }
         let status = resp.status();
         if (300..400).contains(&status) && status != 304 {
             if let Some(loc) = resp.header("location") {
                 url = resolve(&url, loc.trim());
                 // 301/302/303 turn a POST into a GET; 307/308 repeat it.
-                if !matches!(status, 307 | 308) {
-                    post = None;
+                if !matches!(status, 307 | 308) && method != "GET" && method != "HEAD" {
+                    method = "GET".into();
+                    body = None;
                 }
                 continue;
             }
         }
+        let headers = resp
+            .headers_names()
+            .into_iter()
+            .filter(|n| n != "set-cookie")
+            .flat_map(|n| resp.all(&n).into_iter().map(|v| (n.to_ascii_lowercase(), v.to_string())).collect::<Vec<_>>())
+            .collect();
+        let status_text = resp.status_text().to_string();
         let mut bytes = Vec::new();
-        resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        return Ok((url, bytes));
+        resp.into_reader().take(50_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        return Ok(Response { status, status_text, url, headers, body: bytes });
     }
     Err("too many redirects".into())
+}
+
+/// Headers pages may not set themselves.
+const FORBIDDEN_HEADERS: &[&str] = &[
+    "accept-charset", "accept-encoding", "access-control-request-headers", "access-control-request-method", "connection", "content-length",
+    "cookie", "cookie2", "date", "dnt", "expect", "host", "keep-alive", "origin", "referer", "set-cookie", "te", "trailer",
+    "transfer-encoding", "upgrade", "user-agent", "via", "sec-gpc",
+];
+
+fn guess_type(path: &str) -> &'static str {
+    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "html" | "htm" => "text/html",
+        "json" => "application/json",
+        "js" | "mjs" => "text/javascript",
+        "css" => "text/css",
+        "txt" => "text/plain",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
+    }
+}
+
+/// A script's request (fetch or XMLHttpRequest) from the page at `page`, with the
+/// same-origin rules browsers apply: another origin's response is only readable if that
+/// server allows it (CORS), and cookies only go along with `credentials: include`.
+pub fn script_request(page: &str, method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, credentials: &str) -> Result<Response, String> {
+    let page_origin = origin_of(page);
+    let target_origin = origin_of(url);
+    let local_file = page.starts_with("file://") && url.starts_with("file://");
+    let same = page_origin == target_origin && page_origin != "null" || local_file || url.starts_with("data:");
+    if !same && !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err(format!("{url}: blocked (not allowed from this page)"));
+    }
+    let cookies = match credentials {
+        "omit" => false,
+        "include" => true,
+        _ => same,
+    };
+    let method_up = method.to_ascii_uppercase();
+    let mut extra: Vec<(String, String)> = Vec::new();
+    if !same {
+        extra.push(("Origin".into(), page_origin.clone()));
+        // Anything beyond a simple GET/HEAD/POST needs the server's permission first.
+        let simple_header = |(k, v): &(String, String)| match k.to_ascii_lowercase().as_str() {
+            "accept" | "accept-language" | "content-language" => true,
+            "content-type" => {
+                let v = v.to_ascii_lowercase();
+                v.starts_with("application/x-www-form-urlencoded") || v.starts_with("multipart/form-data") || v.starts_with("text/plain")
+            }
+            _ => false,
+        };
+        let complex: Vec<String> = headers.iter().filter(|h| !simple_header(h)).map(|(k, _)| k.to_ascii_lowercase()).collect();
+        if !matches!(method_up.as_str(), "GET" | "HEAD" | "POST") || !complex.is_empty() {
+            let mut pre = vec![("Origin".to_string(), page_origin.clone()), ("Access-Control-Request-Method".to_string(), method_up.clone())];
+            if !complex.is_empty() {
+                pre.push(("Access-Control-Request-Headers".into(), complex.join(",")));
+            }
+            let r = http(&Request { method: "OPTIONS", url, headers: &[], body: None, top: Some(page), cookies: false, extra: &pre })?;
+            if !(200..300).contains(&r.status) || !cors_ok(&r, &page_origin, cookies) {
+                return Err(format!("{url}: blocked by CORS (preflight refused)"));
+            }
+        }
+    }
+    let r = http(&Request { method: &method_up, url, headers, body, top: Some(page), cookies, extra: &extra })?;
+    if !same && !cors_ok(&r, &page_origin, cookies) {
+        return Err(format!("{url}: blocked by CORS (no Access-Control-Allow-Origin for {page_origin})"));
+    }
+    Ok(r)
+}
+
+fn cors_ok(r: &Response, origin: &str, credentials: bool) -> bool {
+    match r.header("access-control-allow-origin").map(str::trim) {
+        Some("*") => !credentials,
+        Some(o) => o == origin && (!credentials || r.header("access-control-allow-credentials").is_some_and(|v| v.trim() == "true")),
+        None => false,
+    }
+}
+
+/// The origin (scheme://host:port) of a URL, as used by the same-origin policy.
+pub fn origin_of(url: &str) -> String {
+    match url.split_once("://") {
+        Some((scheme, rest)) if scheme == "http" || scheme == "https" => {
+            let host = rest.split(['/', '?', '#']).next().unwrap_or("").to_ascii_lowercase();
+            let host = host.rsplit_once('@').map_or(host.as_str(), |(_, h)| h).to_string();
+            let default = if scheme == "http" { ":80" } else { ":443" };
+            format!("{scheme}://{}", host.strip_suffix(default).unwrap_or(&host))
+        }
+        Some(("file", _)) => "null".into(),
+        _ => "null".into(),
+    }
 }
 
 /// Skip the system proxy for local addresses and anything listed in NO_PROXY.

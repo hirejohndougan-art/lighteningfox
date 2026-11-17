@@ -7,7 +7,7 @@ edition = "2024"
 minifb = "0.27"
 ureq = "2"
 png = "0.17"
-boa_engine = "0.21"
+boa_engine = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 base64 = "0.22"
 ab_glyph = "0.2"

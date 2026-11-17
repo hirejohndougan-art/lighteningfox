@@ -15,6 +15,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+/// Results of background requests, waiting to be handed to the page's scripts.
+static NET_DONE: std::sync::Mutex<Vec<(u64, u64, Result<net::Response, String>)>> = std::sync::Mutex::new(Vec::new());
+static NET_IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// Bumped for every new page, so a request from a page you've left is dropped when it finishes.
+static EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 thread_local! {
     static DOM: RefCell<Dom> = RefCell::new(Dom::new());
     static DIRTY: Cell<bool> = const { Cell::new(false) };
@@ -401,10 +407,132 @@ fn n_set_cookie(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
     Ok(JsValue::undefined())
 }
 
+/// JSON string literal (also valid JavaScript).
+fn json_str(s: &str, out: &mut String) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+/// A response as JSON (also a valid JavaScript expression): {ok, status, statusText, url, headers: [[k, v]…], body}
+/// or {error: "…"} for a network failure.
+fn response_js(r: &Result<net::Response, String>) -> String {
+    let mut o = String::new();
+    match r {
+        Ok(r) => {
+            o.push_str(&format!("{{\"status\":{},\"statusText\":", r.status));
+            json_str(&r.status_text, &mut o);
+            o.push_str(",\"url\":");
+            json_str(&r.url, &mut o);
+            o.push_str(",\"headers\":[");
+            for (i, (k, v)) in r.headers.iter().enumerate() {
+                if i > 0 {
+                    o.push(',');
+                }
+                o.push('[');
+                json_str(k, &mut o);
+                o.push(',');
+                json_str(v, &mut o);
+                o.push(']');
+            }
+            o.push_str("],\"body\":");
+            json_str(&String::from_utf8_lossy(&r.body), &mut o);
+            o.push('}');
+        }
+        Err(e) => {
+            o.push_str("{\"error\":");
+            json_str(e, &mut o);
+            o.push('}');
+        }
+    }
+    o
+}
+
+/// __netStart(id, page, method, url, headers "k\nv\n…", body|null, credentials, sync)
+/// Async requests run on a worker thread; a sync one (XHR with async=false) returns its result.
+fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = a.first().map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0) as u64;
+    let page = arg_str(a, 1, ctx)?;
+    let method = arg_str(a, 2, ctx)?;
+    let url = arg_str(a, 3, ctx)?;
+    let flat = arg_str(a, 4, ctx)?;
+    let body = match a.get(5) {
+        Some(v) if !v.is_null_or_undefined() => Some(v.to_string(ctx)?.to_std_string_escaped().into_bytes()),
+        _ => None,
+    };
+    let credentials = arg_str(a, 6, ctx)?;
+    let sync = a.get(7).is_some_and(JsValue::to_boolean);
+    let mut lines = flat.split('\n');
+    let mut headers = Vec::new();
+    while let (Some(k), Some(v)) = (lines.next(), lines.next()) {
+        if !k.is_empty() {
+            headers.push((k.to_string(), v.to_string()));
+        }
+    }
+    let run = move || net::script_request(&page, &method, &url, &headers, body.as_deref(), &credentials);
+    if sync {
+        let r = run();
+        return Ok(JsValue::from(JsString::from(response_js(&r))));
+    }
+    NET_IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let epoch = EPOCH.load(std::sync::atomic::Ordering::SeqCst);
+    std::thread::spawn(move || {
+        let r = run();
+        if let Ok(mut q) = NET_DONE.lock() {
+            q.push((epoch, id, r));
+        }
+        NET_IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    });
+    Ok(JsValue::undefined())
+}
+
+fn n_resolve(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let base = arg_str(a, 0, ctx)?;
+    let href = arg_str(a, 1, ctx)?;
+    Ok(JsValue::from(JsString::from(net::resolve(&base, &href))))
+}
+
+/// A form's name/value pairs as JSON: [["name","value"],…]
+fn n_form_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let pairs = with_dom(|d| if id >= 0 && (id as usize) < d.nodes.len() { crate::forms::form_data(d, id as NodeId, None) } else { Vec::new() });
+    let mut o = String::from("[");
+    for (i, (k, v)) in pairs.iter().enumerate() {
+        if i > 0 {
+            o.push(',');
+        }
+        o.push('[');
+        json_str(k, &mut o);
+        o.push(',');
+        json_str(v, &mut o);
+        o.push(']');
+    }
+    o.push(']');
+    Ok(JsValue::from(JsString::from(o)))
+}
+
+/// True while any background request is still running or waiting to be delivered.
+pub fn network_busy() -> bool {
+    NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
+}
+
 const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
+        EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut ctx = Context::default();
         // Keep runaway scripts from freezing the browser.
         ctx.runtime_limits_mut().set_loop_iteration_limit(200_000_000);
@@ -434,6 +562,9 @@ impl Js {
             ("__log", 2, n_log),
             ("__navigate", 1, n_navigate),
             ("__request", 3, n_request),
+            ("__netStart", 8, n_net_start),
+            ("__resolve", 2, n_resolve),
+            ("__formData", 1, n_form_data),
             ("__getCookie", 1, n_get_cookie),
             ("__setCookie", 2, n_set_cookie),
         ];
@@ -516,8 +647,33 @@ impl Js {
         self.tick(); // run zero-delay timers right away
     }
 
-    /// Advance timers to "now". Returns true if any ran.
+    /// Wait (up to `max`) for background requests and short timers, so a page that
+    /// loads its content with fetch() has it before a headless screenshot.
+    pub fn settle(&mut self, max: std::time::Duration) {
+        let t = Instant::now();
+        loop {
+            self.tick();
+            if !network_busy() || t.elapsed() >= max {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        self.tick();
+    }
+
+    /// Advance timers to "now" and deliver finished requests. Returns true if anything ran.
     pub fn tick(&mut self) -> bool {
+        let done: Vec<_> = NET_DONE.lock().map(|mut q| std::mem::take(&mut *q)).unwrap_or_default();
+        let delivered = !done.is_empty();
+        let epoch = EPOCH.load(std::sync::atomic::Ordering::SeqCst);
+        for (_, id, r) in done.into_iter().filter(|d| d.0 == epoch) {
+            let code = format!("__netDone({id}, {})", response_js(&r));
+            self.eval(&code, "network");
+        }
+        delivered | self.tick_timers()
+    }
+
+    fn tick_timers(&mut self) -> bool {
         let now = self.start.elapsed().as_secs_f64() * 1000.0;
         self.eval(&format!("__tick({now})"), "timers")
             .map_or(false, |v| v.to_number(&mut self.ctx).unwrap_or(0.0) > 0.0)

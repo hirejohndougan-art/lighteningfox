@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>fetch test</title>
+<style>
+  body { font-family: sans-serif; margin: 24px; color: #1e293b; }
+  .card { border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 18px; max-width: 420px; }
+  h2 { margin: 0 0 8px; color: #4f46e5; }
+  li { margin: 3px 0; }
+  .muted { color: #64748b; font-size: 13px; }
+</style></head>
+<body>
+<div class="card"><h2 id="t">Loading…</h2><ul id="list"></ul><p class="muted" id="x"></p></div>
+<script>
+fetch("data.json").then((r) => r.json()).then((d) => {
+  document.getElementById("t").textContent = d.title;
+  const ul = document.getElementById("list");
+  for (const item of d.items) { const li = document.createElement("li"); li.textContent = item; ul.appendChild(li); }
+});
+const x = new XMLHttpRequest();
+x.open("GET", "data.json");
+x.onload = () => { document.getElementById("x").textContent = "XMLHttpRequest also got " + JSON.parse(x.responseText).items.length + " items."; };
+x.send();
+</script>
+</body></html>
