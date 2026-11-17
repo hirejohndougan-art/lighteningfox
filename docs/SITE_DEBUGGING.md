@@ -57,8 +57,9 @@ here); use the REST API through `gh api`:
     git clone -q --depth 1 -b rec-bbc https://github.com/hirejohndougan-art/lighteningfox /tmp/rec-bbc
 
 `ref` is what gets built: `main`, or a branch you pushed with fixes that aren't on `main` yet.
-Name the branch after your task (`rec-x1a`…) so chats don't overwrite each other's, and delete
-it when your task is done (`git push origin --delete rec-x1a`).
+Name the branch after your task (`rec-x1a`…) so chats don't overwrite each other's. Chats can't
+delete branches (the git proxy refuses it): when your task is done, list your recording branch in
+your report so John can delete it.
 
 ## Finding the cause
 
