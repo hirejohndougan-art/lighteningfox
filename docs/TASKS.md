@@ -177,7 +177,7 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** `src/media.rs`
 
 ### T11. Fingerprinting noise on audio
-**Status:** free
+**Status:** claimed by chat-opus-t05 2026-11-17 11:10
 **After:** T09
 **Checklist:** §13 "Fingerprinting: add the per-site noise to audio readouts once audio exists"
 **Files:** `src/media.rs` (Web Audio readouts), the existing noise function
