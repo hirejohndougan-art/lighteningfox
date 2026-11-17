@@ -152,7 +152,7 @@ Compare the new `docs/SITE_COMPAT.md` run with last night's (16 work, 16 usable,
 1 crash) and fix any site that got worse. (X1 keeps fixing the sites that were already broken.)
 
 ### R3. Clean up the compiler warnings
-**Status:** free
+**Status:** claimed by chat-opus-geo 2026-11-17 11:35
 **After:** —
 **Checklist:** none
 **Files:** any, but only to remove dead code or fix warnings; no behavior changes
