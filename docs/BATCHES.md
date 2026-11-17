@@ -23,7 +23,12 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 ---
 
 ## A. Merge the install packages and crash fixes
-**Status:** claimed by main-chat 2026-11-17 02:15
+**Status:** done
+**Left over:** John must turn on GitHub Pages once (repo Settings → Pages → Source: "GitHub
+Actions"); then the site publishes at https://hirejohndougan-art.github.io/lighteningfox/. The
+Flatpak manifest couldn't be built here (no flatpak-builder or Flathub access); the release
+workflow builds it on GitHub, so check that job on the first tagged release. A Flathub listing
+would need a from-source build with vendored crates.
 **Start after:** —
 **Main files:** `packaging/`, `.github/workflows/`, `fuzz/`, `src/treebuilder.rs`, `src/main.rs` (stack size only)
 
