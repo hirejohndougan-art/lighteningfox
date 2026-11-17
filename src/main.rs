@@ -1182,6 +1182,11 @@ mod screenshot_tests {
 
     #[test]
     fn pages_match_reference_images() {
+        // Keep test runs out of the real profile (cookies, localStorage), starting fresh each time.
+        let profile = std::env::temp_dir().join(format!("lighteningfox-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&profile);
+        // SAFETY: set before any other thread starts in this test.
+        unsafe { std::env::set_var("LF_PROFILE", &profile) };
         let fonts = load_fonts().expect("fonts");
         let update = std::env::var("UPDATE_REFERENCES").is_ok();
         std::fs::create_dir_all("tests/reference").unwrap();

@@ -607,6 +607,46 @@ fn n_history(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     Ok(JsValue::undefined())
 }
 
+/// Where a site's localStorage lives: one JSON file per origin in the profile folder.
+fn storage_file(origin: &str) -> Option<std::path::PathBuf> {
+    if origin.is_empty() || origin == "null" && !cfg!(test) {
+        // Local files share one store, like other browsers' "file://" origin.
+    }
+    let key: String = origin.chars().map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '_' }).collect();
+    let key = if key.is_empty() { "file".to_string() } else { key };
+    crate::cookies::profile_dir().map(|d| d.join("storage").join(format!("{key}.json")))
+}
+
+/// __storageLoad(origin) -> the saved JSON object text, or "{}".
+fn n_storage_load(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let origin = arg_str(a, 0, ctx)?;
+    let text = storage_file(&origin).and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_else(|| "{}".into());
+    Ok(JsValue::from(JsString::from(text)))
+}
+
+/// __storageSave(origin, json): write it back (atomically, readable only by you). 5 MB per site.
+fn n_storage_save(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let origin = arg_str(a, 0, ctx)?;
+    let json = arg_str(a, 1, ctx)?;
+    if json.len() > 5 * 1024 * 1024 {
+        return Ok(JsValue::from(false));
+    }
+    let Some(path) = storage_file(&origin) else { return Ok(JsValue::from(false)) };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let tmp = path.with_extension("tmp");
+    let ok = std::fs::write(&tmp, json).is_ok() && {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+        }
+        std::fs::rename(&tmp, &path).is_ok()
+    };
+    Ok(JsValue::from(ok))
+}
+
 const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
@@ -642,6 +682,8 @@ impl Js {
             ("__navigate", 1, n_navigate),
             ("__request", 3, n_request),
             ("__history", 3, n_history),
+            ("__storageLoad", 1, n_storage_load),
+            ("__storageSave", 2, n_storage_save),
             ("__netStart", 8, n_net_start),
             ("__resolve", 2, n_resolve),
             ("__rect", 1, n_rect),

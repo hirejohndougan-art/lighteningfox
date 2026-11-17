@@ -538,16 +538,36 @@
       EventTarget.prototype.__fire.call(g, ev);
     }
   };
-  const storage = () => {
-    const m = new Map();
-    return {
+  // Web Storage. localStorage is saved per site (origin) in the profile folder and kept
+  // between runs; sessionStorage lasts as long as the page.
+  const storage = (persist) => {
+    const origin = location.origin === "null" ? "file" : location.origin;
+    let m = new Map();
+    if (persist) {
+      try { m = new Map(Object.entries(JSON.parse(__storageLoad(origin)))); } catch (e) { m = new Map(); }
+    }
+    const save = () => {
+      if (persist && !__storageSave(origin, JSON.stringify(Object.fromEntries(m)))) {
+        throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+      }
+    };
+    const api = {
       getItem: (k) => (m.has(String(k)) ? m.get(String(k)) : null),
-      setItem: (k, v) => m.set(String(k), String(v)),
-      removeItem: (k) => m.delete(String(k)),
-      clear: () => m.clear(),
+      setItem: (k, v) => { const had = m.get(String(k)); m.set(String(k), String(v)); try { save(); } catch (e) { if (had === undefined) m.delete(String(k)); else m.set(String(k), had); throw e; } },
+      removeItem: (k) => { if (m.delete(String(k))) save(); },
+      clear: () => { if (m.size) { m.clear(); save(); } },
       key: (i) => [...m.keys()][i] ?? null,
       get length() { return m.size; },
     };
+    // Also allow localStorage.foo = "bar" and localStorage.foo, as pages do.
+    return new Proxy(api, {
+      get: (t, k) => (k in t || typeof k === "symbol" ? t[k] : t.getItem(k)),
+      set: (t, k, v) => { if (k in t) return false; t.setItem(k, v); return true; },
+      deleteProperty: (t, k) => { t.removeItem(k); return true; },
+      has: (t, k) => k in t || m.has(String(k)),
+      ownKeys: () => [...m.keys()],
+      getOwnPropertyDescriptor: (t, k) => (m.has(String(k)) ? { value: m.get(String(k)), enumerable: true, configurable: true, writable: true } : undefined),
+    });
   };
   const consoleFn = (level) => (...a) => __log(level, a.map((x) => {
     if (typeof x === "string") return x;
@@ -880,7 +900,7 @@
       });
       return { matches, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } };
     },
-    localStorage: storage(), sessionStorage: storage(),
+    localStorage: storage(true), sessionStorage: storage(false),
     history,
     performance: { now: () => __nowMs, mark() {}, measure() {}, getEntriesByType: () => [], timing: {} },
     console: { log: consoleFn("log"), info: consoleFn("info"), debug: consoleFn("debug"),

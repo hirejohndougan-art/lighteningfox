@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Web Storage**: `localStorage` saved per site in the profile folder and kept between runs (5 MB per site), `sessionStorage` for the page; both also work as `localStorage.key = value`
 - **History and in-page links**: `history.pushState`/`replaceState`/`back`/`go`, `popstate` and `hashchange`; Back/Forward between entries of the same page don't reload; `#anchor` links scroll to their target and add a history entry; `location` always reflects the current URL
 - **Transforms**: `translate`, `scale`, `rotate`, `skew`, `matrix`, `transform-origin`, and the separate `translate`/`rotate`/`scale` properties; rotated and scaled elements are drawn off-screen and mapped with smooth sampling, and clicks follow them
 - **Stacking contexts**: z-index layers nest inside their parent's stacking context, as in other browsers
