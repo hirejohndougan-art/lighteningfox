@@ -152,7 +152,7 @@ fn bump_generation() {
     GENERATION.with(|g| g.set(g.get().wrapping_add(1)));
 }
 
-fn parsed_selectors(sel: &str) -> std::rc::Rc<Vec<css::Selector>> {
+pub(crate) fn parsed_selectors(sel: &str) -> std::rc::Rc<Vec<css::Selector>> {
     SELECTORS.with(|c| {
         let mut c = c.borrow_mut();
         if let Some(v) = c.get(sel) {
@@ -168,7 +168,7 @@ fn parsed_selectors(sel: &str) -> std::rc::Rc<Vec<css::Selector>> {
 }
 
 /// The first element in the document with this id.
-fn element_by_id(want: &str) -> Option<NodeId> {
+pub(crate) fn element_by_id(want: &str) -> Option<NodeId> {
     let generation = GENERATION.with(|g| g.get());
     ID_INDEX.with(|ix| {
         let mut ix = ix.borrow_mut();
@@ -548,7 +548,7 @@ fn n_set_html(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::undefined())
 }
 
-fn query(root: NodeId, sel: &str, all: bool) -> Vec<NodeId> {
+pub(crate) fn query(root: NodeId, sel: &str, all: bool) -> Vec<NodeId> {
     let sels = parsed_selectors(sel);
     if sels.is_empty() {
         return vec![];
@@ -625,6 +625,15 @@ fn n_matches(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
 fn n_wrap_list(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let Some(list) = arg(a, 0).as_object() else { return Ok(JsArray::new(ctx)?.into()) };
     let list = JsArray::from_object(list)?;
+    if crate::dom_classes::installed(ctx) {
+        let len = list.length(ctx)?;
+        let mut out = Vec::with_capacity(len as usize);
+        for i in 0..len {
+            let id = list.get(i, ctx)?.to_number(ctx)?;
+            out.push(if id >= 0.0 { crate::dom_classes::wrap(Some(id as usize), ctx)? } else { JsValue::null() });
+        }
+        return Ok(JsArray::from_iter(out, ctx).into());
+    }
     let global = ctx.global_object();
     let cache = global.get(js_string!("__wrapCache"), ctx)?;
     let wrap = global.get(js_string!("__wrapFn"), ctx)?;
@@ -1330,6 +1339,7 @@ impl Js {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
                 .expect("register native");
         }
+        crate::dom_classes::register(&mut ctx);
         let esc = |v: &str| v.replace('\\', "\\\\").replace('"', "\\\"");
         let globals = format!(
             "var __nowMs = 0, __readyState = \"loading\", __url = \"{}\", __cookie = \"\", \

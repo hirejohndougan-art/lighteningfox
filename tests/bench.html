@@ -81,6 +81,34 @@ bench("DOM: getElementsByClassName x300", () => {
   for (let i = 0; i < 300; i++) n += document.getElementsByClassName("c7").length;
   return n;
 });
+bench("DOM: tree walk x20", () => {
+  // firstChild/nextSibling/nodeType over the 3000 divs (and their spans) left in #scratch.
+  const s = document.getElementById("scratch");
+  let n = 0;
+  for (let r = 0; r < 20; r++) {
+    const walk = (node) => { for (let c = node.firstChild; c; c = c.nextSibling) { if (c.nodeType === 1) n++; walk(c); } };
+    walk(s);
+  }
+  return n;
+});
+bench("DOM: attribute reads 100k", () => {
+  const els = document.getElementById("scratch").children;
+  let n = 0;
+  for (let i = 0; i < 100000; i++) {
+    const e = els[i % els.length];
+    if (e.getAttribute("id") && e.className.length > 0 && e.tagName === "DIV") n++;
+  }
+  return n;
+});
+bench("DOM: parentNode/firstElementChild 100k", () => {
+  const els = document.getElementById("scratch").children;
+  let n = 0;
+  for (let i = 0; i < 100000; i++) {
+    const e = els[i % els.length];
+    if (e.firstElementChild.parentNode === e) n++;
+  }
+  return n;
+});
 </script>
 </body>
 </html>

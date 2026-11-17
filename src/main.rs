@@ -63,6 +63,7 @@ mod js;
 mod jsnest;
 mod jsmodules;
 mod domindex;
+mod dom_classes;
 mod memory;
 mod userinput;
 #[cfg(test)]

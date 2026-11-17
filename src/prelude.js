@@ -9,8 +9,14 @@
   const cache = [];
   globalThis.__wrapCache = cache;
 
+  // Node objects are made natively (dom_classes.rs) once the classes below are installed;
+  // slowWrap makes the kinds that stay JavaScript objects (the document, shadow roots).
+  let nativeWrap = null;
   function wrap(id) {
     if (id === undefined || id === null || id < 0) return null;
+    return cache[id] || (nativeWrap ? nativeWrap(id) : slowWrap(id));
+  }
+  function slowWrap(id) {
     let n = cache[id];
     if (n) return n;
     const t = __type(id);
@@ -1273,6 +1279,22 @@
   }
   const svgSet = new Set(SVG_TAGS);
   const isSvg = (x) => isEl(x) && svgSet.has((x.localName || x.tagName).toLowerCase());
+  // The hot read-only DOM members as native functions (dom_classes.rs), replacing the
+  // JavaScript ones above; setters and everything that changes the tree stay JavaScript.
+  try {
+    const nat = __domInstall({ Element, Text, Comment, DocumentFragment, cache, slow: slowWrap });
+    const put = (P, m) => {
+      for (const [k, get] of Object.entries(m.get)) {
+        const d = Object.getOwnPropertyDescriptor(P, k);
+        Object.defineProperty(P, k, { get, set: d && d.set, enumerable: false, configurable: true });
+      }
+      for (const [k, value] of Object.entries(m.fn)) Object.defineProperty(P, k, { value, writable: true, enumerable: false, configurable: true });
+    };
+    put(Node.prototype, nat.node);
+    put(Element.prototype, nat.element);
+    put(Document.prototype, nat.document);
+    nativeWrap = nat.wrap;
+  } catch (e) { console.error("native DOM setup failed: " + e); }
   // Fragments and shadow roots hold children like elements do: give them the same tree methods.
   for (const name of ["appendChild", "insertBefore", "removeChild", "replaceChild", "childNodes", "firstChild", "lastChild", "children",
     "firstElementChild", "lastElementChild", "childElementCount", "textContent", "cloneNode", "contains", "hasChildNodes", "append", "prepend",
