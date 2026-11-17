@@ -296,6 +296,25 @@ pub fn resolve_place(p: &GridPlace, areas: &Areas, cols: usize, rows: usize, col
     (c, r)
 }
 
+/// `fr` rows of a grid whose height isn't known (CSS Grid "find the size of an fr" with
+/// indefinite free space): each takes its share of the largest content-per-`fr`, so
+/// `minmax(0, 1fr)` still holds its items (BBC News: `grid-template-rows: min-content
+/// minmax(0, 1fr)`, whose second row of cards overflowed into the next section).
+pub fn size_flexible_rows(tracks: &[Track], content: &[(f32, f32)], sizes: &mut [f32]) {
+    let mut fraction = 0.0f32;
+    for (i, t) in tracks.iter().enumerate() {
+        if let Max::Fr(f) = t.max {
+            let c = sizes[i].max(content.get(i).map_or(0.0, |c| c.1));
+            fraction = fraction.max(if f > 1.0 { c / f } else { c });
+        }
+    }
+    for (i, t) in tracks.iter().enumerate() {
+        if let Max::Fr(f) = t.max {
+            sizes[i] = sizes[i].max(fraction * f);
+        }
+    }
+}
+
 /// Track sizes for `avail` px: fixed tracks keep their size, content tracks take
 /// their content, `fr` tracks share what's left. With `stretch`, content tracks grow
 /// to fill leftover space when there are no `fr` tracks.

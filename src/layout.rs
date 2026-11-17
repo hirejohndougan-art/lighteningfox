@@ -2645,6 +2645,9 @@ impl<'a> Ctx<'a> {
             }
         }
         let mut heights = grid::size_tracks(&rows, &row_content, definite_h.unwrap_or(0.0), row_gap, definite_h.is_some());
+        if definite_h.is_none() {
+            grid::size_flexible_rows(&rows, &row_content, &mut heights);
+        }
         for (k, p) in placed.iter().enumerate() {
             if p.rspan > 1 {
                 let have: f32 = heights[p.row..p.row + p.rspan].iter().sum::<f32>() + row_gap * (p.rspan as f32 - 1.0);
@@ -3681,6 +3684,13 @@ impl<'a> Ctx<'a> {
                                 }
                                 self.items.push(Item::Text { x: lx, y: baseline, text: l.to_string(), font, size, color: s.color });
                                 lx += self.fonts.width(font, l, size) + ls;
+                            }
+                            // The spacing after the last letter is part of the text's width (it
+                            // was counted when the line was filled): while measuring, mark where it
+                            // ends, or a shrink-to-fit box comes out too narrow and the text wraps
+                            // ("MORE TO EXPLORE" on BBC News, one word per line).
+                            if self.measuring && ls > 0.0 {
+                                self.items.push(Item::Box { x: lx - ls, y: baseline, w: ls, h: 0.0, radius: 0.0, bg: Box::default() });
                             }
                             last_text = None;
                         }

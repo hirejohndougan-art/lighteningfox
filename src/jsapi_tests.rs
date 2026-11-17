@@ -622,3 +622,18 @@ fn intersection_entry_fields_are_on_the_prototype() {
     assert_eq!(r.trim_matches('"'), "true,0.5");
 }
 
+/// BBC News section titles: trailing letter-spacing counts in a shrink-to-fit width.
+#[test]
+fn letter_spaced_titles_fit_their_flex_item() {
+    let _serial = serial();
+    let _page = open("tests/sites/letter-spacing-shrink.html");
+    assert_eq!(text_of("out"), "20");
+}
+
+/// BBC News: an fr row in a grid of auto height is as tall as its items.
+#[test]
+fn fr_rows_hold_their_items_in_auto_height_grids() {
+    let _serial = serial();
+    let _page = open("tests/sites/grid-fr-rows.html");
+    assert_eq!(text_of("next"), "180;true");
+}

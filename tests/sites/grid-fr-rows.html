@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- From BBC News (2026-11): a grid with `grid-template-rows: min-content minmax(0, 1fr)` and no
+     set height. The 1fr row must still hold its items (the row of cards overflowed into the next
+     section), and a tall item spanning both rows only grows them as far as it needs. -->
+<html><head><title>fr rows in a grid of auto height</title>
+<style>
+  #g { display: grid; grid-template-columns: 1fr 100px; grid-template-rows: min-content minmax(0, 1fr); row-gap: 10px; }
+  .a { height: 50px; } .b { height: 120px; } .side { grid-column: 2; grid-row: 1 / span 2; height: 100px; }
+</style></head>
+<body>
+<div id="g"><div class="a"></div><div class="side"></div><div class="b" id="b"></div></div>
+<p id="next">after</p>
+<script>
+  const g = document.getElementById("g").getBoundingClientRect(), b = document.getElementById("b").getBoundingClientRect();
+  document.getElementById("next").textContent = [g.height, b.bottom <= g.bottom].join(";");
+</script>
+</body></html>
