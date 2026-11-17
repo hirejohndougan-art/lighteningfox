@@ -184,7 +184,7 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** `src/media.rs` (Web Audio readouts), the existing noise function
 
 ### T13. Extensions (WebExtensions API)
-**Status:** free
+**Status:** claimed by chat-opus-x3 2026-11-17 17:05
 **After:** T01, T05, T07
 **Checklist:** §11 "Extensions (WebExtensions API)"
 **Files:** new `src/extensions/`
