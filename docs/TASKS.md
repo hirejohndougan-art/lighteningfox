@@ -603,6 +603,70 @@ result under `tools/wpt.py`, whose snapshot mode freezes media. Several WPT help
 Start with content scripts, `storage`, `tabs` and `webRequest` blocking, enough to run a simple
 ad blocker or dark-mode extension.
 
+## Optional additions (added by John 2026-11-17)
+
+Build checklist §18. Each one picks up where the done task it names left off.
+
+### O1. Web compatibility: every tracked site to "Works"
+**Status:** free
+**After:** X1a, X1b, X1c, X1d, X1e
+**Checklist:** §18 "Web compatibility"
+**Files:** wherever the failing sites lead; `tools/sites.json`, `docs/SITE_COMPAT.md`
+`docs/SITE_COMPAT.md` (2026-11-17): 15 works, 19 usable, 6 broken. Take the broken sites first,
+then the usable ones, one site per commit, the same way as X1a–X1e. Re-run `tools/wpt.py` for the
+areas you touch and keep every score the same or better. Add more sites to `tools/sites.json` as
+the list gets to "Works".
+
+### O2. Boa: further speed work
+**Status:** free
+**After:** X22
+**Checklist:** §18 "Boa further optimization"
+**Files:** `vendor/boa/` (log changes in `vendor/boa/IRONSWIFT.md`), `docs/boa-speed.md`
+After X22's compiler work: inline caches and object shapes for property access, faster calls
+and argument handling, string interning, cheaper garbage collection. Profile with
+`tools/profile_js.sh`, measure each change with the full V8 suite and add the scores to
+`docs/boa-speed.md`. No JIT here (that stays "not for chats").
+
+### O3. Site isolation: close the gaps and turn it on by default
+**Status:** free
+**After:** —
+**Checklist:** §18 "Sandboxing and site isolation"
+**Files:** `src/process.rs`, `src/sandbox.rs`, `src/main.rs`
+Make everything T05 left undone work in a site process: find in page, text selection and copy,
+the page context menu, devtools, `<select>` dropdowns, autofill, printing, the accessibility
+tree, pushState address changes; shared memory for pictures; streamed and cached responses.
+Then do X15 (default on).
+
+### O4. WebGL: finish WebGL 2
+**Status:** free
+**After:** —
+**Checklist:** §18 "WebGL"
+**Files:** `src/webgl*.rs`, `src/glsl*.rs`, `src/gpu.rs`, `webgl.js`
+From T12's left-undone list: antialiasing/multisampling, transform feedback, queries and syncs,
+pixel buffers, video as a texture, more compressed texture formats, wide lines, sRGB. Run the
+Khronos WebGL conformance suite and record the score. Look at drawing on the GPU instead of in
+software.
+
+### O5. WebRTC
+**Status:** free
+**After:** —
+**Checklist:** §18 "WebRTC"
+**Files:** new `src/webrtc/`, a new JS file
+`getUserMedia` for camera and microphone (the permission prompts already exist),
+`RTCPeerConnection` with ICE/STUN/TURN, DTLS-SRTP audio and video, and data channels. Use a
+Rust crate such as `webrtc-rs` rather than writing the protocols by hand. Test with a two-tab
+video call page and a public test site.
+
+### O6. Extensions: the rest of the WebExtensions API
+**Status:** free
+**After:** —
+**Checklist:** §18 "Extensions"
+**Files:** `src/extensions/`
+From T13's left-undone list: stable tab ids, `declarativeNetRequest`, the other `webRequest`
+events, `runtime.connect` ports, `alarms`, `contextMenus`, toolbar buttons and popups, an
+about:extensions page and installing packed extensions (.xpi/.crx). Goal: uBlock Origin and Dark
+Reader run unmodified.
+
 ## Not for the chats
 
 ### X21. Windows and macOS builds (from batch J)
@@ -628,7 +692,7 @@ boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper inst
 
 ### Baseline JIT and the full JIT for Boa
 **Status:** not for chats: only after the whole app is built (John's decision).
-**Checklist:** §14 "Baseline JIT compiler (via Cranelift)" and "Optional … a JIT compiler for Boa"
+**Checklist:** §14 "Baseline JIT compiler (via Cranelift)" and "Optional … a JIT compiler for Boa"; also listed in §18 "JIT"
 
 ### Funding plan; live-site check on John's computer
 **Status:** not for chats: John's to do.
