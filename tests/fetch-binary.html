@@ -1,0 +1,37 @@
+<!doctype html><html><head><title>fetch binary bodies</title></head><body><div id=log></div>
+<script>
+// Binary response bodies must arrive byte for byte (a PNG has bytes that aren't UTF-8).
+const log = (s) => { document.getElementById('log').textContent += s + ';'; };
+const sig = (u) => Array.from(u.subarray(0, 4)).join(',');
+(async () => {
+  const ab = await (await fetch('img/checker.png')).arrayBuffer();
+  log('ab ' + ab.byteLength + ' ' + sig(new Uint8Array(ab)));
+  const blob = await (await fetch('img/checker.png')).blob();
+  log('blob ' + blob.size + ' ' + blob.type + ' ' + sig(new Uint8Array(await blob.arrayBuffer())));
+  const r = await fetch('img/checker.png');
+  const c = r.clone();
+  log('bytes ' + (await r.bytes()).length + ' clone ' + (await c.arrayBuffer()).byteLength);
+  // Text bodies still work both ways.
+  const t = await (await fetch('data.json')).arrayBuffer();
+  log('json-bytes ' + (new TextDecoder().decode(t) === await (await fetch('data.json')).text()));
+  // Responses built from bytes and blobs.
+  const made = new Response(new Uint8Array([0xff, 0x00, 0xe9, 0x41]));
+  log('made ' + Array.from(new Uint8Array(await made.arrayBuffer())).join(','));
+  log('utf8 ' + (await new Response(new Uint8Array([0xc3, 0xa9])).text()));
+  const fromBlob = new Response(new Blob(['hi'], { type: 'text/x-test' }));
+  log('fromblob ' + fromBlob.headers.get('content-type') + ' ' + (await fromBlob.text()));
+  log('strbytes ' + Array.from(new Uint8Array(await new Response('é').arrayBuffer())).join(','));
+  // XMLHttpRequest with responseType arraybuffer and blob.
+  const x = new XMLHttpRequest();
+  x.open('GET', 'img/checker.png');
+  x.responseType = 'arraybuffer';
+  await new Promise((res) => { x.onload = res; x.send(); });
+  log('xhr ' + x.response.byteLength + ' ' + sig(new Uint8Array(x.response)));
+  const y = new XMLHttpRequest();
+  y.open('GET', 'img/checker.png');
+  y.responseType = 'blob';
+  await new Promise((res) => { y.onload = res; y.send(); });
+  log('xhrblob ' + y.response.size);
+  log('done');
+})().catch((e) => log('error ' + e));
+</script></body></html>

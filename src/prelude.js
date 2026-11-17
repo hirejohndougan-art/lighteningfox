@@ -1029,30 +1029,53 @@
     [Symbol.iterator]() { return this.entries(); }
   }
 
+  // A body is held as text or as bytes (whichever it arrived as) and converted on demand:
+  // text() decodes bytes as UTF-8, arrayBuffer()/blob() encode text as UTF-8.
+  const bodyBytes = (b) => {
+    if (b instanceof ArrayBuffer) return new Uint8Array(b.slice(0));
+    if (ArrayBuffer.isView(b)) return new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    if (typeof g.Blob === "function" && b instanceof g.Blob) return b.__bytes().slice();
+    return null;
+  };
+  const asText = (o) => (o._text !== null ? o._text : new g.TextDecoder().decode(o._bytes));
+  const asBytes = (o) => (o._bytes !== null ? o._bytes : new g.TextEncoder().encode(o._text));
   class Response {
     constructor(body, init) {
       init = init || {};
-      this._body = body == null ? "" : String(body);
       this.status = init.status === undefined ? 200 : init.status;
       this.statusText = init.statusText || "";
-      this.headers = init.headers instanceof Headers ? init.headers : new Headers(init.headers);
+      this.headers = new Headers(init.headers);
       this.url = init.url || "";
       this.type = init.type || "basic";
       this.redirected = !!init.redirected;
       this.bodyUsed = false;
+      this._text = ""; this._bytes = null;
+      if (body == null) return;
+      const bytes = bodyBytes(body);
+      if (bytes) {
+        this._text = null; this._bytes = bytes;
+        if (body.type && !this.headers.has("content-type")) this.headers.set("content-type", body.type);
+      } else this._text = bodyString(body, this.headers);
     }
     get ok() { return this.status >= 200 && this.status < 300; }
     _take() {
       if (this.bodyUsed) return Promise.reject(new TypeError("Body has already been consumed."));
       this.bodyUsed = true;
-      return Promise.resolve(this._body);
+      return Promise.resolve(this);
     }
-    text() { return this._take(); }
-    json() { return this._take().then((t) => JSON.parse(t)); }
-    arrayBuffer() { return this._take().then((t) => { const b = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) b[i] = t.charCodeAt(i) & 255; return b.buffer; }); }
-    blob() { return this._take().then((t) => ({ size: t.length, type: this.headers.get("content-type") || "", text: () => Promise.resolve(t) })); }
-    formData() { return this._take().then((t) => { const f = new FormData(); for (const [k, v] of new URLSearchParams(t)) f.append(k, v); return f; }); }
-    clone() { const r = new Response(this._body, this); r.url = this.url; return r; }
+    text() { return this._take().then(asText); }
+    json() { return this._take().then((o) => JSON.parse(asText(o))); }
+    arrayBuffer() { return this._take().then((o) => asBytes(o).slice().buffer); }
+    bytes() { return this._take().then((o) => asBytes(o).slice()); }
+    blob() { return this._take().then((o) => new g.Blob([asBytes(o)], { type: this.headers.get("content-type") || "" })); }
+    formData() { return this._take().then((o) => { const f = new FormData(); for (const [k, v] of new URLSearchParams(asText(o))) f.append(k, v); return f; }); }
+    clone() {
+      if (this.bodyUsed) throw new TypeError("Body has already been consumed.");
+      const r = new Response(null, this);
+      r.url = this.url;
+      r._text = this._text; r._bytes = this._bytes;
+      return r;
+    }
     static json(data, init) { const h = new Headers((init && init.headers) || {}); h.set("content-type", "application/json"); return new Response(JSON.stringify(data), Object.assign({}, init, { headers: h })); }
     static error() { return new Response("", { status: 0, type: "error" }); }
     static redirect(url, status) { return new Response("", { status: status || 302, headers: { location: url } }); }
@@ -1133,9 +1156,17 @@
     if (b instanceof URLSearchParams) { if (!headers.has("content-type")) headers.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8"); return b.toString(); }
     if (b instanceof FormData) { if (!headers.has("content-type")) headers.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8"); return new URLSearchParams(b._p).toString(); }
     if (typeof b === "string") { if (!headers.has("content-type")) headers.set("content-type", "text/plain;charset=UTF-8"); return b; }
-    if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) { const u = new Uint8Array(b.buffer || b); let s = ""; for (const c of u) s += String.fromCharCode(c); return s; }
     return String(b);
   };
+  // What goes to __netStart: a string, or a Uint8Array for bytes (sent unchanged).
+  const requestBody = (b, headers) => {
+    const bytes = b == null ? null : bodyBytes(b);
+    if (!bytes) return bodyString(b, headers);
+    if (b.type && !headers.has("content-type")) headers.set("content-type", b.type);
+    return bytes;
+  };
+  // A finished request's body, as the text or bytes it came in as.
+  const takeBody = (r) => (r.bin ? { _text: null, _bytes: new Uint8Array(__netBody(r.bin)) } : { _text: r.body == null ? "" : r.body, _bytes: null });
 
   g.fetch = function (input, init) {
     let req;
@@ -1143,10 +1174,11 @@
     return new Promise((resolve, reject) => {
       if (req.signal && req.signal.aborted) return reject(req.signal.reason);
       const id = nextNet++;
-      const body = bodyString(req._body, req.headers);
+      const body = requestBody(req._body, req.headers);
       pending.set(id, (r) => {
         if (r.error) { console.warn("fetch failed: " + r.error); return reject(new TypeError("Failed to fetch")); }
-        const res = new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers, url: r.url });
+        const res = new Response(null, { status: r.status, statusText: r.statusText, headers: r.headers, url: r.url });
+        Object.assign(res, takeBody(r));
         res.redirected = r.url !== req.url;
         resolve(res);
       });
@@ -1180,6 +1212,11 @@
     get response() {
       if (this.responseType === "json") { try { return JSON.parse(this.responseText); } catch (e) { return null; } }
       if (this.responseType === "document") return null;
+      if (this.responseType === "arraybuffer" || this.responseType === "blob") {
+        if (this.readyState !== 4 || !this._body) return null;
+        const b = asBytes(this._body);
+        return this.responseType === "blob" ? new g.Blob([b], { type: this._resHeaders.get("content-type") || "" }) : b.slice().buffer;
+      }
       return this.responseText;
     }
     _finish(r) {
@@ -1191,7 +1228,8 @@
       this.status = r.status; this.statusText = r.statusText; this.responseURL = r.url;
       this._resHeaders = new Headers(r.headers);
       this._state(2);
-      this.responseText = r.body;
+      this._body = takeBody(r);
+      this.responseText = this.responseType === "arraybuffer" || this.responseType === "blob" ? "" : asText(this._body);
       this._state(3);
       this._state(4);
       this._fire("load");
@@ -1199,7 +1237,7 @@
     }
     send(body) {
       if (this.readyState !== 1) throw new DOMException("The object's state must be OPENED.", "InvalidStateError");
-      const b = bodyString(body, this._headers);
+      const b = requestBody(body, this._headers);
       const cred = this.withCredentials ? "include" : "same-origin";
       this._fire("loadstart");
       if (!this._async) {

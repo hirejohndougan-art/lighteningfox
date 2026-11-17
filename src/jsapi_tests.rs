@@ -118,6 +118,18 @@ fn promises_with_timers_and_network() {
 }
 
 #[test]
+fn fetch_keeps_binary_bodies() {
+    let _serial = serial();
+    let _page = open("tests/fetch-binary.html");
+    assert_eq!(
+        text_of("log"),
+        "ab 148 137,80,78,71;blob 148 image/png 137,80,78,71;bytes 148 clone 148;json-bytes true;\
+         made 255,0,233,65;utf8 \u{e9};fromblob text/x-test hi;strbytes 195,169;xhr 148 137,80,78,71;\
+         xhrblob 148;done;"
+    );
+}
+
+#[test]
 fn developer_console_runs_code() {
     let _serial = serial();
     let mut page = open("tests/custom-elements.html");

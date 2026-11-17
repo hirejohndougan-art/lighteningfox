@@ -899,8 +899,14 @@ fn response_js(r: &Result<net::Response, String>) -> String {
                 json_str(v, &mut o);
                 o.push(']');
             }
-            o.push_str("],\"body\":");
-            json_str(&String::from_utf8_lossy(&r.body), &mut o);
+            // Text bodies inline; anything that isn't UTF-8 goes over as bytes (see netbody.rs).
+            match std::str::from_utf8(&r.body) {
+                Ok(t) => {
+                    o.push_str("],\"body\":");
+                    json_str(t, &mut o);
+                }
+                Err(_) => o.push_str(&format!("],\"body\":\"\",\"bin\":{}", crate::netbody::park(r.body.clone()))),
+            }
             o.push('}');
         }
         Err(e) => {
@@ -922,8 +928,8 @@ fn n_net_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
     let url = arg_str(a, 3, ctx)?;
     let flat = arg_str(a, 4, ctx)?;
     let body = match a.get(5) {
-        Some(v) if !v.is_null_or_undefined() => Some(v.to_string(ctx)?.to_std_string_escaped().into_bytes()),
-        _ => None,
+        Some(v) => crate::netbody::request_body(v, ctx)?,
+        None => None,
     };
     let credentials = arg_str(a, 6, ctx)?;
     let sync = a.get(7).is_some_and(JsValue::to_boolean);
@@ -1347,6 +1353,7 @@ impl Js {
             ("__idbLoad", 1, n_idb_load),
             ("__idbSave", 2, n_idb_save),
             ("__netStart", 8, n_net_start),
+            ("__netBody", 1, crate::netbody::n_net_body),
             ("__resolve", 2, n_resolve),
             ("__rect", 1, n_rect),
             ("__computed", 1, n_computed),
