@@ -375,6 +375,30 @@ mod tests {
         assert_eq!(super::stats().0, 0, "a resized picture must not reuse boxes laid out at the old size");
     }
 
+    /// A page's web fonts arriving changes every word's width without changing the DOM or
+    /// the styles: nothing laid out with the fallback font may be reused.
+    #[test]
+    fn web_fonts_arriving_lay_text_out_again() {
+        let fonts = crate::load_fonts().expect("fonts");
+        super::clear();
+        let dom = crate::html::parse("<style>p{font-family:Webby,sans-serif;width:200px}</style><section><p>The quick brown fox jumps over the lazy dog again and again</p></section>");
+        let sheets = vec![crate::css::parse(&dom.text_content(dom.find_all("style")[0]))];
+        let styles = crate::style::compute(&dom, &sheets);
+        let lay = |dom: &Dom| crate::layout::layout(dom, &styles, fonts, &crate::images::Images::default(), 800.0, 600.0);
+        crate::font::take_web_families();
+        lay(&dom);
+        let mut fams = std::collections::HashMap::new();
+        for name in ["Webby", "webby"] {
+            fams.insert(name.to_string(), vec![(100, 900, false, crate::font::MONO)]);
+        }
+        crate::font::set_web_families(fams);
+        let incremental = lay(&dom);
+        super::clear();
+        let fresh = lay(&dom);
+        crate::font::take_web_families();
+        same(&incremental, &fresh);
+    }
+
     /// Every reference page: a second pass reuses boxes and matches a fresh layout, and so
     /// does a pass after one text node in the middle of the page changes.
     #[test]

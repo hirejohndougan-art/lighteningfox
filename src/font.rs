@@ -33,7 +33,13 @@ thread_local! {
     static FAMILIES_GEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
+/// Changes whenever the page's web fonts do (layout keys its reusable boxes on it).
+pub fn web_families_generation() -> u64 {
+    FAMILIES_GEN.with(|g| g.get())
+}
+
 pub fn take_web_families() -> HashMap<String, Vec<(u16, u16, bool, u8)>> {
+    FAMILIES_GEN.with(|g| g.set(g.get().wrapping_add(1)));
     FAMILIES.with(|f| std::mem::take(&mut *f.borrow_mut()))
 }
 

@@ -247,7 +247,7 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
     let mut env = crate::relayout::hasher();
     {
         use std::hash::Hash;
-        (width.to_bits(), viewport_h.to_bits(), images.layout_stamp(), crate::settings::get().min_font_size).hash(&mut env);
+        (width.to_bits(), viewport_h.to_bits(), images.layout_stamp(), crate::settings::get().min_font_size, crate::font::web_families_generation()).hash(&mut env);
     }
     crate::relayout::begin_pass(std::hash::Hasher::finish(&env), &tree.styles);
     let mut lay = layout_tree(&tree, &fps, fonts, images, width, viewport_h);
