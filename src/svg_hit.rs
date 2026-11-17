@@ -60,6 +60,15 @@ impl Walker<'_> {
         let (x0, y0) = (r.x.max(c.x), r.y.max(c.y));
         let (x1, y1) = ((r.x + r.w).min(c.x + c.w), (r.y + r.h).min(c.y + c.h));
         if x1 > x0 && y1 > y0 {
+            // A strip just under an equally wide one of the same shape grows that one (a
+            // rectangle is one hit, not a stack of strips).
+            if let Some((last, n)) = self.out.last_mut() {
+                let same = |a: f32, b: f32| (a - b).abs() < 0.01;
+                if *n == node && same(last.x, x0) && same(last.w, x1 - x0) && same(last.y + last.h, y0) {
+                    last.h = y1 - last.y;
+                    return;
+                }
+            }
             self.out.push((Rect { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, node));
         }
     }
@@ -237,5 +246,30 @@ mod tests {
         assert_eq!(at(150.0, 50.0).as_deref(), Some("s")); // inside the unfilled rect
         assert_eq!(at(121.0, 50.0).as_deref(), Some("o")); // on its stroke (x = 60.5)
         assert_eq!(at(195.0, 95.0).as_deref(), Some("s"));
+    }
+
+    /// A `<foreignObject>`'s HTML is laid out in the drawing's user units, scaled with it,
+    /// and gets clicks over the shapes under it.
+    #[test]
+    fn foreign_object_content_is_laid_out_and_hit() {
+        let fonts = crate::load_fonts().expect("fonts");
+        crate::relayout::clear();
+        let html = r##"<body style="margin:0"><svg id="s" width="200" height="100" viewBox="0 0 100 50" style="display:block">
+            <rect id="bg" width="100" height="50" fill="#eee"/>
+            <foreignObject id="fo" x="10" y="5" width="40" height="20"><div id="inner" style="height:10px;font:6px/10px sans-serif;background:red">x</div></foreignObject></svg>"##;
+        let dom = crate::html::parse(html);
+        let styles = crate::style::compute(&dom, &[]);
+        let mut images = crate::images::Images::default();
+        crate::svg_inline::publish(&dom, &styles, &mut images);
+        let lay = crate::layout::layout(&dom, &styles, fonts, &images, 800.0, 600.0);
+        let at = |x: f32, y: f32| lay.hit_at(x, y, 0.0).and_then(|n| dom.attr(n, "id").map(str::to_string));
+        // Text hits name the text node: count its element.
+        let at = |x: f32, y: f32| at(x, y).or_else(|| lay.hit_at(x, y, 0.0).and_then(|n| dom.nodes[n].parent).and_then(|p| dom.attr(p, "id").map(str::to_string)));
+        // (10, 5) in the drawing is (20, 10) on the page; the 10-unit-high div ends at y = 30.
+        assert_eq!(at(25.0, 15.0).as_deref(), Some("inner"));
+        assert_eq!(at(25.0, 35.0).as_deref(), Some("bg"));
+        assert_eq!(at(15.0, 15.0).as_deref(), Some("bg"));
+        let red = lay.items.iter().any(|it| matches!(it, crate::paint::Item::Box { .. } | crate::paint::Item::Rect { .. }) && format!("{it:?}").contains("r: 255, g: 0, b: 0"));
+        assert!(red, "the div's background is drawn");
     }
 }

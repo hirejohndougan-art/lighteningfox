@@ -74,7 +74,7 @@ pub fn key(id: NodeId) -> String {
     format!("inline-svg:{id}")
 }
 
-fn view_box(dom: &Dom, id: NodeId) -> Option<[f32; 4]> {
+pub fn view_box(dom: &Dom, id: NodeId) -> Option<[f32; 4]> {
     let v: Vec<f32> = dom.attr(id, "viewBox")?.split(|c: char| c == ',' || c.is_whitespace()).filter(|s| !s.is_empty()).filter_map(|s| s.parse().ok()).collect();
     (v.len() == 4 && v[2] > 0.0 && v[3] > 0.0).then(|| [v[0], v[1], v[2], v[3]])
 }

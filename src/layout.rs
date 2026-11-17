@@ -2990,6 +2990,33 @@ impl<'a> Ctx<'a> {
         let place = crate::svg_hit::Place { sx: dw / tw, sy: dh / th, tx: b.x + ox, ty: b.y + oy };
         let ids = crate::svg_inline::id_map(self.dom, id);
         self.hits.extend(crate::svg_hit::shape_hits(&tree, &ids, id, place, b));
+        // <foreignObject>: its HTML over the drawing, through the drawing's matrix.
+        let (vx, vy) = crate::svg_inline::view_box(self.dom, id).map_or((0.0, 0.0), |v| (v[0], v[1]));
+        let page = [place.sx, 0.0, 0.0, place.sy, place.tx - vx * place.sx, place.ty - vy * place.sy];
+        for f in crate::svg_foreign::find(self.dom, id) {
+            let (fx, fy, fw, fh) = crate::svg_foreign::rect(self.dom, f);
+            if fw <= 0.0 || fh <= 0.0 || self.styles[f].display == Display::None {
+                continue;
+            }
+            let m = crate::transform::mul(page, crate::svg_foreign::to_root(self.dom, id, f));
+            let start = (self.items.len(), self.links.len(), self.hits.len());
+            let d = self.layout_at(f, fw, Some(fh));
+            self.items.push(Item::ClipPush { x: fx, y: fy, w: fw, h: fh, radius: 0.0 });
+            self.place_detached(d, fx, fy);
+            self.items.push(Item::ClipPop);
+            if crate::transform::is_translation(&m) {
+                self.shift_since(start, m[4], m[5]);
+            } else {
+                self.items.insert(start.0, Item::TransformPush { m, x: fx, y: fy, w: fw, h: fh });
+                self.items.push(Item::TransformPop);
+                let map = |r: &mut Rect| {
+                    let (x, y, w, h) = crate::transform::bounds(&m, r.x, r.y, r.w, r.h);
+                    *r = Rect { x, y, w, h };
+                };
+                self.links[start.1..].iter_mut().for_each(|(r, _)| map(r));
+                self.hits[start.2..].iter_mut().for_each(|(r, _)| map(r));
+            }
+        }
     }
 
     fn replaced_size(&self, id: NodeId, avail: f32) -> Option<(f32, f32)> {

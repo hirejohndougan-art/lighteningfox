@@ -126,6 +126,7 @@ mod boxtree;
 mod relayout;
 mod svg_inline;
 mod svg_hit;
+mod svg_foreign;
 mod pseudo;
 mod textedit;
 mod transform;
