@@ -3,6 +3,13 @@
 
 use crate::js;
 
+/// These tests share the engine's global network queue: run them one at a time.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Load a page, run its scripts and timers, and return the engine for more checks.
 fn open(path: &str) -> crate::Page {
     let profile = std::env::temp_dir().join(format!("ironswift-jsapi-{}", std::process::id()));
@@ -31,6 +38,7 @@ fn eval(page: &mut crate::Page, code: &str) -> String {
 
 #[test]
 fn es_modules() {
+    let _serial = serial();
     let _page = open("tests/modules.html");
     assert_eq!(text_of("out"), "hello modules 42 7 modules.html");
     assert_eq!(text_of("dyn"), "dyn 42");
@@ -41,6 +49,7 @@ fn es_modules() {
 
 #[test]
 fn custom_elements() {
+    let _serial = serial();
     let _page = open("tests/custom-elements.html");
     assert_eq!(
         text_of("log"),
@@ -51,6 +60,7 @@ fn custom_elements() {
 
 #[test]
 fn intersection_and_resize_observers() {
+    let _serial = serial();
     let mut page = open("tests/observers.html");
     assert_eq!(text_of("io"), "top:true:1.00;far:false:0.00;");
     assert_eq!(text_of("ro"), "box:200x50/210;");
@@ -71,6 +81,7 @@ fn intersection_and_resize_observers() {
 
 #[test]
 fn user_events() {
+    let _serial = serial();
     let mut page = open("tests/user-events.html");
     let (btn, outer, field) = js::with_dom(|d| {
         let find = |id: &str| d.descendants(crate::dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(id)).unwrap();
@@ -98,9 +109,29 @@ fn user_events() {
 
 #[test]
 fn promises_with_timers_and_network() {
+    let _serial = serial();
     let _page = open("tests/async.html");
     assert_eq!(
         text_of("log"),
         "start;sync end;microtask;then;unhandled oops;t0;timer;fetch 2;text true;caught;all 1,2;done;"
     );
+}
+
+#[test]
+fn developer_console_runs_code() {
+    let _serial = serial();
+    let mut page = open("tests/custom-elements.html");
+    let js = page.js.as_mut().unwrap();
+    assert_eq!(js.run("1 + 2").unwrap(), "3");
+    assert_eq!(js.run("'hi'").unwrap(), "\"hi\"");
+    assert_eq!(js.run("document.querySelector('user-card')").unwrap(), "<user-card>");
+    assert_eq!(js.run("[1, 'a', {b: 2}]").unwrap(), "[1, \"a\", {b: 2}]");
+    assert!(js.run("nope()").unwrap_err().contains("ReferenceError"));
+    // The console shows what was run and its result.
+    crate::devtools::set_inspected(page.doc);
+    crate::js::with_dom(|d| crate::devtools::capture(d, &page.url, "", page.loaded_at, 1, 0));
+    crate::devtools::record("1 + 2", Ok("3".into()));
+    let html = crate::devtools::page();
+    assert!(html.contains("&gt; 1 + 2") && html.contains("action=\"about:devtools-run\""));
+    if let Ok(p) = std::env::var("DEVTOOLS_DUMP") { std::fs::write(p, &html).unwrap(); }
 }

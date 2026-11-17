@@ -7,6 +7,64 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 static SNAPSHOT: Mutex<String> = Mutex::new(String::new());
+/// The page being inspected (its document number), for running console code in it.
+static INSPECTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Code run from the console and what it gave back (newest last).
+static HISTORY: Mutex<Vec<(String, Result<String, String>)>> = Mutex::new(Vec::new());
+const HISTORY_SPOT: &str = "<!--console-history-->";
+
+/// Remember which page the developer tools are looking at. A new page starts a new
+/// console history.
+pub fn set_inspected(doc: u64) {
+    if INSPECTED.swap(doc, std::sync::atomic::Ordering::Relaxed) != doc {
+        if let Ok(mut h) = HISTORY.lock() {
+            h.clear();
+        }
+    }
+}
+
+pub fn inspected() -> u64 {
+    INSPECTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The console's Run button goes to `about:devtools-run?code=…`: the code to run, if `url`
+/// is such a request.
+pub fn run_request(url: &str) -> Option<String> {
+    let q = url.strip_prefix("about:devtools-run")?;
+    let q = q.strip_prefix('?').unwrap_or(q);
+    let code = q.split('&').find_map(|kv| kv.strip_prefix("code="))?;
+    let code = crate::net::percent_decode_str(&code.replace('+', " "));
+    (!code.trim().is_empty()).then_some(code)
+}
+
+/// Keep the result of code run in the console.
+pub fn record(code: &str, result: Result<String, String>) {
+    if let Ok(mut h) = HISTORY.lock() {
+        h.push((code.to_string(), result));
+        let n = h.len();
+        if n > 200 {
+            h.drain(..n - 200);
+        }
+    }
+}
+
+fn history_html() -> String {
+    let h = HISTORY.lock().map(|h| h.clone()).unwrap_or_default();
+    let mut out = String::new();
+    for (code, r) in &h {
+        out.push_str(&format!("<div class=\"c in\">&gt; {}</div>", esc(code)));
+        match r {
+            Ok(v) => out.push_str(&format!("<div class=\"c out\">{}</div>", esc(v))),
+            Err(e) => out.push_str(&format!("<div class=\"c err\">Uncaught {}</div>", esc(e))),
+        }
+    }
+    out.push_str(
+        "<form class=\"run\" action=\"about:devtools-run\" method=\"get\"><span>&gt;</span>\
+         <input name=\"code\" autofocus autocomplete=\"off\" placeholder=\"Type JavaScript to run in the page, then press Enter\">\
+         <button>Run</button></form>",
+    );
+    out
+}
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
@@ -15,6 +73,7 @@ fn esc(s: &str) -> String {
 /// The page shown at about:devtools.
 pub fn page() -> String {
     let s = SNAPSHOT.lock().map(|s| s.clone()).unwrap_or_default();
+    let s = s.replace(HISTORY_SPOT, &history_html());
     if s.is_empty() {
         "<!DOCTYPE html><title>Developer tools</title><body style=\"font-family:sans-serif;margin:32px\"><h1>Developer tools</h1><p>Press F12 on a page to inspect it.</p>".into()
     } else {
@@ -73,11 +132,13 @@ pub fn capture(dom: &Dom, url: &str, title: &str, loaded: Instant, scripts: usiz
          .el{{font-family:monospace;font-size:12.5px;white-space:pre;line-height:1.5}}.tag{{color:#881280}}.an{{color:#994500}}.av{{color:#1a1aa6}}.tx{{color:#334155}}.cm{{color:#236e25}}\
          .c{{font-family:monospace;font-size:12.5px;padding:3px 6px;border-bottom:1px solid #f1f5f9;white-space:pre-wrap}}.c.err{{background:#fef2f2;color:#b91c1c}}.c.warn{{background:#fffbeb;color:#92400e}}\
          table{{border-collapse:collapse;width:100%;font-size:12.5px}}td{{border-bottom:1px solid #f1f5f9;padding:3px 6px;vertical-align:top}}td.u{{font-family:monospace;word-break:break-all}}tr.err td{{color:#b91c1c}}\
-         .none,.more{{color:#94a3b8;font-style:italic}}</style></head><body>\
+         .none,.more{{color:#94a3b8;font-style:italic}}\
+         .c.in{{color:#1d4ed8}}.c.out{{color:#334155}}form.run{{display:flex;gap:6px;align-items:center;margin-top:8px;font-family:monospace}}\
+         form.run input{{flex:1;font-family:monospace;font-size:13px;padding:4px}}</style></head><body>\
          <header><h1>Developer tools</h1><div class=\"sub\">{t} · {u} · {n} nodes · {scripts} script{ss}, {errors} error{es} · snapshot taken when opened (press F12 on the page again to refresh)</div>\
          <nav><a href=\"#elements\">Elements</a><a href=\"#console\">Console</a><a href=\"#network\">Network</a></nav></header>\
          <section id=\"elements\"><h2>Elements</h2><div class=\"el\">{rows}</div></section>\
-         <section id=\"console\"><h2>Console</h2>{console}</section>\
+         <section id=\"console\"><h2>Console</h2>{console}{HISTORY_SPOT}</section>\
          <section id=\"network\"><h2>Network</h2><table><tr><th align=left>Method</th><th align=left>Status</th><th align=left>URL</th><th align=left>Type</th><th align=left>Time</th></tr>{net}</table></section>\
          </body></html>",
         t = esc(if title.is_empty() { url } else { title }),
@@ -142,5 +203,17 @@ fn element_rows(dom: &Dom, id: NodeId, depth: usize, out: &mut String, count: &m
         }
         NodeData::Doctype { name, .. } => out.push_str(&format!("{pad}<span class=\"cm\">&lt;!DOCTYPE {}&gt;</span>\n", esc(name))),
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod console_tests {
+    use super::*;
+
+    #[test]
+    fn run_requests() {
+        assert_eq!(run_request("about:devtools-run?code=1+%2B+2").as_deref(), Some("1 + 2"));
+        assert_eq!(run_request("about:devtools-run?code="), None);
+        assert_eq!(run_request("https://example.com/?code=1"), None);
     }
 }

@@ -1144,6 +1144,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("customelements.js", include_str!("customelements.js")),
     ("userevents.js", include_str!("userevents.js")),
     ("observers.js", include_str!("observers.js")),
+    ("devconsole.js", include_str!("devconsole.js")),
 ];
 
 impl Js {

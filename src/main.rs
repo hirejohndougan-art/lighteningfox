@@ -1666,6 +1666,32 @@ fn focusable(d: &dom::Dom, styles: &[Rc<style::Style>]) -> Vec<dom::NodeId> {
     a11y::tab_order(d, (styles.len() == d.nodes.len()).then_some(styles))
 }
 
+/// Run developer-console code in a background tab's page (the one with document number
+/// `doc`): its DOM and layout are swapped in while the code runs, and the developer tools
+/// snapshot is taken again so the Elements view shows any changes.
+fn run_in_background_tab(tabs: &mut [Option<Slot>], doc: u64, code: &str) -> Result<String, String> {
+    let Some(sv) = tabs.iter_mut().flatten().filter_map(|s| s.saved.as_mut()).find(|sv| sv.page.doc == doc) else {
+        return Err("the inspected page is closed or was navigated away (press F12 on it again)".into());
+    };
+    let mine = (js::take_dom(), layout::take_element_scrolls(), geometry::take_provider());
+    js::set_dom(std::mem::take(&mut sv.dom));
+    layout::set_element_scrolls(std::mem::take(&mut sv.scrolls));
+    geometry::set_provider(sv.provider.take());
+    let r = match sv.page.js.as_mut() {
+        Some(j) => j.run(code),
+        None => Err("that page doesn't run scripts".into()),
+    };
+    let (scripts, errors) = sv.page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
+    js::with_dom(|d| devtools::capture(d, &sv.page.url, &sv.page.title, sv.page.loaded_at, scripts, errors));
+    sv.dom = js::take_dom();
+    sv.scrolls = layout::take_element_scrolls();
+    sv.provider = geometry::take_provider();
+    js::set_dom(mine.0);
+    layout::set_element_scrolls(mine.1);
+    geometry::set_provider(mine.2);
+    r
+}
+
 /// Fire an event at a node if the page runs scripts. Returns false if a script cancelled it.
 fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
     match page.js.as_mut() {
@@ -3189,6 +3215,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Ctx::Inspect => {
                     let (scripts, errors) = page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
                     js::with_dom(|d| devtools::capture(d, &page.url, &page.title, page.loaded_at, scripts, errors));
+                    devtools::set_inspected(page.doc);
                     tab_cmd = Some(TabCmd::Open("about:devtools".into(), false));
                 }
                 Ctx::SavePdf | Ctx::Print => {
@@ -3260,6 +3287,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 address = page.url.clone();
             }
             dirty = true;
+        }
+        // The developer console's Run button: run the code in the inspected tab, then show
+        // the developer tools again with the result.
+        if let Some(code) = match &navigate {
+            Some(Go::To(t)) => devtools::run_request(t),
+            _ => None,
+        } {
+            let r = if page.doc == devtools::inspected() {
+                page.js.as_mut().map_or(Err("this page doesn't run scripts".to_string()), |j| j.run(&code))
+            } else {
+                run_in_background_tab(&mut tabs, devtools::inspected(), &code)
+            };
+            devtools::record(&code, r);
+            navigate = Some(Go::To("about:devtools?ran#console".into()));
+            replace_entry = true;
         }
         // Moves within the same document need no loading: a #fragment link, or Back/Forward
         // to an entry a script pushed. Scroll to the fragment and tell the page's scripts.
