@@ -912,7 +912,6 @@ pub struct UnitView<'a> {
 pub struct Sampler<'a> {
     /// [unit] → views for 2D, 3D, cube, 2D array.
     pub units: Vec<[Option<UnitView<'a>>; 4]>,
-    pub webgl2: bool,
 }
 
 fn dim_index(d: Dim) -> usize {

@@ -34,17 +34,11 @@ mod formui;
 mod geometry;
 // WebGL (T12) is still being built: its unused fields and helpers are allowed until it's
 // finished, then these allows come off (see R3 in docs/TASKS.md).
-#[allow(dead_code, unused_mut)]
 mod webgl;
-#[allow(dead_code, unused_mut)]
 mod webgl_raster;
-#[allow(dead_code, unused_mut)]
 mod webgl_tex;
-#[allow(dead_code, unused_mut)]
 mod glsl;
-#[allow(dead_code, unused_mut)]
 mod glsl_gen;
-#[allow(dead_code, unused_mut)]
 mod glsl_vm;
 mod grid;
 mod html;

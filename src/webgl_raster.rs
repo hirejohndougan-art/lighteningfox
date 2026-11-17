@@ -9,7 +9,6 @@ use crate::webgl_tex::{e, store, Image, Num};
 use std::collections::BTreeMap;
 
 pub mod g {
-    pub const POINTS: u32 = 0;
     pub const LINES: u32 = 1;
     pub const LINE_LOOP: u32 = 2;
     pub const LINE_STRIP: u32 = 3;
@@ -616,7 +615,7 @@ impl Pipeline<'_> {
 
     fn line(&mut self, t: &mut Band, a: &[f32], b: &[f32]) {
         let stride = a.len();
-        let (mut a, mut b) = (a.to_vec(), b.to_vec());
+        let (mut a, b) = (a.to_vec(), b.to_vec());
         // Flat varyings come from the second vertex.
         let mut at = 5;
         for (_, _, n, flat) in &self.vary {

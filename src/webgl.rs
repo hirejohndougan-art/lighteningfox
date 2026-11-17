@@ -212,7 +212,7 @@ enum Obj {
     Rbo(Rbo),
     Vao(Vao),
     Sampler(TexParams),
-    Query(u32),
+    Query,
     Sync,
 }
 
@@ -221,7 +221,6 @@ struct Attrs {
     alpha: bool,
     depth: bool,
     stencil: bool,
-    antialias: bool,
     premultiplied: bool,
     preserve: bool,
 }
@@ -1154,7 +1153,7 @@ impl Gl {
                 }
                 units.push(row);
             }
-            let sampler = Sampler { units, webgl2: gl.v2 };
+            let sampler = Sampler { units };
             // Uniform block data.
             let mut vs_mem = l.vs_mem.clone();
             let mut fs_mem = l.fs_mem.clone();
@@ -1620,7 +1619,7 @@ fn n_create(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
             }
         }
     }
-    let attrs = Attrs { alpha: flags[0], depth: flags[1], stencil: flags[2], antialias: flags[3], premultiplied: flags[4], preserve: flags[5] };
+    let attrs = Attrs { alpha: flags[0], depth: flags[1], stencil: flags[2], premultiplied: flags[4], preserve: flags[5] };
     let v2 = boolean(a, 4);
     let seed = seed_of(ctx);
     store(ctx).ctxs.insert(id, Gl::new(w, h, attrs, v2, seed));
@@ -1683,7 +1682,7 @@ fn n_gen(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
             5 => Obj::Program(Program { shaders: Vec::new(), linked: None, link_ok: false, log: String::new(), bound_attribs: HashMap::new(), deleted: false, validate: false }),
             6 => Obj::Vao(Vao::default()),
             7 => Obj::Sampler(TexParams::default()),
-            8 => Obj::Query(0),
+            8 => Obj::Query,
             _ => Obj::Sync,
         };
         gl.new_id(o)
@@ -1809,7 +1808,7 @@ fn n_is(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
         Some(Obj::Program(_)) => kind == 5,
         Some(Obj::Vao(_)) => kind == 6,
         Some(Obj::Sampler(_)) => kind == 7,
-        Some(Obj::Query(_)) => kind == 8,
+        Some(Obj::Query) => kind == 8,
         Some(Obj::Sync) => kind == 9,
         None => false,
     })
@@ -4259,7 +4258,7 @@ mod tests {
     use super::*;
 
     fn gl() -> Gl {
-        Gl::new(8, 8, Attrs { alpha: true, depth: true, stencil: true, antialias: false, premultiplied: true, preserve: true }, false, 0)
+        Gl::new(8, 8, Attrs { alpha: true, depth: true, stencil: true, premultiplied: true, preserve: true }, false, 0)
     }
 
     fn program(gl: &mut Gl, vs: &str, fs: &str) -> u32 {

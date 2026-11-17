@@ -62,7 +62,6 @@ pub struct Builtins {
 }
 
 pub struct Compiled {
-    pub stage: Stage,
     pub version: u16,
     pub code: Vec<Op>,
     pub mem: Vec<Lanes>,
@@ -202,7 +201,6 @@ pub fn compile(src: &str, stage: Stage, webgl2: bool) -> Result<Compiled, String
     // vertex shader).
     let inputs = g.inputs.iter().filter(|(_, u)| u.get()).map(|(v, _)| v.clone()).collect();
     Ok(Compiled {
-        stage,
         version: g.version,
         code: g.code,
         mem: g.mem,
@@ -343,7 +341,7 @@ impl Gen {
 
     fn builtins(&mut self, unit: &Unit) {
         let v4 = Ty::Vec(Base::F, 4);
-        let mut add = |g: &mut Gen, name: &'static str, ty: Ty, readonly: bool| -> Slot {
+        let add = |g: &mut Gen, name: &'static str, ty: Ty, readonly: bool| -> Slot {
             let slot = g.alloc(ty.size());
             let used = Rc::new(Cell::new(false));
             g.builtin_used.insert(name, used.clone());
@@ -1103,14 +1101,20 @@ impl Gen {
                 self.scopes.pop();
                 self.emit(Op::SwEnd);
             }
-            Stmt::Case(..) => return self.err("case label outside a switch"),
-            Stmt::Break(_) => {
+            Stmt::Case(_, line) => {
+                self.line = *line;
+                return self.err("case label outside a switch");
+            }
+            Stmt::Break(line) => {
+                self.line = *line;
                 self.emit(Op::Break);
             }
-            Stmt::Continue(_) => {
+            Stmt::Continue(line) => {
+                self.line = *line;
                 self.emit(Op::Continue);
             }
-            Stmt::Discard(_) => {
+            Stmt::Discard(line) => {
+                self.line = *line;
                 if self.stage != Stage::Fragment {
                     return self.err("discard is only allowed in fragment shaders");
                 }

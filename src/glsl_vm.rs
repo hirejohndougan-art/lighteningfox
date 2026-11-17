@@ -118,7 +118,6 @@ pub enum F3 {
     /// mix(x, y, bvec): y where the bool is set.
     Select,
     Smoothstep,
-    Fma,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -222,7 +221,6 @@ pub struct TexArgs {
     pub bias: f32,
     pub compare: Option<f32>,
     pub offset: [i32; 3],
-    pub grad: bool,
 }
 
 pub trait TexEnv {
@@ -231,8 +229,10 @@ pub trait TexEnv {
     fn size(&self, unit: i32, samp: Samp, lod: i32) -> [i32; 3];
 }
 
-/// Nothing bound: every lookup reads transparent black.
+/// Nothing bound: every lookup reads transparent black (tests).
+#[cfg(test)]
 pub struct NoTex;
+#[cfg(test)]
 impl TexEnv for NoTex {
     fn sample(&self, _: i32, _: Samp, _: &TexArgs) -> [f32; 4] {
         [0.0, 0.0, 0.0, 1.0]
@@ -580,7 +580,6 @@ fn f3(f: F3) -> fn(f32, f32, f32) -> f32 {
             let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
             t * t * (3.0 - 2.0 * t)
         },
-        Fma => |a, b, c| a * b + c,
     }
 }
 
@@ -1103,7 +1102,6 @@ fn tex(t: &TexOp, mem: &mut [Lanes], m: u8, env: &dyn TexEnv, fragment: bool) {
             bias: if t.kind == TexKind::Sample && fragment { arg.map_or(0.0, |v| v[l]) } else { 0.0 },
             compare: compare[l],
             offset: t.offset.unwrap_or([0; 3]),
-            grad: t.kind == TexKind::Grad,
         };
         out[l] = env.sample(unit[l], t.samp_ty, &a);
     }

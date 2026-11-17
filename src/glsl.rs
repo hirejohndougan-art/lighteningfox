@@ -178,7 +178,6 @@ struct Macro {
 pub struct Preprocessed {
     pub tokens: Vec<Token>,
     pub version: u16,
-    pub extensions: Vec<String>,
 }
 
 /// Run the preprocessor. `supported` lists the extensions this implementation offers
@@ -194,7 +193,6 @@ pub fn preprocess(src: &str, supported: &[&str]) -> Result<Preprocessed, String>
     }
     let mut version = 100u16;
     let mut seen_code = false;
-    let mut extensions = Vec::new();
     // (this branch active, some branch taken, parent active)
     let mut conds: Vec<(bool, bool, bool)> = Vec::new();
     let mut out = Vec::new();
@@ -287,9 +285,6 @@ pub fn preprocess(src: &str, supported: &[&str]) -> Result<Preprocessed, String>
                     if !ok && (behavior == "require") {
                         return Err(format!("{line}: extension '{ext}' is not supported"));
                     }
-                    if ok && behavior != "disable" {
-                        extensions.push(ext.to_string());
-                    }
                 }
                 "pragma" | "line" => {}
                 "error" => return Err(format!("{line}: #error {}", rest.trim())),
@@ -316,7 +311,7 @@ pub fn preprocess(src: &str, supported: &[&str]) -> Result<Preprocessed, String>
             t.t = ver.body[0].t.clone();
         }
     }
-    Ok(Preprocessed { tokens: out, version, extensions })
+    Ok(Preprocessed { tokens: out, version })
 }
 
 fn flush(pending: &mut Vec<Token>, macros: &HashMap<String, Macro>, out: &mut Vec<Token>) -> Result<(), String> {
@@ -904,7 +899,6 @@ pub enum Stmt {
 
 pub struct Unit {
     pub version: u16,
-    pub extensions: Vec<String>,
     pub globals: Vec<Global>,
 }
 
@@ -931,7 +925,7 @@ pub fn parse(src: &str, supported: &[&str]) -> Result<Unit, String> {
     while p.p < p.t.len() {
         p.global(&mut globals)?;
     }
-    Ok(Unit { version: pp.version, extensions: pp.extensions, globals })
+    Ok(Unit { version: pp.version, globals })
 }
 
 type R<T> = Result<T, String>;
