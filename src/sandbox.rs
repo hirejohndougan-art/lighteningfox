@@ -277,6 +277,8 @@ pub fn protect_frame_renderer() -> bool {
             return false;
         }
     }
+    #[cfg(not(target_os = "linux"))]
+    log!("[sandbox] no operating-system sandbox on this system yet: the process is separate, but not locked down");
     true
 }
 
@@ -312,6 +314,8 @@ pub fn protect_site_renderer() -> bool {
             return false;
         }
     }
+    #[cfg(not(target_os = "linux"))]
+    log!("[sandbox] no operating-system sandbox on this system yet: the process is separate, but not locked down");
     true
 }
 

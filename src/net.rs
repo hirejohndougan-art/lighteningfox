@@ -334,11 +334,11 @@ pub fn http(req: &Request) -> Result<Response, String> {
         // The query and fragment aren't part of the file's name; keep them on the URL.
         let cut = path.find(['?', '#']).unwrap_or(path.len());
         let (path, rest) = path.split_at(cut);
-        let path = percent_decode(path);
-        let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
-        let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
+        let path = crate::platform::path_from_url(&percent_decode(path));
+        let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let abs = crate::platform::file_url(&path);
         let ty = guess_type(&abs);
-        return Ok(Response { status: 200, status_text: "OK".into(), url: format!("file://{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
+        return Ok(Response { status: 200, status_text: "OK".into(), url: format!("{abs}{rest}"), headers: vec![("content-type".into(), ty.into())], body: bytes });
     }
     // GETs may come from the disk cache (fresh), or be checked with the server (stale).
     let cacheable = req.method.eq_ignore_ascii_case("GET") && req.body.is_none();
@@ -606,7 +606,7 @@ pub fn normalize_input(input: &str) -> String {
         return s.to_string();
     }
     if std::path::Path::new(s).exists() {
-        return format!("file://{}", std::fs::canonicalize(s).map(|p| p.display().to_string()).unwrap_or(s.into()));
+        return crate::platform::file_url(std::path::Path::new(s));
     }
     if !s.contains(' ') {
         // example.com, bücher.de, localhost:8080, 192.168.1.1, [::1]:3000

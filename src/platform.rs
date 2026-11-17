@@ -212,3 +212,56 @@ pub fn file_chooser(multiple: bool, filters: &[String], title: &str) -> Option<s
         None
     }
 }
+
+/// A `file:` URL for a local path, absolute and with the system's quirks removed: on Windows,
+/// `D:\a\b.html` becomes `file:///D:/a/b.html` (never `file://\\?\D:\…`).
+pub fn file_url(path: &std::path::Path) -> String {
+    let abs = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    #[cfg(windows)]
+    {
+        // canonicalize gives verbatim paths (\\?\D:\…), which file URLs can't hold.
+        let s = abs.to_string_lossy();
+        let plain = s.strip_prefix(r"\\?\UNC\").map(|r| format!(r"\\{r}")).or_else(|| s.strip_prefix(r"\\?\").map(String::from)).unwrap_or_else(|| s.to_string());
+        url::Url::from_file_path(&plain).map(String::from).unwrap_or_else(|_| format!("file:///{}", plain.replace('\\', "/")))
+    }
+    #[cfg(not(windows))]
+    {
+        format!("file://{}", abs.display())
+    }
+}
+
+/// The local path in a `file:` URL's (percent-decoded) path part: `/D:/a/b.html` is
+/// `D:\a\b.html` on Windows.
+pub fn path_from_url(path: &str) -> std::path::PathBuf {
+    #[cfg(windows)]
+    {
+        let b = path.as_bytes();
+        let p = if b.len() >= 3 && b[0] == b'/' && b[1].is_ascii_alphabetic() && b[2] == b':' { &path[1..] } else { path };
+        std::path::PathBuf::from(p.replace('/', "\\"))
+    }
+    #[cfg(not(windows))]
+    {
+        std::path::PathBuf::from(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_urls_round_trip() {
+        let here = std::env::current_dir().unwrap().join("Cargo.toml");
+        let u = file_url(&here);
+        assert!(u.starts_with("file:///"), "{u}");
+        assert!(!u.contains('\\'), "{u}");
+        let back = path_from_url(&crate::net::percent_decode_str(u.strip_prefix("file://").unwrap()));
+        assert_eq!(std::fs::canonicalize(back).unwrap(), std::fs::canonicalize(&here).unwrap());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_drive_paths() {
+        assert_eq!(path_from_url("/D:/a/b c.html"), std::path::PathBuf::from(r"D:\a\b c.html"));
+    }
+}

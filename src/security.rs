@@ -643,9 +643,8 @@ pub fn file_access_ok(page: &str, url: &str) -> bool {
     }
     let dir_of = |u: &str| -> Option<std::path::PathBuf> {
         let path = crate::net::percent_decode_str(u.strip_prefix("file://")?.split(['?', '#']).next()?);
-        let p = std::path::Path::new(&path);
-        let p = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
-        Some(p)
+        let p = crate::platform::path_from_url(&path);
+        Some(std::fs::canonicalize(&p).unwrap_or(p))
     };
     match (dir_of(page).and_then(|p| p.parent().map(|d| d.to_path_buf())), dir_of(url)) {
         (Some(dir), Some(target)) => target.starts_with(&dir),
