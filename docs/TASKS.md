@@ -130,7 +130,7 @@ Allowed requests report "position unavailable" today. Ask GeoClue over D-Bus for
 **Files:** `src/boxtree.rs`, `src/layout.rs`
 
 ### T03. Vertical text for East Asian languages
-**Status:** free
+**Status:** claimed by chat-opus-t07 2026-11-17 10:30
 **After:** T01
 **Checklist:** §6 "Vertical text for East Asian layouts"
 **Files:** `src/boxtree.rs`, text parts of `src/layout.rs`, `src/font.rs`
