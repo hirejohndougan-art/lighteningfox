@@ -1,0 +1,21 @@
+{
+ "bench: 1M-iteration loop": 38,
+ "bench: DOM: create+append 2000 nodes": 30,
+ "bench: DOM: getElementById x20k": 32,
+ "bench: DOM: getElementsByClassName x300": 13,
+ "bench: DOM: innerHTML 500 items": 3,
+ "bench: DOM: querySelector first match x5k": 7,
+ "bench: DOM: querySelector('#id') x5k": 32,
+ "bench: DOM: querySelectorAll x200": 40,
+ "bench: JSON round trip": 62,
+ "bench: array map/filter 200k": 131,
+ "bench: fib(25) recursion": 44,
+ "bench: object property churn 200k": 59,
+ "bench: regex 20k matches": 74,
+ "bench: string building 50k": 7,
+ "render: tests/grid.html": 74.5,
+ "render: tests/real-world/bootstrap.html": 227.0,
+ "render: tests/real-world/react.html": 166.6,
+ "render: tests/tables.html": 71.3,
+ "startup: first frame": 116
+}

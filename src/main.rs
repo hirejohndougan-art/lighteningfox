@@ -1335,7 +1335,11 @@ fn error_page(url: &str, err: &str) -> String {
 /// browser. (The memory is only reserved; pages that don't need it never touch it.)
 const MAIN_STACK: usize = 512 << 20;
 
+/// When the program started (for measuring startup time).
+static STARTED: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
 fn main() {
+    STARTED.get_or_init(Instant::now);
     let run = std::thread::Builder::new().name("ironswift".into()).stack_size(MAIN_STACK).spawn(browser_main);
     match run.map(|t| t.join()) {
         Ok(Ok(())) => {}
@@ -1809,6 +1813,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         None if explicit => start,
         None => &home,
     };
+    let mut first_frame_shown = false;
     let mut window = Window::new("Ironswift", width, 768, WindowOptions { resize: true, ..WindowOptions::default() })
         .unwrap_or_else(|e| {
             log!("Could not open a window: {e}");
@@ -3875,6 +3880,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let presented = false;
             if !presented {
                 let _ = window.update_with_buffer(&canvas.buf, w, h);
+            }
+            if !first_frame_shown {
+                first_frame_shown = true;
+                let ms = STARTED.get().map_or(0, |t| t.elapsed().as_millis());
+                log!("[startup] first frame on screen after {ms} ms");
+                // For measuring startup (tools/startup.sh): quit once the first frame is up.
+                if std::env::var("IRONSWIFT_EXIT_AFTER_FIRST_FRAME").is_ok_and(|v| v == "1") {
+                    return;
+                }
             }
             dirty = false;
         } else {

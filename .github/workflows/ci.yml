@@ -13,13 +13,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y fonts-dejavu-core fonts-noto-cjk fonts-noto-color-emoji fonts-freefont-ttf \
-            libxkbcommon-dev libwayland-dev libx11-dev
+            libxkbcommon-dev libwayland-dev libx11-dev xvfb
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release
       - name: Unit, parser and screenshot tests
         run: cargo test --release
+      - name: Speed regression check
+        # Benchmarks and page render times against tools/perf-baseline.json, and the time to
+        # the first window frame (under xvfb). CI machines are slower than the baseline's, so
+        # the startup limit here is looser than the 300 ms target.
+        env:
+          PERF_STARTUP_LIMIT_MS: "600"
+        run: python3 tools/perf_check.py
       - name: Keep screenshot diffs on failure
         if: failure()
         uses: actions/upload-artifact@v4
