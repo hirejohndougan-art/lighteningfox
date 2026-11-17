@@ -145,11 +145,13 @@ impl Images {
     /// Changes whenever an image arrives or fails (layout sizes depend on them).
     pub fn layout_stamp(&self) -> u64 {
         use std::hash::{Hash, Hasher};
+        // Layout reads an image's size only (paint fetches the pixels by key), so a canvas,
+        // video frame or live iframe redrawn at the same size leaves laid-out boxes reusable.
         let mut sum = 0u64;
         for (k, v) in &self.by_src {
             let mut h = std::collections::hash_map::DefaultHasher::new();
             k.hash(&mut h);
-            (Arc::as_ptr(v) as usize).hash(&mut h);
+            (v.w, v.h).hash(&mut h);
             sum = sum.wrapping_add(h.finish());
         }
         sum ^ (self.failed.len() as u64).rotate_left(40)

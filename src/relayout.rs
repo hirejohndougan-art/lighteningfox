@@ -1,7 +1,7 @@
 //! Incremental relayout: only redo the boxes whose subtree changed.
 //!
 //! Every box in the box tree gets a fingerprint of its whole subtree: the node itself (tag
-//! and attributes, or text), its computed style (by identity: restyling keeps the same
+//! and attributes, or text; a file input's picked files), its computed style (by identity: restyling keeps the same
 //! `Rc` for an element whose style didn't change), list marker text, scroll offset, and its
 //! children's fingerprints. When layout lays a block box out, it remembers what came out
 //! (display items, hits, links, its height and bottom margin), keyed by that fingerprint
@@ -55,6 +55,10 @@ pub fn fingerprints(tree: &BoxTree, focus: Option<NodeId>, host: Option<NodeId>)
             NodeData::Element { tag, attrs } => {
                 tag.hash(&mut h);
                 attrs.hash(&mut h);
+                // What a file input shows lives in the form state, not the DOM.
+                if let Some(files) = dom.form_state.files.get(&id) {
+                    files.iter().for_each(|f| f.name.hash(&mut h));
+                }
             }
             NodeData::Text(t) => t.hash(&mut h),
             _ => 0u8.hash(&mut h),
@@ -329,6 +333,46 @@ mod tests {
         super::clear();
         let fresh = render(&dom, &sheets, fonts);
         same(&incremental, &fresh);
+    }
+
+    /// Picking a file changes what an `<input type=file>` shows without changing the DOM
+    /// (the files are kept in the form state): its box must be laid out again.
+    #[test]
+    fn a_picked_file_shows() {
+        let fonts = crate::load_fonts().expect("fonts");
+        super::clear();
+        let mut dom = crate::html::parse("<section><p>Upload: <input type=file id=f></p></section><section><p>other</p></section>");
+        render(&dom, &[], fonts);
+        render(&dom, &[], fonts);
+        let input = dom.find_all("input")[0];
+        dom.form_state.files.insert(input, vec![crate::validation::ChosenFile { path: "/tmp/holiday-photo.jpg".into(), name: "holiday-photo.jpg".into(), size: 1, mime: "image/jpeg".into(), modified: Default::default() }]);
+        let incremental = render(&dom, &[], fonts);
+        assert!(format!("{:?}", incremental.items).contains("holiday-photo.jpg"), "the picked file's name isn't shown");
+        super::clear();
+        let fresh = render(&dom, &[], fonts);
+        same(&incremental, &fresh);
+    }
+
+    /// A canvas, video or live frame redrawn at the same size changes no box: layout reads an
+    /// image's size, and paint fetches its pixels by key, so the boxes stay reusable.
+    #[test]
+    fn redrawn_pictures_keep_boxes_reusable() {
+        let fonts = crate::load_fonts().expect("fonts");
+        super::clear();
+        let dom = crate::html::parse("<section><p>Title</p><canvas width=40 height=30></canvas></section><section><p>other text</p></section>");
+        let styles = crate::style::compute(&dom, &[]);
+        let canvas = dom.find_all("canvas")[0];
+        let mut images = crate::images::Images::default();
+        images.insert(&format!("canvas:{canvas}"), image::RgbaImage::new(40, 30));
+        crate::layout::layout(&dom, &styles, fonts, &images, 800.0, 600.0);
+        images.insert(&format!("canvas:{canvas}"), image::RgbaImage::from_pixel(40, 30, image::Rgba([255, 0, 0, 255])));
+        crate::layout::layout(&dom, &styles, fonts, &images, 800.0, 600.0);
+        let (hits, _) = super::stats();
+        assert!(hits >= 1, "a redrawn canvas threw every box away");
+        // A picture that changes size does change layout.
+        images.insert(&format!("canvas:{canvas}"), image::RgbaImage::new(80, 30));
+        crate::layout::layout(&dom, &styles, fonts, &images, 800.0, 600.0);
+        assert_eq!(super::stats().0, 0, "a resized picture must not reuse boxes laid out at the old size");
     }
 
     /// Every reference page: a second pass reuses boxes and matches a fresh layout, and so
