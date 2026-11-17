@@ -2286,7 +2286,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         if let Some(t) = fr.navigate.filter(|t| security::page_may_navigate(&page.url, t)) {
             pending_nav = Some(Go::To(t));
         }
-        if let Some(t) = fr.open_tab {
+        if let Some(t) = fr.open_tab.filter(|t| security::page_may_navigate(&page.url, t)) {
             tab_cmd = Some(TabCmd::Open(t, false));
         }
         if let Some(target) = js::take_navigation() {

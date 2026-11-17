@@ -33,15 +33,17 @@ use crate::frames::{get, put, Event, Update};
 use crate::{cookies, forms, net, sandbox, FrameJob, FrameSrc};
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 /// Site processes are on (browser side).
 static ON: AtomicBool = AtomicBool::new(false);
-/// This is a site process.
+/// This is a site process (or the frame process: see `become_renderer`).
 static IN_RENDERER: AtomicBool = AtomicBool::new(false);
+/// This is the frame process: its storage stays in memory and extensions run in it.
+static IN_FRAMES: AtomicBool = AtomicBool::new(false);
 
 /// Turn site processes on if the setting or IRONSWIFT_SITE_PROCESS=1 asks for it (the window
 /// calls this; snapshots and tests render in-process).
@@ -137,7 +139,7 @@ fn put_list(m: &mut Vec<u8>, parts: &[&[u8]]) {
     }
 }
 
-fn get_list(r: &mut impl std::io::Read) -> std::io::Result<Vec<Vec<u8>>> {
+pub(crate) fn get_list(r: &mut impl std::io::Read) -> std::io::Result<Vec<Vec<u8>>> {
     let n = u32::from_le_bytes(get(r)?.try_into().map_err(|_| std::io::Error::other("bad count"))?) as usize;
     if n > 4096 {
         return Err(std::io::Error::other("too many parts"));
@@ -145,7 +147,7 @@ fn get_list(r: &mut impl std::io::Read) -> std::io::Result<Vec<Vec<u8>>> {
     (0..n).map(|_| get(r)).collect()
 }
 
-fn get_u32(r: &mut impl std::io::Read) -> std::io::Result<u32> {
+pub(crate) fn get_u32(r: &mut impl std::io::Read) -> std::io::Result<u32> {
     Ok(u32::from_le_bytes(get(r)?.try_into().map_err(|_| std::io::Error::other("bad number"))?))
 }
 
@@ -263,6 +265,7 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     let mut stdout = child.stdout.take()?;
     let key = NEXT_PROC.fetch_add(1, Ordering::SeqCst);
     let stdin_r = stdin.clone();
+    let in_flight = Arc::new(AtomicUsize::new(0));
     std::thread::Builder::new()
         .name(format!("site-{site}"))
         .spawn(move || {
@@ -287,15 +290,9 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
                             let parts = get_list(&mut stdout)?;
                             let stdin = stdin_r.clone();
                             // Requests can take a while (the network): each on its own thread.
-                            let _ = std::thread::Builder::new().name("site-request".into()).spawn(move || {
-                                let sites = PROCS.lock().ok().and_then(|g| g.as_ref()?.get(&key).map(|p| p.sites.clone())).unwrap_or_default();
-                                let answer = std::panic::catch_unwind(|| serve_request(&sites, &parts)).unwrap_or_default();
-                                let refs: Vec<&[u8]> = answer.iter().map(Vec::as_slice).collect();
-                                let mut m = Vec::new();
-                                put(&mut m, b"resp");
-                                put(&mut m, &rid.to_le_bytes());
-                                put_list(&mut m, &refs);
-                                write_to(&stdin, &m);
+                            let sites = PROCS.lock().ok().and_then(|g| g.as_ref()?.get(&key).map(|p| p.sites.clone())).unwrap_or_default();
+                            serve_async(Auth::site(&sites), parts, in_flight.clone(), move |answer| {
+                                write_to(&stdin, &response(rid, &answer));
                             });
                         }
                         _ => return Err(std::io::Error::other("unknown message")),
@@ -321,6 +318,16 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     log!("[process] started process {key} for {site} (pid {}, {} of at most {})", child.id(), procs.len() + 1, limit());
     procs.insert(key, Proc { child, stdin: stdin.clone(), sites: vec![site.to_string()] });
     Some((key, stdin))
+}
+
+/// A "resp" message answering request `rid`.
+pub(crate) fn response(rid: u32, answer: &[Vec<u8>]) -> Vec<u8> {
+    let refs: Vec<&[u8]> = answer.iter().map(Vec::as_slice).collect();
+    let mut m = Vec::new();
+    put(&mut m, b"resp");
+    put(&mut m, &rid.to_le_bytes());
+    put_list(&mut m, &refs);
+    m
 }
 
 fn stdin_for(id: u32) -> Option<Arc<Mutex<std::process::ChildStdin>>> {
@@ -395,6 +402,43 @@ pub fn running() -> usize {
     PROCS.lock().map(|g| g.as_ref().map_or(0, |p| p.len())).unwrap_or(0)
 }
 
+/// What a renderer process may ask for: the sites of the documents it holds, and the
+/// top-level sites they're shown in (cookies are kept per top-level site).
+#[derive(Clone, Default, Debug)]
+pub(crate) struct Auth {
+    /// Sites of its documents (empty for the shared frame process: frames navigate freely,
+    /// so only the top-level site bounds what it reaches).
+    pub sites: Vec<String>,
+    /// Top-level sites of its documents.
+    pub tops: Vec<String>,
+    /// May it read and write saved storage (localStorage, IndexedDB)?
+    pub storage: bool,
+    /// May it use extension APIs and start downloads?
+    pub extensions: bool,
+}
+
+impl Auth {
+    /// A site process: its pages are their own top-level pages.
+    pub fn site(sites: &[String]) -> Auth {
+        Auth { sites: sites.to_vec(), tops: sites.to_vec(), storage: true, extensions: true }
+    }
+    fn top_ok(&self, top: &str) -> bool {
+        mine(&self.tops, top)
+    }
+    /// A document at `url` shown in `top`: is it one this process may speak for?
+    fn doc_ok(&self, url: &str, top: &str) -> bool {
+        self.top_ok(top) && (self.sites.is_empty() || mine(&self.sites, url))
+    }
+}
+
+/// The Cookie header a renderer sends instead of cookies: the browser puts the real ones in
+/// (and keeps Set-Cookie to itself), so cookies — HttpOnly ones above all — never reach a
+/// renderer. Followed by the top-level page's URL.
+pub(crate) const COOKIE_TOKEN: &str = "\u{1}ironswift-cookies ";
+
+/// Requests one process may have in flight at once (each is a thread here).
+const MAX_IN_FLIGHT: usize = 64;
+
 /// Is `top` (the page asking) on one of the process's sites? A process speaks only for them.
 fn mine(sites: &[String], top: &str) -> bool {
     site_of(top).is_some_and(|s| sites.contains(&s))
@@ -409,8 +453,9 @@ fn key_ok(sites: &[String], key: &str) -> bool {
     }
 }
 
-/// Answer one request from a process holding pages of `sites`.
-fn serve_request(sites: &[String], parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
+/// Answer one request from a renderer allowed `auth`.
+pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
+    let sites = &auth.sites;
     let arg = |i: usize| parts.get(i).map(|b| text(b)).unwrap_or_default();
     let yes = |b: bool| vec![vec![b as u8]];
     match parts.first().map(Vec::as_slice) {
@@ -419,15 +464,28 @@ fn serve_request(sites: &[String], parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
                 return vec![b"err".to_vec(), b"[net] site processes only fetch http(s)".to_vec()];
             }
-            let headers = headers_from(parts.get(3).map_or(&[][..], Vec::as_slice));
+            let mut headers = headers_from(parts.get(3).map_or(&[][..], Vec::as_slice));
+            let top = take_cookie_token(&mut headers).filter(|t| auth.top_ok(t));
+            if let Some(top) = &top {
+                if let Some(c) = cookies::header_for(&url, top) {
+                    headers.push(("Cookie".into(), c));
+                }
+            }
             let body = (parts.get(4).is_some_and(|b| b.first() == Some(&1))).then(|| parts.get(5).cloned().unwrap_or_default());
             let secs = arg(6).parse::<u64>().unwrap_or(30).clamp(1, 24 * 3600);
             match crate::http::open(&method, &url, &headers, body.as_deref(), Duration::from_secs(secs)).and_then(|s| s.read_all(&url)) {
-                Ok(r) => vec![b"ok".to_vec(), r.status.to_string().into_bytes(), r.status_text.into_bytes(), headers_bytes(&r.headers), r.body],
+                Ok(mut r) => {
+                    let set: Vec<String> = r.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
+                    if let Some(top) = &top {
+                        cookies::receive(&url, top, &set);
+                    }
+                    r.headers.retain(|(k, _)| k != "set-cookie" && k != "set-cookie2");
+                    vec![b"ok".to_vec(), r.status.to_string().into_bytes(), r.status_text.into_bytes(), headers_bytes(&r.headers), r.body]
+                }
                 Err(e) => vec![b"err".to_vec(), e.into_bytes()],
             }
         }
-        Some(b"ext") => {
+        Some(b"ext") if auth.extensions => {
             // Only for pages of the process's own sites.
             let req: serde_json::Value = serde_json::from_str(&arg(1)).unwrap_or_default();
             let url = req.get("url").and_then(|u| u.as_str()).unwrap_or("");
@@ -437,28 +495,21 @@ fn serve_request(sites: &[String], parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
             crate::extensions::start();
             vec![crate::extensions::serve(&req).to_string().into_bytes()]
         }
-        Some(b"cookie_header") if mine(sites, &arg(2)) => match cookies::header_for(&arg(1), &arg(2)) {
-            Some(h) => vec![vec![1], h.into_bytes()],
-            None => vec![vec![0]],
-        },
-        Some(b"cookie_receive") if mine(sites, &arg(2)) => {
-            let set: Vec<String> = parts.iter().skip(3).map(|b| text(b)).collect();
-            cookies::receive(&arg(1), &arg(2), &set);
-            yes(true)
-        }
-        Some(b"cookie_get") if mine(sites, &arg(2)) => vec![cookies::script_get(&arg(1), &arg(2)).into_bytes()],
-        Some(b"cookie_set") if mine(sites, &arg(2)) => {
+        // Cookie headers are never handed out (see COOKIE_TOKEN); document.cookie only for a
+        // document the process holds.
+        Some(b"cookie_get") if auth.doc_ok(&arg(1), &arg(2)) => vec![cookies::script_get(&arg(1), &arg(2)).into_bytes()],
+        Some(b"cookie_set") if auth.doc_ok(&arg(1), &arg(2)) => {
             cookies::script_set(&arg(1), &arg(2), &arg(3));
             yes(true)
         }
-        Some(b"store_load") if matches!(arg(1).as_str(), "storage" | "indexeddb") && key_ok(sites, &arg(2)) => vec![crate::js::load_store_key(&arg(2), &arg(1)).into_bytes()],
-        Some(b"store_save") if matches!(arg(1).as_str(), "storage" | "indexeddb") && key_ok(sites, &arg(2)) => {
+        Some(b"store_load") if auth.storage && matches!(arg(1).as_str(), "storage" | "indexeddb") && key_ok(sites, &arg(2)) => vec![crate::js::load_store_key(&arg(2), &arg(1)).into_bytes()],
+        Some(b"store_save") if auth.storage && matches!(arg(1).as_str(), "storage" | "indexeddb") && key_ok(sites, &arg(2)) => {
             let quota = if arg(1) == "storage" { 5 * 1024 * 1024 } else { 100 * 1024 * 1024 };
             yes(crate::js::save_store_key(&arg(2), &arg(1), arg(3), quota))
         }
         Some(b"download") => {
             let url = arg(1);
-            if site_of(&url).is_some() {
+            if url.starts_with("http://") || url.starts_with("https://") {
                 download(&url);
             }
             yes(true)
@@ -468,6 +519,41 @@ fn serve_request(sites: &[String], parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
             log!("[process] refused a request from the process for {}", sites.join(", "));
             Vec::new()
         }
+    }
+}
+
+/// Take the renderer's cookie placeholder out of `headers` (and any Cookie header it tried to
+/// send itself): the top-level page it names, if any.
+fn take_cookie_token(headers: &mut Vec<(String, String)>) -> Option<String> {
+    let mut top = None;
+    headers.retain(|(k, v)| {
+        if !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case("cookie2") {
+            return true;
+        }
+        if let Some(t) = v.strip_prefix(COOKIE_TOKEN) {
+            top = Some(t.to_string());
+        }
+        false
+    });
+    top
+}
+
+/// Run a renderer's request on its own thread unless it already has too many in flight;
+/// `answer` sends the reply parts back.
+pub(crate) fn serve_async(auth: Auth, parts: Vec<Vec<u8>>, in_flight: Arc<AtomicUsize>, answer: impl FnOnce(Vec<Vec<u8>>) + Send + 'static) {
+    if in_flight.fetch_add(1, Ordering::SeqCst) >= MAX_IN_FLIGHT {
+        in_flight.fetch_sub(1, Ordering::SeqCst);
+        log!("[process] refused a request: too many in flight");
+        return answer(Vec::new());
+    }
+    let flight = in_flight.clone();
+    let spawned = std::thread::Builder::new().name("site-request".into()).spawn(move || {
+        let r = std::panic::catch_unwind(|| serve_request(&auth, &parts)).unwrap_or_default();
+        flight.fetch_sub(1, Ordering::SeqCst);
+        answer(r);
+    });
+    if spawned.is_err() {
+        in_flight.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -495,6 +581,27 @@ static NEXT_RID: AtomicU32 = AtomicU32::new(1);
 
 fn send_out(m: &[u8]) -> bool {
     OUT.get().and_then(|o| o.lock().ok()).map(|mut o| o.write_all(m).and_then(|_| o.flush()).is_ok()).unwrap_or(false)
+}
+
+/// Make this process a renderer whose requests go to the browser over stdout (the frame
+/// process uses this too).
+pub(crate) fn become_renderer() {
+    IN_FRAMES.store(true, Ordering::SeqCst);
+    IN_RENDERER.store(true, Ordering::SeqCst);
+    let _ = OUT.set(Mutex::new(std::io::stdout()));
+}
+
+/// Send raw bytes to the browser on the shared stdout.
+pub(crate) fn send_raw(m: &[u8]) -> bool {
+    send_out(m)
+}
+
+/// Hand an answer from the browser to the request waiting for it.
+pub(crate) fn deliver(rid: u32, parts: Vec<Vec<u8>>) {
+    let tx = PENDING.lock().ok().and_then(|mut p| p.as_mut()?.remove(&rid));
+    if let Some(tx) = tx {
+        let _ = tx.send(parts);
+    }
 }
 
 /// Ask the browser and wait for the answer (None: no answer).
@@ -540,8 +647,10 @@ pub fn remote_http(method: &str, url: &str, headers: &[(String, String)], body: 
 const QUICK: Duration = Duration::from_secs(10);
 
 /// cookies.rs `header_for`, asked of the browser. None outside a site process.
+/// In a renderer this is the placeholder the browser swaps for the real cookies.
 pub fn remote_cookie_header(url: &str, top: &str) -> Option<Option<String>> {
-    in_renderer().then(|| call(&[b"cookie_header", url.as_bytes(), top.as_bytes()], QUICK).filter(|r| r.first().is_some_and(|b| b == &[1])).and_then(|r| r.get(1).map(|b| text(b))))
+    let _ = url;
+    in_renderer().then(|| Some(format!("{COOKIE_TOKEN}{top}")))
 }
 
 /// cookies.rs `receive`, sent to the browser. False outside a site process.
@@ -549,9 +658,8 @@ pub fn remote_cookie_receive(url: &str, top: &str, headers: &[String]) -> bool {
     if !in_renderer() {
         return false;
     }
-    let mut parts: Vec<&[u8]> = vec![b"cookie_receive", url.as_bytes(), top.as_bytes()];
-    parts.extend(headers.iter().map(|h| h.as_bytes()));
-    call(&parts, QUICK);
+    // The browser stored them already, when it made the request.
+    let _ = (url, top, headers);
     true
 }
 
@@ -570,18 +678,18 @@ pub fn remote_cookie_set(url: &str, top: &str, s: &str) -> bool {
 
 /// A page's saved store (js.rs). None outside a site process.
 pub fn remote_store_load(key: &str, dir: &str) -> Option<String> {
-    in_renderer().then(|| call(&[b"store_load", dir.as_bytes(), key.as_bytes()], QUICK).and_then(|r| r.first().map(|b| text(b))).unwrap_or_else(|| "{}".into()))
+    (in_renderer() && !IN_FRAMES.load(Ordering::Relaxed)).then(|| call(&[b"store_load", dir.as_bytes(), key.as_bytes()], QUICK).and_then(|r| r.first().map(|b| text(b))).unwrap_or_else(|| "{}".into()))
 }
 
 /// Save a page's store (js.rs). None outside a site process.
 pub fn remote_store_save(key: &str, dir: &str, json: &str) -> Option<bool> {
-    in_renderer().then(|| call(&[b"store_save", dir.as_bytes(), key.as_bytes(), json.as_bytes()], QUICK).is_some_and(|r| r.first().is_some_and(|b| b == &[1])))
+    (in_renderer() && !IN_FRAMES.load(Ordering::Relaxed)).then(|| call(&[b"store_save", dir.as_bytes(), key.as_bytes(), json.as_bytes()], QUICK).is_some_and(|r| r.first().is_some_and(|b| b == &[1])))
 }
 
 /// An extension request from a content script (extensions/mod.rs `serve`), as JSON. None
 /// outside a site process.
 pub fn remote_ext(json: &str) -> Option<String> {
-    in_renderer().then(|| call(&[b"ext", json.as_bytes()], QUICK).and_then(|r| r.first().map(|b| text(b))).unwrap_or_default())
+    (in_renderer() && !IN_FRAMES.load(Ordering::Relaxed)).then(|| call(&[b"ext", json.as_bytes()], QUICK).and_then(|r| r.first().map(|b| text(b))).unwrap_or_default())
 }
 
 /// downloads.rs: a navigation is a file; the browser saves it. False outside a site process.
@@ -707,10 +815,42 @@ mod tests {
         let two = ["example.com".to_string(), "news.org".to_string()];
         assert!(mine(&two, "https://news.org/") && !mine(&two, "https://bank.com/"));
         // Refused outright: no answer parts.
-        assert!(serve_request(&ex, &[b"cookie_get".to_vec(), b"https://bank.com/".to_vec(), b"https://bank.com/".to_vec()]).is_empty());
-        assert!(serve_request(&ex, &[b"store_load".to_vec(), b"storage".to_vec(), b"https://bank.com".to_vec()]).is_empty());
-        assert!(serve_request(&ex, &[b"store_load".to_vec(), b"../../x".to_vec(), b"https://example.com".to_vec()]).is_empty());
-        assert_eq!(serve_request(&ex, &[b"http".to_vec(), b"GET".to_vec(), b"file:///etc/passwd".to_vec()])[0], b"err".to_vec());
+        let a = Auth::site(&ex);
+        assert!(serve_request(&a, &[b"cookie_get".to_vec(), b"https://bank.com/".to_vec(), b"https://bank.com/".to_vec()]).is_empty());
+        // Its own top-level site, but another site's document: refused too.
+        assert!(serve_request(&a, &[b"cookie_get".to_vec(), b"https://bank.com/".to_vec(), b"https://example.com/".to_vec()]).is_empty());
+        assert!(serve_request(&a, &[b"cookie_set".to_vec(), b"https://bank.com/".to_vec(), b"https://example.com/".to_vec(), b"sid=x".to_vec()]).is_empty());
+        // Cookie headers are never handed to a renderer.
+        assert!(serve_request(&a, &[b"cookie_header".to_vec(), b"https://example.com/".to_vec(), b"https://example.com/".to_vec()]).is_empty());
+        assert!(serve_request(&a, &[b"cookie_receive".to_vec(), b"https://bank.com/".to_vec(), b"https://example.com/".to_vec(), b"sid=1".to_vec()]).is_empty());
+        assert!(serve_request(&a, &[b"store_load".to_vec(), b"storage".to_vec(), b"https://bank.com".to_vec()]).is_empty());
+        assert!(serve_request(&a, &[b"store_load".to_vec(), b"../../x".to_vec(), b"https://example.com".to_vec()]).is_empty());
+        assert_eq!(serve_request(&a, &[b"http".to_vec(), b"GET".to_vec(), b"file:///etc/passwd".to_vec()])[0], b"err".to_vec());
+        // The frame process: no storage, extensions or downloads, and only its frames' top-level sites.
+        let frames = Auth { sites: Vec::new(), tops: ex.to_vec(), storage: false, extensions: false };
+        assert!(serve_request(&frames, &[b"store_load".to_vec(), b"storage".to_vec(), b"https://example.com".to_vec()]).is_empty());
+        assert!(serve_request(&frames, &[b"ext".to_vec(), b"{\"url\":\"https://example.com/\"}".to_vec()]).is_empty());
+        assert!(serve_request(&frames, &[b"cookie_get".to_vec(), b"https://ads.net/".to_vec(), b"https://bank.com/".to_vec()]).is_empty());
+    }
+
+    #[test]
+    fn cookies_stay_in_the_browser() {
+        // The renderer sends a placeholder naming its top-level page, never cookies.
+        let mut h = vec![("Accept".to_string(), "*/*".to_string()), ("Cookie".to_string(), format!("{COOKIE_TOKEN}https://example.com/")), ("cookie".to_string(), "forged=1".to_string())];
+        assert_eq!(take_cookie_token(&mut h).as_deref(), Some("https://example.com/"));
+        assert_eq!(h, vec![("Accept".to_string(), "*/*".to_string())], "every Cookie header is removed");
+        let mut h = vec![("Cookie".to_string(), "sid=stolen".to_string())];
+        assert_eq!(take_cookie_token(&mut h), None);
+        assert!(h.is_empty());
+    }
+
+    #[test]
+    fn requests_in_flight_are_capped() {
+        let flight = Arc::new(AtomicUsize::new(MAX_IN_FLIGHT));
+        let (tx, rx) = channel();
+        serve_async(Auth::site(&["example.com".to_string()]), vec![b"cookie_get".to_vec()], flight.clone(), move |a| tx.send(a).unwrap());
+        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap().is_empty(), "refused at once");
+        assert_eq!(flight.load(Ordering::SeqCst), MAX_IN_FLIGHT);
     }
 
     #[test]

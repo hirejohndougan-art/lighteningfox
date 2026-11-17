@@ -792,6 +792,10 @@ struct Live {
     scroll: f32,
     max: f32,
     inner: bool,
+    /// The iframe's sandbox (None = not sandboxed), checked here as well: a compromised
+    /// frame process can't be trusted to apply it.
+    sandbox: Option<security::Sandbox>,
+    top_level: bool,
 }
 
 impl Drop for Live {
@@ -820,6 +824,7 @@ pub fn enabled() -> bool {
 /// for its first picture.
 pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option<image::RgbaImage> {
     let (w, h) = (job.w, job.h);
+    let (sandbox, top_level) = (job.sandbox.clone(), job.top_level);
     let (utx, urx) = channel::<Update>();
     let sink = if job.top_level {
         Sink::Site(crate::process::open(&job, utx)?)
@@ -836,7 +841,7 @@ pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option
             .ok()?;
         Sink::Thread(etx)
     };
-    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false };
+    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level };
     let first = loop {
         match live.updates.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
             Ok(Update::Picture { img, scroll, max, inner }) => {
@@ -867,6 +872,11 @@ pub struct Pumped {
     pub title: Option<String>,
 }
 
+/// May this frame move the whole tab? (Its own sandbox, checked on the window's side.)
+fn may_navigate_top(f: &Live) -> bool {
+    f.top_level || f.sandbox.as_ref().is_none_or(|s| s.top_navigation)
+}
+
 /// Called every frame for the page in the window: claim its new frames, put their latest
 /// pictures in place, and pass on navigation requests. Frames of pages gone for a while are
 /// shut down.
@@ -889,9 +899,10 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                     (f.scroll, f.max, f.inner) = (scroll, max, inner);
                     latest = Some(img);
                 }
-                Update::NavigateTop(t) => out.navigate = Some(t),
-                Update::OpenTab(t) => out.open_tab = Some(t),
-                Update::NavigatePost(u, content_type, bytes) => out.post = Some((u, forms::PostBody { content_type, bytes })),
+                Update::NavigateTop(t) if may_navigate_top(f) => out.navigate = Some(t),
+                Update::OpenTab(t) if f.top_level || f.sandbox.as_ref().is_none_or(|s| s.popups) => out.open_tab = Some(t),
+                Update::NavigatePost(u, content_type, bytes) if may_navigate_top(f) => out.post = Some((u, forms::PostBody { content_type, bytes })),
+                Update::NavigateTop(_) | Update::OpenTab(_) | Update::NavigatePost(..) => log!("[frames] {}: blocked by its sandbox", f.key),
                 Update::Title(t) => out.title = Some(t),
             }
         }
@@ -1018,6 +1029,15 @@ pub mod isolated {
     static NEXT_ID: AtomicU32 = AtomicU32::new(1);
     /// The renderer's process id (0 = none), so a stuck frame can be stopped from outside.
     static PID: AtomicU32 = AtomicU32::new(0);
+    /// Each open frame's top-level site: all the process may ask the browser about.
+    static TOPS: Mutex<Option<HashMap<u32, String>>> = Mutex::new(None);
+
+    fn auth() -> crate::process::Auth {
+        let mut tops: Vec<String> = TOPS.lock().ok().and_then(|t| t.as_ref().map(|t| t.values().cloned().collect())).unwrap_or_default();
+        tops.sort();
+        tops.dedup();
+        crate::process::Auth { sites: Vec::new(), tops, storage: false, extensions: false }
+    }
 
     fn site(url: &str) -> Option<String> {
         url::Url::parse(url).ok()?.host_str().map(cookies::site_of)
@@ -1078,17 +1098,34 @@ pub mod isolated {
         let stdin = child.stdin.take()?;
         let mut stdout = child.stdout.take()?;
         let pid = child.id();
+        let in_flight = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         std::thread::Builder::new()
             .name("frame-process".into())
             .spawn(move || {
-                // Route each update to its frame until the process ends.
+                // Route each update to its frame until the process ends; answer its requests
+                // (network, document.cookie) as process.rs does for site processes.
                 loop {
-                    let r = (|| -> std::io::Result<(u32, Update)> {
-                        let id = u32::from_le_bytes(get(&mut stdout)?.try_into().unwrap_or([0; 4]));
-                        Ok((id, Update::decode(&mut stdout)?))
+                    let r = (|| -> std::io::Result<Option<(u32, Update)>> {
+                        let kind = get(&mut stdout)?;
+                        match kind.as_slice() {
+                            b"upd" => {
+                                let id = crate::process::get_u32(&mut stdout)?;
+                                Ok(Some((id, Update::decode(&mut stdout)?)))
+                            }
+                            b"req" => {
+                                let rid = crate::process::get_u32(&mut stdout)?;
+                                let parts = crate::process::get_list(&mut stdout)?;
+                                crate::process::serve_async(auth(), parts, in_flight.clone(), move |answer| {
+                                    write(&crate::process::response(rid, &answer));
+                                });
+                                Ok(None)
+                            }
+                            _ => Err(std::io::Error::other("unknown message")),
+                        }
                     })();
                     match r {
-                        Ok((id, u)) => {
+                        Ok(None) => {}
+                        Ok(Some((id, u))) => {
                             if let Ok(routes) = ROUTES.lock() {
                                 if let Some(tx) = routes.as_ref().and_then(|r| r.get(&id)) {
                                     let _ = tx.send(u);
@@ -1135,6 +1172,9 @@ pub mod isolated {
         }
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         ROUTES.lock().ok()?.get_or_insert_with(HashMap::new).insert(id, updates);
+        if let Some(top) = crate::process::site_of(&job.top) {
+            TOPS.lock().ok()?.get_or_insert_with(HashMap::new).insert(id, top);
+        }
         let mut m = Vec::new();
         put(&mut m, b"open");
         put(&mut m, &id.to_le_bytes());
@@ -1158,6 +1198,11 @@ pub mod isolated {
         if let Ok(mut r) = ROUTES.lock() {
             if let Some(r) = r.as_mut() {
                 r.remove(&id);
+            }
+        }
+        if let Ok(mut t) = TOPS.lock() {
+            if let Some(t) = t.as_mut() {
+                t.remove(&id);
             }
         }
         let mut m = Vec::new();
@@ -1204,7 +1249,8 @@ pub mod isolated {
             return;
         }
         js::use_memory_storage();
-        let out = std::sync::Arc::new(Mutex::new(std::io::stdout()));
+        // Requests and cookies go through the browser; this process can't read the jar.
+        crate::process::become_renderer();
         let mut frames: HashMap<u32, Sender<Event>> = HashMap::new();
         let mut input = std::io::stdin().lock();
         loop {
@@ -1223,13 +1269,13 @@ pub mod isolated {
                         let job = FrameJob { src: FrameSrc::Url(url), w, h, parent, top, sandbox, reply, top_level: false };
                         let (etx, erx) = channel();
                         frames.insert(id, etx);
-                        let out = out.clone();
                         let _ = std::thread::Builder::new().name("frame".into()).stack_size(crate::MAIN_STACK).spawn(move || {
                             let send = |u: Update| {
                                 let mut m = Vec::new();
+                                put(&mut m, b"upd");
                                 put(&mut m, &id.to_le_bytes());
                                 m.extend(u.encode());
-                                out.lock().map(|mut o| o.write_all(&m).and_then(|_| o.flush()).is_ok()).unwrap_or(false)
+                                crate::process::send_raw(&m)
                             };
                             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_host(job, erx, send)));
                         });
@@ -1242,6 +1288,11 @@ pub mod isolated {
                     }
                     b"close" => {
                         frames.remove(&id);
+                    }
+                    b"resp" => {
+                        // `id` is the request number here.
+                        let parts = crate::process::get_list(&mut input)?;
+                        crate::process::deliver(id, parts);
                     }
                     _ => return Err(std::io::Error::other("unknown message")),
                 }
@@ -1281,6 +1332,31 @@ mod tests {
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::NavigateTop(u) if u == "https://x.org/"));
         // Garbage is refused, not misread.
         assert!(Event::decode(&mut &b"\x03\0\0\0zzz"[..]).is_err());
+    }
+
+    #[test]
+    fn the_window_enforces_iframe_sandboxes() {
+        let live = |sandbox: Option<security::Sandbox>, top_level: bool| Live {
+            key: "f".into(),
+            owner: "https://a.com/".into(),
+            doc: None,
+            born: Instant::now(),
+            seen: Instant::now(),
+            w: 1,
+            h: 1,
+            sink: Sink::Thread(channel().0),
+            updates: channel().1,
+            scroll: 0.0,
+            max: 0.0,
+            inner: false,
+            sandbox,
+            top_level,
+        };
+        let locked = security::Sandbox { scripts: true, same_origin: false, forms: false, popups: false, top_navigation: false, modals: false };
+        assert!(!may_navigate_top(&live(Some(locked.clone()), false)), "a sandboxed frame can't move the tab");
+        assert!(may_navigate_top(&live(Some(security::Sandbox { top_navigation: true, ..locked }), false)));
+        assert!(may_navigate_top(&live(None, false)), "unsandboxed frames may (as in other browsers)");
+        assert!(may_navigate_top(&live(None, true)), "a site process's own top-level page");
     }
 
     #[test]

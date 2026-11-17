@@ -236,7 +236,7 @@ pub fn protect_browser() {
 }
 
 /// Lock down a frame-renderer process: no programs, no writing anywhere, and reading only
-/// system files, fonts and the profile (for its settings and cookies).
+/// system files, fonts and the profile's settings (never its cookies or storage).
 pub fn protect_frame_renderer() -> bool {
     if std::env::var("IRONSWIFT_NO_SANDBOX").is_ok_and(|v| v == "1") {
         return true;
@@ -249,8 +249,12 @@ pub fn protect_frame_renderer() -> bool {
                 read.push(format!("{home}/{p}"));
             }
         }
+        // Of the profile only the settings it needs to draw pages: cookies, storage, the
+        // cache and history stay with the browser, which makes requests for it.
         if let Some(p) = crate::cookies::profile_dir() {
-            read.push(p.display().to_string());
+            for f in ["settings.tsv", "zoom.txt", "hsts.txt", "filters", "permissions.tsv", "font-index.tsv"] {
+                read.push(p.join(f).display().to_string());
+            }
         }
         // Certificate stores named in the environment (they can live outside /etc).
         for var in ["SSL_CERT_FILE", "SSL_CERT_DIR"] {
@@ -370,6 +374,13 @@ mod tests {
         }
         let tmp = std::env::temp_dir().join(format!("ironswift-sbx-{}", std::process::id()));
         let _ = std::fs::write(&tmp, b"x");
+        // A profile with a cookie jar and settings.
+        let profile = std::env::temp_dir().join(format!("ironswift-sbx-profile-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&profile);
+        let _ = std::fs::write(profile.join("cookies.tsv"), b"bank.com\tsid\tsecret");
+        let _ = std::fs::write(profile.join("settings.tsv"), b"site_processes\t0\n");
+        // SAFETY: the child test runs alone in its process.
+        unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
         assert!(super::protect_frame_renderer());
         // System files are still readable…
         assert!(std::fs::read_to_string("/etc/hostname").is_ok() || std::fs::metadata("/etc/hostname").is_err());
@@ -381,6 +392,9 @@ mod tests {
         if landlocked {
             assert!(std::fs::write(&tmp, b"y").is_err(), "writes should be refused");
             assert!(std::fs::read(&tmp).is_err(), "the temp folder isn't readable");
+            // The cookie jar stays with the browser; settings are readable.
+            assert!(std::fs::read(profile.join("cookies.tsv")).is_err(), "cookies must not be readable");
+            assert!(std::fs::read(profile.join("settings.tsv")).is_ok(), "settings are readable");
         }
         // Threads still work (clone without namespace flags).
         assert_eq!(std::thread::spawn(|| 41 + 1).join().unwrap(), 42);

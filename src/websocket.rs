@@ -222,6 +222,8 @@ fn connect(who: &Opener, url: &str, protocols: &[String]) -> Result<(Socket, Str
     }
     if who.page != "about:sandbox"
         && let Some(c) = crate::cookies::header_for(&http_url, &who.top)
+        // In a renderer that's the browser's placeholder, not cookies: never send it.
+        && !c.starts_with(crate::process::COOKIE_TOKEN)
     {
         put("Cookie", &c);
     }
