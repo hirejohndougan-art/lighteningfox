@@ -243,10 +243,18 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** new `tools/webidl/`, generated `src/bindings/`
 
 ### T10. Media Source Extensions
-**Status:** claimed by chat-opus-x5 2026-11-17 16:30
+**Status:** done
 **After:** T09
 **Checklist:** §7 "Media Source Extensions (needed for YouTube and most streaming)"
 **Files:** `src/media.rs`
+Left undone: coded frames are handled per segment, not per frame, so `remove()` drops whole
+segments, `appendWindowStart/End` don't trim, and an overlapping append replaces whole segments;
+`mode = "sequence"` is accepted but timestamps aren't regenerated; MPEG audio (`audio/mpeg`,
+`audio/aac`) byte streams aren't supported; `audioTracks`/`videoTracks` are empty;
+`srcObject = mediaSource`, MediaSource in workers (`MediaSourceHandle`) and ManagedMediaSource
+are missing. WPT media-source: 194/313 subtests; most files that need playback to run give no
+result under `tools/wpt.py`, whose snapshot mode freezes media. Several WPT helpers also need
+`String.prototype.substr`, which the engine lacks (Boa's `annex-b` feature is off).
 
 ### T11. Fingerprinting noise on audio
 **Status:** done
