@@ -115,11 +115,15 @@ SVG written directly in HTML is hidden today (SVG *images* work). Draw it, with 
 its elements where practical.
 
 ### X6. Geolocation
-**Status:** claimed by chat-opus-geo 2026-11-17 05:04
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** new `src/geo.rs`, the geolocation part of the JS APIs
 Allowed requests report "position unavailable" today. Ask GeoClue over D-Bus for a position.
+**Left undone:** the Flatpak build can't reach GeoClue (it's on the system bus, which the sandbox
+blocks); it needs the XDG Location portal instead. `altitudeAccuracy` is always null (GeoClue
+doesn't report it). When T05 moves pages into sandboxed processes, `src/geo.rs` must stay in the
+browser process and pass positions to the page process.
 
 ## Checklist tasks that wait on others
 
