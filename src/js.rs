@@ -1282,6 +1282,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("traversal.js", include_str!("traversal.js")),
     ("cssom.js", include_str!("cssom.js")),
     ("docprops.js", include_str!("docprops.js")),
+    ("hyperlink.js", include_str!("hyperlink.js")),
     ("devconsole.js", include_str!("devconsole.js")),
 ];
 

@@ -437,3 +437,14 @@ fn module_scripts_run_once_per_url() {
     let _page = open("tests/sites/module-once.html");
     assert_eq!(text_of("out"), "1;1;1");
 }
+
+#[test]
+fn anchors_work_as_urls() {
+    let _serial = serial();
+    let _page = open("tests/sites/anchor-url.html");
+    assert_eq!(
+        text_of("out"),
+        "https://example.com/news/world/x.html?q=1#top https: example.com example.com  /news/world/x.html ?q=1 #top https://example.com \
+         u p site.test:8080 8080 https://u:p@site.test:8080/z?k=v#h \"\" \":\" \"\" undefined"
+    );
+}

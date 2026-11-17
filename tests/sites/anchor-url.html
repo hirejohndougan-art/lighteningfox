@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): axios/Sentry parse URLs with an <a> element
+     (a.setAttribute("href", url); a.protocol.replace(/:$/, "")…), which threw when <a> had no
+     URL parts. -->
+<html><head><title>Links as URLs</title><base href="https://example.com/news/"></head>
+<body><p id="out"></p><a id="rel" href="world/x.html?q=1#top">x</a>
+<script>
+  const a = document.getElementById("rel");
+  const out = [a.href, a.protocol, a.host, a.hostname, a.port, a.pathname, a.search, a.hash, a.origin];
+  const b = document.createElement("a");
+  b.setAttribute("href", "http://u:p@Site.test:8080/a/b?c=d#e");
+  out.push(b.username, b.password, b.host, b.port);
+  b.pathname = "z"; b.search = "?k=v"; b.hash = "h"; b.protocol = "https";
+  out.push(b.href);
+  const none = document.createElement("a");
+  out.push(JSON.stringify(none.href), JSON.stringify(none.protocol), JSON.stringify(none.pathname), String(document.createElement("div").protocol));
+  document.getElementById("out").textContent = out.join(" ");
+</script></body></html>
