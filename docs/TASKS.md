@@ -45,11 +45,12 @@ each top-level site's parsing, scripts and layout run in their own process, with
 process keeping the window, network, cookies and storage.
 
 ### T07. DOM objects as native Boa classes
-**Status:** claimed by chat-opus-t07 2026-11-17 04:58
+**Status:** done
 **After:** —
 **Checklist:** §14 "Expose DOM objects as native Boa classes instead of JavaScript wrappers over numeric ids"
 **Files:** `src/js.rs`, `src/prelude.js`, new `src/dom_classes.rs`
 Measure before and after with the JavaScript benchmark page and `tools/perf_check.py`.
+Left undone: setters and tree-changing methods (appendChild, setAttribute, innerHTML, …) are still JavaScript, on purpose: custom elements and MutationObserver hook the global mutation natives, so a native method would skip their reactions. The document object, shadow roots and `new Text()`-style objects are still plain JS objects (the native getters read their `__id`).
 
 ### T09. `<video>` and `<audio>` playback
 **Status:** done
