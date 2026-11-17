@@ -115,11 +115,14 @@ pub struct Canvas {
     pub h: usize,
     pub buf: Vec<u32>, // 0RGB
     clips: Vec<Clip>,
+    /// Right-to-left browser UI: while set to (left, right), rectangles, text and icons are
+    /// drawn mirrored across that span (text keeps its own reading order). Pages never use it.
+    pub mirror: Option<(f32, f32)>,
 }
 
 impl Canvas {
     pub fn new(w: usize, h: usize) -> Canvas {
-        Canvas { w, h, buf: vec![0xFFFFFF; w * h], clips: Vec::new() }
+        Canvas { w, h, buf: vec![0xFFFFFF; w * h], clips: Vec::new(), mirror: None }
     }
 
     pub fn clear(&mut self, c: Color) {
@@ -173,6 +176,10 @@ impl Canvas {
 
     /// Draw a small ARGB image (an icon) with its alpha, top-left at (x, y).
     pub fn draw_argb(&mut self, x: i32, y: i32, w: usize, px: &[u32]) {
+        let x = match self.mirror {
+            Some((a, b)) => (a + b) as i32 - x - w as i32,
+            None => x,
+        };
         for (i, &p) in px.iter().enumerate() {
             let c = Color { r: (p >> 16) as u8, g: (p >> 8) as u8, b: p as u8, a: (p >> 24) as u8 };
             self.blend(x + (i % w) as i32, y + (i / w) as i32, c, 1.0);
@@ -183,6 +190,10 @@ impl Canvas {
         if c.a == 0 || w <= 0.0 || h <= 0.0 {
             return;
         }
+        let x = match self.mirror {
+            Some((a, b)) => a + b - x - w,
+            None => x,
+        };
         let x0 = (x.round() as i32).max(0);
         let y0 = (y.round() as i32).max(0);
         let x1 = ((x + w).round() as i32).min(self.w as i32);
@@ -199,6 +210,31 @@ impl Canvas {
             return;
         }
         let shaped = fonts.shape(font, text, size);
+        let x = match self.mirror {
+            Some((a, b)) => a + b - x - shaped.width,
+            None => x,
+        };
+        // Text mixing right-to-left and left-to-right runs ("البحث…  Ctrl+F") is put in
+        // visual order with the Unicode bidi algorithm, each run shaped on its own.
+        if text.chars().any(is_rtl_char) {
+            let bidi = unicode_bidi::BidiInfo::new(text, None);
+            if let Some(para) = bidi.paragraphs.first() {
+                let (_, runs) = bidi.visual_runs(para, para.range.clone());
+                if runs.len() > 1 {
+                    let mut cx = x;
+                    for run in runs {
+                        let part = fonts.shape(font, &text[run], size);
+                        self.draw_glyphs(fonts, &part, cx, baseline, size, c);
+                        cx += part.width;
+                    }
+                    return;
+                }
+            }
+        }
+        self.draw_glyphs(fonts, &shaped, x, baseline, size, c);
+    }
+
+    fn draw_glyphs(&mut self, fonts: &Fonts, shaped: &crate::font::Shaped, x: f32, baseline: f32, size: f32, c: Color) {
         for g in &shaped.glyphs {
             let (gxp, gyp) = (x + g.x, baseline - g.y);
             // Whole pixels, plus a quarter-pixel step drawn into the glyph itself.
@@ -610,6 +646,12 @@ impl Canvas {
             }
         }
     }
+}
+
+/// Letters of right-to-left scripts (Hebrew, Arabic, Syriac, Thaana, N'Ko and their
+/// presentation forms).
+fn is_rtl_char(ch: char) -> bool {
+    matches!(ch as u32, 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF | 0x10800..=0x10FFF | 0x1E800..=0x1EFFF)
 }
 
 pub fn pack(c: Color) -> u32 {

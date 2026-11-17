@@ -2411,6 +2411,7 @@ dependencies = [
  "tokio",
  "tungstenite",
  "unic-langid",
+ "unicode-bidi",
  "unicode-linebreak",
  "url",
  "wgpu",

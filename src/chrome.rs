@@ -320,7 +320,8 @@ impl Find {
         canvas.draw_text(fonts, fx + 8.0, y + 25.0, &self.query, font::REGULAR, 14.0, Color::rgb(30, 30, 40));
         if let Some(c) = caret {
             let prefix: String = self.query.chars().take(c).collect();
-            let cx = fx + 8.0 + fonts.width(font::REGULAR, &prefix, 14.0);
+            let full = fonts.width(font::REGULAR, &self.query, 14.0);
+            let cx = crate::rtl::field_x(fx + 8.0, fonts.width(font::REGULAR, &prefix, 14.0), full) - if crate::rtl::on() { 1.0 } else { 0.0 };
             canvas.fill_rect(cx.round(), y + 11.0, 1.0, FIND_H - 22.0, Color::rgb(30, 30, 40));
         }
         let status = if self.query.is_empty() {

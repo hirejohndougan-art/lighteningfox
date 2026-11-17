@@ -38,6 +38,7 @@ unic-langid = "0.9"
 tungstenite = { version = "0.28", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
 accesskit = "0.25"
 accesskit_unix = "0.24"
+unicode-bidi = "0.3"
 
 [profile.release]
 opt-level = 3

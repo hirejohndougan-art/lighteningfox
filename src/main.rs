@@ -34,6 +34,7 @@ mod tokenizer;
 mod a11y;
 mod i18n;
 mod keynav;
+mod rtl;
 mod chrome;
 mod favicon;
 mod devtools;
@@ -2754,6 +2755,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let mid = window.get_mouse_down(MouseButton::Middle);
         let right = window.get_mouse_down(MouseButton::Right);
         if let Some((mx, my)) = synthetic.or_else(|| window.get_mouse_pos(MouseMode::Discard)) {
+            // Right to left, the browser UI is mirrored: over it, x is flipped so the hit tests
+            // below work in their usual left-to-right coordinates. Pages and the menus that
+            // open where they're asked to keep the real x.
+            let over_ui = my < bar_h() as f32
+                || (editing && !suggestions.is_empty() && my < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H)
+                || folder_menu.is_some()
+                || perm_queue.first().is_some_and(|p| p.contains(w as f32 - mx, my));
+            let mx = if over_ui && synthetic.is_none() { rtl::ui_x(mx, w as f32) } else { mx };
             let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
                 sugg_hover = sh;
@@ -3040,7 +3049,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 suggestions.clear();
                 dirty = true;
             } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && !downloads::list().is_empty() && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
-                dl_panel = Some(downloads_panel(w as f32 - 8.0 - STAR_W - 330.0, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
+                let px = w as f32 - 8.0 - STAR_W - 330.0;
+                dl_panel = Some(downloads_panel(if rtl::on() { w as f32 - px - 330.0 } else { px }, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
                 dirty = true;
             } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W {
                 library::toggle_bookmark(&page.url, &page.title);
@@ -3070,7 +3080,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         editing = true;
                         aedit = textedit::TextEdit::select_all(&address);
                     } else {
-                        let i = char_index_at(fonts, font::REGULAR, 14.0, &aedit.text, mx - FIELD_X - 8.0);
+                        let full = fonts.width(font::REGULAR, &aedit.text, 14.0);
+                        let i = char_index_at(fonts, font::REGULAR, 14.0, &aedit.text, rtl::field_offset(FIELD_X + 8.0, mx, full));
                         if double {
                             aedit.select_word_at(i);
                         } else {
@@ -3812,7 +3823,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 canvas.buf.clone()
             });
             if let Some(menu) = &folder_menu {
+                rtl::begin(&mut canvas);
                 draw_folder_menu(&mut canvas, fonts, menu, &bm_list);
+                rtl::end(&mut canvas);
             }
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
@@ -3831,7 +3844,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             if editing && !suggestions.is_empty() {
+                rtl::begin(&mut canvas);
                 draw_suggestions(&mut canvas, fonts, &suggestions, sugg_sel.or(sugg_hover));
+                rtl::end(&mut canvas);
             }
             // Browser UI over the page.
             if (find.is_some() || selection.is_some()) && runs_cache.0 != page_version {
@@ -3846,22 +3861,33 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let Some(f) = &find {
                 f.draw_highlights(&mut canvas, fonts, &runs_cache.1, bar_h() as f32, scroll.round(), view_bottom);
+                rtl::begin(&mut canvas);
                 f.draw_bar(&mut canvas, fonts, Some(find_edit.caret));
+                rtl::end(&mut canvas);
             } else if let Some(s) = &status_link {
+                rtl::begin(&mut canvas);
                 chrome::draw_status(&mut canvas, fonts, s);
+                rtl::end(&mut canvas);
             }
+            rtl::begin(&mut canvas);
             if let Some((t, _)) = &toast {
                 chrome::draw_toast(&mut canvas, fonts, TOOL_BOTTOM as f32, t);
             }
             if let Some(p) = perm_queue.first() {
                 p.draw(&mut canvas, fonts);
             }
+            rtl::end(&mut canvas);
+            // Menus open where they were asked to; right to left, their rows are mirrored inside.
             if let Some(m) = dl_panel.as_mut() {
                 m.rows = downloads_panel(0.0, 0.0, w as f32, h as f32).rows;
+                rtl::begin_in(&mut canvas, m.x, m.w);
                 m.draw(&mut canvas, fonts);
+                rtl::end(&mut canvas);
             }
             if let Some(m) = &ctx_menu {
+                rtl::begin_in(&mut canvas, m.x, m.w);
                 m.draw(&mut canvas, fonts);
+                rtl::end(&mut canvas);
             }
             if let Some(before) = &contrast_before {
                 contrast::recolor_changed(&mut canvas, before);
@@ -4081,6 +4107,8 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         canvas.clear(lay.page_bg);
         canvas.paint(fonts, images, &lay.items, bar_h() as f32, scroll);
     }
+    // Right to left: the browser UI below is drawn mirrored.
+    rtl::begin(canvas);
     let w = canvas.w as f32;
     let bar = TOOL_BOTTOM as f32;
     let top = TAB_H;
@@ -4153,7 +4181,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
             if ui.bm_hover == Some(usize::MAX) {
                 canvas.fill_rect(x, bar + 2.0, BOOK_MORE_W, BOOK_H - 6.0, Color::rgb(214, 214, 222));
             }
-            canvas.draw_text(fonts, x + 9.0, bar + 18.0, "»", font::REGULAR, 15.0, Color::rgb(60, 60, 70));
+            canvas.draw_text(fonts, x + 9.0, bar + 18.0, rtl::more_label(), font::REGULAR, 15.0, Color::rgb(60, 60, 70));
         }
     }
 
@@ -4166,7 +4194,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         let ink = if enabled[i] { Color::rgb(40, 40, 50) } else { Color::rgb(170, 170, 178) };
         let size = 18.0;
         // While loading, reload becomes stop.
-        let label = if i == 2 && ui.loading.is_some() { &"✕" } else { label };
+        let label = if i == 2 && ui.loading.is_some() { &"✕" } else { &rtl::nav_label(i, label) };
         let tw = fonts.width(font::BOLD, label, size);
         canvas.draw_text(fonts, bx + (BTN_W - tw) / 2.0, top + 24.0, label, font::BOLD, size, ink);
     }
@@ -4194,11 +4222,14 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     let tx = FIELD_X + 8.0;
     if let Some((caret, anchor)) = ui.caret {
         let upto = |i: usize| fonts.width(font::REGULAR, &ui.address.chars().take(i).collect::<String>(), 14.0);
+        // Right to left, the address sits at the field's far end but still reads left to right.
+        let full = fonts.width(font::REGULAR, ui.address, 14.0);
         if caret != anchor {
-            let (a, b) = (upto(caret.min(anchor)), upto(caret.max(anchor)));
-            canvas.fill_rect(tx + a, top + 9.0, b - a, TOOL_H - 18.0, Color::rgb(180, 213, 254));
+            let (a, b) = (rtl::field_x(tx, upto(caret.min(anchor)), full), rtl::field_x(tx, upto(caret.max(anchor)), full));
+            canvas.fill_rect(a.min(b), top + 9.0, (b - a).abs(), TOOL_H - 18.0, Color::rgb(180, 213, 254));
         }
-        canvas.fill_rect((tx + upto(caret)).round(), top + 9.0, 1.0, TOOL_H - 18.0, Color::rgb(30, 30, 40));
+        let cx = rtl::field_x(tx, upto(caret), full) - if rtl::on() { 1.0 } else { 0.0 };
+        canvas.fill_rect(cx.round(), top + 9.0, 1.0, TOOL_H - 18.0, Color::rgb(30, 30, 40));
     }
     canvas.draw_text(fonts, tx, top + 23.0, ui.address, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
     if (ui.zoom - 1.0).abs() > 1e-3 && !ui.editing {
@@ -4214,6 +4245,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         let pos = (t * 0.8).fract() * (w + span) - span;
         canvas.fill_rect(pos.max(0.0), bar - 3.0, (pos + span).min(w) - pos.max(0.0), 2.0, Color::rgb(249, 115, 22));
     }
+    rtl::end(canvas);
 }
 
 /// Address bar suggestions: a panel under the field, one row per page (title, then address).
