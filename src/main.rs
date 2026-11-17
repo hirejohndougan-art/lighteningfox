@@ -114,6 +114,7 @@ mod blocklist;
 mod permissions;
 mod updates;
 mod websocket;
+mod ws_relay;
 mod worker;
 mod sandbox;
 mod frames;

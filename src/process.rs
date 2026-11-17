@@ -17,6 +17,8 @@
 //!   (localStorage, IndexedDB) — only for its own site as the top-level site: a process for
 //!   one site can't read another site's cookies or storage.
 //! - **download**: a navigation turned out to be a file; the browser saves it.
+//! - **ws_open / ws_send / ws_poll**: WebSockets, which the browser opens and relays
+//!   (ws_relay.rs).
 //!
 //! Wire format (frames.rs `put`/`get`): browser → process: `open <id> <url> <w> <h> <post?>
 //! <type> <body>`, `event <id> <event>`, `close <id>`, `resp <rid> <parts>`; process →
@@ -485,6 +487,8 @@ pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
                 Err(e) => vec![b"err".to_vec(), e.into_bytes()],
             }
         }
+        // WebSockets the browser opens for the renderer's pages (ws_relay.rs).
+        Some(b"ws_open" | b"ws_send" | b"ws_poll") => crate::ws_relay::serve(parts, (auth.sites.clone(), auth.tops.clone()), |u, t| auth.doc_ok(u, t)),
         Some(b"ext") if auth.extensions => {
             // Only for pages of the process's own sites.
             let req: serde_json::Value = serde_json::from_str(&arg(1)).unwrap_or_default();
@@ -645,6 +649,16 @@ pub fn remote_http(method: &str, url: &str, headers: &[(String, String)], body: 
 }
 
 const QUICK: Duration = Duration::from_secs(10);
+
+/// ws_relay.rs: a request to the browser, answered quickly.
+pub(crate) fn relay_call(parts: &[&[u8]]) -> Option<Vec<Vec<u8>>> {
+    call(parts, QUICK)
+}
+
+/// ws_relay.rs: a request the browser may hold for up to `wait` (ws_poll).
+pub(crate) fn relay_call_waiting(parts: &[&[u8]], wait: Duration) -> Option<Vec<Vec<u8>>> {
+    call(parts, wait)
+}
 
 /// cookies.rs `header_for`, asked of the browser. None outside a site process.
 /// In a renderer this is the placeholder the browser swaps for the real cookies.

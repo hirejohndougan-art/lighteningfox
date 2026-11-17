@@ -235,8 +235,8 @@ pub fn protect_browser() {
     }
 }
 
-/// Lock down a frame-renderer process: no programs, no writing anywhere, and reading only
-/// system files, fonts and the profile's settings (never its cookies or storage).
+/// Lock down a frame-renderer process: no programs, no network, no writing anywhere, and
+/// reading only system files, fonts and the profile's settings (never its cookies or storage).
 pub fn protect_frame_renderer() -> bool {
     if std::env::var("IRONSWIFT_NO_SANDBOX").is_ok_and(|v| v == "1") {
         return true;
@@ -270,7 +270,9 @@ pub fn protect_frame_renderer() -> bool {
             Ok(abi) => log!("[sandbox] frame renderer: Landlock ABI {abi}, read-only system files"),
             Err(e) => log!("[sandbox] frame renderer: {e}; continuing with the system-call filter only"),
         }
-        if let Err(e) = imp::seccomp(true, false) {
+        // No network either: the browser makes its requests and opens its WebSockets
+        // (ws_relay.rs).
+        if let Err(e) = imp::seccomp(true, true) {
             log!("[sandbox] frame renderer: {e}");
             return false;
         }
@@ -396,6 +398,9 @@ mod tests {
             assert!(std::fs::read(profile.join("cookies.tsv")).is_err(), "cookies must not be readable");
             assert!(std::fs::read(profile.join("settings.tsv")).is_ok(), "settings are readable");
         }
+        // No internet sockets: the browser opens connections for it.
+        assert!(std::net::TcpStream::connect("127.0.0.1:9").is_err());
+        assert!(std::net::UdpSocket::bind("127.0.0.1:0").is_err(), "UDP sockets should be refused");
         // Threads still work (clone without namespace flags).
         assert_eq!(std::thread::spawn(|| 41 + 1).join().unwrap(), 42);
         println!("CHILD-OK landlock={landlocked}");

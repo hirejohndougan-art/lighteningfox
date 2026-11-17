@@ -4,7 +4,8 @@
 //! handshake with the page's cookies and Origin, then passes messages both ways. What
 //! happens on the socket is queued as script calls (`__wsEvent(...)`) that the page runs on
 //! its next tick. The page's security rules apply: its Content Security Policy
-//! (connect-src), the tracker blocklist, HSTS upgrades and the mixed-content rule.
+//! (connect-src), the tracker blocklist, HSTS upgrades and the mixed-content rule. In a
+//! sandboxed renderer the browser process opens the socket instead (ws_relay.rs).
 
 use std::collections::HashMap;
 use std::io::ErrorKind;
@@ -47,7 +48,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 /// Most a single incoming message may be (larger ones close the socket).
 const MAX_MESSAGE: usize = 64 << 20;
 
-fn push(epoch: u64, code: String) {
+pub(crate) fn push(epoch: u64, code: String) {
     if let Ok(mut q) = EVENTS.lock() {
         q.push((epoch, code));
     }
@@ -57,6 +58,21 @@ fn js_str(s: &str) -> String {
     let mut o = String::new();
     crate::js::json_str(s, &mut o);
     o
+}
+
+/// A socket started (true) or finished (false) connecting (ws_relay.rs keeps the count for
+/// relayed sockets).
+pub(crate) fn connecting_changed(started: bool) {
+    if started {
+        CONNECTING.fetch_add(1, Ordering::SeqCst);
+    } else {
+        CONNECTING.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Sockets open (or opening) for this epoch.
+pub(crate) fn open_count(epoch: u64) -> usize {
+    SOCKETS.lock().map(|s| s.keys().filter(|k| k.0 == epoch).count()).unwrap_or(0)
 }
 
 /// Queued script calls for the page with this epoch.
@@ -77,6 +93,9 @@ pub fn busy() -> bool {
 
 /// Close every socket a page opened (it was closed or navigated away from).
 pub fn page_gone(epoch: u64) {
+    if crate::process::in_renderer() {
+        crate::ws_relay::page_gone(epoch);
+    }
     let Ok(mut s) = SOCKETS.lock() else { return };
     s.retain(|k, h| {
         if k.0 == epoch {
@@ -98,16 +117,20 @@ pub fn send(epoch: u64, id: u64, msg: Out) {
         Out::Binary(b) => b.len(),
         _ => 0,
     };
+    if len > 0
+        && let Ok(mut t) = LAST_SEND.lock()
+    {
+        *t = Some(Instant::now());
+    }
+    // A sandboxed renderer has no network: the browser holds the socket.
+    if crate::process::in_renderer() {
+        return crate::ws_relay::send(epoch, id, msg);
+    }
     if let Ok(s) = SOCKETS.lock()
         && let Some(h) = s.get(&(epoch, id))
     {
         h.buffered.fetch_add(len, Ordering::SeqCst);
         let _ = h.tx.send(msg);
-    }
-    if len > 0
-        && let Ok(mut t) = LAST_SEND.lock()
-    {
-        *t = Some(Instant::now());
     }
 }
 
@@ -127,6 +150,10 @@ pub struct Opener {
 
 /// Start connecting socket `id` to `url` (ws: or wss:, already checked by the script side).
 pub fn open(who: Opener, id: u64, url: String, protocols: Vec<String>) {
+    // A sandboxed renderer has no network: the browser opens the socket (ws_relay.rs).
+    if crate::process::in_renderer() {
+        return crate::ws_relay::open(who, id, url, protocols);
+    }
     let (tx, rx) = mpsc::channel();
     let buffered = Arc::new(AtomicUsize::new(0));
     if let Ok(mut s) = SOCKETS.lock() {
