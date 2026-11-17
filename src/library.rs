@@ -16,6 +16,8 @@ pub struct Visit {
 pub struct Bookmark {
     pub url: String,
     pub title: String,
+    /// Folder name; empty for bookmarks directly on the bar.
+    pub folder: String,
 }
 
 #[derive(Default)]
@@ -73,8 +75,9 @@ impl Library {
             }
         }
         for line in read("bookmarks.tsv").lines() {
-            if let Some((url, title)) = line.split_once('\t') {
-                self.bookmarks.push(Bookmark { url: url.into(), title: title.into() });
+            let f: Vec<&str> = line.splitn(3, '\t').collect();
+            if f.len() >= 2 {
+                self.bookmarks.push(Bookmark { url: f[0].into(), title: f[1].into(), folder: f.get(2).unwrap_or(&"").trim().into() });
             }
         }
     }
@@ -85,7 +88,7 @@ impl Library {
     }
 
     fn save_bookmarks(&self) {
-        let body: String = self.bookmarks.iter().map(|b| format!("{}\t{}\n", clean(&b.url), clean(&b.title))).collect();
+        let body: String = self.bookmarks.iter().map(|b| format!("{}\t{}\t{}\n", clean(&b.url), clean(&b.title), clean(&b.folder))).collect();
         save("bookmarks.tsv", body);
     }
 }
@@ -164,7 +167,7 @@ pub fn toggle_bookmark(url: &str, title: &str) -> bool {
             false
         }
         None => {
-            l.bookmarks.push(Bookmark { url: url.into(), title: if title.is_empty() { url.into() } else { title.into() } });
+            l.bookmarks.push(Bookmark { url: url.into(), title: if title.is_empty() { url.into() } else { title.into() }, folder: String::new() });
             true
         }
     };
@@ -178,6 +181,29 @@ pub fn remove_bookmark(url: &str) {
         l.bookmarks.retain(|b| b.url != url);
         l.save_bookmarks();
     }
+}
+
+/// Put a bookmark in a folder (an empty name puts it back on the bar).
+pub fn move_bookmark(url: &str, folder: &str) {
+    if let Ok(mut l) = lib().lock() {
+        l.ensure();
+        let folder = folder.trim().replace(['\t', '\n', '\r'], " ");
+        if let Some(b) = l.bookmarks.iter_mut().find(|b| b.url == url) {
+            b.folder = folder;
+        }
+        l.save_bookmarks();
+    }
+}
+
+/// Folder names in the order they first appear.
+pub fn folders(list: &[Bookmark]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for b in list {
+        if !b.folder.is_empty() && !out.contains(&b.folder) {
+            out.push(b.folder.clone());
+        }
+    }
+    out
 }
 
 /// A suggestion under the address bar.
@@ -269,23 +295,45 @@ pub fn history_page(query: &str) -> String {
     )
 }
 
-/// about:bookmarks
+/// about:bookmarks: grouped by folder. Each row can be removed or moved to a folder.
 pub fn bookmarks_page(query: &str) -> String {
-    if let Some(u) = query.strip_prefix("remove=") {
-        remove_bookmark(&crate::net::percent_decode_str(u));
+    let q = query.trim_start_matches('?');
+    let param = |name: &str| {
+        q.split('&').find_map(|p| p.split_once('=').filter(|(k, _)| *k == name).map(|(_, v)| crate::net::percent_decode_str(&v.replace('+', " "))))
+    };
+    if let Some(u) = param("remove") {
+        remove_bookmark(&u);
+    } else if let Some(u) = param("move") {
+        move_bookmark(&u, &param("folder").unwrap_or_default());
     }
     let b = bookmarks();
-    let mut rows = String::new();
-    for bm in &b {
-        rows.push_str(&format!(
-            "<div class=\"row\"><div class=\"t\"><a href=\"{u}\">★ {t}</a><div class=\"u\">{u}</div></div><a class=\"when\" href=\"about:bookmarks?remove={enc}\">remove</a></div>",
+    let folders = folders(&b);
+    let options: String = folders.iter().map(|f| format!("<option value=\"{0}\"></option>", esc(f))).collect();
+    let row = |bm: &Bookmark| {
+        let enc = crate::forms::urlencode(&[(String::new(), bm.url.clone())]);
+        format!(
+            "<div class=\"row\"><div class=\"t\"><a href=\"{u}\">★ {t}</a><div class=\"u\">{u}</div></div>\
+             <form class=\"mv\" action=\"about:bookmarks\" method=\"get\"><input type=\"hidden\" name=\"move\" value=\"{u}\">\
+             <input type=\"text\" name=\"folder\" value=\"{f}\" placeholder=\"Folder\" list=\"folders\"><button type=\"submit\">Move</button></form>\
+             <a class=\"when\" href=\"about:bookmarks?remove{enc}\">remove</a></div>",
             u = esc(&bm.url),
             t = esc(&bm.title),
-            enc = crate::forms::urlencode(&[(String::new(), bm.url.clone())]).trim_start_matches('=')
-        ));
+            f = esc(&bm.folder),
+            enc = enc
+        )
+    };
+    let mut rows: String = b.iter().filter(|x| x.folder.is_empty()).map(row).collect();
+    for f in &folders {
+        rows.push_str(&format!("<h2>{}</h2>", esc(f)));
+        rows.extend(b.iter().filter(|x| &x.folder == f).map(row));
     }
-    if rows.is_empty() {
+    if b.is_empty() {
         rows = "<p class=\"empty\">No bookmarks yet. Press Ctrl+D or click the ☆ in the address bar to bookmark a page.</p>".into();
     }
-    format!("<!DOCTYPE html><html><head><title>Bookmarks</title><style>{PAGE_STYLE}</style></head><body><h1>Bookmarks</h1><p class=\"sub\">{n} bookmark{s}</p>{rows}</body></html>", n = b.len(), s = if b.len() == 1 { "" } else { "s" })
+    format!(
+        "<!DOCTYPE html><html><head><title>Bookmarks</title><style>{PAGE_STYLE}h2{{font-size:17px;margin:22px 0 4px;color:#334155}}.mv input{{width:120px;font-size:13px;padding:3px 6px}}.mv button{{font-size:13px;margin-left:4px}}</style></head><body><h1>Bookmarks</h1><p class=\"sub\">{n} bookmark{s}{fs}. Type a folder name and press Move to file a bookmark; clear it to put the bookmark back on the bar.</p><datalist id=\"folders\">{options}</datalist>{rows}</body></html>",
+        n = b.len(),
+        s = if b.len() == 1 { "" } else { "s" },
+        fs = match folders.len() { 0 => String::new(), 1 => " in 1 folder and the bar".into(), k => format!(" in {k} folders and the bar") },
+    )
 }

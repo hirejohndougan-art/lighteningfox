@@ -48,16 +48,43 @@ fn bar_h() -> usize {
     TOOL_BOTTOM + if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { BOOK_H as usize } else { 0 }
 }
 
+/// What's on the bookmarks bar, in order: loose bookmarks, and each folder where its first
+/// bookmark is.
+#[derive(Clone, PartialEq, Debug)]
+enum BarItem {
+    Link(usize),
+    Folder(String),
+}
+
+fn bar_items(list: &[library::Bookmark]) -> Vec<BarItem> {
+    let mut out = Vec::new();
+    for (i, b) in list.iter().enumerate() {
+        if b.folder.is_empty() {
+            out.push(BarItem::Link(i));
+        } else if !out.contains(&BarItem::Folder(b.folder.clone())) {
+            out.push(BarItem::Folder(b.folder.clone()));
+        }
+    }
+    out
+}
+
+fn bar_label(fonts: &Fonts, list: &[library::Bookmark], item: &BarItem) -> String {
+    match item {
+        BarItem::Link(i) => bookmark_label(fonts, &list[*i]),
+        BarItem::Folder(f) => format!("{} ▾", fit_label(fonts, f)),
+    }
+}
+
 /// Bookmarks-bar chips that fit in width `w`: (x, width) each; the rest go behind "»".
 const BOOK_MORE_W: f32 = 30.0;
 fn bookmark_rects(fonts: &Fonts, w: f32, list: &[library::Bookmark]) -> Vec<(f32, f32)> {
+    let items = bar_items(list);
     let mut out = Vec::new();
     let mut x = 8.0;
-    for (i, b) in list.iter().enumerate() {
-        let label = bookmark_label(fonts, b);
-        let cw = fonts.width(font::REGULAR, &label, 12.5) + 20.0;
+    for (i, item) in items.iter().enumerate() {
+        let cw = fonts.width(font::REGULAR, &bar_label(fonts, list, item), 12.5) + 20.0;
         // Leave room for "»" unless this is the last one.
-        let limit = if i + 1 == list.len() { w - 8.0 } else { w - 8.0 - BOOK_MORE_W };
+        let limit = if i + 1 == items.len() { w - 8.0 } else { w - 8.0 - BOOK_MORE_W };
         if x + cw > limit {
             break;
         }
@@ -67,9 +94,8 @@ fn bookmark_rects(fonts: &Fonts, w: f32, list: &[library::Bookmark]) -> Vec<(f32
     out
 }
 
-fn bookmark_label(fonts: &Fonts, b: &library::Bookmark) -> String {
-    let mut t: String = if b.title.trim().is_empty() { b.url.clone() } else { b.title.trim().to_string() };
-    t.retain(|c| !c.is_control());
+fn fit_label(fonts: &Fonts, s: &str) -> String {
+    let mut t: String = s.trim().chars().filter(|c| !c.is_control()).collect();
     if fonts.width(font::REGULAR, &t, 12.5) > 150.0 {
         while !t.is_empty() && fonts.width(font::REGULAR, &format!("{t}…"), 12.5) > 150.0 {
             t.pop();
@@ -77,6 +103,55 @@ fn bookmark_label(fonts: &Fonts, b: &library::Bookmark) -> String {
         t.push('…');
     }
     t
+}
+
+fn bookmark_label(fonts: &Fonts, b: &library::Bookmark) -> String {
+    fit_label(fonts, if b.title.trim().is_empty() { &b.url } else { &b.title })
+}
+
+/// An open bookmarks-bar folder: its name, the chip's x, and the row under the mouse.
+struct FolderMenu {
+    folder: String,
+    x: f32,
+    hover: Option<usize>,
+}
+const MENU_ROW_H: f32 = 26.0;
+const MENU_W: f32 = 280.0;
+
+impl FolderMenu {
+    fn entries<'a>(&self, list: &'a [library::Bookmark]) -> Vec<&'a library::Bookmark> {
+        list.iter().filter(|b| b.folder == self.folder).collect()
+    }
+    /// The menu's left edge, kept inside the window.
+    fn left(&self, w: f32) -> f32 {
+        self.x.min(w - MENU_W - 4.0).max(0.0)
+    }
+    fn row_at(&self, list: &[library::Bookmark], w: f32, mx: f32, my: f32) -> Option<usize> {
+        let (x, y) = (self.left(w), bar_h() as f32);
+        let n = self.entries(list).len();
+        (mx >= x && mx < x + MENU_W && my >= y + 4.0 && my < y + 4.0 + n as f32 * MENU_ROW_H).then(|| ((my - y - 4.0) / MENU_ROW_H) as usize)
+    }
+}
+
+fn draw_folder_menu(canvas: &mut Canvas, fonts: &Fonts, menu: &FolderMenu, list: &[library::Bookmark]) {
+    let w = canvas.w as f32;
+    let entries = menu.entries(list);
+    let (x, y) = (menu.left(w), bar_h() as f32);
+    let hgt = entries.len() as f32 * MENU_ROW_H + 8.0;
+    canvas.fill_rect(x + 2.0, y + 2.0, MENU_W, hgt, Color::rgb(190, 190, 198));
+    canvas.fill_rect(x, y, MENU_W, hgt, Color::rgb(255, 255, 255));
+    canvas.fill_rect(x, y, MENU_W, 1.0, Color::rgb(210, 210, 216));
+    for (i, b) in entries.iter().enumerate() {
+        let ry = y + 4.0 + i as f32 * MENU_ROW_H;
+        if menu.hover == Some(i) {
+            canvas.fill_rect(x + 4.0, ry, MENU_W - 8.0, MENU_ROW_H, Color::rgb(224, 231, 255));
+        }
+        let mut t = bookmark_label(fonts, b);
+        while fonts.width(font::REGULAR, &t, 13.0) > MENU_W - 40.0 && t.chars().count() > 1 {
+            t.pop();
+        }
+        canvas.draw_text(fonts, x + 12.0, ry + 18.0, &format!("★ {t}"), font::REGULAR, 13.0, Color::rgb(35, 35, 45));
+    }
 }
 const TAB_MAX_W: f32 = 220.0;
 const NEW_TAB_W: f32 = 32.0;
@@ -924,6 +999,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut bm_hover: Option<usize> = None;
     // Dragging a tab along the strip: where the press started (x), and whether it has moved enough to count.
     let mut tab_drag: Option<(f32, bool)> = None;
+    let mut folder_menu: Option<FolderMenu> = None;
     let mut hovered: Option<dom::NodeId> = None;
     // Pages load on worker threads; results come back tagged with a generation number
     // so a stopped or superseded load is ignored when it arrives.
@@ -1205,6 +1281,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         let escape = presses.iter().any(|p| p.key == Key::Escape);
+        if escape && folder_menu.take().is_some() {
+            dirty = true;
+        }
         // Tab shortcuts: Ctrl+T new, Ctrl+W close, Ctrl+(Shift+)Tab next/previous,
         // Ctrl+1…8 / Ctrl+9 (last), Ctrl+Shift+T reopen the last closed tab.
         {
@@ -1461,7 +1540,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     let rects = bookmark_rects(fonts, w as f32, &bm_list);
                     match rects.iter().position(|&(x, cw)| mx >= x && mx < x + cw) {
                         Some(i) => Some(i),
-                        None if rects.len() < bm_list.len() && mx >= w as f32 - 8.0 - BOOK_MORE_W => Some(usize::MAX),
+                        None if rects.len() < bar_items(&bm_list).len() && mx >= w as f32 - 8.0 - BOOK_MORE_W => Some(usize::MAX),
                         None => None,
                     }
                 })
@@ -1470,12 +1549,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 bm_hover = bh;
                 dirty = true;
             }
-            // Middle click: close a tab, or open a link in a background tab.
-            if mid && !was_mid {
+            // Middle click: close a tab, or open a link in a background tab (an open folder
+            // menu handles its own clicks).
+            if mid && !was_mid && folder_menu.is_none() {
                 match th {
                     Some(TabHit::Tab(i) | TabHit::Close(i)) => tab_cmd = Some(TabCmd::Close(i)),
-                    _ if bm_hover.is_some_and(|i| i < bm_list.len()) => {
-                        tab_cmd = Some(TabCmd::Open(bm_list[bm_hover.unwrap()].url.clone(), true));
+                    _ if bm_hover.is_some_and(|i| i != usize::MAX) => {
+                        let items = bar_items(&bm_list);
+                        if let Some(BarItem::Link(j)) = items.get(bm_hover.unwrap()) {
+                            tab_cmd = Some(TabCmd::Open(bm_list[*j].url.clone(), true));
+                        }
                     }
                     _ if my >= bar_h() as f32 => {
                         if let Some(href) = lay.link_at(mx, my - bar_h() as f32, scroll) {
@@ -1512,6 +1595,31 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             } else {
                 CursorStyle::Arrow
             });
+            // An open bookmarks folder: hover, then a click opens a bookmark or closes the menu.
+            if let Some(menu) = folder_menu.as_mut() {
+                let row = menu.row_at(&bm_list, w as f32, mx, my);
+                if row != menu.hover {
+                    menu.hover = row;
+                    dirty = true;
+                }
+                if (mid && !was_mid) || (down && !was_down) {
+                    let entries: Vec<String> = menu.entries(&bm_list).iter().map(|b| b.url.clone()).collect();
+                    let on_chip = bm_hover.is_some_and(|i| bar_items(&bm_list).get(i) == Some(&BarItem::Folder(menu.folder.clone())));
+                    if let Some(url) = row.and_then(|r| entries.get(r).cloned()) {
+                        if mid || ctrl_down {
+                            tab_cmd = Some(TabCmd::Open(url, true));
+                        } else {
+                            navigate = Some(Go::To(url));
+                        }
+                    }
+                    folder_menu = None;
+                    dirty = true;
+                    if row.is_some() || on_chip {
+                        // The click was for the menu (or closed it from its chip): nothing else.
+                        was_down = down;
+                    }
+                }
+            }
             // Highlight the option under the mouse in an open list.
             if let Some(dd) = dropdown.as_mut() {
                 let row = dd.row_at(mx, my - bar_h() as f32 + scroll);
@@ -1578,17 +1686,26 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 } else if (my as usize) < bar_h() {
                     // Bookmarks bar: open the bookmark (Ctrl: in a background tab), or "»" for all.
                     editing = false;
+                    let items = bar_items(&bm_list);
                     match bm_hover {
                         Some(usize::MAX) => navigate = Some(Go::To("about:bookmarks".into())),
-                        Some(i) if i < bm_list.len() => {
-                            let url = bm_list[i].url.clone();
-                            if ctrl_down {
-                                tab_cmd = Some(TabCmd::Open(url, true));
-                            } else {
-                                navigate = Some(Go::To(url));
+                        Some(i) => match items.get(i) {
+                            Some(BarItem::Link(j)) => {
+                                let url = bm_list[*j].url.clone();
+                                if ctrl_down {
+                                    tab_cmd = Some(TabCmd::Open(url, true));
+                                } else {
+                                    navigate = Some(Go::To(url));
+                                }
                             }
-                        }
-                        _ => {}
+                            Some(BarItem::Folder(f)) => {
+                                let x = bookmark_rects(fonts, w as f32, &bm_list).get(i).map_or(8.0, |r| r.0);
+                                folder_menu = Some(FolderMenu { folder: f.clone(), x, hover: None });
+                                dirty = true;
+                            }
+                            None => {}
+                        },
+                        None => {}
                     }
                 } else if (my as usize) >= bar_h() {
                     if editing {
@@ -1993,6 +2110,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 .collect();
             let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover, caret: editing.then_some((aedit.caret, aedit.anchor)), bookmarked: library::is_bookmarked(&page.url), bookmarks: if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, bm_hover };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
+            if let Some(menu) = &folder_menu {
+                draw_folder_menu(&mut canvas, fonts, menu, &bm_list);
+            }
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
             }
@@ -2089,10 +2209,10 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
             if ui.bm_hover == Some(i) {
                 canvas.fill_rect(x, bar + 2.0, cw, BOOK_H - 6.0, Color::rgb(214, 214, 222));
             }
-            let label = bookmark_label(fonts, &ui.bookmarks[i]);
+            let label = bar_label(fonts, ui.bookmarks, &bar_items(ui.bookmarks)[i]);
             canvas.draw_text(fonts, x + 10.0, bar + 17.0, &label, font::REGULAR, 12.5, Color::rgb(45, 45, 55));
         }
-        if rects.len() < ui.bookmarks.len() {
+        if rects.len() < bar_items(ui.bookmarks).len() {
             let x = w - 8.0 - BOOK_MORE_W;
             if ui.bm_hover == Some(usize::MAX) {
                 canvas.fill_rect(x, bar + 2.0, BOOK_MORE_W, BOOK_H - 6.0, Color::rgb(214, 214, 222));
