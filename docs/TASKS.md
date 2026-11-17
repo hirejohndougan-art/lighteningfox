@@ -123,7 +123,7 @@ Allowed requests report "position unavailable" today. Ask GeoClue over D-Bus for
 ## Checklist tasks that wait on others
 
 ### T02. Incremental relayout
-**Status:** free
+**Status:** claimed by chat-opus-a 2026-11-17 10:40
 **After:** T01
 **Checklist:** §5 "Incremental relayout (only redo what changed)"
 **Files:** `src/boxtree.rs`, `src/layout.rs`
