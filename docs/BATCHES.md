@@ -38,7 +38,7 @@ https://claude.ai/artifact/Ff1b9Caj8jzoSPjf7JhrC1). Section numbers below match 
 - §16 Website and download page (a GitHub Pages site in `site/`).
 
 ## B. Text and fonts (all of §6)
-**Status:** free
+**Status:** claimed by security-chat 2026-11-17 02:16
 **Start after:** —
 **Main files:** `src/font.rs`, text parts of `src/layout.rs` and `src/paint.rs`
 
