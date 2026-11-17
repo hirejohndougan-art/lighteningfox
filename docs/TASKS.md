@@ -293,7 +293,7 @@ Test the portal path the way `geo::tests::talks_to_geoclue` tests GeoClue (a pre
 over a socket pair).
 
 ### X10. Take WebGL off the warning exemption
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 13:02
 **After:** —
 **Checklist:** none
 **Files:** `src/webgl.rs`, `src/webgl_raster.rs`, `src/webgl_tex.rs`, `src/glsl.rs`, `src/glsl_gen.rs`, `src/glsl_vm.rs`, the six `mod` lines in `src/main.rs`
