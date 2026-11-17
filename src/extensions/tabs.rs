@@ -248,12 +248,3 @@ pub fn reload(tab_id: Option<u64>) -> Result<Value, String> {
     Ok(Value::Null)
 }
 
-#[cfg(test)]
-pub(crate) fn reset_for_tests() {
-    if let Ok(mut s) = SNAPSHOT.lock() {
-        *s = None;
-    }
-    if let Ok(mut q) = COMMANDS.lock() {
-        q.clear();
-    }
-}

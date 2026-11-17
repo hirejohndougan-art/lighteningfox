@@ -128,7 +128,6 @@ pub enum Pick {
 /// A calendar, month grid, time grid or color palette shown under an input.
 pub struct Picker {
     pub node: NodeId,
-    pub doc: u64,
     pub kind: PickerKind,
     /// Top-left corner in page coordinates.
     pub x: f32,
@@ -166,6 +165,7 @@ fn today_days() -> i64 {
     secs.div_euclid(86_400)
 }
 
+#[cfg(test)]
 fn days_in(y: i64, m: u32) -> u32 {
     let (ny, nm) = if m == 12 { (y + 1, 1) } else { (y, m + 1) };
     (days_from_civil(ny, nm, 1) - days_from_civil(y, m, 1)) as u32
@@ -182,7 +182,7 @@ fn iso_week(days: i64) -> String {
 
 impl Picker {
     /// A picker for `node`, whose box is at (x, y, w, h) in page coordinates.
-    pub fn new(dom: &Dom, node: NodeId, doc: u64, kind: PickerKind, x: f32, bottom: f32) -> Picker {
+    pub fn new(dom: &Dom, node: NodeId, kind: PickerKind, x: f32, bottom: f32) -> Picker {
         let value = crate::forms::value(dom, node);
         let attr = |a: &str| Numeric::of(dom.attr(node, "type").unwrap_or("").trim().to_ascii_lowercase().as_str()).and_then(|k| dom.attr(node, a).and_then(|v| k.parse(v.trim())));
         let (min, max) = (attr("min"), attr("max"));
@@ -193,7 +193,7 @@ impl Picker {
             PickerKind::Month => parse_month(&value),
             _ => None,
         };
-        Picker { node, doc, kind, x, y: bottom + 2.0, view: shown.unwrap_or((today.0, today.1)), value, min, max, hover: None }
+        Picker { node, kind, x, y: bottom + 2.0, view: shown.unwrap_or((today.0, today.1)), value, min, max, hover: None }
     }
 
     pub fn size(&self) -> (f32, f32) {
@@ -589,7 +589,7 @@ mod tests {
     fn date_picker_clicks() {
         let dom = crate::html::parse(r#"<input type=date value="2024-03-15" min="2024-03-05">"#);
         let id = dom.find_all("input")[0];
-        let mut p = Picker::new(&dom, id, 0, PickerKind::Date, 10.0, 0.0);
+        let mut p = Picker::new(&dom, id, PickerKind::Date, 10.0, 0.0);
         assert_eq!(p.view, (2024, 3));
         // March 2024 starts on a Friday: the grid starts Sunday Feb 25; row 2, Tuesday = March 12.
         let (cx, cy) = (10.0 + PAD + 2.0 * CELL + 5.0, HEAD + 20.0 + 2.0 * ROW + 5.0);
@@ -607,9 +607,9 @@ mod tests {
     fn color_and_time() {
         let dom = crate::html::parse(r##"<input type=color value="#ff0000"><input type=time value="09:30">"##);
         let ids = dom.find_all("input");
-        let mut c = Picker::new(&dom, ids[0], 0, PickerKind::Color, 0.0, 0.0);
+        let mut c = Picker::new(&dom, ids[0], PickerKind::Color, 0.0, 0.0);
         assert_eq!(c.click(PAD + 1.0 * SWATCH + 3.0, 2.0 + PAD + 3.0, 2.0), Pick::Set { value: "#434343".into(), close: true });
-        let mut t = Picker::new(&dom, ids[1], 0, PickerKind::Time, 0.0, 0.0);
+        let mut t = Picker::new(&dom, ids[1], PickerKind::Time, 0.0, 0.0);
         // Hour 14 (row 2, column 2), keeping 30 minutes.
         assert_eq!(t.click(PAD + 2.0 * 38.0 + 3.0, 2.0 + 20.0 + 2.0 * 26.0 + 3.0, 2.0), Pick::Set { value: "14:30".into(), close: false });
     }

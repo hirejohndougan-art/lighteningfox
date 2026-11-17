@@ -64,6 +64,7 @@ pub fn note_styles(styles: &[std::rc::Rc<crate::style::Style>]) {
 }
 
 /// How many layouts scripts' questions have caused on this thread so far.
+#[cfg(test)]
 pub fn layouts_done() -> u64 {
     LAYOUTS.with(Cell::get)
 }

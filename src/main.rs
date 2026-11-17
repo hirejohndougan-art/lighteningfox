@@ -32,11 +32,19 @@ mod filepicker;
 mod forms;
 mod formui;
 mod geometry;
+// WebGL (T12) is still being built: its unused fields and helpers are allowed until it's
+// finished, then these allows come off (see R3 in docs/TASKS.md).
+#[allow(dead_code, unused_mut)]
 mod webgl;
+#[allow(dead_code, unused_mut)]
 mod webgl_raster;
+#[allow(dead_code, unused_mut)]
 mod webgl_tex;
+#[allow(dead_code, unused_mut)]
 mod glsl;
+#[allow(dead_code, unused_mut)]
 mod glsl_gen;
+#[allow(dead_code, unused_mut)]
 mod glsl_vm;
 mod grid;
 mod html;
@@ -3638,7 +3646,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                 let kind = js::with_dom(|d| formui::PickerKind::of(d, c));
                                 let rect = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r);
                                 if let (Some(kind), Some(r)) = (kind, rect) {
-                                    let mut p = js::with_dom(|d| formui::Picker::new(d, c, page.doc, kind, r.x, r.y + r.h));
+                                    let mut p = js::with_dom(|d| formui::Picker::new(d, c, kind, r.x, r.y + r.h));
                                     p.x = p.left(w as f32);
                                     picker = Some(p);
                                     dirty = true;

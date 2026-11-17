@@ -14,7 +14,6 @@ pub const LINK: Color = Color { r: 255, g: 255, b: 0, a: 255 };
 /// Buttons and form fields: a dark field with a cyan edge.
 pub const BUTTON_FACE: Color = Color { r: 0, g: 0, b: 0, a: 255 };
 pub const BUTTON_TEXT: Color = Color { r: 0, g: 255, b: 255, a: 255 };
-pub const HIGHLIGHT: Color = Color { r: 26, g: 235, b: 255, a: 255 };
 
 /// Whether the high-contrast setting is on.
 pub fn on() -> bool {

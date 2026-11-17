@@ -463,7 +463,7 @@ mod tests {
         let desktop_id = Arc::new(Mutex::new(String::new()));
         let client = Client { started: started.clone(), level: level.clone(), desktop_id: desktop_id.clone() };
         let server = std::thread::spawn(move || {
-            zbus::blocking::connection::Builder::unix_stream(a)
+            zbus::blocking::connection::Builder::async_io_unix_stream(a)
                 .server(zbus::Guid::generate())
                 .unwrap()
                 .p2p()
@@ -476,7 +476,7 @@ mod tests {
                 .build()
                 .unwrap()
         });
-        let conn = zbus::blocking::connection::Builder::unix_stream(b).p2p().build().unwrap();
+        let conn = zbus::blocking::connection::Builder::async_io_unix_stream(b).p2p().build().unwrap();
         let _server_conn = server.join().unwrap();
 
         // An epoch no real page uses.

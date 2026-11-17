@@ -59,13 +59,10 @@ pub struct Tree {
     pub nodes: Vec<Node>,
 }
 
+#[cfg(test)]
 impl Tree {
     pub fn root(&self) -> &Node {
         &self.nodes[0]
-    }
-    /// The tree node for a DOM node, if it has one.
-    pub fn find_dom(&self, id: NodeId) -> Option<usize> {
-        self.nodes.iter().position(|n| n.dom == id)
     }
     /// Every node with a role, depth first.
     pub fn with_role(&self, role: &str) -> Vec<&Node> {

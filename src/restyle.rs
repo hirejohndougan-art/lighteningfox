@@ -212,6 +212,7 @@ pub fn store(c: Cache) {
 }
 
 /// Forget everything (the next pass styles every element).
+#[cfg(test)]
 pub fn clear() {
     CACHE.with(|c| *c.borrow_mut() = Cache::default());
 }

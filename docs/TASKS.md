@@ -154,13 +154,17 @@ Compare the new `docs/SITE_COMPAT.md` run with last night's (16 work, 16 usable,
 1 crash) and fix any site that got worse. (X1 keeps fixing the sites that were already broken.)
 
 ### R3. Clean up the compiler warnings
-**Status:** claimed by chat-opus-geo 2026-11-17 11:35
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** any, but only to remove dead code or fix warnings; no behavior changes
 `cargo build --release` prints 128 warnings, mostly unused code left over from the parallel
 work. Remove what's truly unused, fix the rest, and make CI fail on new warnings once it's clean
 (`RUSTFLAGS=-D warnings` in the build step).
+**Left undone:** WebGL (T12) is still being built, so its six modules (`webgl`, `webgl_raster`,
+`webgl_tex`, `glsl`, `glsl_gen`, `glsl_vm`) carry `#[allow(dead_code, unused_mut)]` in main.rs;
+T12 should remove those allows and fix what they hide when it's finished. Everything else builds
+with no warnings (release, tests, no-GPU), and CI now fails on new ones.
 
 ### R4. Review the box tree and incremental relayout
 **Status:** done

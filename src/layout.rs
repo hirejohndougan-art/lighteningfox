@@ -1237,7 +1237,7 @@ impl<'a> Ctx<'a> {
         let start = (self.items.len(), self.links.len(), self.hits.len());
         self.items.push(Item::Mark { id: crate::vertical::FENCE_OPEN, x: cx, y: cy, w: 0.0, h: 0.0 });
         let saved = std::mem::take(&mut self.vertical_avail);
-        let mut lay = |cx_: &mut Self, width: f32| {
+        let lay = |cx_: &mut Self, width: f32| {
             cx_.floats.push(Vec::new());
             let (h, _) = cx_.block_children(id, cx, cy, width, align);
             cx_.floats.pop();

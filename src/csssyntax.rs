@@ -442,12 +442,6 @@ pub enum Cv {
 }
 
 impl Cv {
-    pub fn span(&self) -> Range<usize> {
-        match self {
-            Cv::Tok(t) => t.span.clone(),
-            Cv::Block(_, _, s) | Cv::Func(_, _, s) => s.clone(),
-        }
-    }
 
     pub fn is_ws(&self) -> bool {
         matches!(self, Cv::Tok(Tok { t: Token::Whitespace, .. }))

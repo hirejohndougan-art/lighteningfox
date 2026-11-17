@@ -4,6 +4,10 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-24.04
+    # A new compiler warning fails the build (set for every step, so the tests reuse the build).
+    # RUSTFLAGS replaces .cargo/config.toml's flags, so it repeats them (reqwest's HTTP/3).
+    env:
+      RUSTFLAGS: "--cfg reqwest_unstable -D warnings"
     steps:
       - uses: actions/checkout@v4
       - name: System packages
@@ -35,8 +39,10 @@ jobs:
           path: target/screenshot-diffs/
 
   build-without-gpu:
-    # The software-only build (no wgpu) must keep compiling.
+    # The software-only build (no wgpu) must keep compiling, without warnings.
     runs-on: ubuntu-24.04
+    env:
+      RUSTFLAGS: "--cfg reqwest_unstable -D warnings"
     steps:
       - uses: actions/checkout@v4
       - name: System packages
