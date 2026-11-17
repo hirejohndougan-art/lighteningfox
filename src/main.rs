@@ -51,6 +51,7 @@ mod page_images;
 mod js;
 mod jsnest;
 mod jsmodules;
+mod domindex;
 mod userinput;
 #[cfg(test)]
 mod jsapi_tests;

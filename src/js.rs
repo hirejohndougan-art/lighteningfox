@@ -560,6 +560,30 @@ fn query(root: NodeId, sel: &str, all: bool) -> Vec<NodeId> {
             }
         }
     }
+    // A class or tag on the rightmost part: check only the elements that have it (the
+    // index covers the document; a small subtree with a common class is quicker to walk).
+    if sels.len() == 1 && with_dom(|d| d.is_inside(root, Dom::ROOT)) {
+        let generation = GENERATION.with(|g| g.get());
+        let found = with_dom(|d| {
+            let cands = crate::domindex::candidates(d, generation, &sels[0])?;
+            if root != Dom::ROOT && cands.len() > 256 {
+                return None;
+            }
+            let mut out = Vec::new();
+            for &n in cands.iter() {
+                if n != root && (root == Dom::ROOT || d.is_inside(n, root)) && style::matches(d, n, &sels[0]) {
+                    out.push(n);
+                    if !all {
+                        break;
+                    }
+                }
+            }
+            Some(out)
+        });
+        if let Some(out) = found {
+            return out;
+        }
+    }
     with_dom(|d| {
         let mut out = Vec::new();
         d.walk(root, |n| {
