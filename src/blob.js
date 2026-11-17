@@ -294,6 +294,8 @@
     } else { s = start === undefined ? 0 : timeOf(start); e = timeOf(end); }
     return record(new PerformanceMeasure(String(name), "measure", s, e - s, detail));
   };
+  // Other files add entry types the browser itself records (perfentries.js: paint).
+  Object.defineProperty(perf, "__record", { value: record });
   const pick = (type, name) => entries.filter((x) => (type === undefined || x.entryType === type) && (name === undefined || x.name === name));
   perf.getEntries = () => pick();
   perf.getEntriesByType = (t) => pick(String(t));
@@ -318,7 +320,7 @@
       if (typeof callback !== "function") throw new TypeError("PerformanceObserver needs a callback");
       this._cb = callback; this._types = new Set(); this._queue = []; this._pending = false;
     }
-    static get supportedEntryTypes() { return ["mark", "measure"]; }
+    static get supportedEntryTypes() { return ["mark", "measure", "navigation", "paint"]; }
     observe(opts) {
       opts = opts || {};
       const types = opts.type !== undefined ? [String(opts.type)] : Array.from(opts.entryTypes || []).map(String);

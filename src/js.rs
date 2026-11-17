@@ -1324,6 +1324,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("devconsole.js", include_str!("devconsole.js")),
     ("winhandlers.js", include_str!("winhandlers.js")),
     ("perftiming.js", include_str!("perftiming.js")),
+    ("perfentries.js", include_str!("perfentries.js")),
 ];
 
 impl Drop for Js {
@@ -1576,6 +1577,24 @@ impl Js {
                 Ok(text.unwrap_or_else(|| v.display().to_string()))
             }
             Err(e) => Err(e.to_string()),
+        }
+    }
+
+    /// Evaluate `code` and give back its value as plain text: a string as it is, anything
+    /// else as JSON (the automation server, mcp.rs).
+    pub fn eval_text(&mut self, code: &str) -> Result<String, String> {
+        let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
+        let _ = self.ctx.run_jobs();
+        let v = r.map_err(|e| e.to_string())?;
+        if let Some(s) = v.as_string() {
+            return Ok(s.to_std_string_escaped());
+        }
+        if v.is_undefined() {
+            return Ok("undefined".into());
+        }
+        match v.to_json(&mut self.ctx) {
+            Ok(Some(j)) => Ok(j.to_string()),
+            _ => Ok(v.display().to_string()),
         }
     }
 
@@ -1858,7 +1877,8 @@ impl Js {
         // before acting), but not an endless animation loop.
         let mut frames = 0;
         loop {
-            self.tick();
+            // Something that ran (a timer, a response, an inserted script) may start more.
+            let ran = self.tick();
             if self.wants_frame() {
                 self.run_frame();
                 frames += 1;
@@ -1871,7 +1891,7 @@ impl Js {
                 .and_then(|v| v.to_number(&mut self.ctx).ok())
                 .is_some_and(|ms| (0.0..=500.0).contains(&ms));
             let more_frames = frames < 30 && self.wants_frame();
-            if !network_busy() && !crate::channels::settling() && !soon && !more_frames || t.elapsed() >= max {
+            if !ran && !network_busy() && !crate::channels::settling() && !soon && !more_frames || t.elapsed() >= max {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));

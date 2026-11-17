@@ -778,3 +778,25 @@ fn dates_parse_and_format_like_browsers() {
          Invalid Date | true | string | 5"
     );
 }
+
+/// The navigation entry is a PerformanceNavigationTiming, and first paints are recorded (The
+/// Guardian waits 2.4 s for first-contentful-paint before starting when either is missing).
+#[test]
+fn navigation_and_paint_entries() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let mut ctx_layout = |page: &mut crate::Page| {
+        let fonts = crate::load_fonts().expect("fonts");
+        let _ = page.layout(fonts, 800.0, 600.0);
+        if let Some(j) = page.js.as_mut() {
+            j.after_layout();
+        }
+    };
+    ctx_layout(&mut page);
+    let r = eval(
+        &mut page,
+        "[performance.getEntriesByType('navigation')[0] instanceof PerformanceNavigationTiming, performance.getEntriesByType('paint').map(e => e.name).join('+'), PerformanceObserver.supportedEntryTypes.includes('paint')].join(',')",
+    );
+    assert_eq!(r.trim_matches('"'), "true,first-paint+first-contentful-paint,true");
+}
+
