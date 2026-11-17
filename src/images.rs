@@ -184,6 +184,28 @@ impl Images {
         self.by_src.insert(key.to_string(), Arc::new(Img { w, h, data: Data::Drawn(draw) }));
     }
 
+    /// Add an SVG document (an inline `<svg>` written out by svg_inline.rs) under `key`,
+    /// replacing what was there. False (and nothing kept) if it doesn't parse.
+    pub fn insert_svg(&mut self, key: &str, svg: &[u8]) -> bool {
+        {
+            let mut cache = self.cache.borrow_mut();
+            let stale: Vec<Key> = cache.map.keys().filter(|k| k.0 == key).cloned().collect();
+            for k in stale {
+                if let Some(c) = cache.map.remove(&k) {
+                    cache.bytes -= c.img.as_raw().len();
+                }
+            }
+        }
+        let Some(tree) = parse_svg(svg) else {
+            self.by_src.remove(key);
+            return false;
+        };
+        let s = tree.size();
+        let (w, h) = (s.width().round().max(1.0) as u32, s.height().round().max(1.0) as u32);
+        self.by_src.insert(key.to_string(), Arc::new(Img { w, h, data: Data::Svg(Arc::new(tree)) }));
+        true
+    }
+
     /// A copy sharing the downloaded images (cheap), for laying the page out on demand.
     pub fn share(&self) -> Images {
         Images { by_src: self.by_src.clone(), failed: self.failed.clone(), lazy: self.lazy.clone(), ..Default::default() }

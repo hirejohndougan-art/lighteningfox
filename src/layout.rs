@@ -585,6 +585,7 @@ impl<'a> Ctx<'a> {
             || st.multicol.is_some_and(|m| m.count.is_some() || m.width.is_some())
             || self.dom.nodes[id].parent == Some(Dom::ROOT)
             || matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio" | "input" | "select" | "textarea" | "button"))
+            || crate::svg_inline::is_root(self.dom, id)
     }
 
     /// The first in-flow child, if it is a block with nothing but whitespace before it.
@@ -679,7 +680,7 @@ impl<'a> Ctx<'a> {
         };
         let mut constrained = st.width != Len::Auto;
         // A block-level <img> takes the image's size instead of its children's.
-        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
+        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio")) || crate::svg_inline::is_root(self.dom, id) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
         if let Some((rw, _)) = replaced {
             w = rw;
             constrained = true;
@@ -2637,6 +2638,8 @@ impl<'a> Ctx<'a> {
             format!("canvas:{id}")
         } else if matches!(self.dom.tag(id), Some("video" | "audio")) {
             format!("media:{id}")
+        } else if crate::svg_inline::is_root(self.dom, id) {
+            crate::svg_inline::key(id)
         } else {
             // srcset / <picture> pick the picture (srcset.rs).
             crate::srcset::current_src(self.dom, id).unwrap_or_default()
@@ -2655,8 +2658,16 @@ impl<'a> Ctx<'a> {
     /// clipped to the box when it spills over.
     fn push_image(&mut self, id: NodeId, x: f32, y: f32, w: f32, h: f32, src: String) {
         let st = &self.styles[id];
-        let (fit, pos) = (st.object_fit, st.object_position);
-        let natural = if self.dom.tag(id) == Some("img") { self.image_size(id) } else { None };
+        let (mut fit, pos) = (st.object_fit, st.object_position);
+        let natural = if self.dom.tag(id) == Some("img") {
+            self.image_size(id)
+        } else if crate::svg_inline::is_root(self.dom, id) {
+            // An inline <svg> keeps its viewBox in proportion (preserveAspectRatio).
+            fit = crate::svg_inline::fit(self.dom, id);
+            self.images.size(&src)
+        } else {
+            None
+        };
         let Some((iw, ih)) = natural.filter(|_| fit != crate::style::ObjectFit::Fill).filter(|(a, b)| *a > 0.0 && *b > 0.0) else {
             self.items.push(Item::Image { x, y, w, h, src, view: None });
             return;
@@ -2696,6 +2707,8 @@ impl<'a> Ctx<'a> {
             Some(self.images.size(&format!("media:{id}")).filter(|&(w, h)| w > 0.0 && h > 0.0).unwrap_or((300.0, 150.0)))
         } else if self.dom.tag(id) == Some("audio") {
             Some((300.0, 54.0))
+        } else if crate::svg_inline::is_root(self.dom, id) {
+            Some(crate::svg_inline::natural_size(self.dom, id, avail))
         } else {
             self.image_size(id)
         };
@@ -2788,10 +2801,10 @@ impl<'a> Ctx<'a> {
                     "br" => return out.push(Tok::Break { node: id }),
                     // A picture with its own border, padding, margin or background is laid
                     // out as a little block, which draws those.
-                    "img" | "canvas" | "video" | "audio" if self.inline_box_edges(id, avail).is_some() || self.styles[id].border[0] > 0.0 || self.styles[id].border[2] > 0.0 => {
+                    "img" | "canvas" | "video" | "audio" | "svg" if self.inline_box_edges(id, avail).is_some() || self.styles[id].border[0] > 0.0 || self.styles[id].border[2] > 0.0 => {
                         return out.push(Tok::InlineBlock { node: id, link: link.map(String::from) });
                     }
-                    "img" | "iframe" | "canvas" | "video" | "audio" if !(tag != "img" && self.styles[id].display == Display::InlineBlock) => {
+                    "img" | "iframe" | "canvas" | "video" | "audio" | "svg" if !(tag != "img" && self.styles[id].display == Display::InlineBlock) => {
                         match self.replaced_size(id, avail) {
                             Some((w, h)) => {
                                 let src = Some(self.replaced_src(id));
@@ -3355,7 +3368,7 @@ impl<'a> Ctx<'a> {
                         } else if let Some(src) = loaded {
                             let src = src.to_string();
                             self.push_image(*node, r.x, r.y, r.w, r.h, src);
-                        } else if !src.as_deref().is_some_and(|s| s.starts_with("canvas:") || s.starts_with("media:")) {
+                        } else if !src.as_deref().is_some_and(|s| s.starts_with("canvas:") || s.starts_with("media:") || s.starts_with("inline-svg:")) {
                             // (A canvas nothing has drawn on, or a video with nothing to show
                             // yet, is simply transparent.)
                             let c = Color { r: 200, g: 200, b: 200, a: 255 };

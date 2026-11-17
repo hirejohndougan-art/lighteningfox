@@ -662,7 +662,19 @@ fn n_by_id(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 
 fn n_create(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let tag = arg_str(a, 0, ctx)?;
-    let id = with_dom_mut(|d| d.create(NodeData::Element { tag, attrs: Vec::new() }));
+    // createElementNS passes the namespace: SVG and MathML elements are marked as such.
+    let ns = match a.get(1).filter(|v| v.is_string()).map(|v| v.to_string(ctx)).transpose()?.map(|s| s.to_std_string_escaped()).as_deref() {
+        Some("http://www.w3.org/2000/svg") => Some(crate::dom::Ns::Svg),
+        Some("http://www.w3.org/1998/Math/MathML") => Some(crate::dom::Ns::MathMl),
+        _ => None,
+    };
+    let id = with_dom_mut(|d| {
+        let id = d.create(NodeData::Element { tag, attrs: Vec::new() });
+        if let Some(ns) = ns {
+            d.ns.insert(id, ns);
+        }
+        id
+    });
     Ok(JsValue::from(id as f64))
 }
 

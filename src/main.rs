@@ -101,6 +101,7 @@ mod net;
 mod paint;
 mod style;
 mod boxtree;
+mod svg_inline;
 mod pseudo;
 mod textedit;
 mod transform;
@@ -522,6 +523,7 @@ impl Page {
             js.publish_canvases(&mut self.images);
             canvas::set_images(self.images.share());
         }
+        js::with_dom(|d| svg_inline::publish(d.composed().as_ref().unwrap_or(d), &self.styles, &mut self.images));
         let mut lay = js::with_dom(|d| match d.composed() {
             Some(c) => layout::layout(&c, &self.styles, fonts, &self.images, cw, ch),
             None => layout::layout(d, &self.styles, fonts, &self.images, cw, ch),
@@ -4684,6 +4686,7 @@ mod screenshot_tests {
         ("tests/overflow-height.html", 500),
         ("tests/emoji-and-small-text.html", 700),
         ("tests/boxtree.html", 700),
+        ("tests/inline-svg.html", 700),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),

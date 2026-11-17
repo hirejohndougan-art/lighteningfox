@@ -696,7 +696,11 @@
     get scripts() { return this.querySelectorAll("script"); }
     get currentScript() { return wrap(__currentScript); }
     createElement(t) { return wrap(__create(String(t).toLowerCase())); }
-    createElementNS(_ns, t) { return this.createElement(t); }
+    createElementNS(ns, t) {
+      ns = ns == null ? "" : String(ns);
+      if (ns === "http://www.w3.org/2000/svg" || ns === "http://www.w3.org/1998/Math/MathML") return wrap(__create(String(t), ns));
+      return this.createElement(t);
+    }
     createTextNode(s) { return wrap(__createText(String(s))); }
     createComment() { return wrap(__createText("")); }
     createDocumentFragment() { const f = new DocumentFragment(__create("#fragment")); cache[f.__id] = f; return f; }

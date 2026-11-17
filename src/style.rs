@@ -452,6 +452,9 @@ pub struct Style {
     pub appearance_none: bool,
     /// Colors given for single sides (top, right, bottom, left); other sides use `border_color`.
     pub border_colors: Option<[Option<Color>; 4]>,
+    /// On SVG elements: the page's winning declarations of SVG properties (fill, stroke…),
+    /// lowest priority first, handed to the SVG renderer by `svg_inline.rs`.
+    pub svg_decls: Option<Rc<Vec<(String, String)>>>,
 }
 
 /// The pseudo-element styles an element has rules for.
@@ -554,6 +557,7 @@ impl Default for Style {
             container: None,
             appearance_none: false,
             border_colors: None,
+            svg_decls: None,
         }
     }
 }
@@ -609,7 +613,7 @@ caption { display: table-caption; text-align: center; }
 colgroup, col { display: none; }
 th { text-align: center; }
 li { display: list-item; }
-head, script, style, title, meta, link, noscript, template, base, datalist, dialog, svg { display: none; }
+head, script, style, title, meta, link, noscript, template, base, datalist, dialog { display: none; }
 [hidden] { display: none; }
 body { margin: 8px; }
 p, dl, blockquote, figure { margin-top: 1em; margin-bottom: 1em; }
@@ -932,6 +936,9 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         }
         if !hinted {
             presentational_hints(dom, id, &mut st, &parent_style);
+        }
+        if dom.ns_of(id) == crate::dom::Ns::Svg {
+            st.svg_decls = crate::svg_inline::declared(matched.iter().filter(|m| m.origin > 0).map(|m| m.decl), &st.vars);
         }
         // Transitions and animations override the cascaded values.
         if st.anim.is_some() || crate::anim::has_state(id) {
