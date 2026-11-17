@@ -48,6 +48,11 @@ pub fn record(code: &str, result: Result<String, String>) {
     }
 }
 
+/// How many times code has been run (so each result page has its own address).
+pub fn runs() -> usize {
+    HISTORY.lock().map_or(0, |h| h.len())
+}
+
 fn history_html() -> String {
     let h = HISTORY.lock().map(|h| h.clone()).unwrap_or_default();
     let mut out = String::new();

@@ -3300,7 +3300,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 run_in_background_tab(&mut tabs, devtools::inspected(), &code)
             };
             devtools::record(&code, r);
-            navigate = Some(Go::To("about:devtools?ran#console".into()));
+            navigate = Some(Go::To(format!("about:devtools?run={}#console", devtools::runs())));
             replace_entry = true;
         }
         // Moves within the same document need no loading: a #fragment link, or Back/Forward
