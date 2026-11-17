@@ -11,6 +11,7 @@ mod css;
 mod dom;
 mod font;
 mod forms;
+mod geometry;
 mod grid;
 mod html;
 mod images;
@@ -80,7 +81,9 @@ impl Page {
     }
 
     fn layout(&self, fonts: &Fonts, width: f32, viewport_h: f32) -> layout::Layout {
-        js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h))
+        let lay = js::with_dom(|d| layout::layout(d, &self.styles, fonts, &self.images, width, viewport_h));
+        geometry::publish(&lay, width, viewport_h);
+        lay
     }
 }
 
@@ -185,6 +188,22 @@ fn background_urls(styles: &[Rc<style::Style>]) -> Vec<String> {
     urls
 }
 
+thread_local! {
+    /// The loaded fonts, for laying pages out on demand when scripts ask where things are.
+    static FONTS: std::cell::Cell<Option<&'static Fonts>> = const { std::cell::Cell::new(None) };
+}
+
+/// Load the fonts once for the life of the program.
+#[cfg_attr(not(test), allow(dead_code))]
+fn load_fonts() -> Option<&'static Fonts> {
+    if let Some(f) = FONTS.with(|c| c.get()) {
+        return Some(f);
+    }
+    let f: &'static Fonts = Box::leak(Box::new(Fonts::load().ok()?));
+    FONTS.with(|c| c.set(Some(f)));
+    Some(f)
+}
+
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
@@ -196,6 +215,18 @@ fn build_page(p: Prepared) -> Page {
         _ => false,
     });
     js::set_dom(dom);
+    // Scripts that ask where elements are get a fresh layout of the page as it is then.
+    let provider: Option<Box<dyn Fn(f32, f32) -> layout::Layout>> = FONTS.with(|c| c.get()).map(|fonts| {
+        let sheets = sheets.clone();
+        let images = images.share();
+        Box::new(move |w: f32, h: f32| {
+            js::with_dom(|d| {
+                let styles = style::compute(d, &sheets);
+                layout::layout(d, &styles, fonts, &images, w, h)
+            })
+        }) as Box<dyn Fn(f32, f32) -> layout::Layout>
+    });
+    geometry::set_provider(provider);
     let js = has_scripts.then(|| {
         let mut js = js::Js::new(&url);
         js.run_scripts(&url, &scripts);
@@ -262,13 +293,14 @@ fn main() {
     if probe {
         eprintln!("[mem] start: {} MB", rss());
     }
-    let fonts = match Fonts::load() {
-        Ok(f) => f,
+    let fonts: &'static Fonts = match Fonts::load() {
+        Ok(f) => Box::leak(Box::new(f)),
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(1);
         }
     };
+    FONTS.with(|c| c.set(Some(fonts)));
     if probe {
         eprintln!("[mem] fonts loaded: {} MB", rss());
         let js = js::Js::new("about:blank");
@@ -276,18 +308,19 @@ fn main() {
         drop(js);
         let page = load(&url);
         eprintln!("[mem] + page loaded: {} MB", rss());
-        let lay = page.layout(&fonts, width as f32, 768.0);
+        let lay = page.layout(fonts, width as f32, 768.0);
         eprintln!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
         return;
     }
     match png {
-        Some(out) => render_png(&fonts, &url, width, &out),
-        None => run_window(&fonts, &url, width),
+        Some(out) => render_png(fonts, &url, width, &out),
+        None => run_window(fonts, &url, width),
     }
 }
 
 /// Load a page and paint the whole of it (up to 16,000 px tall) into a canvas.
 fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout, Canvas) {
+    geometry::set_viewport(width as f32, 768.0);
     let mut page = load(url);
     // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
     if let Some(js) = page.js.as_mut() {
@@ -435,8 +468,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut generation = 0u64;
     let mut loading: Option<Loading> = None;
     let mut last_spin = Instant::now();
-    let mut page = load(start);
     let (mut w, mut h) = window.get_size();
+    geometry::set_viewport(w as f32, h.saturating_sub(BAR_H) as f32);
+    let mut page = load(start);
     let mut lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
     let mut canvas = Canvas::new(w, h);
     let mut scroll = 0.0f32;
@@ -660,7 +694,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             scroll -= dy * 3.0;
             dirty = true;
         }
+        if let Some(y) = geometry::take_scroll_request() {
+            scroll = y;
+            dirty = true;
+        }
         scroll = scroll.clamp(0.0, max_scroll);
+        geometry::set_scroll(scroll);
 
         // Mouse: hover cursor and clicks.
         let down = window.get_mouse_down(MouseButton::Left);
@@ -1004,6 +1043,7 @@ mod screenshot_tests {
         ("tests/grid.html", 900),
         ("tests/forms.html", 800),
         ("tests/fetch.html", 700),
+        ("tests/geometry.html", 700),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {
@@ -1013,7 +1053,7 @@ mod screenshot_tests {
 
     #[test]
     fn pages_match_reference_images() {
-        let fonts = Fonts::load().expect("fonts");
+        let fonts = load_fonts().expect("fonts");
         let update = std::env::var("UPDATE_REFERENCES").is_ok();
         std::fs::create_dir_all("tests/reference").unwrap();
         std::fs::create_dir_all("target/screenshot-diffs").unwrap();
@@ -1021,7 +1061,7 @@ mod screenshot_tests {
         for (url, width) in PAGES {
             let name = url.trim_start_matches("tests/").trim_end_matches(".html").replace(':', "-");
             let reference = format!("tests/reference/{name}.png");
-            let (_, _, canvas) = render_page(&fonts, url, *width);
+            let (_, _, canvas) = render_page(fonts, url, *width);
             if update || !std::path::Path::new(&reference).exists() {
                 save_png(&canvas, &reference).unwrap();
                 eprintln!("approved {reference}");

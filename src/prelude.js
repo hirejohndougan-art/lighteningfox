@@ -247,11 +247,43 @@
     getElementsByClassName(c) { return this.querySelectorAll(c.trim().split(/\s+/).map((x) => "." + x).join("")); }
     getBoundingClientRect() { return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }; }
     getClientRects() { return []; }
-    get offsetWidth() { return 0; }
-    get offsetHeight() { return 0; }
-    get clientWidth() { return 0; }
-    get clientHeight() { return 0; }
-    scrollIntoView() {}
+    getBoundingClientRect() {
+      const [x, y, w, h] = __rect(this.__id).split(",").map(Number);
+      return { x, y, width: w, height: h, left: x, top: y, right: x + w, bottom: y + h, toJSON() { return this; } };
+    }
+    getClientRects() { const r = this.getBoundingClientRect(); return r.width || r.height ? [r] : []; }
+    get offsetWidth() { return Math.round(this.getBoundingClientRect().width); }
+    get offsetHeight() { return Math.round(this.getBoundingClientRect().height); }
+    get offsetTop() { return Math.round(this.getBoundingClientRect().top + g.scrollY); }
+    get offsetLeft() { return Math.round(this.getBoundingClientRect().left); }
+    get offsetParent() { return document.body; }
+    get clientWidth() {
+      if (this === document.documentElement) return g.innerWidth;
+      return Math.round(this.getBoundingClientRect().width);
+    }
+    get clientHeight() {
+      if (this === document.documentElement) return g.innerHeight;
+      return Math.round(this.getBoundingClientRect().height);
+    }
+    get clientTop() { return 0; }
+    get clientLeft() { return 0; }
+    get scrollWidth() { return this === document.documentElement || this === document.body ? g.innerWidth : this.clientWidth; }
+    get scrollHeight() {
+      if (this === document.documentElement || this === document.body) return Math.round(Number(__viewport().split(",")[3]));
+      return this.clientHeight;
+    }
+    get scrollTop() { return this === document.documentElement || this === document.body ? g.scrollY : 0; }
+    set scrollTop(v) { if (this === document.documentElement || this === document.body) __scrollTo(Number(v)); }
+    get scrollLeft() { return 0; }
+    set scrollLeft(v) {}
+    scrollIntoView(opts) {
+      const r = this.getBoundingClientRect();
+      let y = g.scrollY + r.top;
+      const block = opts && typeof opts === "object" ? opts.block : opts === false ? "end" : "start";
+      if (block === "center") y -= (g.innerHeight - r.height) / 2;
+      else if (block === "end") y -= g.innerHeight - r.height;
+      __scrollTo(y);
+    }
     focus() { __request("focus", this.__id); }
     blur() { __request("blur", this.__id); }
     click() { this.dispatchEvent(new Event("click", { bubbles: true, cancelable: true })); }
@@ -749,13 +781,44 @@
     navigator: { userAgent: __userAgent, language: "en-US", languages: ["en-US", "en"], platform: "Linux x86_64",
                  onLine: true, cookieEnabled: true, globalPrivacyControl: true, doNotTrack: "1", hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
     screen: { width: 1366, height: 768, availWidth: 1366, availHeight: 768, colorDepth: 24 },
-    innerWidth: 1024, innerHeight: 768, outerWidth: 1024, outerHeight: 800, devicePixelRatio: 1,
-    scrollX: 0, scrollY: 0, pageXOffset: 0, pageYOffset: 0,
-    scrollTo() {}, scrollBy() {}, scroll() {}, focus() {}, blur() {}, print() {}, open() { return null; }, close() {},
+    devicePixelRatio: 1, scrollX: 0, pageXOffset: 0,
+    scrollTo(a, b) { __scrollTo(typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0)); },
+    scrollBy(a, b) { __scrollTo(g.scrollY + (typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0))); },
+    scroll(a, b) { g.scrollTo(a, b); },
+    focus() {}, blur() {}, print() {}, open() { return null; }, close() {},
     alert: (m) => __log("alert", String(m)), confirm: () => false, prompt: () => null,
     getComputedStyle: (el) => el.style,
-    matchMedia: (q) => ({ matches: false, media: q, addListener() {}, removeListener() {},
-                          addEventListener() {}, removeEventListener() {} }),
+    matchMedia: (q) => {
+      // Width, height, orientation and preference queries, joined with "and" / ",".
+      const test = (part) => {
+        part = part.trim().toLowerCase();
+        if (!part || part === "all" || part === "screen") return true;
+        if (part === "print" || part === "speech") return false;
+        const m = /^\(\s*([a-z-]+)\s*(?::\s*([^)]+))?\)$/.exec(part);
+        if (!m) return /^only\s+screen$/.test(part);
+        const [, f, raw] = m, v = (raw || "").trim();
+        const px = parseFloat(v) * (/em$/.test(v) ? 16 : 1);
+        switch (f) {
+          case "min-width": return g.innerWidth >= px;
+          case "max-width": return g.innerWidth <= px;
+          case "min-height": return g.innerHeight >= px;
+          case "max-height": return g.innerHeight <= px;
+          case "orientation": return v === (g.innerWidth >= g.innerHeight ? "landscape" : "portrait");
+          case "prefers-color-scheme": return v === "light";
+          case "prefers-reduced-motion": return v === "no-preference";
+          case "hover": case "any-hover": return v === "hover";
+          case "pointer": case "any-pointer": return v === "fine";
+          case "color": return true;
+          default: return false;
+        }
+      };
+      const matches = String(q).split(",").some((alt) => {
+        const not = /^\s*not\s+/i.test(alt);
+        const r = alt.replace(/^\s*(not|only)\s+/i, "").split(/\s+and\s+/i).every(test);
+        return not ? !r : r;
+      });
+      return { matches, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } };
+    },
     localStorage: storage(), sessionStorage: storage(),
     history: { length: 1, state: null, pushState() {}, replaceState() {}, back() {}, forward() {}, go() {} },
     performance: { now: () => __nowMs, mark() {}, measure() {}, getEntriesByType: () => [], timing: {} },
@@ -767,4 +830,10 @@
     ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
     CSS: { supports: () => false, escape: (s) => String(s).replace(/([^\w-])/g, "\\$1") },
   });
+  // Live window geometry from the layout.
+  const vp = () => __viewport().split(",").map(Number);
+  for (const [name, i] of [["innerWidth", 0], ["outerWidth", 0], ["innerHeight", 1], ["scrollY", 2], ["pageYOffset", 2]]) {
+    Object.defineProperty(g, name, { get: () => (i === 2 ? vp()[2] : Math.round(vp()[i])), configurable: true });
+  }
+  Object.defineProperty(g, "outerHeight", { get: () => Math.round(vp()[1]) + 80, configurable: true });
 })();

@@ -35,6 +35,11 @@ impl Images {
         self.get(src).map(|i| (i.w as f32, i.h as f32))
     }
 
+    /// A copy sharing the decoded images (cheap), for laying the page out on demand.
+    pub fn share(&self) -> Images {
+        Images { by_src: self.by_src.clone(), failed: self.failed.clone(), ..Default::default() }
+    }
+
     /// The image scaled to exactly w×h (cached).
     pub fn scaled(&self, src: &str, w: u32, h: u32) -> Option<Arc<image::RgbaImage>> {
         if w == 0 || h == 0 {

@@ -22,6 +22,9 @@ pub enum Item {
     /// Items between these markers stay put when the page scrolls (position: fixed).
     FixedPush,
     FixedPop,
+    /// Where an element's border box ended up (for scripts' getBoundingClientRect).
+    /// Never painted; collected into `Layout::boxes` at the end of layout.
+    Mark { id: usize, x: f32, y: f32, w: f32, h: f32 },
 }
 
 /// Signed distance from (px, py) to a rounded rectangle's edge (negative inside).
@@ -384,6 +387,7 @@ impl Canvas {
         let mut dy = origin_y - scroll;
         for item in items {
             match item {
+                Item::Mark { .. } => {}
                 Item::FixedPush => {
                     fixed_depth += 1;
                     dy = origin_y;

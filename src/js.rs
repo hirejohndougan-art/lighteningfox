@@ -54,6 +54,7 @@ pub fn with_dom<R>(f: impl FnOnce(&Dom) -> R) -> R {
 
 pub fn with_dom_mut<R>(f: impl FnOnce(&mut Dom) -> R) -> R {
     DIRTY.with(|d| d.set(true));
+    crate::geometry::dom_changed();
     DOM.with(|d| f(&mut d.borrow_mut()))
 }
 
@@ -523,6 +524,32 @@ fn n_form_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
     Ok(JsValue::from(JsString::from(o)))
 }
 
+/// __rect(id) -> "x,y,w,h": the element's box relative to the window.
+fn n_rect(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let ok = with_dom(|d| id >= 0 && (id as usize) < d.nodes.len());
+    if !ok {
+        return Ok(JsValue::from(js_string!("0,0,0,0")));
+    }
+    let r = with_dom(|d| crate::geometry::client_rect(d, id as NodeId));
+    Ok(JsValue::from(JsString::from(format!("{},{},{},{}", r.x, r.y, r.w, r.h))))
+}
+
+/// __viewport() -> "width,height,scrollY,documentHeight"
+fn n_viewport(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let (w, h, s, d) = crate::geometry::viewport();
+    Ok(JsValue::from(JsString::from(format!("{w},{h},{s},{d}"))))
+}
+
+/// __scrollTo(y): scroll the page (in page pixels).
+fn n_scroll_to(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let y = a.first().map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0);
+    if y.is_finite() {
+        crate::geometry::request_scroll(y as f32);
+    }
+    Ok(JsValue::undefined())
+}
+
 /// True while any background request is still running or waiting to be delivered.
 pub fn network_busy() -> bool {
     NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
@@ -564,6 +591,9 @@ impl Js {
             ("__request", 3, n_request),
             ("__netStart", 8, n_net_start),
             ("__resolve", 2, n_resolve),
+            ("__rect", 1, n_rect),
+            ("__viewport", 0, n_viewport),
+            ("__scrollTo", 1, n_scroll_to),
             ("__formData", 1, n_form_data),
             ("__getCookie", 1, n_get_cookie),
             ("__setCookie", 2, n_set_cookie),

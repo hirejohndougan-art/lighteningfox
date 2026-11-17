@@ -79,6 +79,9 @@ pub struct Layout {
     pub fixed: Vec<(std::ops::Range<usize>, std::ops::Range<usize>)>,
     pub height: f32,
     pub page_bg: Color,
+    /// Each block-level element's border box in page coordinates; `true` = position: fixed
+    /// (then the box is relative to the window, not the page).
+    pub boxes: HashMap<NodeId, (Rect, bool)>,
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
@@ -113,8 +116,26 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
             }
         }
     }
-    let items = merge_layers(std::mem::take(&mut cx.items), std::mem::take(&mut cx.layers));
-    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg }
+    let mut items = merge_layers(std::mem::take(&mut cx.items), std::mem::take(&mut cx.layers));
+    // Pull out the box marks: scripts need them, painting doesn't.
+    let mut boxes = HashMap::new();
+    let mut fixed_depth = 0;
+    items.retain(|it| match *it {
+        Item::Mark { id, x, y, w, h } => {
+            boxes.insert(id, (Rect { x, y, w, h }, fixed_depth > 0));
+            false
+        }
+        Item::FixedPush => {
+            fixed_depth += 1;
+            true
+        }
+        Item::FixedPop => {
+            fixed_depth -= 1;
+            true
+        }
+        _ => true,
+    });
+    Layout { items, links: cx.links, hits: cx.hits, fixed: cx.fixed, height, page_bg, boxes }
 }
 
 struct Ctx<'a> {
@@ -249,6 +270,7 @@ fn shift_item(it: &mut Item, dx: f32, dy: f32) {
         Item::Rect { x, y, .. }
         | Item::Text { x, y, .. }
         | Item::Image { x, y, .. }
+        | Item::Mark { x, y, .. }
         | Item::Box { x, y, .. }
         | Item::Ring { x, y, .. }
         | Item::Shadow { x, y, .. }
@@ -492,6 +514,9 @@ impl<'a> Ctx<'a> {
                     self.items.push(Item::Rect { x: rx, y: ry, w: rw, h: rh, color: c });
                 }
             }
+        }
+        if !self.measuring {
+            self.items.push(Item::Mark { id, x: bx, y: top, w: box_w, h: box_h });
         }
         // Absolutely positioned descendants are placed against this box's padding box.
         if positioned {

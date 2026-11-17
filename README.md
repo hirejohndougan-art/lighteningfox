@@ -88,6 +88,7 @@ Typing words that aren't a URL searches DuckDuckGo's HTML edition.
   stays responsive, shows a loading bar, and the ↻ button turns into ✕ (stop), as does `Esc`
 - **Flexbox**: direction, wrap, grow/shrink/basis, `justify-content`, `align-items`/`align-self`,
   `gap`, `order`, loose text as anonymous items
+- **Layout data for scripts**: `getBoundingClientRect`, `offsetWidth/Height/Top`, `clientWidth`, `scrollHeight`, live `innerWidth`/`scrollY`, `scrollTo`/`scrollBy`/`scrollIntoView`, and `matchMedia` width queries; if a script changed the page, it's laid out again before answering
 - **fetch() and XMLHttpRequest**: requests run on background threads and never freeze the page; JSON, text, status, headers, POST bodies, `AbortController`, sync XHR; cross-origin rules (CORS, including preflight) so a site can't read other sites' data or your local network; plus `URL`, `URLSearchParams`, `FormData`, `Headers`, `Response`
 - **Cookies**: Set-Cookie with Domain, Path, Expires/Max-Age, Secure, HttpOnly, SameSite and the `__Host-`/`__Secure-` prefixes; cookies set during redirects are kept; `document.cookie`; saved to `~/.local/share/lighteningfox/cookies.tsv` (or `$LF_PROFILE`), readable only by you
 - **Privacy by default**: third-party cookies blocked (set `LF_THIRD_PARTY_COOKIES=1` to allow), tracking parameters (utm_*, fbclid, gclid…) stripped from page URLs (`LF_KEEP_TRACKING_PARAMS=1` keeps them), Global Privacy Control sent, no telemetry
