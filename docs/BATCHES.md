@@ -43,7 +43,8 @@ would need a from-source build with vendored crates.
 - §16 Website and download page (a GitHub Pages site in `site/`).
 
 ## B. Text and fonts (all of §6)
-**Status:** claimed by security-chat 2026-11-17 02:16
+**Status:** done
+**Left undone:** Vertical text for East Asian layouts (`writing-mode`): needs the real box tree from batch N, so it waits for that batch.
 **Start after:** —
 **Main files:** `src/font.rs`, text parts of `src/layout.rs` and `src/paint.rs`
 
