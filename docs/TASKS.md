@@ -734,7 +734,7 @@ tree, pushState address changes; shared memory for pictures; streamed and cached
 Then do X15 (default on).
 
 ### O4. WebGL: finish WebGL 2
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-17 17:05
 **After:** —
 **Checklist:** §18 "WebGL"
 **Files:** `src/webgl*.rs`, `src/glsl*.rs`, `src/gpu.rs`, `webgl.js`
