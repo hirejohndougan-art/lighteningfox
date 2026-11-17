@@ -81,7 +81,7 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
         }
         "border-radius" => dst.radius = src.radius,
         "flex" | "flex-direction" | "flex-wrap" | "flex-flow" | "justify-content" | "align-items" | "align-self" | "place-items" | "flex-grow" | "flex-shrink"
-        | "flex-basis" | "order" | "gap" | "row-gap" | "column-gap" | "grid-gap" | "align-content" | "place-content" => dst.flex = src.flex.clone(),
+        | "flex-basis" | "order" | "gap" | "row-gap" | "column-gap" | "grid-gap" | "align-content" | "place-content" | "justify-items" | "justify-self" => dst.flex = src.flex,
         "position" => dst.position = src.position,
         "top" => dst.inset[0] = src.inset[0],
         "right" => dst.inset[1] = src.inset[1],

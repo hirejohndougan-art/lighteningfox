@@ -273,6 +273,8 @@ pub struct GridTemplate {
     pub areas: String,
     pub auto_rows: String,
     pub auto_columns: String,
+    /// grid-auto-flow: `row` (default), `column`, with `dense`.
+    pub auto_flow: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -301,6 +303,9 @@ pub struct Flex {
     pub column_gap: Len,
     /// grid-template-columns: number of equal columns (simplified grid).
     pub grid_columns: Option<usize>,
+    /// Grid: justify-items (container) and justify-self (item); None = normal (stretch).
+    pub justify_items: Option<AlignItems>,
+    pub justify_self: Option<AlignItems>,
 }
 
 impl Default for Flex {
@@ -320,6 +325,8 @@ impl Default for Flex {
             row_gap: Len::Px(0.0),
             column_gap: Len::Px(0.0),
             grid_columns: None,
+            justify_items: None,
+            justify_self: None,
         }
     }
 }
@@ -2265,11 +2272,57 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         "grid-auto-rows" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).auto_rows = v.to_string(),
         "grid-auto-columns" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).auto_columns = v.to_string(),
         "grid-template" => {
-            // "rows / columns" (area strings in this form are not supported yet)
+            // `rows / columns`, or area strings each followed by its row size:
+            // `"head head" 60px "nav main" 1fr / 200px 1fr`.
             let g = Rc::make_mut(st.grid.get_or_insert_with(Default::default));
-            if let Some((r, c)) = v.split_once('/') {
-                g.rows = r.trim().to_string();
-                g.columns = c.trim().to_string();
+            let (r, c) = match css::split_top(v, '/').as_slice() {
+                [r, c, ..] => (r.trim().to_string(), c.trim().to_string()),
+                [r] => (r.trim().to_string(), String::new()),
+                _ => (String::new(), String::new()),
+            };
+            if r.contains('"') || r.contains('\'') {
+                let mut areas = Vec::new();
+                let mut rows = Vec::new();
+                let mut last_was_area = false;
+                for tok in css::split_top(&r, ' ') {
+                    let t = tok.trim();
+                    if t.is_empty() || t.starts_with('[') {
+                        continue;
+                    }
+                    if t.starts_with('"') || t.starts_with('\'') {
+                        if last_was_area {
+                            rows.push("auto".to_string());
+                        }
+                        areas.push(t.to_string());
+                        last_was_area = true;
+                    } else {
+                        rows.push(t.to_string());
+                        last_was_area = false;
+                    }
+                }
+                if last_was_area {
+                    rows.push("auto".to_string());
+                }
+                g.areas = areas.join(" ");
+                g.rows = rows.join(" ");
+            } else {
+                g.rows = r;
+            }
+            g.columns = c;
+        }
+        "grid-auto-flow" => Rc::make_mut(st.grid.get_or_insert_with(Default::default)).auto_flow = lower.clone(),
+        "justify-items" | "justify-self" => {
+            let a = match lower.trim_start_matches("legacy ").trim_start_matches("safe ").trim_start_matches("unsafe ").split_whitespace().next().unwrap_or("") {
+                "center" => Some(AlignItems::Center),
+                "start" | "flex-start" | "self-start" | "left" => Some(AlignItems::Start),
+                "end" | "flex-end" | "self-end" | "right" => Some(AlignItems::End),
+                "stretch" => Some(AlignItems::Stretch),
+                _ => None,
+            };
+            if name == "justify-items" {
+                st.flex.justify_items = a;
+            } else {
+                st.flex.justify_self = a;
             }
         }
         "grid-column" | "grid-row" | "grid-area" => {

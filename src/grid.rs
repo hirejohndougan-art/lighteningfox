@@ -66,22 +66,37 @@ fn parse_track(t: &str, avail: f32, fs: f32) -> Option<Track> {
     })
 }
 
-/// Parse a track list such as `200px 1fr`, `repeat(3, 1fr)` or
-/// `repeat(auto-fill, minmax(180px, 1fr))` for a container `avail` px wide.
-pub fn parse_tracks(s: &str, avail: f32, gap: f32, fs: f32) -> Vec<Track> {
+/// A track list as written, with `repeat()` expanded: line names and tracks in order.
+enum Piece {
+    Names(Vec<String>),
+    Track(Track),
+}
+
+fn pieces(s: &str, avail: f32, gap: f32, fs: f32) -> Vec<Piece> {
     let mut out = Vec::new();
     let s = s.trim();
-    if s.is_empty() || s == "none" {
+    if s.is_empty() || s == "none" || s.starts_with("subgrid") {
         return out;
     }
+    let names_of = |tok: &str| -> Vec<String> { tok.trim_start_matches('[').trim_end_matches(']').split_whitespace().map(str::to_string).collect() };
     for tok in css::split_top(s, ' ') {
         let tok = tok.trim();
-        if tok.is_empty() || tok.starts_with('[') {
-            continue; // line names
+        if tok.is_empty() {
+            continue;
+        }
+        if tok.starts_with('[') {
+            out.push(Piece::Names(names_of(tok)));
+            continue;
         }
         if let Some(inner) = tok.strip_prefix("repeat(").and_then(|r| r.strip_suffix(')')) {
             let Some((count, list)) = inner.split_once(',') else { continue };
-            let tracks: Vec<Track> = css::split_top(list, ' ').iter().filter(|t| !t.trim().is_empty() && !t.trim().starts_with('[')).filter_map(|t| parse_track(t, avail, fs)).collect();
+            let inner_pieces: Vec<Piece> = css::split_top(list, ' ')
+                .iter()
+                .map(|t| t.trim())
+                .filter(|t| !t.is_empty())
+                .filter_map(|t| if t.starts_with('[') { Some(Piece::Names(names_of(t))) } else { parse_track(t, avail, fs).map(Piece::Track) })
+                .collect();
+            let tracks: Vec<Track> = inner_pieces.iter().filter_map(|p| if let Piece::Track(t) = p { Some(*t) } else { None }).collect();
             if tracks.is_empty() {
                 continue;
             }
@@ -102,13 +117,59 @@ pub fn parse_tracks(s: &str, avail: f32, gap: f32, fs: f32) -> Vec<Track> {
                 c => c.parse::<usize>().unwrap_or(1).clamp(1, 1000),
             };
             for _ in 0..n {
-                out.extend(tracks.iter().copied());
+                for p in &inner_pieces {
+                    out.push(match p {
+                        Piece::Names(v) => Piece::Names(v.clone()),
+                        Piece::Track(t) => Piece::Track(*t),
+                    });
+                }
             }
         } else if let Some(t) = parse_track(tok, avail, fs) {
-            out.push(t);
+            out.push(Piece::Track(t));
         }
     }
     out
+}
+
+/// Parse a track list such as `200px 1fr`, `repeat(3, 1fr)` or
+/// `repeat(auto-fill, minmax(180px, 1fr))` for a container `avail` px wide.
+pub fn parse_tracks(s: &str, avail: f32, gap: f32, fs: f32) -> Vec<Track> {
+    pieces(s, avail, gap, fs).into_iter().filter_map(|p| if let Piece::Track(t) = p { Some(t) } else { None }).collect()
+}
+
+/// Named grid lines (`[main-start] 1fr [main-end]`): each name's line indexes (0-based).
+pub type LineNames = HashMap<String, Vec<usize>>;
+
+pub fn line_names(s: &str, avail: f32, gap: f32, fs: f32) -> LineNames {
+    let mut map: LineNames = HashMap::new();
+    let mut line = 0;
+    for p in pieces(s, avail, gap, fs) {
+        match p {
+            Piece::Names(v) => {
+                for n in v {
+                    let e = map.entry(n).or_default();
+                    if e.last() != Some(&line) {
+                        e.push(line);
+                    }
+                }
+            }
+            Piece::Track(_) => line += 1,
+        }
+    }
+    map
+}
+
+/// Areas also name their edge lines: `main` gives `main-start` and `main-end`.
+pub fn add_area_lines(names: &mut LineNames, areas: &Areas, rows_axis: bool) {
+    for (name, r) in &areas.map {
+        let (a, b) = if rows_axis { (r.0, r.2) } else { (r.1, r.3) };
+        names.entry(format!("{name}-start")).or_default().push(a);
+        names.entry(format!("{name}-end")).or_default().push(b);
+    }
+    for v in names.values_mut() {
+        v.sort_unstable();
+        v.dedup();
+    }
 }
 
 /// Named areas from `grid-template-areas: "head head" "nav main"`.
@@ -141,8 +202,9 @@ pub fn parse_areas(s: &str) -> Areas {
     Areas { map, rows }
 }
 
-/// One axis of a placement like `2 / 4`, `span 2`, `1 / -1`, `sidebar`: (start index, span).
-fn resolve_axis(spec: &str, explicit: usize, area: Option<(usize, usize)>) -> (Option<usize>, usize) {
+/// One axis of a placement like `2 / 4`, `span 2`, `1 / -1`, `main-start / main-end`,
+/// `col 2`, `span col`: (start index, span).
+fn resolve_axis(spec: &str, explicit: usize, area: Option<(usize, usize)>, names: &LineNames) -> (Option<usize>, usize) {
     if let Some((s0, s1)) = area {
         return (Some(s0), s1 - s0);
     }
@@ -152,25 +214,54 @@ fn resolve_axis(spec: &str, explicit: usize, area: Option<(usize, usize)>) -> (O
     }
     let (a, b) = match spec.split_once('/') {
         Some((a, b)) => (a.trim(), Some(b.trim())),
+        // A lone name means that name at both ends: `main` = `main-start / main-end`.
+        None if !spec.contains(' ') && !spec.starts_with("span") && spec.parse::<i64>().is_err() => (spec, Some(spec)),
         None => (spec, None),
     };
-    let line = |t: &str| -> Option<usize> {
-        let n: i64 = t.parse().ok()?;
-        Some(if n > 0 { (n - 1) as usize } else { (explicit as i64 + 1 + n).max(0) as usize })
+    // A line: a number, a name, `name N` / `N name` (the Nth line with that name), negative
+    // counting from the end. A bare name also finds `name-start` / `name-end`.
+    let line = |t: &str, is_end: bool| -> Option<usize> {
+        if t.starts_with("span") {
+            return None;
+        }
+        let words: Vec<&str> = t.split_whitespace().collect();
+        let num = words.iter().find_map(|w| w.parse::<i64>().ok());
+        let name = words.iter().find(|w| w.parse::<i64>().is_err()).copied();
+        match (name, num) {
+            (None, Some(n)) => Some(if n > 0 { (n - 1) as usize } else { (explicit as i64 + 1 + n).max(0) as usize }),
+            (Some(nm), n) => {
+                let list = names.get(nm).or_else(|| names.get(&format!("{nm}{}", if is_end { "-end" } else { "-start" })))?;
+                let n = n.unwrap_or(1);
+                let idx = if n > 0 { list.get(n as usize - 1) } else { list.get(list.len().checked_sub((-n) as usize)?) };
+                idx.copied()
+            }
+            _ => None,
+        }
     };
-    let span_of = |t: &str| t.strip_prefix("span").and_then(|n| n.trim().parse::<usize>().ok()).map(|n| n.max(1));
+    let span_of = |t: &str| -> Option<usize> {
+        let rest = t.strip_prefix("span")?.trim();
+        Some(rest.parse::<usize>().unwrap_or(1).max(1))
+    };
+    // `span name`: up to the next line with that name.
+    let span_named = |t: &str, from: usize| -> Option<usize> {
+        let rest = t.strip_prefix("span")?.trim();
+        if rest.parse::<usize>().is_ok() {
+            return None;
+        }
+        names.get(rest)?.iter().find(|&&l| l > from).map(|&l| l - from)
+    };
     match (a, b) {
-        (a, None) => match (line(a), span_of(a)) {
+        (a, None) => match (line(a, false), span_of(a)) {
             (Some(s), _) => (Some(s), 1),
             (None, Some(n)) => (None, n),
             _ => (None, 1),
         },
         (a, Some(b)) => {
-            let start = line(a);
-            match (start, line(b), span_of(b), span_of(a)) {
+            let start = line(a, false);
+            match (start, line(b, true), span_of(b), span_of(a)) {
                 (Some(s), Some(e), _, _) if e > s => (Some(s), e - s),
                 (Some(s), Some(e), _, _) if e < s => (Some(e), s - e),
-                (Some(s), _, Some(n), _) => (Some(s), n),
+                (Some(s), _, Some(n), _) => (Some(s), span_named(b, s).unwrap_or(n)),
                 (None, Some(e), _, Some(n)) => (Some(e.saturating_sub(n)), n),
                 (Some(s), _, _, _) => (Some(s), 1),
                 (None, _, Some(n), _) | (None, _, _, Some(n)) => (None, n),
@@ -181,7 +272,7 @@ fn resolve_axis(spec: &str, explicit: usize, area: Option<(usize, usize)>) -> (O
 }
 
 /// ((column start, span), (row start, span)) for a grid item.
-pub fn resolve_place(p: &GridPlace, areas: &Areas, cols: usize, rows: usize) -> ((Option<usize>, usize), (Option<usize>, usize)) {
+pub fn resolve_place(p: &GridPlace, areas: &Areas, cols: usize, rows: usize, col_names: &LineNames, row_names: &LineNames) -> ((Option<usize>, usize), (Option<usize>, usize)) {
     let mut col_spec = p.column.clone();
     let mut row_spec = p.row.clone();
     let mut area: Option<(usize, usize, usize, usize)> = None;
@@ -200,8 +291,8 @@ pub fn resolve_place(p: &GridPlace, areas: &Areas, cols: usize, rows: usize) -> 
     let named = |spec: &str, rows_axis: bool| {
         areas.map.get(spec.trim()).map(|r| if rows_axis { (r.0, r.2) } else { (r.1, r.3) })
     };
-    let c = resolve_axis(&col_spec, cols, area.map(|r| (r.1, r.3)).or_else(|| named(&col_spec, false)));
-    let r = resolve_axis(&row_spec, rows, area.map(|r| (r.0, r.2)).or_else(|| named(&row_spec, true)));
+    let c = resolve_axis(&col_spec, cols, area.map(|r| (r.1, r.3)).or_else(|| named(&col_spec, false)), col_names);
+    let r = resolve_axis(&row_spec, rows, area.map(|r| (r.0, r.2)).or_else(|| named(&row_spec, true)), row_names);
     (c, r)
 }
 
@@ -304,10 +395,28 @@ mod tests {
         let a = parse_areas(r#""head head" "nav main" "foot foot""#);
         assert_eq!(a.map["head"], (0, 0, 1, 2));
         assert_eq!(a.map["main"], (1, 1, 2, 2));
+        let none = LineNames::new();
         let p = GridPlace { column: "1 / -1".into(), ..Default::default() };
-        assert_eq!(resolve_place(&p, &a, 3, 0).0, (Some(0), 3));
+        assert_eq!(resolve_place(&p, &a, 3, 0, &none, &none).0, (Some(0), 3));
         let p = GridPlace { column: "span 2".into(), ..Default::default() };
-        assert_eq!(resolve_place(&p, &a, 3, 0).0, (None, 2));
+        assert_eq!(resolve_place(&p, &a, 3, 0, &none, &none).0, (None, 2));
+    }
+
+    #[test]
+    fn named_lines() {
+        let n = line_names("[full-start] 1fr [main-start] repeat(2, [col] 100px) [main-end] 1fr [full-end]", 800.0, 0.0, 16.0);
+        assert_eq!(n["main-start"], vec![1]);
+        assert_eq!(n["col"], vec![1, 2]);
+        assert_eq!(n["full-end"], vec![4]);
+        let a = parse_areas("");
+        let p = |c: &str| resolve_place(&GridPlace { column: c.into(), ..Default::default() }, &a, 4, 0, &n, &LineNames::new()).0;
+        assert_eq!(p("main"), (Some(1), 2));
+        assert_eq!(p("full-start / full-end"), (Some(0), 4));
+        assert_eq!(p("col 2 / span 1"), (Some(2), 1));
+        assert_eq!(p("main-start / span full-end"), (Some(1), 3));
+        let mut n2 = LineNames::new();
+        add_area_lines(&mut n2, &parse_areas(r#""a b" "c c""#), false);
+        assert_eq!(n2["b-start"], vec![1]);
     }
 }
 

@@ -4597,6 +4597,7 @@ mod screenshot_tests {
         ("tests/pseudo.html", 900),
         ("tests/cascade.html", 1024),
         ("tests/shorthands.html", 700),
+        ("tests/grid-extras.html", 600),
         ("tests/emoji-and-small-text.html", 700),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),

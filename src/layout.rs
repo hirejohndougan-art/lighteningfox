@@ -278,6 +278,7 @@ fn layout_tree(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, 
         flow_child: false,
         absorb_top: None,
         cb_heights: vec![Some(viewport_h)],
+        subgrid: HashMap::new(),
     };
     crate::editing::begin_layout();
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
@@ -363,6 +364,9 @@ struct Ctx<'a> {
     flow_child: bool,
     /// A first child whose top margin its parent already took into its own.
     absorb_top: Option<NodeId>,
+    /// Track sizes a parent grid hands to a subgrid item: (column widths, column gap,
+    /// row heights and row gap once known).
+    subgrid: HashMap<NodeId, (Vec<f32>, f32, Option<(Vec<f32>, f32)>)>,
     /// Content heights of the enclosing containing blocks, when definite (percentage
     /// heights resolve against the innermost one; `None` makes them act as auto).
     cb_heights: Vec<Option<f32>>,
@@ -2053,8 +2057,18 @@ impl<'a> Ctx<'a> {
         let tpl = self.styles[id].grid.clone().unwrap_or_default();
         let fl = self.styles[id].flex;
         let fs = self.styles[id].font_size;
-        let col_gap = fl.column_gap.resolve(w);
-        let row_gap = fl.row_gap.resolve(definite_h.unwrap_or(w));
+        let mut col_gap = fl.column_gap.resolve(w);
+        let mut row_gap = fl.row_gap.resolve(definite_h.unwrap_or(w));
+        // subgrid: this grid uses the tracks its parent grid gave the area it sits in.
+        let sub = self.subgrid.get(&id).cloned();
+        let sub_cols = sub.as_ref().filter(|_| tpl.columns.trim_start().starts_with("subgrid")).map(|s| (s.0.clone(), s.1));
+        let sub_rows = sub.as_ref().filter(|_| tpl.rows.trim_start().starts_with("subgrid")).and_then(|s| s.2.clone());
+        if let Some((_, g)) = &sub_cols {
+            col_gap = *g;
+        }
+        if let Some((_, g)) = &sub_rows {
+            row_gap = *g;
+        }
 
         // Items: child elements, plus runs of loose text.
         let mut items: Vec<FlexItem> = Vec::new();
@@ -2096,6 +2110,17 @@ impl<'a> Ctx<'a> {
         let auto_col = grid::parse_tracks(&tpl.auto_columns, w, col_gap, fs).first().copied().unwrap_or(grid::Track::AUTO);
         let auto_row = grid::parse_tracks(&tpl.auto_rows, 0.0, row_gap, fs).first().copied().unwrap_or(grid::Track::AUTO);
         let areas = grid::parse_areas(&tpl.areas);
+        let fixed = |sizes: &[f32]| sizes.iter().map(|&p| grid::Track { min: Some(p), max: grid::Max::Px(p) }).collect::<Vec<_>>();
+        if let Some((widths, _)) = &sub_cols {
+            cols = fixed(widths);
+        }
+        if let Some((heights, _)) = &sub_rows {
+            rows = fixed(heights);
+        }
+        let mut col_names = grid::line_names(&tpl.columns, w, col_gap, fs);
+        grid::add_area_lines(&mut col_names, &areas, false);
+        let mut row_names = grid::line_names(&tpl.rows, definite_h.unwrap_or(0.0), row_gap, fs);
+        grid::add_area_lines(&mut row_names, &areas, true);
         if cols.is_empty() {
             cols.push(auto_col);
         }
@@ -2135,7 +2160,7 @@ impl<'a> Ctx<'a> {
                 FlexItem::Text(_) => None,
             };
             let (c, r) = match &place {
-                Some(p) => grid::resolve_place(p, &areas, n_cols_explicit, n_rows_explicit),
+                Some(p) => grid::resolve_place(p, &areas, n_cols_explicit, n_rows_explicit, &col_names, &row_names),
                 None => ((None, 1), (None, 1)),
             };
             match (c, r) {
@@ -2146,15 +2171,39 @@ impl<'a> Ctx<'a> {
                 _ => auto_items.push((i, c, r)),
             }
         }
+        // grid-auto-flow: row (fill each row in turn) or column; `dense` goes back to
+        // fill earlier holes with later items.
+        let column_flow = tpl.auto_flow.split_whitespace().any(|w| w == "column");
+        let dense = tpl.auto_flow.split_whitespace().any(|w| w == "dense");
         let mut cursor = (0usize, 0usize); // (row, col)
         for (i, (c0, cs), (r0, rs)) in auto_items {
+            if dense {
+                cursor = (0, 0);
+            }
             let ncols = cols.len().max(cs);
+            let nrows = n_rows_explicit.max(1).max(rs);
             let (mut r, mut c) = match (r0, c0) {
-                (Some(r), _) => (r, c0.unwrap_or(0)),
-                (None, Some(c)) => (cursor.0, c),
+                (Some(r), _) => (r, c0.unwrap_or(if column_flow { cursor.1 } else { 0 })),
+                (None, Some(c)) => (if column_flow { 0 } else { cursor.0 }, c),
                 _ => cursor,
             };
             for _ in 0..10_000 {
+                if column_flow {
+                    if r + rs > nrows && r0.is_none() {
+                        r = 0;
+                        c += 1;
+                        continue;
+                    }
+                    if free(&taken, r, c, rs, cs) {
+                        break;
+                    }
+                    if r0.is_some() {
+                        c += 1;
+                    } else {
+                        r += 1;
+                    }
+                    continue;
+                }
                 if c + cs > ncols {
                     c = 0;
                     r += 1;
@@ -2172,7 +2221,7 @@ impl<'a> Ctx<'a> {
             mark(&mut taken, r, c, rs, cs);
             placed.push(Placed { item: i, col: c, row: r, cspan: cs, rspan: rs });
             if r0.is_none() && c0.is_none() {
-                cursor = (r, c + cs);
+                cursor = if column_flow { (r + rs, c) } else { (r, c + cs) };
             }
         }
         // Implicit tracks for anything placed beyond the template.
@@ -2210,6 +2259,23 @@ impl<'a> Ctx<'a> {
             cx += cw + col_gap;
         }
         let span_w = |p: &Placed| widths[p.col..p.col + p.cspan].iter().sum::<f32>() + col_gap * (p.cspan as f32 - 1.0);
+        // Subgrid items get the columns they span.
+        for p in &placed {
+            if let FlexItem::Node(n) = &items[p.item] {
+                if self.styles[*n].grid.as_ref().is_some_and(|g| g.columns.trim_start().starts_with("subgrid") || g.rows.trim_start().starts_with("subgrid")) {
+                    let inner = self.styles[*n].padding[1].resolve(w) + self.styles[*n].padding[3].resolve(w) + self.styles[*n].border[1] + self.styles[*n].border[3];
+                    let mut ws = widths[p.col..p.col + p.cspan].to_vec();
+                    // The subgrid's own padding and border come out of its first and last tracks.
+                    if let (Some(f), true) = (ws.first_mut(), inner > 0.0) {
+                        *f = (*f - inner / 2.0).max(0.0);
+                    }
+                    if let (Some(l), true) = (ws.last_mut(), inner > 0.0) {
+                        *l = (*l - inner / 2.0).max(0.0);
+                    }
+                    self.subgrid.insert(*n, (ws, col_gap, None));
+                }
+            }
+        }
 
         // Row heights from the items' natural heights.
         let mut natural = vec![0.0f32; placed.len()];
@@ -2240,6 +2306,13 @@ impl<'a> Ctx<'a> {
             row_y.push(ry);
             ry += rh + row_gap;
         }
+        for p in &placed {
+            if let FlexItem::Node(n) = &items[p.item] {
+                if let Some(e) = self.subgrid.get_mut(n) {
+                    e.2 = Some((heights[p.row..p.row + p.rspan].to_vec(), row_gap));
+                }
+            }
+        }
 
         // Lay each item out in its area.
         for (k, p) in placed.iter().enumerate() {
@@ -2249,13 +2322,27 @@ impl<'a> Ctx<'a> {
                 FlexItem::Node(n) => {
                     let align = self.styles[*n].flex.align_self.unwrap_or(fl.align_items);
                     let stretch = align == AlignItems::Stretch && self.definite_len(self.styles[*n].height).is_none();
-                    let d = self.layout_at(*n, iw, stretch.then_some(area_h));
+                    // justify-self / justify-items: an item that doesn't stretch takes its
+                    // own width (or fits its content) and sits at the start, center or end.
+                    let justify = self.styles[*n].flex.justify_self.or(fl.justify_items).unwrap_or(AlignItems::Stretch);
+                    let (item_w, dx) = if matches!(justify, AlignItems::Stretch | AlignItems::Baseline) {
+                        (iw, 0.0)
+                    } else {
+                        let own = self.content_widths(*n).1.min(iw);
+                        let dx = match justify {
+                            AlignItems::Center => (iw - own) / 2.0,
+                            AlignItems::End => iw - own,
+                            _ => 0.0,
+                        };
+                        (own, dx.max(0.0))
+                    };
+                    let d = self.layout_at(*n, item_w, stretch.then_some(area_h));
                     let dy = match align {
                         AlignItems::Center => (area_h - d.h) / 2.0,
                         AlignItems::End => area_h - d.h,
                         _ => 0.0,
                     };
-                    self.place_detached(d, ix, iy + dy.max(0.0));
+                    self.place_detached(d, ix + dx, iy + dy.max(0.0));
                 }
                 FlexItem::Text(nodes) => {
                     let d = self.detach_text(&nodes.clone(), iw, Align::Left);
