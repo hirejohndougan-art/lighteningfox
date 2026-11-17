@@ -5,15 +5,34 @@ use libfuzzer_sys::fuzz_target;
 #[path = "../../src/css.rs"]
 #[allow(dead_code)]
 mod css;
+#[path = "../../src/csssyntax.rs"]
+#[allow(dead_code)]
+mod csssyntax;
+#[path = "../../src/dom.rs"]
+#[allow(dead_code)]
+mod dom;
 
 /// Stand-ins for the browser modules css.rs reaches into.
 mod settings {
     pub struct Settings {
         pub reduce_motion: bool,
+        pub high_contrast: bool,
     }
     pub fn get() -> Settings {
-        Settings { reduce_motion: false }
+        Settings { reduce_motion: false, high_contrast: false }
     }
+}
+/// `@keyframes` parsing lives in anim.rs, which needs the whole style engine: left out here.
+mod anim {
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Keyframes;
+    pub fn find_keyframes(_: &str) -> Vec<Keyframes> {
+        Vec::new()
+    }
+}
+mod validation {
+    #[derive(Debug, Clone, Default)]
+    pub struct FormState;
 }
 mod net {
     pub fn resolve(base: &str, href: &str) -> String {

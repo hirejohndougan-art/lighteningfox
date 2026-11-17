@@ -2,7 +2,7 @@
 //!
 //! - F6 cycles: page → address bar → toolbar → page. In the toolbar, Left/Right (or Tab /
 //!   Shift+Tab) move between the permission prompt's buttons, back, forward, reload, the
-//!   downloads chip, the bookmark star, the bookmarks and the tabs; Enter or Space presses the
+//!   shield, the downloads chip, the bookmark star, the bookmarks and the tabs; Enter or Space presses the
 //!   one with the focus ring; Escape goes back to the page.
 //! - Shift+F10 or the Menu key opens the right-click menu for the focused element (or the
 //!   page); Up/Down/Home/End move in an open menu or downloads panel, Enter or Space picks.

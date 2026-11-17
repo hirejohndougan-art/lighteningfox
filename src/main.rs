@@ -303,14 +303,18 @@ fn button_at(x: f32, y: f32) -> Option<usize> {
 }
 /// Everything in the browser UI the keyboard can reach (uikeys.rs), in order, as boxes in
 /// left-to-right UI coordinates: a permission prompt's buttons, back, forward, reload, the
-/// downloads chip, the star, the bookmarks, the tabs and the new-tab button.
-fn ui_targets(fonts: &Fonts, w: f32, tabs: usize, bookmarks: &[library::Bookmark], downloads: bool, prompt: Option<&permissions::Prompt>) -> Vec<uikeys::Target> {
+/// shield, the downloads chip, the star, the bookmarks, the tabs and the new-tab button.
+#[allow(clippy::too_many_arguments)]
+fn ui_targets(fonts: &Fonts, w: f32, tabs: usize, bookmarks: &[library::Bookmark], downloads: bool, shield: bool, prompt: Option<&permissions::Prompt>) -> Vec<uikeys::Target> {
     let mut t: Vec<uikeys::Target> = Vec::new();
     if let Some(p) = prompt {
         t.extend(p.button_boxes().into_iter().map(|b| (b.0, b.1, b.2, b.3)));
     }
     for (bx, _) in BUTTONS {
         t.push((bx, TAB_H + 4.0, BTN_W, TOOL_H - 8.0));
+    }
+    if shield {
+        t.push((shield_x(w, downloads), TAB_H + 4.0, SHIELD_W, TOOL_H - 8.0));
     }
     if downloads {
         t.push((w - 8.0 - STAR_W - DL_W, TAB_H + 4.0, DL_W, TOOL_H - 8.0));
@@ -2797,7 +2801,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
                 // Keyboard focus in the toolbar (reached with F6).
                 if let Some(i) = ui_focus {
-                    let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), perm_queue.first());
+                    let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
                     let i = i.min(targets.len().saturating_sub(1));
                     match key {
                         Key::Right | Key::Left | Key::Tab => {
@@ -4296,7 +4300,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 canvas.buf.clone()
             });
             if let Some(i) = ui_focus {
-                let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), perm_queue.first());
+                let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
                 if let Some(&t) = targets.get(i.min(targets.len().saturating_sub(1))) {
                     uikeys::draw_ring(&mut canvas, t);
                 }

@@ -17,6 +17,7 @@ pub mod settings {
         pub safe_browsing: bool,
         pub no_blocking: Vec<String>,
     }
+    pub fn set_no_blocking(_: Vec<String>) {}
     pub fn get() -> Settings {
         Settings { resist_fingerprinting: true, block_ads: true, block_trackers: true, block_annoyances: false, safe_browsing: true, no_blocking: Vec::new() }
     }

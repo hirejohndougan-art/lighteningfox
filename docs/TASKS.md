@@ -76,7 +76,7 @@ tests that fit.
 
 ### AB1. Content blocking on a par with uBlock Origin
 **Status:** done
-**Left undone:** `trusted-edit-inbound-object`, `trusted-prevent-dom-bypass`, `trusted-create-html` and other rarely used scriptlets; HTML filters other than `##^script:has-text()` are applied after parsing (as `:remove()`), not to the raw HTML; `$header=`, `$permissions=`, `$replace=`, `$urltransform`, `$cname`; `$method` assumes GET; `:others()` selects nothing; the toolbar shield can't be reached with the keyboard yet (uikeys targets). The `css` fuzz target still doesn't build (needs stubs for `anim` and `csssyntax`; the other four do). In debug builds a page with many scriptlets can need a little over 2 MB of stack (tests on 2 MB threads: run them in release, as CI does). Checks with all the lists loaded take about 30 µs per request (release).
+**Left undone:** `trusted-edit-inbound-object`, `trusted-prevent-dom-bypass`, `trusted-create-html` and other rarely used scriptlets; HTML filters other than `##^script:has-text()` are applied after parsing (as `:remove()`), not to the raw HTML; `$header=`, `$permissions=`, `$replace=`, `$urltransform`, `$cname`; `$method` assumes GET; `:others()` selects nothing; the `css` fuzz target stubs out `@keyframes` parsing (anim.rs needs the style engine). In debug builds a page with many scriptlets can need a little over 2 MB of stack (tests on 2 MB threads: run them in release, as CI does). Checks with all the lists loaded take about 30 µs per request (release).
 **After:** —
 **Checklist:** none (the §14 ad-blocking items are already ticked; this deepens them)
 **Files:** `src/blocklist.rs`, new `src/scriptlets.js` and `src/cosmetic.js`, `src/net.rs`, `src/js.rs` (document-start hook), `src/settings.rs`, locales

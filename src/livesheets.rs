@@ -63,7 +63,7 @@ pub struct Live {
 impl Live {
     /// Start from the sheets gathered at load, for the document as it was then.
     pub fn new(base: &str, policy: std::sync::Arc<crate::security::PagePolicy>, dom: &Dom, sheets: Vec<Stylesheet>) -> Live {
-        let sig = signature(&sources(dom, base));
+        let sig = signature(&sources(dom, base)) ^ hash(&crate::blocklist::hiding_css(base, dom)).rotate_left(1);
         Live { base: base.to_string(), policy, sig, sheets: Rc::new(sheets), inline_cache: HashMap::new(), external_cache: HashMap::new(), unseen: false }
     }
 
@@ -75,7 +75,10 @@ impl Live {
     /// list changed.
     pub fn refresh(&mut self, dom: &Dom) -> bool {
         let srcs = sources(dom, &self.base);
-        let sig = signature(&srcs);
+        // Element hiding depends on which classes, ids and attributes the page has now: an
+        // ad a script inserts later gets hidden too.
+        let hiding = crate::blocklist::hiding_css(&self.base, dom);
+        let sig = signature(&srcs) ^ hash(&hiding).rotate_left(1);
         if sig == self.sig {
             return false;
         }
@@ -114,9 +117,10 @@ impl Live {
             }
         }
         // As at load: what's left of blocked ads is hidden, and extensions add their styles.
-        let hiding = crate::blocklist::hiding_css(&self.base, dom);
         if !hiding.is_empty() {
-            out.push(css::parse(&hiding));
+            let key = hash(&hiding);
+            let sheet = self.inline_cache.entry(key).or_insert_with(|| css::parse(&hiding));
+            out.push(sheet.clone());
         }
         for text in crate::extensions::content::page_css(&self.base, crate::security::frame_info(&self.base).is_none()) {
             out.push(css::parse(&text));
