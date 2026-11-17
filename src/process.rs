@@ -19,6 +19,8 @@
 //! - **download**: a navigation turned out to be a file; the browser saves it.
 //! - **ws_open / ws_send / ws_poll**: WebSockets, which the browser opens and relays
 //!   (ws_relay.rs).
+//! - **geo_start / geo_stop / geo_gone / geo_poll**: positions for pages the user allowed to
+//!   know your location, which the browser finds (geo.rs) and relays (geo_relay.rs).
 //!
 //! Wire format (frames.rs `put`/`get`): browser → process: `open <id> <url> <w> <h> <post?>
 //! <type> <body>`, `event <id> <event>`, `close <id>`, `resp <rid> <parts>`; process →
@@ -491,6 +493,8 @@ pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
         }
         // WebSockets the browser opens for the renderer's pages (ws_relay.rs).
         Some(b"ws_open" | b"ws_send" | b"ws_poll") => crate::ws_relay::serve(parts, (auth.sites.clone(), auth.tops.clone()), |u, t| auth.doc_ok(u, t)),
+        // Positions the browser finds for the renderer's allowed pages (geo_relay.rs).
+        Some(b"geo_start" | b"geo_stop" | b"geo_gone" | b"geo_poll") => crate::geo_relay::serve(parts, (auth.sites.clone(), auth.tops.clone()), |u, t| auth.doc_ok(u, t)),
         Some(b"ext") if auth.extensions => {
             // Only for pages of the process's own sites.
             let req: serde_json::Value = serde_json::from_str(&arg(1)).unwrap_or_default();

@@ -1,5 +1,10 @@
 //! Geolocation: `navigator.geolocation` positions from GeoClue, the desktop's location
-//! service, over D-Bus (the system bus).
+//! service, over D-Bus (the system bus). Inside Flatpak, or when the system bus or GeoClue
+//! can't be reached, the XDG Location portal (`org.freedesktop.portal.Location` on the session
+//! bus) is asked instead: it asks the user and passes GeoClue's positions on.
+//!
+//! This runs in the browser process. Pages in site processes (which can't reach D-Bus) get
+//! their positions relayed through it (geo_relay.rs).
 //!
 //! Pages only get here after the site was allowed to know your location (src/prelude.js asks
 //! first). One background thread talks to GeoClue while any page is waiting for a position
@@ -100,11 +105,11 @@ fn state() -> std::sync::MutexGuard<'static, State> {
     STATE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn push(epoch: u64, code: String) {
+pub(crate) fn push(epoch: u64, code: String) {
     EVENTS.lock().unwrap_or_else(|e| e.into_inner()).push((epoch, code));
 }
 
-fn fail_code(id: u64, code: u32, msg: &str) -> String {
+pub(crate) fn fail_code(id: u64, code: u32, msg: &str) -> String {
     let mut s = format!("__geoFail({id}, {code}, ");
     crate::js::json_str(msg, &mut s);
     s.push(')');
@@ -137,6 +142,13 @@ fn n_geo_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         push(epoch, fail_code(id, 1, "User denied Geolocation"));
         return Ok(JsValue::from(false));
     }
+    if crate::process::in_renderer() {
+        // A sandboxed site process: the browser finds the position (and checks the
+        // permission again).
+        let (url, top) = crate::js::page_ctx(ctx, |p| (p.url.clone(), p.top.clone())).unwrap_or_default();
+        crate::geo_relay::start(epoch, id, once, high, max_age, &url, &top);
+        return Ok(JsValue::from(true));
+    }
     start(epoch, id, once, high, max_age);
     Ok(JsValue::from(true))
 }
@@ -145,7 +157,11 @@ fn n_geo_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
 fn n_geo_stop(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = a.first().map(|v| v.to_number(ctx)).transpose()?.unwrap_or(0.0) as u64;
     let epoch = crate::js::page_ctx(ctx, |p| p.epoch).unwrap_or(0);
-    stop(epoch, id);
+    if crate::process::in_renderer() {
+        crate::geo_relay::stop(epoch, id);
+    } else {
+        stop(epoch, id);
+    }
     Ok(JsValue::undefined())
 }
 
@@ -187,11 +203,19 @@ pub fn take_events(epoch: u64) -> Vec<String> {
 /// Is a page waiting for its first position, or are answers not yet delivered? (Keeps the
 /// event loop polling, and a headless render waiting, like a network request.)
 pub fn busy() -> bool {
-    !EVENTS.lock().unwrap_or_else(|e| e.into_inner()).is_empty() || state().wants.iter().any(|w| !w.got)
+    !EVENTS.lock().unwrap_or_else(|e| e.into_inner()).is_empty() || state().wants.iter().any(|w| !w.got) || crate::geo_relay::waiting()
+}
+
+/// Is anything still waiting for positions for `epoch`? (geo_relay.rs)
+pub(crate) fn watching(epoch: u64) -> bool {
+    state().wants.iter().any(|w| w.epoch == epoch)
 }
 
 /// The page is gone: forget its requests and undelivered answers.
 pub fn page_gone(epoch: u64) {
+    if crate::process::in_renderer() {
+        crate::geo_relay::page_gone(epoch);
+    }
     state().wants.retain(|w| w.epoch != epoch);
     EVENTS.lock().unwrap_or_else(|e| e.into_inner()).retain(|e| e.0 != epoch);
 }
@@ -242,7 +266,19 @@ fn thread_main() {
         return;
     }
     #[cfg(target_os = "linux")]
-    let result = Connection::system().map_err(|e| format!("No location service is available ({e})")).and_then(|c| serve(&c));
+    let result = {
+        // Inside Flatpak the system bus is out of reach: go straight to the portal.
+        let flatpak = std::path::Path::new("/.flatpak-info").exists();
+        let geoclue = if flatpak { Err(Unavailable("inside Flatpak".into())) } else { Connection::system().map_err(|e| Unavailable(e.to_string())).and_then(|c| serve(&c)) };
+        match geoclue {
+            Ok(()) => Ok(()),
+            Err(Unavailable(why)) => {
+                log!("[geolocation] GeoClue can't be reached ({why}): asking the location portal");
+                portal::run()
+            }
+            Err(Refused(msg)) => Err(msg),
+        }
+    };
     #[cfg(not(target_os = "linux"))]
     let result: Result<(), String> = Err("Location isn't available on this system yet".into());
     if let Err(msg) = result {
@@ -322,13 +358,26 @@ fn read_location(conn: &Connection, path: &str) -> zbus::Result<Position> {
 }
 
 #[cfg(target_os = "linux")]
+/// Why GeoClue gave no positions.
+#[derive(Debug)]
+enum Failure {
+    /// It isn't there (no system bus, or no GeoClue on it): the portal may do.
+    Unavailable(String),
+    /// It answered, and refused or failed.
+    Refused(String),
+}
+#[cfg(target_os = "linux")]
+use Failure::{Refused, Unavailable};
+
+#[cfg(target_os = "linux")]
 /// Talk to GeoClue until nobody is waiting any more.
-fn serve(conn: &Connection) -> Result<(), String> {
+fn serve(conn: &Connection) -> Result<(), Failure> {
     let explain = |e: zbus::Error| match &e {
         zbus::Error::MethodError(name, msg, _) if name.as_str().ends_with("AccessDenied") => {
-            format!("The location service refused Ironswift{}", msg.as_deref().map(|m| format!(": {m}")).unwrap_or_default())
+            Refused(format!("The location service refused Ironswift{}", msg.as_deref().map(|m| format!(": {m}")).unwrap_or_default()))
         }
-        _ => format!("No location service is available ({e})"),
+        zbus::Error::MethodError(name, _, _) if name.as_str().ends_with("ServiceUnknown") || name.as_str().ends_with("NameHasNoOwner") => Unavailable(e.to_string()),
+        _ => Refused(format!("No location service is available ({e})")),
     };
     let Some(high) = keep_going() else { return Ok(()) };
     let mut level = if high { LEVEL_EXACT } else { LEVEL_STREET };
@@ -368,6 +417,219 @@ fn serve(conn: &Connection) -> Result<(), String> {
     }
     let _ = client.call_method("Stop", &());
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+/// The XDG Location portal (`org.freedesktop.portal.Location`): a session with the accuracy
+/// wanted, started (the portal may ask the user first: its answer comes as a `Response` on a
+/// request object), then positions as `LocationUpdated` signals until the session is closed.
+mod portal {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
+    use zbus::zvariant::{OwnedValue, Value};
+
+    const SERVICE: &str = "org.freedesktop.portal.Desktop";
+    pub(super) const PATH: &str = "/org/freedesktop/portal/desktop";
+    const IFACE: &str = "org.freedesktop.portal.Location";
+    /// Portal accuracy levels (the portal's own scale): street, and exact.
+    pub(super) const STREET: u32 = 4;
+    pub(super) const EXACT: u32 = 5;
+    /// How long the user has to answer the portal's question.
+    const ANSWER_WAIT: Duration = Duration::from_secs(120);
+
+    /// The session bus connection and the portal's signals, kept for the browser's lifetime
+    /// (the thread reading signals has no way to stop while it waits for one).
+    static BUS: Mutex<Option<(Connection, std::sync::Arc<Mutex<Receiver<zbus::Message>>>)>> = Mutex::new(None);
+
+    /// Read the portal's location updates and request answers on their own threads.
+    pub(super) fn signals(conn: &Connection) -> zbus::Result<Receiver<zbus::Message>> {
+        let (tx, rx) = channel();
+        for (iface, member) in [(IFACE, "LocationUpdated"), ("org.freedesktop.portal.Request", "Response")] {
+            let rule = zbus::MatchRule::builder().msg_type(zbus::message::Type::Signal).interface(iface)?.member(member)?.build();
+            let iter = zbus::blocking::MessageIterator::for_match_rule(rule, conn, Some(256))?;
+            let tx = tx.clone();
+            std::thread::Builder::new()
+                .name("geolocation-portal".into())
+                .spawn(move || {
+                    for m in iter {
+                        let Ok(m) = m else { break };
+                        if tx.send(m).is_err() {
+                            break;
+                        }
+                    }
+                })
+                .map_err(|e| zbus::Error::Failure(e.to_string()))?;
+        }
+        Ok(rx)
+    }
+
+    pub(super) fn run() -> Result<(), String> {
+        let (conn, rx) = {
+            let mut bus = BUS.lock().unwrap_or_else(|e| e.into_inner());
+            if bus.is_none() {
+                let conn = Connection::session().map_err(|e| format!("No location service is available ({e})"))?;
+                let rx = signals(&conn).map_err(|e| format!("No location service is available ({e})"))?;
+                *bus = Some((conn, std::sync::Arc::new(Mutex::new(rx))));
+            }
+            let (c, r) = bus.as_ref().expect("just set");
+            (c.clone(), r.clone())
+        };
+        let rx = rx.lock().unwrap_or_else(|e| e.into_inner());
+        // Answers left over from an earlier session.
+        while rx.try_recv().is_ok() {}
+        serve(&conn, &rx)
+    }
+
+    fn f64_of(v: Option<&OwnedValue>) -> Option<f64> {
+        v.and_then(|v| f64::try_from(v).ok())
+    }
+
+    /// A `LocationUpdated` location dictionary.
+    pub(super) fn position(d: &HashMap<String, OwnedValue>) -> Option<Position> {
+        let altitude = f64_of(d.get("Altitude")).filter(|&a| a > UNKNOWN_ALTITUDE);
+        let speed = f64_of(d.get("Speed")).filter(|&s| s >= 0.0);
+        let heading = f64_of(d.get("Heading")).filter(|&h| h >= 0.0 && speed.is_some_and(|s| s > 0.0));
+        let timestamp = d
+            .get("Timestamp")
+            .and_then(|v| <(u64, u64)>::try_from(v.try_clone().ok()?).ok())
+            .map(|(s, us)| s as f64 * 1000.0 + us as f64 / 1000.0)
+            .filter(|&t| t > 0.0)
+            .unwrap_or_else(now_ms);
+        Some(Position {
+            latitude: f64_of(d.get("Latitude"))?,
+            longitude: f64_of(d.get("Longitude"))?,
+            accuracy: f64_of(d.get("Accuracy")).unwrap_or(0.0),
+            altitude,
+            speed,
+            heading,
+            timestamp,
+        })
+    }
+
+    fn close(conn: &Connection, session: &OwnedObjectPath) {
+        let _ = conn.call_method(Some(SERVICE), session.as_str(), Some("org.freedesktop.portal.Session"), "Close", &());
+    }
+
+    /// Start a session at `level`. None if nobody is waiting any more by the time the user
+    /// answers. Location updates that come in meanwhile are kept in `early`.
+    fn start(conn: &Connection, rx: &Receiver<zbus::Message>, level: u32, early: &mut Vec<zbus::Message>) -> Result<Option<OwnedObjectPath>, String> {
+        static N: AtomicU32 = AtomicU32::new(0);
+        let n = N.fetch_add(1, Ordering::SeqCst);
+        let failed = |e: zbus::Error| format!("The location portal failed ({e})");
+        let loc = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy<'_>>::new(conn)
+            .destination(SERVICE)
+            .and_then(|b| b.path(PATH))
+            .and_then(|b| b.interface(IFACE))
+            .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
+            .and_then(|b| b.build())
+            .map_err(failed)?;
+        let token = format!("ironswift{}_{n}", std::process::id());
+        let opts: HashMap<&str, Value> = HashMap::from([
+            ("session_handle_token", Value::from(token.as_str())),
+            ("distance-threshold", Value::from(0u32)),
+            ("time-threshold", Value::from(0u32)),
+            ("accuracy", Value::from(level)),
+        ]);
+        let session: OwnedObjectPath = loc.call("CreateSession", &(opts,)).map_err(|e| match &e {
+            zbus::Error::MethodError(name, _, _) if name.as_str().ends_with("ServiceUnknown") || name.as_str().ends_with("UnknownMethod") || name.as_str().ends_with("UnknownInterface") => {
+                format!("No location service is available (the desktop has no location portal: {e})")
+            }
+            _ => failed(e),
+        })?;
+        let handle = format!("ironswift_r{n}");
+        let opts: HashMap<&str, Value> = HashMap::from([("handle_token", Value::from(handle.as_str()))]);
+        let request: OwnedObjectPath = match loc.call("Start", &(session.as_ref(), "", opts)) {
+            Ok(r) => r,
+            Err(e) => {
+                close(conn, &session);
+                return Err(failed(e));
+            }
+        };
+        let until = Instant::now() + ANSWER_WAIT;
+        loop {
+            if keep_going().is_none() {
+                close(conn, &session);
+                return Ok(None);
+            }
+            if Instant::now() >= until {
+                close(conn, &session);
+                return Err("The location portal didn't answer".into());
+            }
+            let m = match rx.recv_timeout(POLL) {
+                Ok(m) => m,
+                Err(RecvTimeoutError::Timeout) => continue,
+                Err(RecvTimeoutError::Disconnected) => return Err("The location portal went away".into()),
+            };
+            let h = m.header();
+            match h.member().map(|m| m.as_str()) {
+                Some("Response") if h.path().is_some_and(|p| p.as_str() == request.as_str()) => {
+                    let (code, _): (u32, HashMap<String, OwnedValue>) = m.body().deserialize().map_err(|e| failed(e.into()))?;
+                    return match code {
+                        0 => Ok(Some(session)),
+                        1 => {
+                            close(conn, &session);
+                            Err("The location service refused Ironswift: location access wasn't allowed".into())
+                        }
+                        _ => {
+                            close(conn, &session);
+                            Err("The location portal couldn't find the position".into())
+                        }
+                    };
+                }
+                Some("LocationUpdated") => early.push(m.clone()),
+                _ => {}
+            }
+        }
+    }
+
+    /// Talk to the portal until nobody is waiting any more.
+    pub(super) fn serve(conn: &Connection, rx: &Receiver<zbus::Message>) -> Result<(), String> {
+        let Some(high) = keep_going() else { return Ok(()) };
+        let mut level = if high { EXACT } else { STREET };
+        let mut early = Vec::new();
+        let Some(mut session) = start(conn, rx, level, &mut early)? else { return Ok(()) };
+        let mut current = None;
+        loop {
+            let Some(high) = keep_going() else { break };
+            // A page asked for GPS accuracy: a new session at the exact level.
+            if high && level != EXACT {
+                close(conn, &session);
+                level = EXACT;
+                match start(conn, rx, level, &mut early)? {
+                    Some(s) => session = s,
+                    None => return Ok(()),
+                }
+            }
+            let next = if early.is_empty() { rx.recv_timeout(POLL) } else { Ok(early.remove(0)) };
+            match next {
+                Ok(m) => {
+                    let h = m.header();
+                    if h.member().is_some_and(|n| n.as_str() == "LocationUpdated") {
+                        match m.body().deserialize::<(OwnedObjectPath, HashMap<String, OwnedValue>)>() {
+                            Ok((s, loc)) if s == session => {
+                                if let Some(pos) = position(&loc) {
+                                    current = Some(pos);
+                                    deliver(pos, false);
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(e) => log!("[geolocation] couldn't read a position from the portal: {e}"),
+                        }
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return Err("The location portal went away".into()),
+            }
+            // Pages that started watching get the current position.
+            if let Some(pos) = current {
+                deliver(pos, true);
+            }
+        }
+        close(conn, &session);
+        Ok(())
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -457,6 +719,114 @@ mod tests {
         fn timestamp(&self) -> (u64, u64) {
             (1_700_000_000, 500_000)
         }
+    }
+
+    /// A pretend location portal: sessions, a Start that answers (before its reply, as a real
+    /// portal may) and then sends one position.
+    struct Portal {
+        accuracy: Arc<AtomicU32>,
+        closed: Arc<AtomicU32>,
+        answer: u32,
+    }
+    struct Session {
+        closed: Arc<AtomicU32>,
+    }
+
+    #[zbus::interface(name = "org.freedesktop.portal.Location")]
+    impl Portal {
+        async fn create_session(
+            &self,
+            options: std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            #[zbus(object_server)] server: &zbus::ObjectServer,
+        ) -> OwnedObjectPath {
+            let token = options.get("session_handle_token").and_then(|v| String::try_from(v.try_clone().ok()?).ok()).unwrap_or_default();
+            self.accuracy.store(options.get("accuracy").and_then(|v| u32::try_from(v).ok()).unwrap_or(0), Ordering::SeqCst);
+            let path = format!("/org/freedesktop/portal/desktop/session/1_1/{token}");
+            server.at(path.as_str(), Session { closed: self.closed.clone() }).await.unwrap();
+            OwnedObjectPath::try_from(path).unwrap()
+        }
+
+        async fn start(
+            &self,
+            session: OwnedObjectPath,
+            _parent: String,
+            options: std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            #[zbus(connection)] conn: &zbus::Connection,
+        ) -> OwnedObjectPath {
+            let token = options.get("handle_token").and_then(|v| String::try_from(v.try_clone().ok()?).ok()).unwrap_or_default();
+            let request = format!("/org/freedesktop/portal/desktop/request/1_1/{token}");
+            let none: std::collections::HashMap<&str, zbus::zvariant::Value> = std::collections::HashMap::new();
+            conn.emit_signal(None::<()>, request.as_str(), "org.freedesktop.portal.Request", "Response", &(self.answer, none)).await.unwrap();
+            if self.answer == 0 {
+                use zbus::zvariant::Value;
+                let loc: std::collections::HashMap<&str, Value> = std::collections::HashMap::from([
+                    ("Latitude", Value::from(29.4608)),
+                    ("Longitude", Value::from(-95.0513)),
+                    ("Accuracy", Value::from(25.0)),
+                    ("Altitude", Value::from(-f64::MAX)),
+                    ("Speed", Value::from(-1.0)),
+                    ("Heading", Value::from(-1.0)),
+                    ("Timestamp", Value::from((1_700_000_000u64, 500_000u64))),
+                    ("Description", Value::from("")),
+                ]);
+                conn.emit_signal(None::<()>, "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Location", "LocationUpdated", &(session.as_ref(), loc)).await.unwrap();
+            }
+            OwnedObjectPath::try_from(request).unwrap()
+        }
+    }
+
+    #[zbus::interface(name = "org.freedesktop.portal.Session")]
+    impl Session {
+        fn close(&self) {
+            self.closed.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    fn pretend_portal(answer: u32) -> (zbus::blocking::Connection, zbus::blocking::Connection, Arc<AtomicU32>, Arc<AtomicU32>) {
+        let (a, b) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (accuracy, closed) = (Arc::new(AtomicU32::new(0)), Arc::new(AtomicU32::new(0)));
+        let portal = Portal { accuracy: accuracy.clone(), closed: closed.clone(), answer };
+        let server = std::thread::spawn(move || {
+            zbus::blocking::connection::Builder::async_io_unix_stream(a)
+                .server(zbus::Guid::generate())
+                .unwrap()
+                .p2p()
+                .serve_at(portal::PATH, portal)
+                .unwrap()
+                .build()
+                .unwrap()
+        });
+        let conn = zbus::blocking::connection::Builder::async_io_unix_stream(b).p2p().build().unwrap();
+        (conn, server.join().unwrap(), accuracy, closed)
+    }
+
+    /// The location portal (what Flatpak gets), against the pretend portal over a socket pair.
+    #[test]
+    fn talks_to_the_location_portal() {
+        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+        let (conn, _server, accuracy, closed) = pretend_portal(0);
+        let rx = portal::signals(&conn).unwrap();
+        let epoch = u64::MAX - 8;
+        state().wants.push(Want { epoch, id: 1, once: true, high: false, got: false });
+        portal::serve(&conn, &rx).unwrap();
+        let events = take_events(epoch);
+        assert_eq!(
+            events,
+            ["__geoDone(1, {\"latitude\":29.4608,\"longitude\":-95.0513,\"accuracy\":25,\"altitude\":null,\"altitudeAccuracy\":null,\"heading\":null,\"speed\":null,\"timestamp\":1700000000500})"]
+        );
+        assert_eq!(accuracy.load(Ordering::SeqCst), portal::STREET);
+        // The session is closed once nobody is waiting.
+        assert_eq!(closed.load(Ordering::SeqCst), 1);
+        page_gone(epoch);
+
+        // The user said no in the portal's dialog: the page hears why.
+        let (conn, _server, _, closed) = pretend_portal(1);
+        let rx = portal::signals(&conn).unwrap();
+        state().wants.push(Want { epoch, id: 2, once: true, high: true, got: false });
+        let err = portal::serve(&conn, &rx).unwrap_err();
+        assert!(err.contains("wasn't allowed"), "{err}");
+        assert_eq!(closed.load(Ordering::SeqCst), 1);
+        state().wants.retain(|w| w.epoch != epoch);
     }
 
     #[test]

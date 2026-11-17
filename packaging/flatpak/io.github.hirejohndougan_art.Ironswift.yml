@@ -23,6 +23,9 @@ finish-args:
   # Opening a downloaded file or folder, and "set as default browser".
   - --talk-name=org.freedesktop.portal.OpenURI
   - --talk-name=org.freedesktop.Notifications
+  # Location (navigator.geolocation) goes through the XDG Location portal, which asks you and
+  # is always reachable from a Flatpak: no permission here (GeoClue's system bus stays shut,
+  # and Flathub refuses --talk-name for portals).
   # The browser's own seccomp filter and sandboxed frame process work inside Flatpak's sandbox.
 modules:
   - name: ironswift

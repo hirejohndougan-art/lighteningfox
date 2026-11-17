@@ -96,6 +96,7 @@ mod mse;
 mod mse_frames;
 mod channels;
 mod geo;
+mod geo_relay;
 mod parallel;
 mod preshape;
 mod clipboard;
