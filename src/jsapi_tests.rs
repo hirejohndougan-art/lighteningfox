@@ -97,8 +97,8 @@ fn user_events() {
     p.update(js, None, 500.0, 500.0, [false; 3], m);
     let _ = outer;
     js.dispatch(field, "focus");
-    assert!(crate::userinput::key(js, minifb::Key::A, false, false, m));
-    assert!(!crate::userinput::key(js, minifb::Key::X, false, false, m), "cancelled keydown");
+    assert!(crate::userinput::key(js, crate::window::Key::A, false, false, m));
+    assert!(!crate::userinput::key(js, crate::window::Key::X, false, false, m), "cancelled keydown");
     assert!(!crate::userinput::wheel(js, Some(btn), 1.0, 1.0, 0.0, 45.0, m), "cancelled wheel");
     assert_eq!(
         text_of("log"),

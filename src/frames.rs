@@ -13,7 +13,7 @@
 //! security registry can't tell apart from the parent while both are alive.
 
 use crate::{dom::NodeId, forms, js, layout, net, security, userinput, FrameJob, FrameSrc, Go, KeyPress, Page};
-use minifb::Key;
+use crate::window::Key;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::Mutex;

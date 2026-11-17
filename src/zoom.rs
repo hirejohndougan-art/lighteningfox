@@ -92,28 +92,29 @@ mod tests {
     }
 }
 
-/// The screen's scale factor for HiDPI displays: IRONSWIFT_SCALE, else GDK_SCALE ×
-/// GDK_DPI_SCALE, else QT_SCALE_FACTOR, else the X server's Xft.dpi ÷ 96 (1.0 if unknown).
+/// The screen's scale factor for HiDPI displays: IRONSWIFT_SCALE, GDK_SCALE × GDK_DPI_SCALE
+/// or QT_SCALE_FACTOR when set, else what the window system reports for the window (it
+/// changes when the window moves to another screen), else the X server's Xft.dpi ÷ 96.
 /// Pages are laid out in CSS pixels and drawn this many device pixels per CSS pixel.
 pub fn device_scale() -> f32 {
     // Only the window uses it; PNG renders and printing stay at 1 CSS px = 1 px.
     if !WINDOWED.load(std::sync::atomic::Ordering::Relaxed) {
         return 1.0;
     }
-    static SCALE: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
-    *SCALE.get_or_init(|| {
+    static FORCED: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    static XFT: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    let forced = *FORCED.get_or_init(|| {
         let env = |k: &str| std::env::var(k).ok().and_then(|v| v.trim().parse::<f32>().ok()).filter(|v| v.is_finite() && *v > 0.0);
-        let s = env("IRONSWIFT_SCALE")
+        env("IRONSWIFT_SCALE")
             .or_else(|| match (env("GDK_SCALE"), env("GDK_DPI_SCALE")) {
                 (None, None) => None,
                 (a, b) => Some(a.unwrap_or(1.0) * b.unwrap_or(1.0)),
             })
             .or_else(|| env("QT_SCALE_FACTOR"))
-            .or_else(xft_dpi_scale)
-            .unwrap_or(1.0);
-        // Quarter steps, like desktop scaling settings.
-        ((s * 4.0).round() / 4.0).clamp(1.0, 4.0)
-    })
+    });
+    let s = forced.or_else(crate::window::reported_scale).or_else(|| *XFT.get_or_init(xft_dpi_scale)).unwrap_or(1.0);
+    // Quarter steps, like desktop scaling settings.
+    ((s * 4.0).round() / 4.0).clamp(1.0, 4.0)
 }
 
 static WINDOWED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

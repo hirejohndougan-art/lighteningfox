@@ -78,7 +78,7 @@ const MAX_QUADS: u64 = 64;
 
 impl Gpu {
     /// Set up drawing into `window`. The window must outlive the returned Gpu.
-    pub fn new(window: &minifb::Window, w: u32, h: u32) -> Option<Gpu> {
+    pub fn new(window: &crate::window::Window, w: u32, h: u32) -> Option<Gpu> {
         match Self::setup(window, w, h) {
             Ok(g) => Some(g),
             Err(why) => {
@@ -88,7 +88,7 @@ impl Gpu {
         }
     }
 
-    fn setup(window: &minifb::Window, w: u32, h: u32) -> Result<Gpu, String> {
+    fn setup(window: &crate::window::Window, w: u32, h: u32) -> Result<Gpu, String> {
         let mode = std::env::var("IRONSWIFT_GPU").unwrap_or_default();
         if mode == "0" {
             return Err("turned off (IRONSWIFT_GPU=0)".into());

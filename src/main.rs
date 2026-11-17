@@ -32,7 +32,6 @@ mod grid;
 mod html;
 mod http;
 mod hsts;
-mod icon;
 mod tokenizer;
 mod a11y;
 mod autofill;
@@ -51,6 +50,7 @@ mod anim;
 mod background;
 mod gradient;
 mod smooth;
+mod window;
 mod images;
 mod srcset;
 mod page_images;
@@ -97,7 +97,7 @@ mod transform;
 mod validation;
 
 use font::Fonts;
-use minifb::{CursorStyle, Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
+use window::{CursorStyle, Key, KeyRepeat, MouseButton, MouseMode, Window, WindowOptions};
 use paint::Canvas;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -435,14 +435,12 @@ fn prepared_title(p: &Prepared) -> String {
 
 const START_PAGE: &str = include_str!("start.html");
 
-/// On a Wayland desktop that also offers X11 (XWayland, which nearly all do), use X11: the
-/// window library's Wayland mode can lose the mouse pointer (it draws none when the cursor
-/// theme names its pointers differently), has no title bar on GNOME and handles keys less
-/// reliably. IRONSWIFT_WAYLAND=1 keeps native Wayland.
+/// The window runs natively on Wayland (winit). IRONSWIFT_X11=1 uses X11 (XWayland) instead,
+/// for desktops where that works better.
 fn prefer_x11() {
     let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
     let x11 = std::env::var_os("DISPLAY").is_some();
-    if wayland && x11 && !std::env::var("IRONSWIFT_WAYLAND").is_ok_and(|v| v == "1") {
+    if wayland && x11 && std::env::var("IRONSWIFT_X11").is_ok_and(|v| v == "1") {
         // SAFETY: called first thing in main, before any other thread exists.
         unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
     }
@@ -1399,7 +1397,7 @@ struct Typed {
     shift: [bool; 2],
     alt: [bool; 2],
 }
-impl minifb::InputCallback for Typed {
+impl window::InputCallback for Typed {
     fn add_char(&mut self, c: u32) {
         if let Some(ch) = char::from_u32(c) {
             self.chars.borrow_mut().push(ch);
@@ -1794,7 +1792,6 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             std::process::exit(1);
         });
     window.set_target_fps(60);
-    icon::set_window_icon(&mut window);
     // Draw with the graphics card when there is one (see gpu.rs); otherwise in software.
     #[cfg(feature = "gpu")]
     let mut gpu = {
@@ -1817,8 +1814,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let typed = Rc::new(RefCell::new(Vec::new()));
     let pressed = Rc::new(RefCell::new(Vec::<KeyPress>::new()));
     window.set_input_callback(Box::new(Typed { chars: typed.clone(), keys: pressed.clone(), ctrl: [false; 2], shift: [false; 2], alt: [false; 2] }));
-    // Wayland doesn't repeat held keys for us; there, add the window's own repeats.
-    let add_repeats = std::env::var_os("WAYLAND_DISPLAY").is_some();
+    // The window reports held-key repeats itself (on Wayland too).
+    let add_repeats = false;
 
     let mut back: Vec<Entry> = Vec::new();
     let mut forward: Vec<Entry> = Vec::new();

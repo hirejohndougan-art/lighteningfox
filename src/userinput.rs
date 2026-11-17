@@ -4,7 +4,7 @@
 
 use crate::dom::NodeId;
 use crate::js::Js;
-use minifb::Key;
+use crate::window::Key;
 
 /// Modifier keys held during an event.
 #[derive(Clone, Copy, Default, PartialEq)]
