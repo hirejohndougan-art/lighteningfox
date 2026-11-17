@@ -1396,6 +1396,8 @@ impl Js {
             ("__storageSave", 2, n_storage_save),
             ("__idbLoad", 1, n_idb_load),
             ("__idbSave", 2, n_idb_save),
+            ("__randomBytes", 1, crate::webcrypto::n_random_bytes),
+            ("__digest", 2, crate::webcrypto::n_digest),
             ("__netStart", 8, n_net_start),
             ("__netBody", 1, crate::netbody::n_net_body),
             ("__resolve", 2, n_resolve),

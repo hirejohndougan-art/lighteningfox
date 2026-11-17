@@ -79,6 +79,7 @@ mod jsnest;
 mod jsmodules;
 mod importmap;
 mod extensions;
+mod webcrypto;
 mod domindex;
 mod dom_classes;
 mod vertical;

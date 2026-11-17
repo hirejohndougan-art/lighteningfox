@@ -180,3 +180,144 @@
 
   Object.assign(g, { Blob, File, FileReader });
 })();
+
+// Web Crypto: crypto.getRandomValues, crypto.randomUUID and crypto.subtle.digest (SHA-1/256/
+// 384/512). Other subtle operations (keys, signing, encryption) reject with NotSupportedError.
+(function () {
+  "use strict";
+  const g = globalThis;
+  if (g.crypto && g.crypto.getRandomValues) return;
+  const illegal = (name) => { const C = { [name]: function () { throw new TypeError("Illegal constructor"); } }[name]; return C; };
+  const Crypto = illegal("Crypto"), SubtleCrypto = illegal("SubtleCrypto"), CryptoKey = illegal("CryptoKey");
+  const bytesOf = (src) => {
+    if (src instanceof ArrayBuffer) return new Uint8Array(src);
+    if (ArrayBuffer.isView(src)) return new Uint8Array(src.buffer, src.byteOffset, src.byteLength);
+    throw new TypeError("Expected an ArrayBuffer or a typed array");
+  };
+  const toStr = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return s; };
+  const intArrays = ["Int8Array", "Uint8Array", "Uint8ClampedArray", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "BigInt64Array", "BigUint64Array"];
+
+  const subtle = Object.create(SubtleCrypto.prototype);
+  subtle.digest = function digest(algorithm, data) {
+    try {
+      const name = typeof algorithm === "string" ? algorithm : algorithm && algorithm.name;
+      const out = __digest(String(name), toStr(bytesOf(data)));
+      if (out === undefined) return Promise.reject(new DOMException("Unrecognized algorithm name", "NotSupportedError"));
+      const u8 = new Uint8Array(out.length);
+      for (let i = 0; i < out.length; i++) u8[i] = out.charCodeAt(i);
+      return Promise.resolve(u8.buffer);
+    } catch (e) { return Promise.reject(e); }
+  };
+  for (const m of ["encrypt", "decrypt", "sign", "verify", "generateKey", "deriveKey", "deriveBits", "importKey", "exportKey", "wrapKey", "unwrapKey"]) {
+    subtle[m] = function () { return Promise.reject(new DOMException("crypto.subtle." + m + " isn't supported yet", "NotSupportedError")); };
+  }
+
+  const crypto = Object.create(Crypto.prototype);
+  crypto.getRandomValues = function getRandomValues(a) {
+    if (!ArrayBuffer.isView(a) || !intArrays.includes(Object.prototype.toString.call(a).slice(8, -1))) {
+      throw new DOMException("getRandomValues needs an integer typed array", "TypeMismatchError");
+    }
+    if (a.byteLength > 65536) throw new DOMException("getRandomValues can fill at most 65536 bytes", "QuotaExceededError");
+    const r = __randomBytes(a.byteLength), u8 = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    for (let i = 0; i < u8.length; i++) u8[i] = r.charCodeAt(i);
+    return a;
+  };
+  crypto.randomUUID = function randomUUID() {
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+    return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
+  };
+  Object.defineProperty(crypto, "subtle", { get: () => subtle, enumerable: true, configurable: true });
+  Object.defineProperty(g, "crypto", { get: () => crypto, enumerable: true, configurable: true });
+  Object.assign(g, { Crypto, SubtleCrypto, CryptoKey });
+})();
+
+// User Timing (performance.mark/measure and their entries) and PerformanceObserver. Only
+// "mark" and "measure" entries are recorded; observers of other types never get entries.
+(function () {
+  "use strict";
+  const g = globalThis, perf = g.performance;
+  if (!perf || g.PerformanceObserver) return;
+  const entries = [], observers = new Set();
+  class PerformanceEntry {
+    constructor(name, entryType, startTime, duration, detail) {
+      Object.assign(this, { name, entryType, startTime, duration });
+      if (detail !== undefined) this.detail = detail;
+    }
+    toJSON() { return { name: this.name, entryType: this.entryType, startTime: this.startTime, duration: this.duration }; }
+  }
+  class PerformanceMark extends PerformanceEntry {}
+  class PerformanceMeasure extends PerformanceEntry {}
+  const record = (e) => {
+    entries.push(e);
+    if (entries.length > 10000) entries.shift();
+    for (const o of observers) if (o._types.has(e.entryType)) { o._queue.push(e); o._schedule(); }
+    return e;
+  };
+  const timeOf = (m) => {
+    if (m === undefined) return perf.now();
+    if (typeof m === "number") return m;
+    for (let i = entries.length - 1; i >= 0; i--) if (entries[i].entryType === "mark" && entries[i].name === m) return entries[i].startTime;
+    throw new DOMException(`The mark '${m}' does not exist.`, "SyntaxError");
+  };
+  perf.timeOrigin = perf.timeOrigin || Date.now() - perf.now();
+  perf.mark = function mark(name, opts) {
+    return record(new PerformanceMark(String(name), "mark", opts && opts.startTime !== undefined ? +opts.startTime : perf.now(), 0, opts ? opts.detail : undefined));
+  };
+  perf.measure = function measure(name, start, end) {
+    let s, e, detail;
+    if (start && typeof start === "object") {
+      detail = start.detail;
+      s = timeOf(start.start); e = start.end !== undefined ? timeOf(start.end) : start.duration !== undefined ? s + start.duration : perf.now();
+    } else { s = start === undefined ? 0 : timeOf(start); e = timeOf(end); }
+    return record(new PerformanceMeasure(String(name), "measure", s, e - s, detail));
+  };
+  const pick = (type, name) => entries.filter((x) => (type === undefined || x.entryType === type) && (name === undefined || x.name === name));
+  perf.getEntries = () => pick();
+  perf.getEntriesByType = (t) => pick(String(t));
+  perf.getEntriesByName = (n, t) => pick(t === undefined ? undefined : String(t), String(n));
+  const clear = (type) => function (name) {
+    for (let i = entries.length - 1; i >= 0; i--) if (entries[i].entryType === type && (name === undefined || entries[i].name === name)) entries.splice(i, 1);
+  };
+  perf.clearMarks = clear("mark");
+  perf.clearMeasures = clear("measure");
+  perf.clearResourceTimings = function () {};
+  perf.setResourceTimingBufferSize = function () {};
+  perf.toJSON = () => ({ timeOrigin: perf.timeOrigin });
+
+  class PerformanceObserverEntryList {
+    constructor(list) { this._l = list; }
+    getEntries() { return this._l.slice(); }
+    getEntriesByType(t) { return this._l.filter((x) => x.entryType === t); }
+    getEntriesByName(n, t) { return this._l.filter((x) => x.name === n && (t === undefined || x.entryType === t)); }
+  }
+  class PerformanceObserver {
+    constructor(callback) {
+      if (typeof callback !== "function") throw new TypeError("PerformanceObserver needs a callback");
+      this._cb = callback; this._types = new Set(); this._queue = []; this._pending = false;
+    }
+    static get supportedEntryTypes() { return ["mark", "measure"]; }
+    observe(opts) {
+      opts = opts || {};
+      const types = opts.type !== undefined ? [String(opts.type)] : Array.from(opts.entryTypes || []).map(String);
+      if (!types.length) throw new TypeError("observe() needs type or entryTypes");
+      types.forEach((t) => this._types.add(t));
+      observers.add(this);
+      if (opts.buffered) { for (const e of entries) if (types.includes(e.entryType)) this._queue.push(e); if (this._queue.length) this._schedule(); }
+    }
+    disconnect() { observers.delete(this); this._queue = []; this._types.clear(); }
+    takeRecords() { const q = this._queue; this._queue = []; return q; }
+    _schedule() {
+      if (this._pending) return;
+      this._pending = true;
+      setTimeout(() => {
+        this._pending = false;
+        if (!this._queue.length) return;
+        const list = new PerformanceObserverEntryList(this.takeRecords());
+        try { this._cb.call(this, list, this); } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); }
+      }, 0);
+    }
+  }
+  Object.assign(g, { PerformanceEntry, PerformanceMark, PerformanceMeasure, PerformanceObserver, PerformanceObserverEntryList });
+})();
