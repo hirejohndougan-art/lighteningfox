@@ -18,6 +18,10 @@ on:
         description: "Which commit or branch of Ironswift to build"
         required: false
         default: main
+      wait:
+        description: "Seconds to keep each page running after load before the snapshot (0: the usual short settle)"
+        required: false
+        default: "0"
 permissions:
   contents: write
 jobs:
@@ -40,17 +44,21 @@ jobs:
       - name: Record
         env:
           URLS: ${{ inputs.urls }}
+          WAIT: ${{ inputs.wait }}
         run: |
           mkdir -p out
           for u in $URLS; do
             s=$(echo "$u" | sed -E 's#https?://##; s#[^a-zA-Z0-9]+#-#g; s#-$##')
             mkdir -p out/$s; prof=$(mktemp -d)
+            # wait > 0: run the page that long (slow sites' late requests get recorded too).
+            if [ "${WAIT:-0}" -gt 0 ]; then export IRONSWIFT_WAIT_FOR=false IRONSWIFT_WAIT_SECS=$WAIT; else unset IRONSWIFT_WAIT_FOR IRONSWIFT_WAIT_SECS; fi
+            limit=$((90 + ${WAIT:-0}))
             RUST_BACKTRACE=1 IRONSWIFT_PROFILE=$prof IRONSWIFT_NO_UPDATES=1 IRONSWIFT_RECORD=$PWD/out/$s/rec \
               ./target/release/ironswift --width 1280 --png out/$s/iron.png "$u" > out/$s/run.log 2>&1 &
             pid=$!
-            for i in $(seq 1 90); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            for i in $(seq 1 $limit); do kill -0 $pid 2>/dev/null || break; sleep 1; done
             if kill -0 $pid 2>/dev/null; then
-              echo "HUNG after 90s" >> out/$s/run.log
+              echo "HUNG after ${limit}s" >> out/$s/run.log
               sudo gdb -p $pid -batch -ex "thread apply all bt 40" > out/$s/bt.txt 2>&1 || true
               sleep 10; sudo gdb -p $pid -batch -ex "thread apply all bt 40" > out/$s/bt2.txt 2>&1 || true
               kill -9 $pid

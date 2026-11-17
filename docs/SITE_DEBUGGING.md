@@ -56,6 +56,11 @@ here); use the REST API through `gh api`:
     #   then: gh api repos/hirejohndougan-art/lighteningfox/actions/jobs/<job id>/logs
     git clone -q --depth 1 -b rec-bbc https://github.com/hirejohndougan-art/lighteningfox /tmp/rec-bbc
 
+Slow sites keep making requests long after load (NYT's React app takes minutes on Boa to
+hydrate and fetch its images): add `-f "inputs[wait]=240"` to keep each page running that many
+seconds before the snapshot, so those requests are recorded too. Replay the same way with
+`IRONSWIFT_WAIT_FOR=false IRONSWIFT_WAIT_SECS=240`.
+
 `ref` is what gets built: `main`, or a branch you pushed with fixes that aren't on `main` yet.
 Name the branch after your task (`rec-x1a`…) so chats don't overwrite each other's. Chats can't
 delete branches (the git proxy refuses it): when your task is done, list your recording branch in
