@@ -251,6 +251,10 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
         }
         return Some((k, p.stdin.clone()));
     }
+    // Site processes can't run fontconfig: they read the list of installed fonts the browser
+    // keeps in the profile. Make sure it's there (a fresh profile whose pages all run in site
+    // processes would otherwise never write it, and pages would lose their system fonts).
+    let _ = crate::sysfonts::index();
     let exe = std::env::current_exe().ok()?;
     let mut child = std::process::Command::new(exe)
         .arg("--site-renderer")

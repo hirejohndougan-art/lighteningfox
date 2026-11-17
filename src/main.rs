@@ -129,6 +129,7 @@ mod relayout;
 mod svg_inline;
 mod svg_hit;
 mod svg_foreign;
+mod site_snapshot;
 mod pseudo;
 mod textedit;
 mod transform;
@@ -1422,6 +1423,10 @@ fn browser_main() {
         return;
     }
     match png {
+        Some(out) if site_snapshot::wanted(&url) => {
+            let ok = site_snapshot::snapshot(&url, width as u32, 768, &out, std::time::Duration::from_millis(1500), std::time::Duration::from_secs(20));
+            log!("{url}: {} through a site process", if ok { "snapshot taken" } else { "no snapshot" });
+        }
         Some(out) => render_png(fonts, &url, width, &out),
         None => {
             blocklist::start_updates();

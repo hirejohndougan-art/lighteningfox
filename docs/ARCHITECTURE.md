@@ -76,6 +76,17 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
   `ironswift --frame-renderer`, talking over stdin/stdout (`isolated` in `main.rs`) and
   locked down by `sandbox::protect_frame_renderer`. The browser itself calls
   `sandbox::protect_browser` once its window is open.
+- **Site processes** (`process.rs`, the `site_processes` setting, off by default for now):
+  each top-level site's pages run in their own `ironswift --site-renderer` process, locked
+  down by `sandbox::protect_site_renderer` (no programs, no network, no writing; the browser
+  makes requests, opens WebSockets (`ws_relay.rs`) and keeps cookies for it). It reads the
+  installed-font list the browser keeps in the profile (`font-index.tsv`), since it can't run
+  fontconfig. Each process costs about 50-70 MB (its own script engine and fonts) on top of
+  the browser; the pool is capped by the machine's memory (`process::limit`). With
+  `IRONSWIFT_SITE_PROCESS=1`, `--png` of an http(s) page takes the picture from a site
+  process (`site_snapshot.rs`), and `tools/site_process_check.py` compares every screenshot
+  test page drawn both ways. Not working in site processes yet: video and audio (decoding
+  starts `ffmpeg`, which the sandbox forbids).
 - **Navigation** from a page (links, forms, scripts, `window.open`) goes through
   `security::page_may_navigate`, which keeps web pages away from `file:`, `about:`,
   `view-source:` and `data:` URLs. The address bar isn't limited.
@@ -122,6 +133,8 @@ Files are written privately (mode 600) and atomically (write a temporary file, t
 | `IRONSWIFT_MEM_PROBE=1` | Print memory use after each startup stage |
 | `IRONSWIFT_NO_SANDBOX=1` | Don't install the system-call filter or Landlock rules (debugging) |
 | `IRONSWIFT_FRAME_PROCESS=0` | Draw cross-site iframes in the browser process |
+| `IRONSWIFT_SITE_PROCESS=1` / `=0` | Run each site's pages in its own process (overrides the setting); with `--png`, snapshot through one |
+| `IRONSWIFT_WAIT_FOR=expr` | `--png`: play media and animations in real time until the script expression is true (`tools/wpt.py`) |
 | `IRONSWIFT_NO_UPDATES=1` | No update checks and no filter-list downloads |
 
 ## Command line
