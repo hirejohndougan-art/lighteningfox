@@ -257,6 +257,14 @@ cache (`Context::eval_cached`; prelude parse+compile 24 → 0.07 ms per page). L
 compiler optimizations that emit fewer instructions (only compile *speed* was done); (2) a
 bytecode cache on disk so the first page after launch also skips parsing (Boa's compiled code has
 no serialized form yet). Details in `vendor/boa/IRONSWIFT.md`.
+**Runtime half (04:25), done:** rope strings (2 MB `+=` loop 80 s → 1.4 s), cheaper inline caches,
+deep prototype caches with a unique-shape version counter (shape tuning), borrowed objects in
+property access, cross-crate inlining in `boa_gc`, free drops for plain values, GC tuning,
+V8 harness and profiles of real pages. Full V8 suite in one session: stock 217 → 238; every
+benchmark does 2–15% less work. Left: interned atoms for property names (would change how
+every property key is stored; inline caches already skip most name comparisons); function-call
+overhead is the next runtime target (spread over many 1–2% pieces). Details in
+`vendor/boa/IRONSWIFT.md` and `docs/boa-speed.md`.
 **Start after:** —
 **Main files:** a fork of Boa (vendored under `vendor/boa` or a git dependency), `tools/`
 
