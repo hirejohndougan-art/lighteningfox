@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html><head><title>Margin collapsing</title>
+<style>
+  body { font-family: sans-serif; margin: 0; padding: 12px; background: #f1f5f9; }
+  .case { display: inline-block; vertical-align: top; width: 220px; margin: 0 10px 14px 0; }
+  .case > h3 { margin: 0 0 4px 0; font-size: 13px; color: #334155; }
+  .frame { background: #fff; border: 1px solid #94a3b8; }
+  .a { background: #fdba74; height: 20px; }
+  .b { background: #93c5fd; height: 20px; }
+  .wrap { background: #bbf7d0; }
+  p { margin: 0; }
+</style></head>
+<body>
+  <div class="case"><h3>Siblings: 20 and 30 → 30</h3>
+    <div class="frame"><div class="a" style="margin-bottom: 20px"></div><div class="b" style="margin-top: 30px"></div></div></div>
+
+  <div class="case"><h3>Negative: 30 and -10 → 20</h3>
+    <div class="frame"><div class="a" style="margin-bottom: 30px"></div><div class="b" style="margin-top: -10px"></div></div></div>
+
+  <div class="case"><h3>Both negative: -5 and -15 → -15</h3>
+    <div class="frame" style="padding: 20px 0"><div class="a" style="margin-bottom: -5px"></div><div class="b" style="margin-top: -15px; opacity: .8"></div></div></div>
+
+  <div class="case"><h3>Parent and first child (no border)</h3>
+    <div class="frame"><div class="a"></div><div class="wrap" style="margin-top: 10px"><div class="b" style="margin-top: 25px"></div></div></div></div>
+
+  <div class="case"><h3>Padding keeps them apart</h3>
+    <div class="frame"><div class="a"></div><div class="wrap" style="margin-top: 10px; padding-top: 1px"><div class="b" style="margin-top: 25px"></div></div></div></div>
+
+  <div class="case"><h3>Last child through parent</h3>
+    <div class="frame"><div class="wrap" style="margin-bottom: 10px"><div class="a" style="margin-bottom: 25px"></div></div><div class="b"></div></div></div>
+
+  <div class="case"><h3>Empty block between: 20, 15/15, 10 → 20</h3>
+    <div class="frame"><div class="a" style="margin-bottom: 20px"></div><div style="margin: 15px 0"></div><div class="b" style="margin-top: 10px"></div></div></div>
+
+  <div class="case"><h3>overflow: hidden keeps child margin inside</h3>
+    <div class="frame"><div class="a"></div><div class="wrap" style="overflow: hidden"><div class="b" style="margin-top: 25px"></div></div></div></div>
+
+  <div class="case"><h3>Heading in a card</h3>
+    <div class="frame"><section style="margin: 0"><h2 style="margin: 16px 0; font-size: 16px; background: #fde68a">Title</h2><p>Body text below.</p></section></div></div>
+</body></html>

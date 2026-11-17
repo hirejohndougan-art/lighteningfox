@@ -235,6 +235,8 @@ pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, w
         floats: vec![Vec::new()],
         pad_top: HashMap::new(),
         layers: Vec::new(),
+        flow_child: false,
+        absorb_top: None,
     };
     let (height, _) = cx.block_children(Dom::ROOT, 0.0, 0.0, width, Align::Left);
     // The page grows to contain floats that hang below the last block.
@@ -314,6 +316,11 @@ struct Ctx<'a> {
     /// Positioned boxes with a z-index, painted below (negative) or above (positive)
     /// the normal flow: (z-index, items).
     layers: Vec<(i32, Vec<Item>)>,
+    /// Set by block_children just before laying out a child in normal flow (its margins
+    /// can collapse with its parent's); every other caller lays a box out on its own.
+    flow_child: bool,
+    /// A first child whose top margin its parent already took into its own.
+    absorb_top: Option<NodeId>,
 }
 
 /// Merge z-index layers into a display list: negative ones underneath, positive on top.
@@ -408,6 +415,29 @@ enum Tok {
     InlineBlock { node: NodeId, link: Option<String> },
 }
 
+/// Adjoining vertical margins being collapsed: the largest positive one plus the most
+/// negative one is the gap they leave.
+#[derive(Clone, Copy, Default)]
+struct Margins {
+    pos: f32,
+    neg: f32,
+}
+
+impl Margins {
+    fn of(m: f32) -> Margins {
+        Margins::default().add(m)
+    }
+    fn add(self, m: f32) -> Margins {
+        Margins { pos: self.pos.max(m), neg: self.neg.min(m) }
+    }
+    fn join(self, o: Margins) -> Margins {
+        Margins { pos: self.pos.max(o.pos), neg: self.neg.min(o.neg) }
+    }
+    fn total(self) -> f32 {
+        self.pos + self.neg
+    }
+}
+
 /// Where vertical-align puts an item on its line.
 #[derive(Clone, Copy, PartialEq)]
 enum VPos {
@@ -493,8 +523,85 @@ impl<'a> Ctx<'a> {
             && matches!(self.styles[id].display, Display::Block | Display::ListItem)
     }
 
+    /// Does this block start a new block formatting context of its own? Its margins then
+    /// never collapse with its children's.
+    fn own_bfc(&self, id: NodeId) -> bool {
+        let st = &self.styles[id];
+        st.clip
+            || st.flow_root
+            || st.flex.container
+            || st.grid.is_some()
+            || st.table_role != TableRole::None
+            || st.float.is_some()
+            || matches!(st.position, Position::Absolute | Position::Fixed)
+            || st.display == Display::InlineBlock
+            || self.dom.nodes[id].parent == Some(Dom::ROOT)
+            || matches!(self.dom.tag(id), Some("img" | "iframe" | "input" | "select" | "textarea" | "button"))
+    }
+
+    /// The first in-flow child, if it is a block with nothing but whitespace before it.
+    fn first_flow_block(&self, id: NodeId) -> Option<NodeId> {
+        for &c in &self.dom.nodes[id].children {
+            match &self.dom.nodes[c].data {
+                NodeData::Text(t) if t.trim().is_empty() && !self.styles[c].pre => continue,
+                NodeData::Element { .. } => {}
+                NodeData::Text(_) => return None,
+                _ => continue,
+            }
+            if self.styles[c].display == Display::None || self.is_out_of_flow(c) {
+                continue;
+            }
+            if self.is_float(c) || !self.is_block(c) {
+                return None;
+            }
+            return Some(c);
+        }
+        None
+    }
+
+    /// Can `id`'s top margin collapse with its first child's (no border, padding or new
+    /// formatting context between them)?
+    fn top_collapses(&self, id: NodeId, avail: f32) -> bool {
+        let st = &self.styles[id];
+        st.border[0] == 0.0 && st.padding[0].resolve(avail) == 0.0 && !self.pad_top.contains_key(&id) && !self.own_bfc(id)
+    }
+
+    /// `id`'s top margin together with the top margins of the first children it collapses with.
+    fn top_chain(&self, id: NodeId, avail: f32) -> Margins {
+        let st = &self.styles[id];
+        let m = Margins::of(st.margin[0].resolve(avail));
+        if !self.top_collapses(id, avail) {
+            return m;
+        }
+        match self.first_flow_block(id) {
+            Some(c) => {
+                let inner = self.content_width_of(id, avail);
+                m.join(self.top_chain(c, inner))
+            }
+            None => m,
+        }
+    }
+
+    /// Rough content width of a normal-flow block (for resolving its children's percentage
+    /// margins while collapsing).
+    fn content_width_of(&self, id: NodeId, avail: f32) -> f32 {
+        let st = &self.styles[id];
+        let edges = st.padding[1].resolve(avail) + st.padding[3].resolve(avail) + st.border[1] + st.border[3];
+        let outer = avail - st.margin[1].resolve(avail) - st.margin[3].resolve(avail);
+        match st.width {
+            Len::Auto => outer - edges,
+            l => l.resolve(avail) - if st.border_box { edges } else { 0.0 },
+        }
+        .max(0.0)
+    }
+
     /// Lay out an element as a block box. Returns (outer height, bottom margin).
     fn block(&mut self, id: NodeId, x: f32, y: f32, avail: f32, prev_mb: f32) -> (f32, f32) {
+        let flow = std::mem::replace(&mut self.flow_child, false);
+        let absorbed = self.absorb_top == Some(id);
+        if absorbed {
+            self.absorb_top = None;
+        }
         let st = &self.styles[id];
         let forced = self.forced.get(&id).copied().unwrap_or((None, None));
         let pct = |l: Len| l.resolve(avail);
@@ -570,8 +677,17 @@ impl<'a> Ctx<'a> {
             }
         }
         let _ = mr;
-        // Collapse our top margin with the previous sibling's bottom margin.
-        let mt_eff = mt.max(prev_mb) - prev_mb;
+        // Collapse our top margin with the previous sibling's bottom margin, and (through a
+        // parent with no border or padding on top) with our first child's top margin. A
+        // first child whose margin its parent already took sits right at the top.
+        let bfc = !flow || self.own_bfc(id);
+        let top_coll = !bfc && self.top_collapses(id, avail);
+        let chain = match (absorbed, flow) {
+            (true, _) => Margins::default(),
+            (false, true) => self.top_chain(id, avail),
+            (false, false) => Margins::of(mt),
+        };
+        let mt_eff = if absorbed { 0.0 } else { Margins::of(prev_mb).join(chain).total() - prev_mb };
         let top = y + mt_eff;
         // Remember where this box's output starts (for position: relative).
         let start = (self.items.len(), self.links.len(), self.hits.len());
@@ -598,7 +714,10 @@ impl<'a> Ctx<'a> {
         if new_bfc {
             self.floats.push(Vec::new());
         }
-        let (mut content_h, _) = match replaced {
+        if top_coll {
+            self.absorb_top = self.first_flow_block(id);
+        }
+        let (mut content_h, last_mb) = match replaced {
             Some((rw, rh)) => {
                 let src = self.replaced_src(id);
                 if !self.styles[id].hidden {
@@ -630,9 +749,25 @@ impl<'a> Ctx<'a> {
             }
             None => self.block_children(id, cx, cy, w, align),
         };
+        if self.absorb_top.is_some_and(|c| self.dom.nodes[c].parent == Some(id)) {
+            self.absorb_top = None;
+        }
         if new_bfc {
             content_h = content_h.max(self.float_bottom(true, true) - cy);
             self.floats.pop();
+        }
+        // The last child's bottom margin collapses through a parent with no border, padding
+        // or fixed height below it: it becomes part of the parent's bottom margin.
+        let st = &self.styles[id];
+        let bottom_coll = !bfc
+            && pb == 0.0
+            && bb == 0.0
+            && st.height == Len::Auto
+            && matches!(st.min_height, Len::Auto | Len::Px(0.0))
+            && forced.1.is_none()
+            && st.aspect_ratio.is_none();
+        if bottom_coll {
+            content_h -= last_mb;
         }
         let st = &self.styles[id];
         let natural_h = content_h;
@@ -825,7 +960,13 @@ impl<'a> Ctx<'a> {
             let lifted: Vec<Item> = self.items.drain(start.0..).collect();
             self.layers.push((z, lifted));
         }
-        (mt_eff + box_h + mb, mb)
+        // An empty box lets its margins collapse through it with the ones around it.
+        if bottom_coll && bt == 0.0 && pt == 0.0 && box_h <= 0.0 {
+            let through = Margins::of(prev_mb).join(chain).add(mb).add(last_mb).total();
+            return (through - prev_mb, through);
+        }
+        let mb_out = if bottom_coll { Margins::of(mb).add(last_mb).total() } else { mb };
+        (mt_eff + box_h + mb_out, mb_out)
     }
 
     /// Page-area bounding box of the paint items from index `from` on, at least `base`.
@@ -2099,6 +2240,7 @@ impl<'a> Ctx<'a> {
                 } else {
                     (x, w)
                 };
+                self.flow_child = true;
                 let (h, mb) = self.block(c, bx, cy, bw, prev_mb);
                 cy += h;
                 prev_mb = mb;
