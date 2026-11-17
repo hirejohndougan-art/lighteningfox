@@ -43,7 +43,7 @@ jobs:
       - name: Push recordings
         run: |
           cd out
-          git init -q -b x1-data22
+          git init -q -b x1-data2
           git config user.name "John Dougan"
           git config user.email "289271172+hirejohndougan-art@users.noreply.github.com"
           git add -A
