@@ -116,7 +116,12 @@ Left undone:
 - §3 Clicking and scrolling inside an `<iframe>` — moved to batch F2 below
 
 ## F2. Clicking and scrolling inside iframes (split from F)
-**Status:** claimed by iframes-chat 2026-11-17 03:24
+**Status:** done (iframes-chat, 2026-11-17)
+Left for later: frames nested inside frames are still drawn once (still pictures); a sandboxed
+`srcdoc` frame stays a still picture (it shares the parent's address, which the security
+registry can't tell apart from the parent while both run); in a frame a `<select>` click picks
+the next option (no drop-down list yet), and text can't be drag-selected or copied out; the
+link status bar and hover cursor don't show for frames.
 **Start after:** —
 **Main files:** the iframe parts of `src/main.rs` (`render_frames`, `render_frame`, `draw_frame`, `isolated`), new `src/frames.rs`, `src/sandbox.rs` only if needed
 
