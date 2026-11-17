@@ -74,6 +74,18 @@ tests that fit.
 
 ## Follow-ups (not checklist items; found by the batch chats)
 
+### AB1. Content blocking on a par with uBlock Origin
+**Status:** claimed by adblock-chat 2026-11-17 14:20
+**After:** —
+**Checklist:** none (the §14 ad-blocking items are already ticked; this deepens them)
+**Files:** `src/blocklist.rs`, new `src/scriptlets.js` and `src/cosmetic.js`, `src/net.rs`, `src/js.rs` (document-start hook), `src/settings.rs`, locales
+Bring `blocklist.rs` up to what uBlock Origin's lists need: `!#if`/`!#include`, regex rules,
+`$badfilter`, `$redirect` stand-in resources, `$removeparam`, `$csp`, `$denyallow`/`$to`,
+`$method`, `$generichide`/`$specifichide`/`$genericblock`, `$popup`, `example.*` domains,
+highly generic and procedural cosmetic filters (`#?#`, `:has-text`, `:upward`, `:remove()`,
+`:style()`), and `##+js(...)` scriptlets written from scratch (MIT, not uBO's GPL code). Add
+the uBlock filter lists and Peter Lowe's list.
+
 ### X1. Fix the broken and crashing sites (now: AP News and MDN)
 **Status:** claimed by chat-opus-x1 2026-11-17 04:52
 **After:** —
