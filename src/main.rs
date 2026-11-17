@@ -349,6 +349,19 @@ fn prepared_title(p: &Prepared) -> String {
 
 const START_PAGE: &str = include_str!("start.html");
 
+/// On a Wayland desktop that also offers X11 (XWayland, which nearly all do), use X11: the
+/// window library's Wayland mode can lose the mouse pointer (it draws none when the cursor
+/// theme names its pointers differently), has no title bar on GNOME and handles keys less
+/// reliably. IRONSWIFT_WAYLAND=1 keeps native Wayland.
+fn prefer_x11() {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+    let x11 = std::env::var_os("DISPLAY").is_some();
+    if wayland && x11 && !std::env::var("IRONSWIFT_WAYLAND").is_ok_and(|v| v == "1") {
+        // SAFETY: called first thing in main, before any other thread exists.
+        unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+    }
+}
+
 /// The start page, with the app icon put in as a data: URL.
 fn start_page() -> String {
     use base64::Engine;
@@ -698,6 +711,7 @@ fn error_page(url: &str, err: &str) -> String {
 
 fn main() {
     crashlog::install_panic_hook();
+    prefer_x11();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
     // Whether a page was named on the command line (else: restore the last session or go home).
