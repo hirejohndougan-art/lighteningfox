@@ -63,9 +63,11 @@ GStreamer or ffmpeg bindings; play/pause/seek/volume, the `controls` UI, poster 
 events, and the HTMLMediaElement API. Add the new system libraries to the packages in `packaging/`.
 
 ### T12. WebGL
-**Status:** claimed by chat-opus-t12 2026-11-17 04:55
+**Status:** done
 **After:** —
 **Checklist:** §7 "WebGL"
+**Done:** WebGL 1 and most of WebGL 2 in software (`glsl.rs`, `glsl_gen.rs`, `glsl_vm.rs` for GLSL ES 1.00/3.00; `webgl.rs`, `webgl_raster.rs`, `webgl_tex.rs`, `webgl.js`), big draws shaded on several threads. WPT `webgl/`: 85/87 subtests, 2/2 reftests. three.js 0.170 renders lit scenes. Test page `tests/webgl.html` with a reference screenshot.
+**Left undone:** no antialiasing/multisampling (contexts report `antialias: false`); transform feedback, queries and syncs are stubs; no pixel pack/unpack buffers; compressed textures are S3TC only (no ETC/ASTC/BPTC/RGTC); video can't be a texture yet; `OES_draw_buffers_indexed` is a no-op; depth/stencil `blitFramebuffer` and sRGB conversion are skipped; `lineWidth` > 1 draws 1-pixel lines; the Khronos conformance suite hasn't been run (the WPT idlharness test fails on harness setup). Images made with `new Image()` that aren't in the document never load (`complete` is undefined), so three.js `TextureLoader` textures don't appear. That's a DOM image-loading follow-up.
 **Files:** new `src/webgl.rs` (on wgpu or glow), a new JS file, `src/canvas.rs` only for `getContext`
 WebGL 1 first (`getContext("webgl")`), then WebGL 2 if time allows. Run the WebGL conformance
 tests that fit.
