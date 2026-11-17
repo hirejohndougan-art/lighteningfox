@@ -110,7 +110,7 @@ X1a–X1e; this task keeps AP News (it now panics in a sort, see `x1-data2`) and
 ### X1a. Make BBC News render like Chrome
 **Status:** claimed by chat-opus-x1a 2026-11-17 13:01
 **After:** —
-**Checklist:** none
+**Checklist:** §21 "BBC News renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
 Split out of X1. Recording: folder `www-bbc-com-news` in branch `x1-data2` (URL `https://www.bbc.com/news`). Follow
 `docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
@@ -123,7 +123,7 @@ Start by recording it again with today's `main`: `x1-data2` predates X1's live-s
 ### X1b. Make the New York Times render like Chrome
 **Status:** claimed by chat-opus-x1b 2026-11-17 13:03
 **After:** —
-**Checklist:** none
+**Checklist:** §21 "The New York Times renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
 Split out of X1. Recording: folder `www-nytimes-com` in branch `x1-data2` (URL `https://www.nytimes.com/`). Follow
 `docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
@@ -136,7 +136,7 @@ Start by recording it again with today's `main`: `x1-data2` predates X1's live-s
 ### X1c. Make The Guardian render like Chrome
 **Status:** claimed by chat-opus-x5 2026-11-17 13:10
 **After:** —
-**Checklist:** none
+**Checklist:** §21 "The Guardian renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
 Split out of X1. Recording: folder `www-theguardian-com` in branch `x1-data2` (URL `https://www.theguardian.com/`). Follow
 `docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
@@ -149,7 +149,7 @@ Start by recording it again with today's `main`: `x1-data2` predates X1's live-s
 ### X1d. Make Bing render like Chrome
 **Status:** claimed by chat-opus-t12 2026-11-17 14:00
 **After:** —
-**Checklist:** none
+**Checklist:** §21 "Bing renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
 Split out of X1. Recording: folder `www-bing-com` in branch `x1-data2` (URL `https://www.bing.com/`). Follow
 `docs/SITE_DEBUGGING.md`: replay it, compare with `chrome.png`, find each cause, fix it in the
@@ -311,7 +311,7 @@ top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`.
 **Status:** blocked: video and audio don't play in site processes (X23)
 **Progress:** `--png` of an http(s) page goes through a site process with `IRONSWIFT_SITE_PROCESS=1` (`src/site_snapshot.rs`); `tools/site_process_check.py` draws every screenshot test page both ways. Fixed: site processes had no system fonts with a fresh profile (the browser now writes the font list they read). 43 of 45 pages identical; animated images differ only because site processes animate (snapshots freeze); `media.html` shows "This video can't be played". Memory: about 50-70 MB per site process on top of the browser (in `docs/ARCHITECTURE.md`). `site_check.py --tracker` needs internet access, so it wasn't run here; John runs the live-site check after the default changes.
 **After:** X13, X14, X23
-**Checklist:** none
+**Checklist:** §21 "Site processes on by default" (required fix-up)
 **Files:** `src/settings.rs` (the `site_processes` default), `docs/`
 Make `site_processes` default to on once WebSockets and per-site frames work in them. Run the
 screenshot tests and `tools/site_check.py --tracker` with it on and fix what got worse; note the
@@ -321,7 +321,7 @@ memory cost in the docs. John runs the live-site check on his computer afterward
 ### X23. Video and audio in site processes
 **Status:** claimed by chat-nsX16 2026-11-17 16:35
 **After:** —
-**Checklist:** none
+**Checklist:** §21 "Video and audio in site processes" (required fix-up)
 **Files:** `src/media.rs` (starting the decoders), `src/process.rs` / `src/sandbox.rs` (small hooks), new code in new files
 Found in X15: a site process can't start programs or write files, and media decoding runs
 `ffmpeg`/`ffprobe` (and a sound player) on a downloaded temp file, so `<video>`/`<audio>` show
@@ -368,7 +368,7 @@ two needless `mut`s). No behavior changes; WebGL tests and WPT scores stay the s
 ### X11. Lay boxes out on several cores
 **Status:** claimed by chat-mseX17 2026-11-17 16:07
 **After:** —
-**Checklist:** none (the checklist item was ticked with T04/T04b)
+**Checklist:** §21 "Lay boxes out on several cores" (required fix-up)
 **Files:** `src/font.rs`, `src/layout.rs`, `src/preshape.rs`, new files for the parallel parts
 Leftover from T04b: words are shaped across cores before layout, but boxes are still laid out
 on one thread. `Fonts` keeps faces and caches in `Rc`/`RefCell`, shared with painting, so make
