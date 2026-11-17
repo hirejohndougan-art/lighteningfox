@@ -369,6 +369,32 @@ pub struct Style {
     pub width: Len,
     pub max_width: Len,
     pub height: Len,
+    /// `content` as written (for ::before, ::after and ::marker boxes).
+    pub content: Option<Rc<str>>,
+    /// `counter-reset`, `counter-set` and `counter-increment` as written.
+    pub counters: Option<Rc<[(u8, Rc<str>)]>>,
+    /// Styles of this element's ::before, ::after, ::marker and ::placeholder.
+    pub pseudo: Option<Rc<Pseudos>>,
+}
+
+/// The pseudo-element styles an element has rules for.
+#[derive(Debug, Clone, Default)]
+pub struct Pseudos {
+    pub before: Option<Rc<Style>>,
+    pub after: Option<Rc<Style>>,
+    pub marker: Option<Rc<Style>>,
+    pub placeholder: Option<Rc<Style>>,
+}
+
+/// Which pseudo-element a selector ends in: 0 ::before, 1 ::after, 2 ::marker, 3 ::placeholder.
+pub fn pseudo_kind(name: &str) -> Option<usize> {
+    match name {
+        "::before" => Some(0),
+        "::after" => Some(1),
+        "::marker" => Some(2),
+        "::placeholder" | "::-webkit-input-placeholder" | "::-moz-placeholder" | "-ms-input-placeholder" | "::-ms-input-placeholder" => Some(3),
+        _ => None,
+    }
 }
 
 impl Default for Style {
@@ -442,6 +468,9 @@ impl Default for Style {
             width: Len::Auto,
             max_width: Len::Auto,
             height: Len::Auto,
+            content: None,
+            counters: None,
+            pseudo: None,
         }
     }
 }
@@ -642,6 +671,11 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
     styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
     let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
+    // Rules whose selectors end in a pseudo-element, per stylesheet.
+    let mut pseudo_index: HashMap<*const Stylesheet, Vec<PseudoRule>> = HashMap::new();
+    for sheet in std::iter::once(&ua).chain(sheets.iter()).chain(scoped.values().flat_map(|(a, b)| [a, b])) {
+        pseudo_index.insert(sheet as *const Stylesheet, pseudo_rules(sheet));
+    }
     crate::anim::begin_pass(sheets);
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
@@ -669,8 +703,19 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 v
             }
         };
+        let mut pmatched: [Vec<Matched>; 4] = Default::default();
         for (origin, sheet) in std::iter::once(&ua).chain(page.into_iter()).enumerate() {
             let origin = if origin == 0 { 0 } else { 1 };
+            for pr in pseudo_index.get(&(sheet as *const Stylesheet)).map(|v| v.as_slice()).unwrap_or(&[]) {
+                let rule = &sheet.rules[pr.rule];
+                if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) || !matches(dom, id, &pr.sel) {
+                    continue;
+                }
+                for d in &rule.decls {
+                    pmatched[pr.kind].push(Matched { important: d.important, origin, spec: pr.spec, order, decl: d });
+                    order += 1;
+                }
+            }
             for rule in &sheet.rules {
                 if rule.media.as_deref().is_some_and(|m| !css::media_matches(m)) {
                     continue;
@@ -698,7 +743,14 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             + tag
             // dir="auto" depends on the element's own text.
             + &if dom.attr(id, "dir").is_some_and(|d| d.eq_ignore_ascii_case("auto")) { format!("#{id}") } else { String::new() };
-        let key = (Rc::as_ptr(&parent_style) as usize, matched.iter().map(|m| m.decl as *const Decl as usize).collect(), attr_key);
+        let mut decl_key: Vec<usize> = matched.iter().map(|m| m.decl as *const Decl as usize).collect();
+        for (k, pm) in pmatched.iter().enumerate() {
+            if !pm.is_empty() {
+                decl_key.push(k);
+                decl_key.extend(pm.iter().map(|m| m.decl as *const Decl as usize));
+            }
+        }
+        let key = (Rc::as_ptr(&parent_style) as usize, decl_key, attr_key);
         // Animated elements each move on their own clock: never share their style.
         let animated = crate::anim::has_state(id) || matched.iter().any(|m| crate::anim::is_anim_prop(&m.decl.name)) || dom.attr(id, "style").is_some_and(|s| s.contains("animation") || s.contains("transition"));
         if let Some(s) = shared.get(&key).filter(|_| !animated) {
@@ -776,6 +828,24 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         if !st.border_color_set {
             st.border_color = st.color;
         }
+        if pmatched.iter().any(|p| !p.is_empty()) {
+            let mut ps = Pseudos::default();
+            for (k, mut pm) in pmatched.into_iter().enumerate() {
+                if pm.is_empty() {
+                    continue;
+                }
+                pm.sort_by_key(|m| (m.important, m.origin, m.spec, m.order));
+                let p = cascade_pseudo(&st, &pm);
+                let slot = match k {
+                    0 => &mut ps.before,
+                    1 => &mut ps.after,
+                    2 => &mut ps.marker,
+                    _ => &mut ps.placeholder,
+                };
+                *slot = Some(Rc::new(p));
+            }
+            st.pseudo = Some(Rc::new(ps));
+        }
         let st = Rc::new(st);
         if !animated {
             shared.insert(key, st.clone());
@@ -784,6 +854,59 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     }
     crate::anim::end_pass();
     styles
+}
+
+/// A rule with a selector that ends in a pseudo-element: the selector without it picks
+/// the originating element.
+struct PseudoRule {
+    rule: usize,
+    kind: usize,
+    sel: Selector,
+    spec: (u32, u32, u32),
+}
+
+fn pseudo_rules(sheet: &Stylesheet) -> Vec<PseudoRule> {
+    let mut out = Vec::new();
+    for (i, rule) in sheet.rules.iter().enumerate() {
+        for sel in &rule.selectors {
+            let Some(last) = sel.parts.last() else { continue };
+            let Some((pos, kind)) = last.pseudo.iter().enumerate().find_map(|(p, n)| pseudo_kind(n).map(|k| (p, k))) else { continue };
+            let mut stripped = sel.clone();
+            let lc = stripped.parts.last_mut().unwrap();
+            lc.pseudo.remove(pos);
+            // `::before:hover` etc. aren't supported: skip rules with more pseudo-elements.
+            if lc.pseudo.iter().any(|p| p.starts_with("::")) {
+                continue;
+            }
+            let mut spec = sel.specificity();
+            spec.1 -= 1;
+            spec.2 += 1;
+            out.push(PseudoRule { rule: i, kind, sel: stripped, spec });
+        }
+    }
+    out
+}
+
+/// A pseudo-element's style: inherits from its element, then its own rules apply.
+fn cascade_pseudo(parent: &Style, pm: &[Matched]) -> Style {
+    let mut p = Style::inherit(parent);
+    for m in pm.iter().filter(|m| m.decl.name.starts_with("--")) {
+        let value = substitute_vars(&m.decl.value, &p.vars, 0);
+        Rc::make_mut(&mut p.vars).insert(m.decl.name.clone(), value);
+    }
+    for m in pm.iter().filter(|m| !m.decl.name.starts_with("--")) {
+        if m.decl.value.contains("var(") {
+            let value = substitute_vars(&m.decl.value, &p.vars, 0);
+            apply(&mut p, parent, &m.decl.name, &value);
+        } else {
+            apply(&mut p, parent, &m.decl.name, &m.decl.value);
+        }
+    }
+    p.fade = parent.fade * p.opacity;
+    if !p.border_color_set {
+        p.border_color = p.color;
+    }
+    p
 }
 
 /// Old-fashioned HTML attributes that act like CSS (bgcolor, align, <font color>...).
@@ -2196,6 +2319,19 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                     color,
                 });
             }
+        }
+        "content" => st.content = Some(v.into()),
+        "counter-reset" | "counter-set" | "counter-increment" => {
+            let kind = match name {
+                "counter-reset" => 0,
+                "counter-set" => 1,
+                _ => 2,
+            };
+            let mut list: Vec<(u8, Rc<str>)> = st.counters.as_deref().map(|c| c.iter().filter(|(k, _)| *k != kind).cloned().collect()).unwrap_or_default();
+            if lower != "none" {
+                list.push((kind, v.into()));
+            }
+            st.counters = (!list.is_empty()).then(|| list.into());
         }
         "visibility" => st.hidden = lower == "hidden" || lower == "collapse",
         "color" => {

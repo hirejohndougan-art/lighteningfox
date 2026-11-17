@@ -66,6 +66,7 @@ mod gpu;
 mod net;
 mod paint;
 mod style;
+mod pseudo;
 mod textedit;
 mod transform;
 mod validation;
@@ -3834,6 +3835,7 @@ mod screenshot_tests {
         ("tests/percent-heights.html", 800),
         ("tests/columns.html", 800),
         ("tests/text-wrapping.html", 600),
+        ("tests/pseudo.html", 900),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),

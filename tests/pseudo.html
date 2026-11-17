@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html><head><style>
+body { font-family: sans-serif; }
+.q::before { content: open-quote; color: #c00; }
+.q::after { content: close-quote; color: #c00; }
+a.ext::after { content: " (" attr(href) ")"; color: #666; font-size: 0.8em; }
+.badge::before { content: "NEW"; background: #0a7; color: white; padding: 2px 6px; margin-right: 6px; border-radius: 3px; font-size: 12px; }
+.box::after { content: ""; display: block; height: 10px; background: linear-gradient(to right, red, blue); margin-top: 4px; }
+body { counter-reset: sec; }
+h2 { counter-increment: sec; font-size: 18px; }
+h2::before { content: "Section " counter(sec, upper-roman) ". "; color: #36c; }
+ol.n { counter-reset: item; list-style: none; }
+ol.n li { counter-increment: item; }
+ol.n li::before { content: counters(item, ".") " "; font-weight: bold; }
+li::marker { color: red; }
+.custom li::marker { content: "→ "; }
+input::placeholder { color: #c06; }
+.clearfix::after { content: ""; display: table; clear: both; }
+.fl { float: left; width: 80px; height: 40px; background: #fc0; }
+</style></head><body>
+<p class="q">Quoted text</p>
+<p><a class="ext" href="https://example.com/">Example</a></p>
+<p class="badge">Feature list</p>
+<div class="box">Box with a bar after it</div>
+<h2>Intro</h2><h2>Details</h2>
+<ol class="n"><li>One<ol class="n"><li>Sub A</li><li>Sub B</li></ol></li><li>Two</li></ol>
+<ul><li>Red marker</li></ul>
+<ul class="custom"><li>Arrow marker</li></ul>
+<input placeholder="Pink placeholder">
+<div class="clearfix" style="background:#eef"><div class="fl"></div></div>
+<p>After the clearfix</p>
+</body></html>

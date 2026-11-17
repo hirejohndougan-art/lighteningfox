@@ -224,6 +224,29 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+    // ::before and ::after boxes are laid out as extra nodes; hits on them count as their element's.
+    let Some((full, full_styles)) = crate::pseudo::expand(dom, styles) else {
+        return layout_tree(dom, styles, fonts, images, width, viewport_h);
+    };
+    let mut lay = layout_tree(&full, &full_styles, fonts, images, width, viewport_h);
+    let n = dom.nodes.len();
+    let real = |mut id: NodeId| {
+        while id >= n {
+            id = full.nodes[id].parent.unwrap_or(0);
+        }
+        id
+    };
+    for h in &mut lay.hits {
+        h.1 = real(h.1);
+    }
+    for s in &mut lay.scrollers {
+        s.0 = real(s.0);
+    }
+    lay.boxes.retain(|&id, _| id < n);
+    lay
+}
+
+fn layout_tree(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     let mut cx = Ctx {
         dom,
         styles,
@@ -1806,7 +1829,11 @@ impl<'a> Ctx<'a> {
         let ascent = self.fonts.ascent(font, size);
         let baseline = |top: f32| (top + (lh - size) / 2.0 + ascent).round();
         let focus = FOCUS.with(|f| f.get()).filter(|f| f.0 == id);
-        let faint = Color { a: (st.color.a as f32 * 0.5) as u8, ..st.color };
+        // ::placeholder sets the placeholder's color; otherwise it's the text color, faded.
+        let faint = match st.pseudo.as_ref().and_then(|p| p.placeholder.as_ref()) {
+            Some(p) if p.color != st.color => p.color,
+            _ => Color { a: (st.color.a as f32 * 0.5) as u8, ..st.color },
+        };
         let accent = Color { r: 0x0b, g: 0x6b, b: 0xd3, a: 255 };
         let white = Color { r: 255, g: 255, b: 255, a: 255 };
         let selection = Color { r: 0xb4, g: 0xd5, b: 0xfe, a: 255 };
@@ -2589,12 +2616,20 @@ impl<'a> Ctx<'a> {
             }
             _ => "•".to_string(),
         };
-        let font = Fonts::pick(false, false, false);
-        let size = st.font_size;
-        let line_h = size * st.line_height;
+        let line_h = st.font_size * st.line_height;
+        // ::marker can change the marker's color, size and text.
+        let marker = st.pseudo.as_ref().and_then(|p| p.marker.clone());
+        let (text, size, color, bold) = match &marker {
+            Some(m) => {
+                let custom = m.content.as_deref().and_then(|c| crate::pseudo::content_text(c, self.dom, id, &Default::default(), &mut 0));
+                (custom.unwrap_or(text), m.font_size, m.color, m.bold)
+            }
+            None => (text, st.font_size, st.color, false),
+        };
+        let font = Fonts::pick(bold, false, false);
         let baseline = cy + (line_h - size) / 2.0 + self.fonts.ascent(font, size);
         let tw = self.fonts.width(font, &text, size);
-        self.items.push(Item::Text { x: cx - tw - size * 0.5, y: baseline, text, font, size, color: st.color });
+        self.items.push(Item::Text { x: cx - tw - size * 0.5, y: baseline, text, font, size, color });
     }
 
     // ------------------------------------------------------------ inline
