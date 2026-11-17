@@ -499,6 +499,10 @@ pub fn install(ctx: &mut Context) {
     if let Err(e) = ctx.eval(Source::from_bytes(include_str!("media.js").as_bytes())) {
         log!("[ironswift] media setup failed: {e}");
     }
+    // Web Audio (built and measured in JavaScript; readouts carry fingerprinting noise).
+    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("webaudio.js").as_bytes())) {
+        log!("[ironswift] Web Audio setup failed: {e}");
+    }
 }
 
 /// Hand media pictures that changed since the last call to the page's images.
@@ -1110,5 +1114,31 @@ mod page_tests {
         assert!(out.ends_with("timeupdate,pause,ended t=2.0 paused=true ended=true played=1:2.0"), "{out}");
         assert_eq!(text("errs"), "error 2 1 true");
         assert_eq!(text("perr"), "NotSupportedError");
+    }
+
+    /// Web Audio renders offline, the analyser finds a tone, and every readout carries the
+    /// site's noise: the same values each time, a few millionths off the true ones.
+    #[test]
+    fn web_audio_readouts() {
+        let profile = std::env::temp_dir().join(format!("ironswift-webaudio-test-{}", std::process::id()));
+        // SAFETY: tests only read this variable; every test sets the same kind of value.
+        unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
+        crate::load_fonts().expect("fonts");
+        let url = crate::net::normalize_input("tests/webaudio.html");
+        let mut page = crate::load(&url);
+        let js = page.js.as_mut().expect("scripts");
+        let t = std::time::Instant::now();
+        let text = |id: &str| {
+            crate::js::with_dom(|d| {
+                let n = d.descendants(crate::dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(id));
+                n.map(|n| d.text_content(n)).unwrap_or_default()
+            })
+        };
+        while text("out").is_empty() {
+            assert!(t.elapsed().as_secs() < 30, "didn't finish: errs={:?}", text("errs"));
+            js.settle(std::time::Duration::from_millis(200));
+        }
+        assert_eq!(text("errs"), "true,NotSupportedError,function,function");
+        assert_eq!(text("out"), "true,true,true,true,true,true,true,true");
     }
 }
