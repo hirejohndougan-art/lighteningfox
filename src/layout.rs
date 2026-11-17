@@ -2700,6 +2700,34 @@ impl<'a> Ctx<'a> {
         VPos::Raise(total)
     }
 
+    /// position: relative offsets of `node` and its inline ancestors, for content on a line.
+    /// An inline-block applies its own offset when it is laid out, so it starts from its parent.
+    fn inline_rel(&self, node: NodeId, avail: f32) -> (f32, f32) {
+        let mut n = match &self.dom.nodes[node].data {
+            NodeData::Text(_) => self.dom.nodes[node].parent,
+            _ if self.styles[node].display == Display::InlineBlock => self.dom.nodes[node].parent,
+            _ => Some(node),
+        };
+        let (mut dx, mut dy) = (0.0, 0.0);
+        while let Some(id) = n {
+            let st = &self.styles[id];
+            if id == Dom::ROOT || !(st.display == Display::Inline || id == node) {
+                break;
+            }
+            if st.position == Position::Relative {
+                let off = |a: Len, b: Len| match (a, b) {
+                    (Len::Auto, Len::Auto) => 0.0,
+                    (Len::Auto, b) => -b.resolve(avail),
+                    (a, _) => a.resolve(avail),
+                };
+                dx += off(st.inset[3], st.inset[1]);
+                dy += off(st.inset[0], st.inset[2]);
+            }
+            n = self.dom.nodes[id].parent;
+        }
+        (dx, dy)
+    }
+
     fn font_of(&self, node: NodeId) -> (u8, f32) {
         let s = &self.styles[node];
         (crate::font::resolve(s.family.as_deref(), s.bold, s.italic, s.mono), s.font_size)
@@ -2880,8 +2908,9 @@ impl<'a> Ctx<'a> {
             };
             let box_base = |n: NodeId| {
                 let (_, a, b) = self.tok_size(&Tok::Space { node: n });
-                base_at(self.vpos(n, (a, b)), a, b)
+                base_at(self.vpos(n, (a, b)), a, b) + self.inline_rel(n, w).1
             };
+            let box_dx = |n: NodeId| self.inline_rel(n, w).0;
             let mut prev_underline_end: Option<(f32, NodeId)> = None;
             let mut last_text: Option<(NodeId, f32)> = None;
             // Inline box backgrounds go under this line's text: collect, then insert.
@@ -2896,22 +2925,25 @@ impl<'a> Ctx<'a> {
                     if let Some(pos) = open.iter().rposition(|(o, _)| *o == n) {
                         let (_, sx) = open.remove(pos);
                         let mut tmp = Vec::new();
-                        self.inline_box(n, sx, x + shift + ex, box_base(n), w, &mut tmp);
+                        let dx = box_dx(n);
+                        self.inline_box(n, sx + dx, x + shift + ex + dx, box_base(n), w, &mut tmp);
                         boxes.extend(tmp.into_iter().map(|it| (pos, it)));
                     }
                 }
             }
             for (depth, &(n, sx)) in open.iter().enumerate() {
                 let mut tmp = Vec::new();
-                self.inline_box(n, sx, x + shift + line.width, box_base(n), w, &mut tmp);
+                let dx = box_dx(n);
+                self.inline_box(n, sx + dx, x + shift + line.width + dx, box_base(n), w, &mut tmp);
                 boxes.extend(tmp.into_iter().map(|it| (depth, it)));
             }
             carried = open.into_iter().map(|(n, _)| n).collect();
             boxes.sort_by_key(|(d, _)| *d);
             for (pi, p) in line.items.iter().enumerate() {
-                let px = x + shift + p.x;
+                let (rdx, rdy) = self.inline_rel(tok_node(&toks[p.tok]), w);
+                let px = x + shift + p.x + rdx;
                 let (vp, va, vb) = vps[pi];
-                let baseline = base_at(vp, va, vb);
+                let baseline = base_at(vp, va, vb) + rdy;
                 match &toks[p.tok] {
                     Tok::Word { text, node, link } => {
                         let s = &self.styles[*node];
@@ -2966,7 +2998,7 @@ impl<'a> Ctx<'a> {
                                 prev_underline_end = None;
                             }
                         }
-                        let r = Rect { x: px, y: cy, w: p.w, h: lh };
+                        let r = Rect { x: px, y: cy + rdy, w: p.w, h: lh };
                         // Likewise one hit area per run of words on a line.
                         match self.hits.last_mut() {
                             Some((h, n)) if *n == *node && h.y == r.y && h.h == r.h && r.x >= h.x + h.w - 0.5 && r.x - (h.x + h.w) < 40.0 => {
