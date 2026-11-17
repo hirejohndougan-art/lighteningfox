@@ -237,6 +237,16 @@ fn element(dom: &Dom, styles: &[Rc<Style>], id: NodeId, root: bool, out: &mut St
         if k == "style" || !xml_name(k) || !seen.insert(k.as_str()) {
             continue;
         }
+        // Presentation attributes are CSS too, so `fill="var(--x)"` takes the page's variables
+        // (The Guardian's logo).
+        let resolved;
+        let v = match styles.get(id) {
+            Some(st) if is_svg_prop(k) && v.contains("var(") => {
+                resolved = crate::style::substitute_vars(v, &st.vars, 0);
+                resolved.trim()
+            }
+            _ => v.as_str(),
+        };
         refs_in(k, v, refs);
         out.push(' ');
         out.push_str(k);
@@ -423,6 +433,13 @@ mod tests {
         assert!(doc.contains("color:rgba(0,0,255,1.000)"), "{doc}");
         assert!(!doc.contains("@click"), "{doc}");
         assert!(resvg::usvg::Tree::from_str(&doc, &Default::default()).is_ok(), "{doc}");
+    }
+
+    #[test]
+    fn presentation_attributes_take_page_variables() {
+        let (dom, styles) = page(r##"<style>p { --ink: #fff }</style><p><svg viewBox="0 0 10 10" fill="var(--ink)"><path d="M0 0H10V10Z"/></svg>"##);
+        let svg = document(&dom, &styles, root_of(&dom), &mut None);
+        assert!(svg.contains("fill=\"#fff\""), "{svg}");
     }
 
     #[test]
