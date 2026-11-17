@@ -161,7 +161,7 @@ work. Remove what's truly unused, fix the rest, and make CI fail on new warnings
 (`RUSTFLAGS=-D warnings` in the build step).
 
 ### R4. Review the box tree and incremental relayout
-**Status:** free
+**Status:** claimed by chat-opus-x5 2026-11-17 11:45
 **After:** —
 **Checklist:** none
 **Files:** `src/boxtree.rs`, `src/layout.rs`
