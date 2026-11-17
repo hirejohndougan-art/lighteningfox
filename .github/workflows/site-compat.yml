@@ -1,0 +1,46 @@
+name: Site compatibility
+# Every Monday (or by hand): render the sites in tools/sites.json with Ironswift and Chrome,
+# grade them, and commit the updated docs/SITE_COMPAT.md. The side-by-side screenshots are
+# kept as a downloadable artifact of the run.
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site-compat
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core fonts-noto-core libxkbcommon-dev libwayland-dev libx11-dev
+          pip install pillow
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Check the sites (Ironswift and Chrome)
+        run: python3 tools/site_check.py --tracker
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-check-report
+          path: site-check/
+      - name: Commit the tracker
+        run: |
+          git config user.name "John Dougan"
+          git config user.email "289271172+hirejohndougan-art@users.noreply.github.com"
+          git add docs/SITE_COMPAT.md docs/site-compat.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Site compatibility: weekly check $(date -u +%F)"
+          for i in 1 2 3; do git pull --rebase origin main && git push origin HEAD:main && exit 0; sleep 10; done
+          exit 1
