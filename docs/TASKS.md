@@ -204,7 +204,8 @@ bindings from WebIDL so every API gets the fast path" (two items)
 **Files:** `src/media.rs` (Web Audio readouts), the existing noise function
 
 ### T13. Extensions (WebExtensions API)
-**Status:** claimed by chat-opus-x3 2026-11-17 17:05
+**Status:** done
+**Left undone:** content scripts share the page's JavaScript globals (no separate isolated world; `chrome` itself stays hidden from the page); tab ids are tab positions + 1, so they shift when an earlier tab closes; webRequest only has `onBeforeRequest` (cancel/redirect) and guesses the resource `type` from the request; no `declarativeNetRequest`, `runtime.connect` ports, `alarms`, `contextMenus` or toolbar buttons; no about:extensions page or installer (extensions load unpacked from `<profile>/extensions/` or `IRONSWIFT_EXTENSIONS`); a site process's content-script requests are only checked against the extension's match patterns and the process's sites.
 **After:** T01, T05, T07
 **Checklist:** §11 "Extensions (WebExtensions API)"
 **Files:** new `src/extensions/`
