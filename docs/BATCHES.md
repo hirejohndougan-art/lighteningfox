@@ -76,6 +76,7 @@ points at another file isn't loaded (browsers don't either).
 
 ## D. Canvas and drawing
 **Status:** claimed by layout-chat 2026-11-17 02:15
+**Checklist:** already ticked (04:20): `<canvas>` 2D drawing API; canvas fingerprint noise (the item now waits only on audio). Tick only the rest.
 **Start after:** —
 **Main files:** new `src/canvas.rs`, a new prelude file for the canvas API, `src/paint.rs` (shapes)
 
