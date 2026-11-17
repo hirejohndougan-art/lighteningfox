@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): dayjs's timezone plugin formats with
+     Intl.DateTimeFormat#formatToParts for America/New_York and parses toLocaleString() back
+     with new Date(); every timestamp was "Invalid time value" and the masthead vanished. -->
+<html><head><title>Dates as browsers read and write them</title></head>
+<body><p id="parse"></p><p id="fmt"></p>
+<script>
+  const iso = (s) => { const t = new Date(s); return isNaN(t) ? "NaN" : t.toISOString(); };
+  document.getElementById("parse").textContent = [
+    "11/17/2026, 5:33:56 PM GMT-0500", "2026-11-17T13:37:18+0000", "2026-11-17T18:37:18.123456Z",
+    "Tue Nov 17 2026 17:33:56 GMT-0600 (Central Standard Time)", "17 Nov 2026 10:00 EST", "November 17, 2026 UTC", "not a date",
+  ].map(iso).join(" ");
+  const d = new Date(Date.UTC(2026, 10, 17, 22, 33, 56, 114));
+  const ny = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" });
+  document.getElementById("fmt").textContent = [
+    ny.format(d),
+    ny.formatToParts(d).filter((p) => p.type !== "literal").map((p) => p.type + "=" + p.value).join(","),
+    d.toLocaleString("en-US", { timeZone: "America/New_York" }),
+    d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }),
+    new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Los_Angeles" }).format(d),
+    new Intl.DateTimeFormat("en-US", { timeZone: "Europe/London", timeZoneName: "long", hour: "numeric" }).format(new Date(Date.UTC(2026, 6, 1, 12))),
+    new Date(NaN).toLocaleString(), d instanceof Date, typeof Date(), new (class extends Date {})(5).getTime(),
+  ].join(" | ");
+</script></body></html>

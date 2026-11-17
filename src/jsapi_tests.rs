@@ -761,3 +761,20 @@ fn grid_align_content_areas_and_padded_links() {
     let _page = open("tests/sites/grid-align-content.html");
     assert_eq!(text_of("out"), "120;26;true");
 }
+
+#[test]
+fn dates_parse_and_format_like_browsers() {
+    let _serial = serial();
+    let _page = open("tests/sites/dates.html");
+    assert_eq!(
+        text_of("parse"),
+        "2026-11-17T22:33:56.000Z 2026-11-17T13:37:18.000Z 2026-11-17T18:37:18.123Z 2026-11-17T23:33:56.000Z \
+         2026-11-17T15:00:00.000Z 2026-11-17T00:00:00.000Z NaN"
+    );
+    assert_eq!(
+        text_of("fmt"),
+        "11/17/2026, 17:33:56 EST | month=11,day=17,year=2026,hour=17,minute=33,second=56,timeZoneName=EST | \
+         11/17/2026, 5:33:56 PM | Tuesday, November 17, 2026 | Nov 17, 2026, 2:33 PM | 1 PM GMT+01:00 | \
+         Invalid Date | true | string | 5"
+    );
+}
