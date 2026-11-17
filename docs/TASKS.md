@@ -136,13 +136,17 @@ doesn't report it). When T05 moves pages into sandboxed processes, `src/geo.rs` 
 browser process and pass positions to the page process.
 
 ### X7. Turn on Boa's Annex B (legacy web JavaScript)
-**Status:** claimed by chat-opus-x5 2026-11-17 12:05
+**Status:** done
 **After:** —
 **Checklist:** none
 **Files:** `Cargo.toml` (the `annex-b` feature of `boa_engine`)
 `"abc".substr()`, `escape()`, `trimLeft()`, `<!--` comments in scripts and other web-required
 legacy JavaScript are missing because Boa is built without `annex-b`. Turn it on; compare the
 test suite, test262 and the media-source WPT before and after; fix or report regressions.
+X1 turned the feature on at the same time (c1ce921); X7 measured it. Before → after: all 260
+tests pass; WPT dom/nodes 1535/5629, dom/events 239/526, shadow-dom 245/402, IndexedDB
+1098/1284 unchanged; media-source 207/325 → 215/339 (its helpers use `substr`); V8 suite score
+259 → 255–256 (about 1%; Crypto about 6% slower, the rest within noise).
 
 ### X8. Review the small changes X5 and T10 made outside their files
 **Status:** claimed by chat-opus-x5 2026-11-17 12:05
