@@ -3513,10 +3513,13 @@ fn border_side(items: &mut Vec<Item>, line: u8, x: f32, y: f32, w: f32, h: f32, 
             let gap = if n > 1.0 { (len - n * on) / (n - 1.0) } else { 0.0 };
             for i in 0..n as usize {
                 let p = i as f32 * (on + gap);
-                if horizontal {
-                    items.push(Item::Rect { x: x + p, y, w: on, h, color });
+                let (dx, dy, dw, dh) = if horizontal { (x + p, y, on, h) } else { (x, y + p, w, on) };
+                if line == 2 && thick >= 2.0 {
+                    // Dots are round (smooth-edged circles), as in other browsers.
+                    let bg = crate::style::Background { color, ..Default::default() };
+                    items.push(Item::Box { x: dx, y: dy, w: dw, h: dh, radius: thick / 2.0, bg: Box::new(bg) });
                 } else {
-                    items.push(Item::Rect { x, y: y + p, w, h: on, color });
+                    items.push(Item::Rect { x: dx, y: dy, w: dw, h: dh, color });
                 }
             }
         }

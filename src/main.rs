@@ -4568,6 +4568,7 @@ mod screenshot_tests {
         ("about:home", 1024),
         ("tests/images.html", 1024),
         ("tests/canvas.html", 860),
+        ("tests/dotted.html", 400),
         ("tests/css3.html", 900),
         ("tests/backgrounds.html", 1024),
         ("tests/inline-block.html", 900),
