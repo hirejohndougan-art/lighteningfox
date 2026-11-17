@@ -217,6 +217,12 @@ pub fn take_history() -> Vec<HistoryOp> {
     HISTORY.with(|h| std::mem::take(&mut *h.borrow_mut()))
 }
 
+/// A history change from a page in a site process (checked by the window first), handled like
+/// the window's own page's.
+pub fn queue_history(op: HistoryOp) {
+    HISTORY.with(|h| h.borrow_mut().push(op));
+}
+
 pub fn take_requests() -> Vec<Request> {
     REQUESTS.with(|r| std::mem::take(&mut *r.borrow_mut()))
 }

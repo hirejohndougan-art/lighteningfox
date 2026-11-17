@@ -1716,7 +1716,7 @@ fn same_document(a: &str, b: &str) -> bool {
 }
 
 /// Where a URL's #fragment points on the page (page y), if anywhere.
-fn fragment_target(url: &str) -> Option<f32> {
+pub(crate) fn fragment_target(url: &str) -> Option<f32> {
     let frag = url.split_once('#')?.1;
     let frag = net::percent_decode_str(frag);
     if frag.is_empty() || frag.eq_ignore_ascii_case("top") {
@@ -2410,6 +2410,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A page in a site process: its title, its forms, and its size follows the window.
         frames::fit(page.doc, &lay);
+        // Its history changes, if they stay on its own origin (as pushState must).
+        for op in fr.history {
+            let ok = match &op {
+                js::HistoryOp::Push(u, _) | js::HistoryOp::Replace(u, _) | js::HistoryOp::Hash(u, _) => net::origin_of(u) == net::origin_of(&page.url),
+                js::HistoryOp::Go(_) => true,
+            };
+            if ok {
+                js::queue_history(op);
+            }
+        }
         if let Some(t) = fr.title {
             page.title = t;
             window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
@@ -4066,7 +4076,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         if let Some(popstate) = same_doc_move {
             navigate = None;
             let old = std::mem::replace(&mut page.url, current.url.clone());
-            if let Some(js) = page.js.as_mut() {
+            if frames::site_history_moved(page.doc, &current.url, &current.state, popstate) {
+                // The page runs in its site process: it was told there.
+            } else if let Some(js) = page.js.as_mut() {
                 js.history_moved(&current.url, &current.state, popstate);
             }
             if !popstate || old.split('#').nth(1) != current.url.split('#').nth(1) {

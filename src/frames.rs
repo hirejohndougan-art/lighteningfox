@@ -37,6 +37,9 @@ pub enum Event {
     Resize { w: u32, h: u32 },
     /// Scroll the page to this y (find in page jumping to a match).
     ScrollTo(f32),
+    /// Back or Forward moved within the page's own history entries (a top-level page in a site
+    /// process): its new address and state, and whether to fire popstate.
+    HistoryMoved { url: String, state: String, popstate: bool },
 }
 
 /// What a frame tells the window.
@@ -57,6 +60,9 @@ pub enum Update {
     /// The text on the page and where it's drawn (page coordinates), for find in page and
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
+    /// The page's script changed its history: pushState, replaceState, location.hash, back…
+    /// (a top-level page in a site process).
+    History(js::HistoryOp),
 }
 
 /// Keys a frame may receive, by name (so they cross the process boundary).
@@ -138,6 +144,12 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::HistoryMoved { url, state, popstate } => {
+                put(&mut m, b"histmoved");
+                put(&mut m, url.as_bytes());
+                put(&mut m, state.as_bytes());
+                put(&mut m, &[*popstate as u8]);
+            }
         }
         m
     }
@@ -185,6 +197,11 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"histmoved" => {
+                let url = String::from_utf8_lossy(&get(r)?).to_string();
+                let state = String::from_utf8_lossy(&get(r)?).to_string();
+                Event::HistoryMoved { url, state, popstate: get(r)? == [1] }
+            }
             _ => return Err(std::io::Error::other("unknown event")),
         })
     }
@@ -216,6 +233,19 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::History(op) => {
+                put(&mut m, b"history");
+                let (kind, url, state) = match op {
+                    js::HistoryOp::Push(u, s) => ("push", u.clone(), s.clone()),
+                    js::HistoryOp::Replace(u, s) => ("replace", u.clone(), s.clone()),
+                    js::HistoryOp::Hash(u, false) => ("hash", u.clone(), String::new()),
+                    js::HistoryOp::Hash(u, true) => ("hash-replace", u.clone(), String::new()),
+                    js::HistoryOp::Go(n) => ("go", n.to_string(), String::new()),
+                };
+                put(&mut m, kind.as_bytes());
+                put(&mut m, url.as_bytes());
+                put(&mut m, state.as_bytes());
             }
             Update::Text(runs) => {
                 put(&mut m, b"text");
@@ -249,6 +279,19 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"history" => {
+                let kind = get(r)?;
+                let url = String::from_utf8_lossy(&get(r)?).to_string();
+                let state = String::from_utf8_lossy(&get(r)?).to_string();
+                Update::History(match kind.as_slice() {
+                    b"push" => js::HistoryOp::Push(url, state),
+                    b"replace" => js::HistoryOp::Replace(url, state),
+                    b"hash" => js::HistoryOp::Hash(url, false),
+                    b"hash-replace" => js::HistoryOp::Hash(url, true),
+                    b"go" => js::HistoryOp::Go(url.parse::<i32>().map_err(|_| std::io::Error::other("bad history"))?.clamp(-100, 100)),
+                    _ => return Err(std::io::Error::other("bad history")),
+                })
+            }
             b"text" => {
                 let n = match read_f32s(&get(r)?)[..] {
                     [n] if (0.0..=200_000.0).contains(&n) => n as usize,
@@ -702,6 +745,20 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::HistoryMoved { url, state, popstate } => {
+                if crate::net::origin_of(&url) == crate::net::origin_of(&self.page.url) {
+                    let old = std::mem::replace(&mut self.page.url, url.clone());
+                    if let Some(js) = self.page.js.as_mut() {
+                        js.history_moved(&url, &state, popstate);
+                    }
+                    // A #fragment link (or Back to one): show its target.
+                    if !popstate || old.split('#').nth(1) != url.split('#').nth(1) {
+                        if let Some(y) = crate::fragment_target(&url) {
+                            self.scroll = y;
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -788,6 +845,16 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         if js::take_dirty() {
             host.page.restyle();
             changed = true;
+        }
+        // History changes the page's scripts made: a top-level page's go to the window (its
+        // address bar and Back/Forward); a frame's have nowhere to go yet.
+        for op in js::take_history() {
+            if host.job.top_level {
+                if let js::HistoryOp::Push(u, _) | js::HistoryOp::Replace(u, _) = &op {
+                    host.page.url = u.clone();
+                }
+                sink.push(Update::History(op));
+            }
         }
         sink.extend(host.outbox.drain(..));
         if host.job.top_level && host.page.title != host.title {
@@ -920,6 +987,8 @@ pub struct Pumped {
     pub post: Option<(String, forms::PostBody)>,
     /// A top-level page's new title.
     pub title: Option<String>,
+    /// History changes a top-level page in a site process made (still to be checked).
+    pub history: Vec<js::HistoryOp>,
 }
 
 /// May this frame move the whole tab? (Its own sandbox, checked on the window's side.)
@@ -960,6 +1029,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                     out.repaint = true;
                 }
                 Update::Text(_) => {}
+                Update::History(op) if f.top_level => out.history.push(op),
+                Update::History(_) => {}
             }
         }
         if let Some(img) = latest {
@@ -1029,6 +1100,14 @@ pub fn site_runs(doc: u64, lay: &layout::Layout) -> Option<Vec<crate::chrome::Te
             .map(|r| crate::chrome::TextRun { x: r.x + x0, y: r.y + y0 - if r.fixed { 0.0 } else { f.scroll }, fixed: false, ..r.clone() })
             .collect(),
     )
+}
+
+/// Back/Forward moved within the history entries of the site-process page shown for `doc`:
+/// tell it (popstate, hashchange). False if the page isn't in a site process.
+pub fn site_history_moved(doc: u64, url: &str, state: &str, popstate: bool) -> bool {
+    let Some(key) = site_frame(doc) else { return false };
+    send(doc, &key, Event::HistoryMoved { url: url.to_string(), state: state.to_string(), popstate });
+    true
 }
 
 /// Changes whenever site_runs would give something else (new text, or scrolled).
@@ -1517,6 +1596,7 @@ mod tests {
             Event::Keys { keys: vec![(Key::A, true, false, false), (Key::Backspace, false, true, false)], text: "héllo".into() },
             Event::Blur,
             Event::ScrollTo(120.0),
+            Event::HistoryMoved { url: "https://a.com/x#y".into(), state: "{\"n\":1}".into(), popstate: true },
         ];
         for e in evs {
             let b = e.encode();
@@ -1530,6 +1610,10 @@ mod tests {
         }
         let b = Update::NavigateTop("https://x.org/".into()).encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::NavigateTop(u) if u == "https://x.org/"));
+        for op in [js::HistoryOp::Push("https://a.com/p".into(), "{}".into()), js::HistoryOp::Replace("https://a.com/r".into(), "null".into()), js::HistoryOp::Hash("https://a.com/#h".into(), true), js::HistoryOp::Go(-1)] {
+            let b = Update::History(op.clone()).encode();
+            assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::History(o) if o == op));
+        }
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];
         let b = Update::Text(runs.clone()).encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Text(r) if r == runs));
