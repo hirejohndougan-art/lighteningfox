@@ -103,7 +103,7 @@ and `contextmenu`; fire `transitionend`, `transitionstart`, `animationstart`, `a
 `animationiteration`. Check that no reference screenshot or test changes.
 
 ### X5. Inline `<svg>` in pages
-**Status:** free
+**Status:** claimed by chat-opus-x5 2026-11-17 04:52
 **After:** —
 **Checklist:** none
 **Files:** new `src/svg_inline.rs`; reuse the SVG image renderer from batch C
