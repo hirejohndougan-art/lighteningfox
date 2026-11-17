@@ -10,6 +10,7 @@ use std::sync::Mutex;
 const KEEP_LINES: usize = 2000;
 
 static LOG: Mutex<VecDeque<(u64, String)>> = Mutex::new(VecDeque::new());
+static TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static CURRENT_URL: Mutex<String> = Mutex::new(String::new());
 
 fn now_secs() -> u64 {
@@ -19,11 +20,26 @@ fn now_secs() -> u64 {
 /// Add a line to the debug log (the `log!` macro calls this after printing it).
 pub fn record(line: String) {
     if let Ok(mut l) = LOG.lock() {
+        TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if l.len() >= KEEP_LINES {
             l.pop_front();
         }
         l.push_back((now_secs(), line));
     }
+}
+
+/// How many lines have been logged so far (a mark for `since`).
+pub fn count() -> u64 {
+    TOTAL.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The lines logged after the mark `count()` gave (those still kept).
+pub fn since(mark: u64) -> Vec<String> {
+    let Ok(l) = LOG.lock() else { return Vec::new() };
+    let total = TOTAL.load(std::sync::atomic::Ordering::Relaxed);
+    let first = total - l.len() as u64;
+    let skip = mark.saturating_sub(first) as usize;
+    l.iter().skip(skip).map(|(_, s)| s.clone()).collect()
 }
 
 /// The log lines kept in memory, oldest first (for the developer tools' console).

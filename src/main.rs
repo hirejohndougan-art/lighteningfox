@@ -16,6 +16,7 @@ macro_rules! log {
 }
 
 mod clicks;
+mod mcp;
 mod cookies;
 mod netbody;
 mod bindings;
@@ -1417,6 +1418,8 @@ fn browser_main() {
     let mut png: Option<String> = None;
     // Print the page's accessibility tree instead of opening a window.
     let mut a11y_dump = false;
+    // Serve the automation protocol on stdin/stdout instead of opening a window (mcp.rs).
+    let mut mcp_mode = false;
     let mut width = 1024usize;
     let mut i = 0;
     while i < args.len() {
@@ -1454,6 +1457,7 @@ fn browser_main() {
                 i += 1;
             }
             "--a11y" => a11y_dump = true,
+            "--mcp" => mcp_mode = true,
             "--width" => {
                 width = args.get(i + 1).and_then(|w| w.parse().ok()).unwrap_or(width);
                 i += 1;
@@ -1487,6 +1491,10 @@ fn browser_main() {
         log!("[mem] + page loaded: {} MB", rss());
         let lay = page.layout(fonts, width as f32, 768.0);
         log!("[mem] + layout ({} items): {} MB", lay.items.len(), rss());
+        return;
+    }
+    if mcp_mode {
+        mcp::serve(fonts);
         return;
     }
     if a11y_dump {
