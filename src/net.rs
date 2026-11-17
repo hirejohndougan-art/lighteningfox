@@ -4,56 +4,41 @@ use std::io::Read;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) LighteningFox/0.1";
 
-/// Fetch a URL as text. Returns (final URL after redirects, body text).
+/// Fetch a page (a top-level document) as text. Returns (final URL after redirects, body).
 pub fn fetch(url: &str) -> Result<(String, String), String> {
-    let (final_url, bytes) = fetch_bytes(url)?;
+    let (final_url, bytes) = load(url, None, None)?;
     Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
 }
 
-/// POST a form (application/x-www-form-urlencoded) and return (final URL, body text).
-/// Redirects after a POST turn into GETs, as browsers do.
+/// POST a form (application/x-www-form-urlencoded) as a page navigation.
 pub fn post_form(url: &str, body: &str) -> Result<(String, String), String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         // Local files can't take a POST; show them as a GET with the data in the query.
         return fetch(&format!("{}?{body}", url.split('?').next().unwrap_or(url)));
     }
-    let agent = ureq::AgentBuilder::new()
-        .user_agent(USER_AGENT)
-        .timeout(std::time::Duration::from_secs(20))
-        .try_proxy_from_env(use_proxy(url))
-        .build();
-    let resp = agent
-        .post(url)
-        .set("Content-Type", "application/x-www-form-urlencoded")
-        .send_string(body)
-        .or_else(|e| match e {
-            // Error pages (404, 500…) are still pages to show.
-            ureq::Error::Status(_, r) => Ok(r),
-            e => Err(e.to_string()),
-        })?;
-    let final_url = resp.get_url().to_string();
-    let mut bytes = Vec::new();
-    resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    let (final_url, bytes) = load(url, Some(body), None)?;
     Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
 }
 
-/// Fetch a URL as raw bytes. Handles http(s)://, file:// and data: URLs.
-pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
+/// Fetch something a page uses (stylesheet, script, image) as text. `page` is the page's URL,
+/// which decides whether cookies go along (only to the page's own site).
+pub fn fetch_sub(url: &str, page: &str) -> Result<(String, String), String> {
+    let (final_url, bytes) = load(url, None, Some(page))?;
+    Ok((final_url, String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+/// Like `fetch_sub`, as raw bytes (images).
+pub fn fetch_sub_bytes(url: &str, page: &str) -> Result<(String, Vec<u8>), String> {
+    load(url, None, Some(page))
+}
+
+/// Load a URL: http(s) (with cookies and redirects), file:// or data:.
+/// `top` is the page making the request; `None` means the request is the page itself.
+fn load(url: &str, post: Option<&str>, top: Option<&str>) -> Result<(String, Vec<u8>), String> {
     if let Some(rest) = url.strip_prefix("data:") {
         return decode_data_url(rest).map(|b| (url.to_string(), b));
     }
-    if url.starts_with("http://") || url.starts_with("https://") {
-        let agent = ureq::AgentBuilder::new()
-            .user_agent(USER_AGENT)
-            .timeout(std::time::Duration::from_secs(20))
-            .try_proxy_from_env(use_proxy(url))
-            .build();
-        let resp = agent.get(url).call().map_err(|e| e.to_string())?;
-        let final_url = resp.get_url().to_string();
-        let mut bytes = Vec::new();
-        resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        Ok((final_url, bytes))
-    } else {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
         let path = url.strip_prefix("file://").unwrap_or(url);
         // The query and fragment aren't part of the file's name; keep them on the URL.
         let cut = path.find(['?', '#']).unwrap_or(path.len());
@@ -61,8 +46,57 @@ pub fn fetch_bytes(url: &str) -> Result<(String, Vec<u8>), String> {
         let path = percent_decode(path);
         let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
         let abs = std::fs::canonicalize(&path).map(|p| p.display().to_string()).unwrap_or(path);
-        Ok((format!("file://{abs}{rest}"), bytes))
+        return Ok((format!("file://{abs}{rest}"), bytes));
     }
+    // Redirects are followed here rather than by ureq, so cookies set along the way are kept.
+    let mut url = url.to_string();
+    let mut post = post.map(String::from);
+    for _ in 0..20 {
+        let agent = ureq::AgentBuilder::new()
+            .user_agent(USER_AGENT)
+            .timeout(std::time::Duration::from_secs(20))
+            .redirects(0)
+            .try_proxy_from_env(use_proxy(&url))
+            .build();
+        let first_party = top.unwrap_or(&url).to_string();
+        let mut req = match post {
+            Some(_) => agent.post(&url).set("Content-Type", "application/x-www-form-urlencoded"),
+            None => agent.get(&url),
+        };
+        req = req.set("Accept", if top.is_none() { "text/html,application/xhtml+xml,*/*;q=0.8" } else { "*/*" });
+        // Global Privacy Control: "do not sell or share my data" (honored by law in some US states).
+        req = req.set("Sec-GPC", "1");
+        if let Some(c) = crate::cookies::header_for(&url, &first_party) {
+            req = req.set("Cookie", &c);
+        }
+        let result = match &post {
+            Some(body) => req.send_string(body),
+            None => req.call(),
+        };
+        let resp = match result {
+            Ok(r) => r,
+            // Error pages (404, 500…) are still pages to show.
+            Err(ureq::Error::Status(_, r)) => r,
+            Err(e) => return Err(e.to_string()),
+        };
+        let set: Vec<String> = resp.all("set-cookie").iter().map(|s| s.to_string()).collect();
+        crate::cookies::receive(&url, &first_party, &set);
+        let status = resp.status();
+        if (300..400).contains(&status) && status != 304 {
+            if let Some(loc) = resp.header("location") {
+                url = resolve(&url, loc.trim());
+                // 301/302/303 turn a POST into a GET; 307/308 repeat it.
+                if !matches!(status, 307 | 308) {
+                    post = None;
+                }
+                continue;
+            }
+        }
+        let mut bytes = Vec::new();
+        resp.into_reader().take(30_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        return Ok((url, bytes));
+    }
+    Err("too many redirects".into())
 }
 
 /// Skip the system proxy for local addresses and anything listed in NO_PROXY.
@@ -111,6 +145,43 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Remove tracking parameters (utm_*, fbclid, gclid…) from a page URL before loading it.
+/// They exist only to tell sites and ad networks where you came from.
+pub fn strip_tracking(url: &str) -> String {
+    const EXACT: &[&str] = &[
+        "fbclid", "gclid", "gclsrc", "dclid", "gbraid", "wbraid", "msclkid", "mc_eid", "mc_cid", "yclid", "twclid", "ttclid", "li_fat_id",
+        "igshid", "igsh", "_hsenc", "_hsmi", "mkt_tok", "oly_anon_id", "oly_enc_id", "vero_id", "wickedid", "__s", "_openstat", "srsltid", "si",
+    ];
+    if std::env::var("LF_KEEP_TRACKING_PARAMS").is_ok_and(|v| v == "1") || !(url.starts_with("http://") || url.starts_with("https://")) {
+        return url.to_string();
+    }
+    let (before_frag, frag) = match url.split_once('#') {
+        Some((a, f)) => (a, Some(f)),
+        None => (url, None),
+    };
+    let Some((base, query)) = before_frag.split_once('?') else { return url.to_string() };
+    // `si` is only a tracker on YouTube and Spotify share links.
+    let host = base.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or("");
+    let share_si = host.contains("youtu") || host.contains("spotify");
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|kv| {
+            let k = kv.split('=').next().unwrap_or("").to_ascii_lowercase();
+            !(k.starts_with("utm_") || (EXACT.contains(&k.as_str()) && (k != "si" || share_si)))
+        })
+        .collect();
+    let mut out = base.to_string();
+    if !kept.is_empty() {
+        out.push('?');
+        out.push_str(&kept.join("&"));
+    }
+    if let Some(f) = frag {
+        out.push('#');
+        out.push_str(f);
+    }
+    out
 }
 
 /// Turn whatever the user typed in the address bar into a URL.
@@ -184,6 +255,15 @@ pub fn resolve(base: &str, href: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::resolve;
+    use super::strip_tracking;
+    #[test]
+    fn strips_trackers() {
+        assert_eq!(strip_tracking("https://a.com/p?id=7&utm_source=x&utm_medium=y&fbclid=abc#top"), "https://a.com/p?id=7#top");
+        assert_eq!(strip_tracking("https://a.com/p?utm_campaign=z"), "https://a.com/p");
+        assert_eq!(strip_tracking("https://a.com/p?si=keep"), "https://a.com/p?si=keep");
+        assert_eq!(strip_tracking("https://youtu.be/x?si=drop"), "https://youtu.be/x");
+    }
+
     #[test]
     fn resolves() {
         assert_eq!(resolve("https://a.com/x/y.html", "z.html"), "https://a.com/x/z.html");

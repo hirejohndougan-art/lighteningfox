@@ -389,6 +389,18 @@ fn n_request(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     Ok(JsValue::undefined())
 }
 
+fn n_get_cookie(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let url = arg_str(a, 0, ctx)?;
+    Ok(JsValue::from(JsString::from(crate::cookies::script_get(&url))))
+}
+
+fn n_set_cookie(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let url = arg_str(a, 0, ctx)?;
+    let v = arg_str(a, 1, ctx)?;
+    crate::cookies::script_set(&url, &v);
+    Ok(JsValue::undefined())
+}
+
 const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
@@ -422,6 +434,8 @@ impl Js {
             ("__log", 2, n_log),
             ("__navigate", 1, n_navigate),
             ("__request", 3, n_request),
+            ("__getCookie", 1, n_get_cookie),
+            ("__setCookie", 2, n_set_cookie),
         ];
         for (name, len, f) in natives {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
@@ -477,7 +491,7 @@ impl Js {
                     let url = net::resolve(base_url, &src);
                     let fetched = match prefetched.get(&url) {
                         Some(body) => Ok((url.clone(), body.clone())),
-                        None => net::fetch(&url),
+                        None => net::fetch_sub(&url, base_url),
                     };
                     match fetched {
                         Ok((_, body)) => (body, url),

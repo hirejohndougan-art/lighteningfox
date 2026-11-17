@@ -346,8 +346,15 @@
     get readyState() { return __readyState; }
     get location() { return g.location; }
     get URL() { return __url; }
-    get cookie() { return __cookie; }
-    set cookie(v) { const kv = String(v).split(";")[0]; __cookie = __cookie ? __cookie + "; " + kv : kv; }
+    // Real cookies for web pages; a simple per-page store for local files.
+    get cookie() { return /^https?:/.test(__url) ? __getCookie(__url) : __cookie; }
+    set cookie(v) {
+      if (/^https?:/.test(__url)) { __setCookie(__url, String(v)); return; }
+      const kv = String(v).split(";")[0], name = kv.split("=")[0];
+      const rest = __cookie ? __cookie.split("; ").filter((p) => p.split("=")[0] !== name) : [];
+      if (!/max-age=(0|-)|expires=thu, 01 jan 1970/i.test(String(v))) rest.push(kv);
+      __cookie = rest.join("; ");
+    }
     get defaultView() { return g; }
     get activeElement() { return this.body; }
     get forms() { return this.querySelectorAll("form"); }
@@ -461,7 +468,7 @@
     HTMLDivElement: HTMLElement, HTMLAnchorElement: HTMLElement, HTMLImageElement: HTMLElement,
     HTMLInputElement: HTMLElement, HTMLButtonElement: HTMLElement, HTMLScriptElement: HTMLElement,
     navigator: { userAgent: __userAgent, language: "en-US", languages: ["en-US", "en"], platform: "Linux x86_64",
-                 onLine: true, cookieEnabled: true, hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
+                 onLine: true, cookieEnabled: true, globalPrivacyControl: true, doNotTrack: "1", hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
     screen: { width: 1366, height: 768, availWidth: 1366, availHeight: 768, colorDepth: 24 },
     innerWidth: 1024, innerHeight: 768, outerWidth: 1024, outerHeight: 800, devicePixelRatio: 1,
     scrollX: 0, scrollY: 0, pageXOffset: 0, pageYOffset: 0,

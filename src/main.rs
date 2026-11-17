@@ -6,6 +6,7 @@
 //!   lighteningfox [URL or file]                  open a window
 //!   lighteningfox URL --png out.png [--width N]  render to an image (no window needed)
 
+mod cookies;
 mod css;
 mod dom;
 mod font;
@@ -100,7 +101,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     } else {
         let got = match post {
             Some(body) => net::post_form(url, body),
-            None => net::fetch(url),
+            None => net::fetch(&net::strip_tracking(url)),
         };
         match got {
             Ok(r) => r,
@@ -136,6 +137,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
             _ => {}
         }
     }
+    let page_url: &str = &final_url;
     let (sheets, scripts) = std::thread::scope(|scope| {
         let sheet_jobs: Vec<_> = sources
             .iter()
@@ -149,7 +151,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
                     })
                 }
                 Src::External(u) => scope.spawn(move || {
-                    let (_, text) = net::fetch(u).ok()?;
+                    let (_, text) = net::fetch_sub(u, page_url).ok()?;
                     let mut sheet = css::parse(&text);
                     css::absolutize_urls(&mut sheet, u);
                     Some(sheet)
@@ -157,7 +159,7 @@ fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
             })
             .collect();
         let script_jobs: Vec<_> =
-            script_urls.iter().map(|u| scope.spawn(move || net::fetch(u).ok().map(|(_, b)| (u.clone(), b)))).collect();
+            script_urls.iter().map(|u| scope.spawn(move || net::fetch_sub(u, page_url).ok().map(|(_, b)| (u.clone(), b)))).collect();
         let sheets: Vec<css::Stylesheet> = sheet_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
         let scripts: HashMap<String, String> = script_jobs.into_iter().filter_map(|j| j.join().ok().flatten()).collect();
         (sheets, scripts)

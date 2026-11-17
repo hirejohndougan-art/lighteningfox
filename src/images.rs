@@ -75,7 +75,7 @@ impl Images {
                     .iter()
                     .map(|src| {
                         let url = net::resolve(base_url, src);
-                        scope.spawn(move || fetch_and_decode(&url))
+                        scope.spawn(move || fetch_and_decode(&url, base_url))
                     })
                     .collect();
                 chunk.iter().cloned().zip(handles.into_iter().map(|h| h.join().ok().flatten())).collect()
@@ -94,8 +94,8 @@ impl Images {
     }
 }
 
-fn fetch_and_decode(url: &str) -> Option<Img> {
-    let bytes = net::fetch_bytes(url).map_err(|e| eprintln!("[img] {url}: {e}")).ok()?.1;
+fn fetch_and_decode(url: &str, page: &str) -> Option<Img> {
+    let bytes = net::fetch_sub_bytes(url, page).map_err(|e| eprintln!("[img] {url}: {e}")).ok()?.1;
     let img = image::load_from_memory(&bytes).map_err(|e| eprintln!("[img] {url}: {e}")).ok()?;
     let (w, h) = (img.width(), img.height());
     let img = if w > MAX_SIDE || h > MAX_SIDE { img.thumbnail(MAX_SIDE, MAX_SIDE) } else { img };
