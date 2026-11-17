@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): Svelte inserts its blocks with before() on comment and
+     text anchors ("not a callable function": ChildNode methods were only on elements). -->
+<html><head><title>before/after/replaceWith on text and comments</title></head>
+<body><div id="d">a<!--c-->z</div><p id="out"></p>
+<script>
+  const d = document.getElementById("d");
+  const [t, c, z] = d.childNodes;
+  c.before(document.createElement("b"), "1");
+  t.after("2");
+  z.replaceWith("Z", document.createElement("i"));
+  const f = document.createDocumentFragment(); f.append("x", document.createElement("u"));
+  c.after(f);
+  const out = [d.innerHTML, typeof document.createTextNode("q").before];
+  document.getElementById("out").textContent = out.join(" ");
+</script></body></html>

@@ -1304,6 +1304,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("cssom.js", include_str!("cssom.js")),
     ("docprops.js", include_str!("docprops.js")),
     ("hyperlink.js", include_str!("hyperlink.js")),
+    ("childnode.js", include_str!("childnode.js")),
     ("doctype.js", include_str!("doctype.js")),
     ("defaultvalue.js", include_str!("defaultvalue.js")),
     ("devconsole.js", include_str!("devconsole.js")),

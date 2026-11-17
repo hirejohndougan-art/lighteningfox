@@ -708,3 +708,10 @@ fn content_blocking_more_scriptlets() {
     );
     assert_eq!(r.trim_matches('"'), "false|https://bayou.example/story|block|90px|0|hello friend|clean|undefined");
 }
+
+#[test]
+fn text_and_comment_nodes_have_child_node_methods() {
+    let _serial = serial();
+    let _page = open("tests/sites/childnode-text.html");
+    assert_eq!(text_of("out"), "a2<b></b>1<!--c-->x<u></u>Z<i></i> function");
+}
