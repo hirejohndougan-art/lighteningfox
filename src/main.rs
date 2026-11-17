@@ -34,6 +34,7 @@ mod hsts;
 mod icon;
 mod tokenizer;
 mod a11y;
+mod autofill;
 mod i18n;
 mod keynav;
 mod rtl;
@@ -1592,6 +1593,16 @@ fn fire(page: &mut Page, node: dom::NodeId, kind: &str) -> bool {
     }
 }
 
+/// Saved logins or earlier entries for a text field, as a list under it (None if there are none).
+fn open_suggest(page: &Page, lay: &layout::Layout, field: dom::NodeId) -> Option<formui::Suggest> {
+    let items = js::with_dom(|d| if matches!(forms::control(d, field), Some(forms::Control::Text { .. })) { autofill::suggestions(d, field, &page.url) } else { Vec::new() });
+    if items.is_empty() {
+        return None;
+    }
+    let r = lay.hits.iter().rev().find(|(_, n)| *n == field).map(|(r, _)| *r)?;
+    Some(formui::Suggest { node: field, doc: page.doc, x: r.x, y: r.y + r.h + 2.0, w: r.w.max(220.0), items, hover: None })
+}
+
 /// Stop editing a contenteditable element.
 fn stop_editing(ce: &mut Option<editing::Caret>) {
     if ce.take().is_some() {
@@ -1611,7 +1622,7 @@ fn contenteditable_keys(page: &mut Page, fonts: &Fonts, c: &mut editing::Caret, 
     let plain = js::with_dom(|d| d.attr(c.host, "contenteditable").is_some_and(|v| v.trim().eq_ignore_ascii_case("plaintext-only")));
     let mut any = false;
     // Ask the page first; `data` is the inserted text (if any).
-    let mut edit = |page: &mut Page, c: &mut editing::Caret, input_type: &str, data: Option<&str>, f: &mut dyn FnMut(&mut dom::Dom, &mut editing::Caret) -> bool| -> bool {
+    let edit = |page: &mut Page, c: &mut editing::Caret, input_type: &str, data: Option<&str>, f: &mut dyn FnMut(&mut dom::Dom, &mut editing::Caret) -> bool| -> bool {
         let esc = |s: &str| s.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
         let arg = data.map_or("null".to_string(), |d| format!("'{}'", esc(d)));
         let host = c.host;
@@ -1716,6 +1727,8 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
             return None;
         }
     }
+    // Remember typed entries, and offer to save a login.
+    js::with_dom(|d| autofill::form_submitted(d, form, &page.url, is_private()));
     Some(match sub.post {
         Some(body) => Go::Post(sub.url, body),
         None => Go::To(sub.url),
@@ -1875,6 +1888,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut picker: Option<formui::Picker> = None;
     // The caret in a contenteditable element being typed into.
     let mut ce: Option<editing::Caret> = None;
+    // Saved logins or earlier entries offered under a field, and the "Save login?" panel.
+    let mut suggest: Option<formui::Suggest> = None;
+    let mut save_prompt: Option<formui::SavePrompt> = None;
     window.set_title(&format!("{} — Ironswift{}", if page.title.is_empty() { &page.url } else { &page.title }, if is_private() { " (private)" } else { "" }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
     // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
@@ -1968,6 +1984,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             dropdown = None;
             picker = None;
+            suggest = None;
             stop_editing(&mut ce);
             editing = false;
             fedit = None;
@@ -2263,6 +2280,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
         }
+        if let Some(offer) = autofill::take_offer() {
+            save_prompt = Some(formui::SavePrompt { offer, hover: None });
+            dirty = true;
+        }
+        if suggest.as_ref().is_some_and(|sg| sg.doc != page.doc || focused != Some(sg.node)) {
+            suggest = None;
+            dirty = true;
+        }
         // Files picked in the file chooser go into their input (if its page is still shown).
         if let Some(chosen) = file_pick.as_ref().and_then(|p| p.poll()) {
             let p = file_pick.take().unwrap();
@@ -2483,6 +2508,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 js::with_dom_mut(|d| forms::set_value(d, f, &text));
                 fire(&mut page, f, "input");
                 form_changed = true;
+                // Earlier entries that start with what's typed so far.
+                suggest = open_suggest(&page, &lay, f);
+                dirty = true;
             }
             if r.moved || r.changed {
                 layout::set_edit(caret, anchor);
@@ -2626,6 +2654,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             }
                             dropdown = None;
                             picker = None;
+                            suggest = None;
                             stop_editing(&mut ce);
                             form_changed = true;
                             true
@@ -2646,6 +2675,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             focused = None;
                             dropdown = None;
                             picker = None;
+                            suggest = None;
                             stop_editing(&mut ce);
                             form_changed = true;
                             true
@@ -3057,6 +3087,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             // Highlight the option under the mouse in an open list.
+            if let Some(sg) = suggest.as_mut() {
+                let row = sg.row_at(mx, my, sg.y - scroll + bar_h() as f32);
+                if row != sg.hover {
+                    sg.hover = row;
+                    dirty = true;
+                }
+            }
+            if let Some(sp) = save_prompt.as_mut() {
+                dirty |= sp.hover_at(mx, my, w as f32, bar_h() as f32);
+            }
             if let Some(p) = picker.as_mut() {
                 if p.hover != Some((mx, my)) {
                     p.hover = Some((mx, my));
@@ -3112,6 +3152,38 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             // A click in an open date/time/color picker; a click elsewhere closes it and goes on.
             let mut picked = false;
             if down && !was_down {
+                if let Some(hit) = save_prompt.as_ref().and_then(|sp| sp.hit(mx, my, w as f32, bar_h() as f32)) {
+                    picked = true;
+                    if let Some(choice) = hit {
+                        let offer = save_prompt.take().unwrap().offer;
+                        match choice {
+                            formui::SaveChoice::Save => autofill::save_login(offer.login),
+                            formui::SaveChoice::Never => autofill::never_for(&offer.login.origin),
+                            formui::SaveChoice::NotNow => {}
+                        }
+                        dirty = true;
+                    }
+                } else if let Some(sg) = suggest.take() {
+                    dirty = true;
+                    if let Some(i) = sg.row_at(mx, my, sg.y - scroll + bar_h() as f32) {
+                        picked = true;
+                        let it = &sg.items[i];
+                        for (node, value) in &it.fill {
+                            js::with_dom_mut(|d| forms::set_value(d, *node, value));
+                            if focused == Some(*node) {
+                                fedit = Some(textedit::TextEdit::new(value));
+                            }
+                            fire(&mut page, *node, "input");
+                            fire(&mut page, *node, "change");
+                        }
+                        if let Some((origin, user)) = &it.login {
+                            autofill::mark_used(origin, user);
+                        }
+                        form_changed = true;
+                    }
+                }
+            }
+            if down && !was_down && !picked {
                 if let Some(p) = picker.as_mut() {
                     let top = p.y - scroll + bar_h() as f32;
                     match p.click(mx, my, top) {
@@ -3127,6 +3199,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             fire(&mut page, node, "change");
                             if close {
                                 picker = None;
+                                suggest = None;
                             }
                             form_changed = true;
                             picked = true;
@@ -3377,6 +3450,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             layout::set_edit(ed.caret, ed.anchor);
                             form_changed = true;
                         }
+                    }
+                    if let (true, Some(c)) = (allowed, ctrl) {
+                        suggest = open_suggest(&page, &lay, c);
                     }
                     if let (true, Some(c)) = (allowed, ctrl) {
                         // A click on a <label> is a click on its control.
@@ -3723,6 +3799,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     focused = None;
                     dropdown = None;
                     picker = None;
+                    suggest = None;
                     stop_editing(&mut ce);
                     layout::set_focus(None);
                     lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
@@ -3789,6 +3866,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             focused = None;
             dropdown = None;
             picker = None;
+            suggest = None;
             stop_editing(&mut ce);
             layout::set_focus(None);
             release_free_memory();
@@ -3951,7 +4029,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let t0 = Instant::now();
             #[cfg(feature = "gpu")]
-            let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || picker.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
+            let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || picker.is_some() || suggest.is_some() || save_prompt.is_some() || ce.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
             #[cfg(feature = "gpu")]
             let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay, &page.images);
             #[cfg(not(feature = "gpu"))]
@@ -3998,6 +4076,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
                     keynav::draw_ring(&mut canvas, r, fixed, bar_h() as f32, scroll.round(), h as f32, settings::get().high_contrast);
                 }
+            }
+            if let Some(sg) = &suggest {
+                sg.draw(&mut canvas, fonts, sg.y - scroll + bar_h() as f32);
+            }
+            if let Some(sp) = &save_prompt {
+                sp.draw(&mut canvas, fonts, bar_h() as f32);
             }
             if let Some(c) = &ce {
                 draw_edit_caret(&mut canvas, fonts, &page, &lay, c, scroll);

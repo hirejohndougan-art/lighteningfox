@@ -455,6 +455,125 @@ impl Picker {
     }
 }
 
+// ---------------------------------------------------------------- autofill
+
+/// Saved logins or earlier entries offered under a field (autofill.rs).
+pub struct Suggest {
+    pub node: NodeId,
+    pub doc: u64,
+    /// Top-left in page coordinates, and width.
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub items: Vec<crate::autofill::Suggestion>,
+    pub hover: Option<usize>,
+}
+
+const SUGGEST_ROW: f32 = 30.0;
+
+impl Suggest {
+    /// The row at (mx, my) in window coordinates (`top`: where the list's top is drawn).
+    pub fn row_at(&self, mx: f32, my: f32, top: f32) -> Option<usize> {
+        if mx < self.x || mx > self.x + self.w || my < top {
+            return None;
+        }
+        let i = ((my - top) / SUGGEST_ROW) as usize;
+        (i < self.items.len()).then_some(i)
+    }
+
+    pub fn draw(&self, canvas: &mut Canvas, fonts: &Fonts, top: f32) {
+        let h = self.items.len() as f32 * SUGGEST_ROW + 2.0;
+        panel(canvas, self.x, top, self.w, h);
+        for (i, it) in self.items.iter().enumerate() {
+            let y = top + 1.0 + i as f32 * SUGGEST_ROW;
+            let (ink, sub) = if self.hover == Some(i) {
+                canvas.fill_rect(self.x + 1.0, y, self.w - 2.0, SUGGEST_ROW, ACCENT);
+                (WHITE, WHITE)
+            } else {
+                (INK, Color { r: 120, g: 120, b: 130, a: 255 })
+            };
+            canvas.draw_text(fonts, self.x + 10.0, y + 19.5, &it.label, font::REGULAR, 13.0, ink);
+            if !it.detail.is_empty() {
+                let dw = fonts.width(font::REGULAR, &it.detail, 11.5);
+                canvas.draw_text(fonts, self.x + self.w - dw - 10.0, y + 19.0, &it.detail, font::REGULAR, 11.5, sub);
+            }
+        }
+    }
+}
+
+/// What the "Save login?" panel was asked to do.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SaveChoice {
+    Save,
+    Never,
+    NotNow,
+}
+
+/// The panel offering to save a login after a form was sent, under the toolbar on the right.
+pub struct SavePrompt {
+    pub offer: crate::autofill::Offer,
+    pub hover: Option<SaveChoice>,
+}
+
+const SAVE_W: f32 = 360.0;
+const SAVE_H: f32 = 104.0;
+
+impl SavePrompt {
+    fn origin_xy(window_w: f32, top: f32) -> (f32, f32) {
+        ((window_w - SAVE_W - 12.0).max(4.0), top + 6.0)
+    }
+
+    fn buttons(x: f32, y: f32) -> [(SaveChoice, &'static str, f32, f32); 3] {
+        let by = y + SAVE_H - 36.0;
+        [(SaveChoice::NotNow, "Not now", x + SAVE_W - 92.0, by), (SaveChoice::Never, "Never for this site", x + SAVE_W - 236.0, by), (SaveChoice::Save, "Save", x + 12.0, by)]
+    }
+
+    fn button_w(label: &str) -> f32 {
+        if label == "Never for this site" { 136.0 } else { 80.0 }
+    }
+
+    /// The button at (mx, my), or Some(None) for a click elsewhere on the panel.
+    pub fn hit(&self, mx: f32, my: f32, window_w: f32, top: f32) -> Option<Option<SaveChoice>> {
+        let (x, y) = Self::origin_xy(window_w, top);
+        if mx < x || mx > x + SAVE_W || my < y || my > y + SAVE_H {
+            return None;
+        }
+        Some(Self::buttons(x, y).into_iter().find(|(_, l, bx, by)| mx >= *bx && mx < bx + Self::button_w(l) && my >= *by && my < by + 26.0).map(|b| b.0))
+    }
+
+    pub fn draw(&self, canvas: &mut Canvas, fonts: &Fonts, top: f32) {
+        let (x, y) = Self::origin_xy(canvas.w as f32, top);
+        panel(canvas, x, y, SAVE_W, SAVE_H);
+        let host = self.offer.login.origin.split("://").nth(1).unwrap_or(&self.offer.login.origin).to_string();
+        let title = if self.offer.update { format!("Update the password for {host}?") } else { format!("Save login for {host}?") };
+        canvas.draw_text(fonts, x + 12.0, y + 22.0, &title, font::BOLD, 13.5, INK);
+        let user = if self.offer.login.username.is_empty() { "(no user name)".to_string() } else { self.offer.login.username.clone() };
+        let dots = "•".repeat(self.offer.login.password.chars().count().min(16));
+        canvas.draw_text(fonts, x + 12.0, y + 44.0, &format!("{user}   {dots}"), font::REGULAR, 13.0, Color { r: 90, g: 90, b: 100, a: 255 });
+        for (choice, label, bx, by) in Self::buttons(x, y) {
+            let bw = Self::button_w(label);
+            let primary = choice == SaveChoice::Save;
+            let hover = self.hover == Some(choice);
+            let fill = match (primary, hover) {
+                (true, false) => ACCENT,
+                (true, true) => Color { r: 8, g: 86, b: 170, a: 255 },
+                (false, false) => Color { r: 236, g: 236, b: 240, a: 255 },
+                (false, true) => Color { r: 222, g: 222, b: 228, a: 255 },
+            };
+            canvas.fill_rect(bx, by, bw, 26.0, fill);
+            let tw = fonts.width(font::REGULAR, label, 13.0);
+            canvas.draw_text(fonts, bx + (bw - tw) / 2.0, by + 18.0, label, font::REGULAR, 13.0, if primary { WHITE } else { INK });
+        }
+    }
+
+    pub fn hover_at(&mut self, mx: f32, my: f32, window_w: f32, top: f32) -> bool {
+        let h = self.hit(mx, my, window_w, top).flatten();
+        let changed = h != self.hover;
+        self.hover = h;
+        changed
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
