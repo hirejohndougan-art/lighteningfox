@@ -926,6 +926,14 @@ boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper inst
 **Status:** not for chats: John's to do.
 **Checklist:** §16 "Funding plan", §1 "Live-site check"
 
+### Delete the site-recording branches
+**Status:** not for chats: John's to do (the chats' git access can't delete branches).
+**Checklist:** none
+Delete these branches on GitHub (repository → Branches, or `git push origin --delete <name>`):
+`x1-record`, `x1-record2`, `x1-data`, `rec-x1`, `rec-x1e`, and each `rec-x1a`…`rec-x1d` once its
+task is done (the helper chats list theirs in their reports). Keep `x1-data2` until X1a–X1d are
+all done: their recordings are in it.
+
 ## Still with their batch chats (see `docs/BATCHES.md`)
 
 - Batch J: §16 Windows and macOS builds
