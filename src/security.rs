@@ -259,7 +259,7 @@ fn has(list: &[String], kw: &str) -> bool {
 }
 
 fn is_nonce(s: &str) -> bool {
-    s.len() > 8 && s[..7].eq_ignore_ascii_case("'nonce-")
+    s.len() > 8 && s.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("'nonce-"))
 }
 
 fn is_hash(s: &str) -> bool {
@@ -268,7 +268,7 @@ fn is_hash(s: &str) -> bool {
 }
 
 fn nonce_ok(list: &[String], nonce: &str) -> bool {
-    !nonce.is_empty() && list.iter().any(|s| is_nonce(s) && s[7..].trim_end_matches('\'') == nonce)
+    !nonce.is_empty() && list.iter().any(|s| is_nonce(s) && s.get(7..).is_some_and(|n| n.trim_end_matches('\'') == nonce))
 }
 
 /// Does the code's SHA-2 digest appear in the list?
@@ -744,6 +744,9 @@ mod tests {
         assert!(page_may_navigate("about:settings", "about:settings?clear_data"));
         assert!(page_may_navigate("about:home", "about:settings"));
         assert!(page_may_navigate("file:///home/u/a.html", "file:///home/u/b.html"));
+        // Found by fuzzing: a policy with multi-byte text where a nonce prefix would end.
+        let c = Csp::new("https://s.com/", &h("script-src 'nonce\u{fffd}x'"), &[]);
+        assert!(!c.allows_inline(Inline::Script, "x", Some("x")));
         assert!(!file_access_ok("https://evil.com/", "file:///etc/passwd"));
         assert!(file_access_ok("file:///tmp/site/index.html", "file:///tmp/site/img/a.png"));
         assert!(!file_access_ok("file:///tmp/site/index.html", "file:///etc/passwd"));
