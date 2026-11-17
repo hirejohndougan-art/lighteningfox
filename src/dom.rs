@@ -131,6 +131,31 @@ impl Dom {
         out
     }
 
+    /// Visit the descendants of `id` in document order without building a list; `f` returns
+    /// false to stop early.
+    pub fn walk(&self, id: NodeId, mut f: impl FnMut(NodeId) -> bool) {
+        let mut stack: Vec<NodeId> = self.nodes[id].children.iter().rev().copied().collect();
+        while let Some(n) = stack.pop() {
+            if !f(n) {
+                return;
+            }
+            stack.extend(self.nodes[n].children.iter().rev().copied());
+        }
+    }
+
+    /// True if `id` is `ancestor` or inside it.
+    pub fn is_inside(&self, mut id: NodeId, ancestor: NodeId) -> bool {
+        loop {
+            if id == ancestor {
+                return true;
+            }
+            match self.nodes[id].parent {
+                Some(p) => id = p,
+                None => return false,
+            }
+        }
+    }
+
     pub fn tag(&self, id: NodeId) -> Option<&str> {
         match &self.nodes[id].data {
             NodeData::Element { tag, .. } => Some(tag.as_str()),

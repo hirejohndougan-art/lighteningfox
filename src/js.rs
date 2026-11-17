@@ -32,6 +32,55 @@ thread_local! {
     static OPEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     /// True while a user's click is being handled (window.open is allowed then).
     static ACTIVATION: Cell<bool> = const { Cell::new(false) };
+    /// Bumped on every DOM change; caches built from the DOM remember the generation they saw.
+    static GENERATION: Cell<u64> = const { Cell::new(0) };
+    /// id attribute -> first element with it, in document order (rebuilt lazily after changes).
+    static ID_INDEX: RefCell<(u64, HashMap<String, NodeId>)> = RefCell::new((u64::MAX, HashMap::new()));
+    /// Parsed selectors, so a script calling querySelector in a loop parses each string once.
+    static SELECTORS: RefCell<HashMap<String, std::rc::Rc<Vec<css::Selector>>>> = RefCell::new(HashMap::new());
+}
+
+fn bump_generation() {
+    GENERATION.with(|g| g.set(g.get().wrapping_add(1)));
+}
+
+fn parsed_selectors(sel: &str) -> std::rc::Rc<Vec<css::Selector>> {
+    SELECTORS.with(|c| {
+        let mut c = c.borrow_mut();
+        if let Some(v) = c.get(sel) {
+            return v.clone();
+        }
+        if c.len() >= 512 {
+            c.clear();
+        }
+        let v = std::rc::Rc::new(css::parse_selector_list(sel));
+        c.insert(sel.to_string(), v.clone());
+        v
+    })
+}
+
+/// The first element in the document with this id.
+fn element_by_id(want: &str) -> Option<NodeId> {
+    let generation = GENERATION.with(|g| g.get());
+    ID_INDEX.with(|ix| {
+        let mut ix = ix.borrow_mut();
+        if ix.0 != generation {
+            let map = &mut ix.1;
+            map.clear();
+            with_dom(|d| {
+                d.walk(Dom::ROOT, |n| {
+                    if let Some(id) = d.attr(n, "id") {
+                        if !id.is_empty() && !map.contains_key(id) {
+                            map.insert(id.to_string(), n);
+                        }
+                    }
+                    true
+                })
+            });
+            ix.0 = generation;
+        }
+        ix.1.get(want).copied()
+    })
 }
 
 /// Things scripts ask the browser to do that the window loop carries out.
@@ -65,6 +114,7 @@ pub fn take_requests() -> Vec<Request> {
 }
 
 pub fn set_dom(dom: Dom) {
+    bump_generation();
     DOM.with(|d| *d.borrow_mut() = dom);
 }
 
@@ -74,6 +124,7 @@ pub fn with_dom<R>(f: impl FnOnce(&Dom) -> R) -> R {
 
 pub fn with_dom_mut<R>(f: impl FnOnce(&mut Dom) -> R) -> R {
     DIRTY.with(|d| d.set(true));
+    bump_generation();
     crate::geometry::dom_changed();
     DOM.with(|d| f(&mut d.borrow_mut()))
 }
@@ -305,20 +356,33 @@ fn n_set_html(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
 }
 
 fn query(root: NodeId, sel: &str, all: bool) -> Vec<NodeId> {
-    let sels = css::parse_selector_list(sel);
+    let sels = parsed_selectors(sel);
     if sels.is_empty() {
         return vec![];
     }
-    with_dom(|d| {
-        let mut out = Vec::new();
-        for n in d.descendants(root) {
-            if d.tag(n).is_some() && sels.iter().any(|s| style::matches(d, n, s)) {
-                out.push(n);
-                if !all {
-                    break;
+    // querySelector("#x …"): the id index finds the one candidate. No element with that id
+    // means no match; a candidate that doesn't fit (duplicate ids, outside root) falls back.
+    if !all && sels.len() == 1 {
+        if let Some(want) = sels[0].parts.last().and_then(|c| c.id.as_deref()) {
+            match element_by_id(want) {
+                None => return vec![],
+                Some(n) => {
+                    if with_dom(|d| n != root && d.is_inside(n, root) && style::matches(d, n, &sels[0])) {
+                        return vec![n];
+                    }
                 }
             }
         }
+    }
+    with_dom(|d| {
+        let mut out = Vec::new();
+        d.walk(root, |n| {
+            if d.tag(n).is_some() && sels.iter().any(|s| style::matches(d, n, s)) {
+                out.push(n);
+                return all;
+            }
+            true
+        });
         out
     })
 }
@@ -334,14 +398,38 @@ fn n_query(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 fn n_matches(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     let sel = arg_str(a, 1, ctx)?;
-    let sels = css::parse_selector_list(&sel);
+    let sels = parsed_selectors(&sel);
     let m = valid(id).map_or(false, |id| with_dom(|d| sels.iter().any(|s| style::matches(d, id, s))));
     Ok(JsValue::from(m))
 }
 
+/// Node ids -> their element objects, in one native pass (an Array.map in Boa costs far more).
+fn n_wrap_list(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let Some(list) = arg(a, 0).as_object() else { return Ok(JsArray::new(ctx)?.into()) };
+    let list = JsArray::from_object(list)?;
+    let global = ctx.global_object();
+    let cache = global.get(js_string!("__wrapCache"), ctx)?;
+    let wrap = global.get(js_string!("__wrapFn"), ctx)?;
+    let (Some(cache), Some(wrap)) = (cache.as_object(), wrap.as_callable()) else {
+        return Ok(list.into());
+    };
+    let len = list.length(ctx)?;
+    let mut out = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let id = list.get(i, ctx)?;
+        let key = id.to_u32(ctx)?;
+        let mut v = cache.get(key, ctx)?;
+        if v.is_undefined() {
+            v = wrap.call(&JsValue::undefined(), &[id], ctx)?;
+        }
+        out.push(v);
+    }
+    Ok(JsArray::from_iter(out, ctx).into())
+}
+
 fn n_by_id(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let want = arg_str(a, 0, ctx)?;
-    let found = with_dom(|d| d.descendants(Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(want.as_str())));
+    let found = element_by_id(&want);
     Ok(JsValue::from(found.map_or(-1.0, |n| n as f64)))
 }
 
@@ -606,6 +694,7 @@ pub fn forget(js: &Js) {
 
 /// Take the page's DOM out (its tab is going to the background).
 pub fn take_dom() -> Dom {
+    bump_generation();
     DOM.with(|d| std::mem::replace(&mut *d.borrow_mut(), Dom::new()))
 }
 
@@ -714,6 +803,7 @@ impl Js {
             ("__query", 3, n_query),
             ("__matches", 2, n_matches),
             ("__byId", 1, n_by_id),
+            ("__wrapList", 1, n_wrap_list),
             ("__create", 1, n_create),
             ("__createText", 1, n_create_text),
             ("__write", 1, n_write),

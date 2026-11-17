@@ -59,6 +59,28 @@ bench("DOM: innerHTML 500 items", () => {
   s.innerHTML = Array.from({ length: 500 }, (_, i) => "<p class=r>p" + i + "</p>").join("");
   return s.children.length;
 });
+bench("DOM: getElementById x20k", () => {
+  const s = document.getElementById("scratch");
+  s.innerHTML = Array.from({ length: 3000 }, (_, i) => "<div id=e" + i + " class='c c" + (i % 10) + "'><span>x</span></div>").join("");
+  let n = 0;
+  for (let i = 0; i < 20000; i++) if (document.getElementById("e" + (i % 3000))) n++;
+  return n;
+});
+bench("DOM: querySelector('#id') x5k", () => {
+  let n = 0;
+  for (let i = 0; i < 5000; i++) if (document.querySelector("#e" + (i % 3000))) n++;
+  return n;
+});
+bench("DOM: querySelector first match x5k", () => {
+  let n = 0;
+  for (let i = 0; i < 5000; i++) if (document.querySelector(".c3 span")) n++;
+  return n;
+});
+bench("DOM: getElementsByClassName x300", () => {
+  let n = 0;
+  for (let i = 0; i < 300; i++) n += document.getElementsByClassName("c7").length;
+  return n;
+});
 </script>
 </body>
 </html>

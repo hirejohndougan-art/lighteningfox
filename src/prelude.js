@@ -5,17 +5,20 @@
 (function () {
   "use strict";
   const g = globalThis;
-  const cache = new Map();
+  // Element objects by node id (a plain array: the native list functions read it directly).
+  const cache = [];
+  globalThis.__wrapCache = cache;
 
   function wrap(id) {
     if (id === undefined || id === null || id < 0) return null;
-    let n = cache.get(id);
+    let n = cache[id];
     if (n) return n;
     const t = __type(id);
     n = t === 9 ? document : t === 3 ? new Text(id) : t === 8 ? new Comment(id) : new Element(id);
-    cache.set(id, n);
+    cache[id] = n;
     return n;
   }
+  globalThis.__wrapFn = wrap;
   const idOf = (n) => (n && n.__id !== undefined ? n.__id : -1);
   const kebab = (k) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 
@@ -87,7 +90,7 @@
     get ownerDocument() { return document; }
     get parentNode() { return wrap(__parent(this.__id)); }
     get parentElement() { const p = this.parentNode; return p && p.nodeType === 1 ? p : null; }
-    get childNodes() { return __children(this.__id).map(wrap); }
+    get childNodes() { return __wrapList(__children(this.__id)); }
     get firstChild() { return wrap(__children(this.__id)[0]); }
     get lastChild() { const c = __children(this.__id); return wrap(c[c.length - 1]); }
     get nextSibling() { return this.__sibling(1); }
@@ -240,7 +243,7 @@
     replaceChildren(...a) { __setText(this.__id, ""); this.append(...a); }
     remove() { __detach(this.__id); }
     querySelector(s) { return wrap(__query(this.__id, String(s), false)[0]); }
-    querySelectorAll(s) { return __query(this.__id, String(s), true).map(wrap); }
+    querySelectorAll(s) { return __wrapList(__query(this.__id, String(s), true)); }
     matches(s) { return __matches(this.__id, String(s)); }
     closest(s) { let n = this; while (n && n.nodeType === 1) { if (n.matches(s)) return n; n = n.parentNode; } return null; }
     getElementsByTagName(t) { return this.querySelectorAll(t === "*" ? "*" : t); }
@@ -411,11 +414,11 @@
     createElementNS(_ns, t) { return this.createElement(t); }
     createTextNode(s) { return wrap(__createText(String(s))); }
     createComment() { return wrap(__createText("")); }
-    createDocumentFragment() { const f = new DocumentFragment(__create("#fragment")); cache.set(f.__id, f); return f; }
+    createDocumentFragment() { const f = new DocumentFragment(__create("#fragment")); cache[f.__id] = f; return f; }
     createEvent() { return new Event(""); }
     getElementById(id) { return wrap(__byId(String(id))); }
     querySelector(s) { return wrap(__query(0, String(s), false)[0]); }
-    querySelectorAll(s) { return __query(0, String(s), true).map(wrap); }
+    querySelectorAll(s) { return __wrapList(__query(0, String(s), true)); }
     getElementsByTagName(t) { return this.querySelectorAll(t); }
     getElementsByClassName(c) { return Element.prototype.getElementsByClassName.call(this, c); }
     getElementsByName(n) { return this.querySelectorAll('[name="' + n + '"]'); }
@@ -425,7 +428,7 @@
   }
 
   const document = new Document(0);
-  cache.set(0, document);
+  cache[0] = document;
 
   // A separate, blank document (document.implementation.createHTMLDocument, DOMParser).
   // Its nodes live in the same tree storage, detached from the page.
