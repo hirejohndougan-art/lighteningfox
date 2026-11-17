@@ -731,6 +731,170 @@ A **Theme** setting with three choices: **System** (the default), **Light** and 
 - Screenshot tests for the browser UI and the start page in both themes; a test page with
   `prefers-color-scheme` rules.
 
+## Features the major browsers have (added by John 2026-11-17)
+
+Build checklist §19 (site features) and §20 (browser features). Site features come first:
+sites break without them. Run `tools/site_check.py` and the matching WPT directories before and
+after each one.
+
+### P1. WebAssembly
+**Status:** free
+**After:** —
+**Checklist:** §19 "WebAssembly"
+**Files:** new `src/wasm/`, `src/js.rs` (the `WebAssembly` global), a new JS file
+The `WebAssembly` namespace: `Module`, `Instance`, `Memory`, `Table`, `Global`, `compile`,
+`instantiate`, `compileStreaming`, `instantiateStreaming`, and WASM ES module imports. Embed an
+existing Rust runtime (`wasmtime` with Cranelift, or `wasmi` if size and startup matter more)
+rather than writing one; pick by measuring, and note the choice in `docs/ARCHITECTURE.md`. Wire
+imports/exports to Boa values, share `Memory` as an `ArrayBuffer`. Run WPT `wasm/jsapi` and the
+spec test suite; check that a Figma-style demo, ffmpeg.wasm and a Unity/Emscripten game load.
+
+### P2. Service workers, offline pages, push and installable web apps
+**Status:** free
+**After:** —
+**Checklist:** §19 "Service workers"
+**Files:** new `src/serviceworker.rs`, `src/worker.rs`, `src/net.rs`, `src/cache.rs`
+`navigator.serviceWorker` registration, lifecycle (install, activate, update, skipWaiting,
+clients.claim), `fetch` interception, the Cache API (`caches`), `clients`, and offline loading.
+Then Web Push (`PushManager`, VAPID, delivery through a push service while the browser runs) with
+the existing notification prompt, and installing a site as an app from its web app manifest (its
+own window and desktop entry). Partition by site like storage. Run WPT `service-workers/`.
+
+### P3. `<dialog>` and popovers
+**Status:** free
+**After:** —
+**Checklist:** §19 "Dialog and popover"
+**Files:** `src/dom_classes.rs`, `src/prelude.js`, `src/layout.rs`, `src/paint.rs`
+`HTMLDialogElement` (`show`, `showModal`, `close`, `returnValue`, `<form method=dialog>`, Esc,
+`::backdrop`, inert page behind a modal), the popover attribute and API (`popover`,
+`popovertarget`, `showPopover`, `togglePopover`, light dismiss, `:popover-open`) and the top
+layer they share. Run WPT `html/semantics/interactive-elements/the-dialog-element` and `html/semantics/popovers`.
+
+### P4. Fullscreen and picture-in-picture
+**Status:** free
+**After:** —
+**Checklist:** §19 "Fullscreen and picture-in-picture"
+**Files:** `src/main.rs`, `src/window.rs`, `src/media.rs`, `src/media.js`
+`element.requestFullscreen()`, `document.exitFullscreen()`, `:fullscreen`, `fullscreenchange`,
+a "press Esc to exit" notice, and F11 for the whole window. Picture-in-picture for `<video>`
+(`requestPictureInPicture`, now a rejected promise) in a small always-on-top window, plus a PiP
+button on video controls.
+
+### P5. Newer CSS and page features
+**Status:** free
+**After:** —
+**Checklist:** §19 "Newer CSS and page features"
+**Files:** `src/css.rs`, `src/style.rs`, `src/layout.rs`, `src/anim.rs`, `src/prelude.js`
+CSS anchor positioning (`anchor-name`, `position-anchor`, `anchor()`, `position-try`), view
+transitions (same-document `startViewTransition` and cross-document), scroll-driven animations
+(`animation-timeline`, `scroll()`, `view()`), the Navigation API (`navigation`, `navigate` event),
+customizable `<select>`, `field-sizing`, `text-box`, and the other features that reached Baseline
+in 2026. One feature per commit, each with its WPT directory.
+
+### P6. Passkeys (WebAuthn)
+**Status:** free
+**After:** —
+**Checklist:** §19 "Passkeys"
+**Files:** new `src/webauthn.rs`, `src/autofill.rs`
+`navigator.credentials.create/get` with `PublicKeyCredential`: passkeys stored in the profile
+(encrypted, alongside saved passwords), USB security keys over CTAP2 (`ctap-hid-fido2` or
+`authenticator` crate), and the account picker. Test against webauthn.io.
+
+### P7. WebGPU
+**Status:** free
+**After:** —
+**Checklist:** §19 "WebGPU"
+**Files:** new `src/webgpu.rs`, a new JS file, `src/gpu.rs`
+`navigator.gpu` on top of `wgpu` (already used for drawing), with WGSL through `naga`. Run the
+WebGPU conformance suite (CTS) subsets that fit; check three.js's WebGPU renderer.
+
+### P8. Smaller site APIs
+**Status:** free
+**After:** —
+**Checklist:** §19 "Speech, game controllers, share, payments"
+**Files:** new small modules as needed
+Speech synthesis (`speechSynthesis` through speech-dispatcher) and speech recognition (a local
+model such as Vosk or Whisper, opt-in); the Gamepad API (`gilrs`); `navigator.share` through the
+desktop portal; `PaymentRequest` reporting no methods cleanly so sites fall back.
+
+### B1. Sync across devices
+**Status:** free
+**After:** —
+**Checklist:** §20 "Sync"
+**Files:** new `src/sync/`, new `tools/sync-server/`
+Sync bookmarks, history, saved passwords, open tabs and settings between computers. End-to-end
+encrypted (the server never sees the data; the key comes from a passphrase), a small server that
+can be self-hosted, and an account page in settings. Where the public server runs is John's call:
+build it so the address is a setting.
+
+### B2. Reader mode
+**Status:** free
+**After:** —
+**Checklist:** §20 "Reader mode"
+**Files:** new `src/reader.rs`, a reader page
+An address-bar button on article pages that shows just the text and pictures: font, size,
+width and theme controls, estimated reading time, and read-aloud once P8's speech is in.
+
+### B3. Page translation
+**Status:** free
+**After:** —
+**Checklist:** §20 "Page translation"
+**Files:** new `src/translate/`
+Translate a page on the computer, never sending it anywhere, like Firefox: Bergamot/Marian
+models downloaded per language pair on first use, translating text nodes in place and new text as
+it appears. Offer it when a page's language isn't the browser's.
+
+### B4. Spellcheck
+**Status:** free
+**After:** —
+**Checklist:** §20 "Spellcheck"
+**Files:** `src/textedit.rs`, `src/editing.rs`, new `src/spell.rs`
+Wavy red underlines in text fields and contenteditable, suggestions in the right-click menu,
+"add to dictionary", using Hunspell dictionaries (system ones, or downloaded), honoring the
+`spellcheck` attribute and the field's language.
+
+### B5. Tab groups, vertical tabs and split view
+**Status:** free
+**After:** —
+**Checklist:** §20 "Tab management"
+**Files:** `src/chrome.rs`, `src/main.rs`, session restore
+Named, colored tab groups that collapse and are kept in session restore; a vertical tab list
+option; two pages side by side in one window; a tab search (Ctrl+Shift+A).
+
+### B6. Password generator and breach alerts
+**Status:** free
+**After:** —
+**Checklist:** §20 "Password extras"
+**Files:** `src/autofill.rs`, the passwords page
+Suggest a strong password in new-password fields and save it; a passwords page that flags
+reused and weak passwords and checks for breaches with Have I Been Pwned's range API (only the
+first 5 characters of the hash leave the computer); import from and export to CSV.
+
+### B7. Screenshot tool, reading list and side panel
+**Status:** free
+**After:** —
+**Checklist:** §20 "Screenshots, reading list, side panel"
+**Files:** `src/chrome.rs`, `src/main.rs`
+A screenshot tool (visible area, full page, or a chosen region, saved or copied); a reading list
+(save for later, marked read); a side panel that holds bookmarks, history, the reading list and a
+second page.
+
+### B8. Encrypted DNS (DNS over HTTPS)
+**Status:** free
+**After:** —
+**Checklist:** §20 "Encrypted DNS"
+**Files:** `src/net.rs`, `src/settings.rs`
+A DNS setting: system (default), or DNS over HTTPS with a choice of providers or a custom
+address, falling back to the system when it fails, unless set to strict.
+
+### B9. Mobile versions (Android, then iOS)
+**Status:** free
+**After:** X21
+**Checklist:** §20 "Mobile versions"
+**Files:** `Cargo.toml`, `src/platform.rs`, new `mobile/`
+After the Windows and macOS builds: an Android build (winit and wgpu support it) with a touch
+UI, then iOS (only allowed in the EU with a different engine, so check Apple's terms first).
+
 ## Not for the chats
 
 ### X21. Windows and macOS builds (from batch J)
