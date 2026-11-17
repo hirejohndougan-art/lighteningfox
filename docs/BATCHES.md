@@ -75,7 +75,17 @@ points at another file isn't loaded (browsers don't either).
 - §14 Drop off-screen images and decode them again when they scroll back into view
 
 ## D. Canvas and drawing
-**Status:** claimed by layout-chat 2026-11-17 02:15
+**Status:** done
+**Left undone:**
+- Canvas `drawImage`/`createImageBitmap` of files loaded with `fetch()` fail: `Response.blob()`
+  and `arrayBuffer()` give the body as text, so image bytes are corrupted (fetch belongs to
+  batch G/H). This is most of the remaining `drawing-images-to-the-canvas` WPT failures.
+- CSS color features canvas styles pass through the CSS parser: `color-mix()`, relative colors,
+  system colors (batch K).
+- `isPointInPath` under a transform that overflows to infinity; compositing reference tests.
+- Smoothing the edges of boxes at fractional positions was tried and left out: other browsers
+  snap boxes to whole pixels, and smoothing made borders look blurry.
+- WPT html/canvas/element (9 folders): 654/766 subtests pass.
 **Checklist:** already ticked (04:20): `<canvas>` 2D drawing API; canvas fingerprint noise (the item now waits only on audio). Tick only the rest.
 **Start after:** —
 **Main files:** new `src/canvas.rs`, a new prelude file for the canvas API, `src/paint.rs` (shapes)
