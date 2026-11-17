@@ -1,0 +1,27 @@
+name: Fuzz
+# Coverage-guided fuzzing of the parsers with cargo-fuzz (libFuzzer), weekly and on demand.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [html, html_fragment, xhtml, css, javascript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz ${{ matrix.target }} for 10 minutes
+        run: cd fuzz && cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=600 -rss_limit_mb=4096
+      - name: Keep crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts/

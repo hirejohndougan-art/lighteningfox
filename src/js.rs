@@ -950,6 +950,13 @@ impl Js {
     }
 
     fn eval(&mut self, code: &str, label: &str) -> Option<JsValue> {
+        // Boa's parser recurses once per nested bracket; a script nested thousands deep would
+        // overflow the stack and take the whole browser down, so it's refused like a syntax error.
+        if let Some(depth) = crate::jsnest::too_deep(code, MAX_SCRIPT_NESTING) {
+            self.stats.errors += 1;
+            log!("[js error] {label}: script nested too deeply ({depth} levels; limit {MAX_SCRIPT_NESTING})");
+            return None;
+        }
         let t = Instant::now();
         let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
         let _ = self.ctx.run_jobs();
@@ -1145,3 +1152,6 @@ impl Js {
         r
     }
 }
+
+/// Brackets a script may nest before it's refused (V8 gives up at a similar depth).
+pub const MAX_SCRIPT_NESTING: usize = 1000;

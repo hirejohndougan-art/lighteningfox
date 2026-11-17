@@ -5,6 +5,9 @@
 use crate::dom::{Dom, NodeData, NodeId, Ns, Quirks};
 use crate::tokenizer::{Doctype, State, Tag, Token, Tokenizer};
 
+/// How deeply the parser nests elements; deeper ones are added as siblings (Chrome uses 512).
+pub const MAX_DEPTH: usize = 512;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Mode {
     Initial,
@@ -488,6 +491,10 @@ impl TreeBuilder {
                     }
                 }
             }
+        } else if self.open.len() > MAX_DEPTH {
+            // Past the depth limit, new nodes become siblings instead of children (as in
+            // Chrome), so no page can build a tree deep enough to exhaust the stack later.
+            (self.dom.nodes[target].parent.unwrap_or(target), None)
         } else {
             (target, None)
         };
@@ -2101,4 +2108,26 @@ pub fn parse_xml(src: &str) -> Dom {
         }
     }
     dom
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn nesting_is_capped_so_deep_pages_cannot_exhaust_the_stack() {
+        let src = format!("{}deep{}", "<div>".repeat(20_000), "</div>".repeat(20_000));
+        let dom = TreeBuilder::parse_document(&src, true);
+        let mut max = 0;
+        for id in 0..dom.nodes.len() {
+            let (mut d, mut n) = (0, id);
+            while let Some(p) = dom.nodes[n].parent {
+                d += 1;
+                n = p;
+            }
+            max = max.max(d);
+        }
+        assert!(max <= MAX_DEPTH + 2, "depth {max}");
+        assert!(dom.text_content(Dom::ROOT).contains("deep"));
+    }
 }

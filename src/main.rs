@@ -36,6 +36,7 @@ mod treebuilder;
 mod zoom;
 mod images;
 mod js;
+mod jsnest;
 mod layout;
 mod library;
 mod cache;
@@ -724,7 +725,7 @@ static FRAME_WORKER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sende
 fn frame_worker() -> Option<std::sync::mpsc::Sender<FrameJob>> {
     let w = FRAME_WORKER.get_or_init(|| {
         let (tx, rx) = std::sync::mpsc::channel::<FrameJob>();
-        let _ = std::thread::Builder::new().name("frames".into()).stack_size(32 << 20).spawn(move || {
+        let _ = std::thread::Builder::new().name("frames".into()).stack_size(MAIN_STACK).spawn(move || {
             FRAME_DEPTH.with(|d| d.set(1));
             for job in rx {
                 let img = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render_frame(&job.src, job.w, job.h))).ok().flatten();
@@ -972,7 +973,22 @@ fn error_page(url: &str, err: &str) -> String {
     )
 }
 
+/// Everything runs on a thread with a large stack: layout, styling and Boa all recurse with the
+/// page's nesting, and the 8 MB main-thread stack would let a deeply nested page crash the
+/// browser. (The memory is only reserved; pages that don't need it never touch it.)
+const MAIN_STACK: usize = 512 << 20;
+
 fn main() {
+    let run = std::thread::Builder::new().name("ironswift".into()).stack_size(MAIN_STACK).spawn(browser_main);
+    match run.map(|t| t.join()) {
+        Ok(Ok(())) => {}
+        // The panic hook has already written the crash report.
+        Ok(Err(_)) => std::process::exit(101),
+        Err(_) => browser_main(),
+    }
+}
+
+fn browser_main() {
     crashlog::install_panic_hook();
     prefer_x11();
     // A private window keeps nothing: its own empty profile folder, deleted when it closes.

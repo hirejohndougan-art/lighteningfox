@@ -26,6 +26,24 @@ jobs:
           name: screenshot-diffs
           path: target/screenshot-diffs/
 
+  fuzz-smoke:
+    # A quick stable-Rust fuzzing pass over the HTML, XHTML, CSS and JavaScript parsers.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Fuzz the parsers (200,000 inputs each)
+        run: cd fuzz && cargo run --release --bin smoke -- 200000 $GITHUB_RUN_NUMBER
+      - name: Keep failing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-smoke-artifacts
+          path: fuzz/artifacts/
+
   build-without-gpu:
     # The software-only build (no wgpu) must keep compiling.
     runs-on: ubuntu-24.04
