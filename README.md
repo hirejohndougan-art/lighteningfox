@@ -2,6 +2,9 @@
 
 A web browser engine written from scratch in Rust.
 
+**Website and downloads:** https://hirejohndougan-art.github.io/lighteningfox/ ·
+**Which sites work:** [Site compatibility](docs/SITE_COMPAT.md)
+
 Every stage of the pipeline is our own code:
 
 ```
@@ -57,6 +60,9 @@ If the build complains about missing X11/Wayland headers:
 `sudo apt install libxkbcommon-dev libwayland-dev libx11-dev`.
 
 ## Install (Linux)
+
+Each [release](https://github.com/hirejohndougan-art/lighteningfox/releases) has a `.deb`, an
+AppImage, a Flatpak and a `.tar.gz` (see [packaging](packaging/README.md)). From a checkout:
 
 ```bash
 cargo build --release
@@ -160,15 +166,16 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 - [Architecture](docs/ARCHITECTURE.md): how a page goes from URL to pixels, and where each part lives
 - [How to add things](docs/ADDING.md): recipes for a new CSS property or DOM API
 - [Conformance](docs/CONFORMANCE.md): results on the official test suites (Test262, WPT) and how to run them
-- Live-site check: `python3 tools/site_check.py` renders real websites (and, if installed, Chrome's version of each) into a side-by-side report
+- [Site compatibility](docs/SITE_COMPAT.md): how 40 popular sites fare, graded against Chrome every week by `tools/site_check.py --tracker` (run it yourself for a side-by-side report)
+- [Packaging](packaging/README.md): the `.deb`, AppImage, Flatpak and `.tar.gz`, and how releases are made
+- [Work batches](docs/BATCHES.md): how the remaining work is split between parallel contributors
 - Debugging: `about:log` shows the debug log, `about:crashes` lists crash reports (kept on your computer only)
 
 ## Roadmap
 
-1. **Security and release**: run each site in its own sandboxed process, a security review, and
-   install packages (AppImage, Flatpak, `.deb`)
-2. **Standards**: the full HTML5 parsing algorithm, the missing DOM pieces, `::before`/`::after`,
-   `opacity` (see [Conformance](docs/CONFORMANCE.md))
+1. **Security**: run each top-level site in its own sandboxed process
+2. **Standards**: the missing DOM pieces, `::before`/`::after`, `<canvas>` and the rest of
+   [the batches](docs/BATCHES.md) (see [Conformance](docs/CONFORMANCE.md))
 3. **JavaScript speed**: profile Boa on real sites and work on its interpreter
 4. *Optional, after everything else:* a JIT compiler for Boa
 

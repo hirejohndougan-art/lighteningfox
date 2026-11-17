@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ironswift — a web browser forged from scratch</title>
+<meta name="description" content="Ironswift is a light, private web browser with its own HTML, CSS and layout engine written from scratch in Rust. No telemetry, built-in tracker blocking, free and open source.">
+<link rel="icon" href="favicon.png">
+<style>
+  :root {
+    --iron: #15171a;
+    --iron-2: #1d2024;
+    --iron-3: #2a2e33;
+    --rule: #33383e;
+    --bone: #ece6dc;
+    --ash: #a9a39a;
+    --rust: #b8562b;
+    --copper: #e0965a;
+    --patina: #7fae9c;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--iron); }
+  body { margin: 0; color: var(--bone); font: 17px/1.6 var(--sans); }
+  a { color: var(--copper); }
+  a:hover { color: #f2b27c; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--bone); text-decoration: none; font: 600 20px var(--serif); letter-spacing: .02em; }
+  .brand img { width: 34px; height: 34px; }
+  nav.links a { color: var(--ash); text-decoration: none; margin-left: 26px; font-size: 15px; }
+  nav.links a:hover { color: var(--bone); }
+
+  .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; padding: 48px 0 72px; }
+  .eyebrow { font: 600 13px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--patina); margin: 0 0 18px; }
+  h1 { font: 500 clamp(40px, 6vw, 68px)/1.04 var(--serif); margin: 0 0 22px; letter-spacing: -.01em; }
+  h1 em { font-style: italic; color: var(--copper); }
+  .lede { font-size: 19px; color: #d6cfc4; max-width: 34em; margin: 0 0 32px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 6px; font: 600 16px var(--sans); text-decoration: none; border: 1px solid transparent; }
+  .btn-primary { background: var(--rust); color: #fff6ee; box-shadow: inset 0 -2px 0 rgba(0,0,0,.25); }
+  .btn-primary:hover { background: #c9622f; color: #fff; }
+  .btn-ghost { border-color: var(--rule); color: var(--bone); }
+  .btn-ghost:hover { border-color: var(--ash); color: var(--bone); }
+  .fine { font-size: 14px; color: var(--ash); margin-top: 14px; }
+  .bird { width: 100%; max-width: 420px; justify-self: center; filter: drop-shadow(0 30px 40px rgba(0,0,0,.55)); }
+
+  section { padding: 72px 0; border-top: 1px solid var(--rule); }
+  h2 { font: 500 34px/1.15 var(--serif); margin: 0 0 12px; }
+  .sub { color: var(--ash); max-width: 40em; margin: 0 0 36px; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .cell { background: var(--iron); padding: 26px 24px 28px; }
+  .cell h3 { font: 600 17px var(--sans); margin: 0 0 8px; }
+  .cell p { margin: 0; color: var(--ash); font-size: 15.5px; }
+  .num { font: 600 12px var(--mono); color: var(--copper); letter-spacing: .1em; display: block; margin-bottom: 14px; }
+
+  figure.shot { margin: 0; }
+  figure.shot img { width: 100%; display: block; border: 1px solid var(--rule); border-radius: 8px; }
+  figure.shot figcaption { font-size: 14px; color: var(--ash); margin-top: 12px; }
+
+  .dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .pkg { background: var(--iron-2); border: 1px solid var(--rule); border-radius: 8px; padding: 22px 22px 18px; }
+  .pkg h3 { margin: 0 0 4px; font: 600 18px var(--sans); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .pkg h3 a { font: 600 14px var(--sans); white-space: nowrap; }
+  .pkg .for { color: var(--ash); font-size: 14.5px; margin: 0 0 14px; }
+  pre { margin: 0; background: var(--iron); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; font: 13.5px/1.55 var(--mono); color: #e8dccb; }
+  #release-note { margin: 0 0 22px; color: var(--ash); font-size: 15px; }
+
+  .status { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .status ul { margin: 0; padding-left: 20px; color: #d6cfc4; }
+  .status li { margin-bottom: 8px; }
+  .callout { border-left: 3px solid var(--copper); padding: 4px 0 4px 18px; color: #d6cfc4; }
+
+  footer { border-top: 1px solid var(--rule); padding: 36px 0 60px; color: var(--ash); font-size: 14.5px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  footer a { color: var(--ash); }
+
+  @media (max-width: 820px) {
+    .hero, .status { grid-template-columns: 1fr; }
+    .bird { max-width: 260px; order: -1; }
+    .grid3, .dl { grid-template-columns: 1fr; }
+    nav.links a:not(.keep) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="./"><img src="icon.png" alt="">Ironswift</a>
+    <nav class="links">
+      <a href="#inside">What's inside</a>
+      <a href="#download" class="keep">Download</a>
+      <a href="#status">Status</a>
+      <a href="https://github.com/hirejohndougan-art/lighteningfox" class="keep">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Free · open source · MIT</p>
+      <h1>A web browser, <em>forged</em> from scratch.</h1>
+      <p class="lede">Ironswift reads, lays out and draws web pages with its own engine, written from the ground up in Rust. It's built to be light enough for a 4&nbsp;GB laptop, and private by default: no telemetry, no ads following you around.</p>
+      <div class="actions">
+        <a class="btn btn-primary" id="hero-download" href="#download">Download for Linux</a>
+        <a class="btn btn-ghost" href="https://github.com/hirejohndougan-art/lighteningfox">View the source</a>
+      </div>
+      <p class="fine" id="hero-version">Early preview for Linux · Windows and macOS later</p>
+    </div>
+    <img class="bird" src="icon.png" alt="Ironswift's iron bird">
+  </div>
+</div>
+
+<section id="inside">
+  <div class="wrap">
+    <h2>What's inside</h2>
+    <p class="sub">Not a skin over Chrome or Firefox. Every layer is Ironswift's own, except the JavaScript engine, which is Boa.</p>
+    <div class="grid3">
+      <div class="cell"><span class="num">01</span><h3>Its own engine</h3><p>An HTML parser that passes all 1,972 of the standard's tree-building tests, a CSS engine, and layout for flexbox, grid, floats, tables and columns.</p></div>
+      <div class="cell"><span class="num">02</span><h3>Private by default</h3><p>No telemetry. Ad and tracker blocking with EasyList, third-party cookies off, HTTPS first, Global Privacy Control, and private windows that keep nothing.</p></div>
+      <div class="cell"><span class="num">03</span><h3>Locked down</h3><p>Same-origin rules enforced by the browser, Content Security Policy, a system-call filter, and a separate sandboxed process for pages from other sites.</p></div>
+      <div class="cell"><span class="num">04</span><h3>Modern JavaScript</h3><p>The Boa engine runs React, Vue and jQuery pages, with fetch, IndexedDB, Shadow DOM and web storage built in.</p></div>
+      <div class="cell"><span class="num">05</span><h3>Light on memory</h3><p>Fonts load only when used, background tabs sleep, and the GPU draws the page in tiles so scrolling stays smooth on modest hardware.</p></div>
+      <div class="cell"><span class="num">06</span><h3>Yours to change</h3><p>MIT licensed and built in the open, with the standard web-platform tests run against every change.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <figure class="shot">
+      <img src="rendered-by-ironswift.png" alt="A sample page with a navigation bar, three image cards, a sidebar and a footer, rendered by Ironswift">
+      <figcaption>A test page drawn entirely by Ironswift's engine: flexbox, grid, positioning, gradients, shadows and rounded corners.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <h2>Download</h2>
+    <p class="sub">For 64-bit Linux. Pick the package that suits your system; each installs the same browser.</p>
+    <p id="release-note">Looking for the latest release…</p>
+    <div class="dl">
+      <div class="pkg">
+        <h3>Ubuntu, Debian, Mint <a data-asset="\.deb$" href="https://github.com/hirejohndougan-art/lighteningfox/releases/latest">.deb</a></h3>
+        <p class="for">Adds Ironswift to your menu and your system's list of browsers.</p>
+        <pre>sudo apt install ./ironswift_*_amd64.deb</pre>
+      </div>
+      <div class="pkg">
+        <h3>Any distribution <a data-asset="\.AppImage$" href="https://github.com/hirejohndougan-art/lighteningfox/releases/latest">AppImage</a></h3>
+        <p class="for">One file, nothing to install. Carries its own fonts.</p>
+        <pre>chmod +x Ironswift-*.AppImage
+./Ironswift-*.AppImage</pre>
+      </div>
+      <div class="pkg">
+        <h3>Flatpak <a data-asset="\.flatpak$" href="https://github.com/hirejohndougan-art/lighteningfox/releases/latest">.flatpak</a></h3>
+        <p class="for">Runs in Flatpak's sandbox and updates with your other Flatpak apps.</p>
+        <pre>flatpak install --user Ironswift-*.flatpak</pre>
+      </div>
+      <div class="pkg">
+        <h3>Your home folder, no root <a data-asset="\.tar\.gz$" href="https://github.com/hirejohndougan-art/lighteningfox/releases/latest">.tar.gz</a></h3>
+        <p class="for">Installs into ~/.local and keeps itself up to date.</p>
+        <pre>tar xf ironswift-*-linux-x86_64.tar.gz
+sh ironswift-*/install.sh</pre>
+      </div>
+    </div>
+    <p class="fine">Every release lists SHA-256 checksums. Or build it yourself: <code>cargo build --release</code> in a clone of the repository.</p>
+  </div>
+</section>
+
+<section id="status">
+  <div class="wrap">
+    <h2>Where it stands</h2>
+    <div class="status">
+      <div>
+        <p class="callout">Ironswift is an early preview. It's good for trying out and following along, but don't make it your everyday browser yet: running each site in its own sandboxed process is still to come.</p>
+      </div>
+      <div>
+        <ul>
+          <li><a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/docs/SITE_COMPAT.md">Which popular sites work</a>, checked against Chrome every week</li>
+          <li><a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/docs/CONFORMANCE.md">Web-standards test results</a></li>
+          <li><a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/CHANGELOG.md">What's new</a></li>
+          <li><a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/PRIVACY.md">Privacy</a> and <a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/SECURITY.md">security</a> policies</li>
+          <li><a href="https://github.com/hirejohndougan-art/lighteningfox/issues/new/choose">Report a bug or a broken site</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <span>Ironswift is free software under the MIT license.</span>
+    <span><a href="https://github.com/hirejohndougan-art/lighteningfox">GitHub</a> · <a href="https://github.com/hirejohndougan-art/lighteningfox/blob/main/CONTRIBUTING.md">Contribute</a></span>
+  </footer>
+</div>
+
+<script>
+// Point the download links at the files of the newest release (or explain that there's none yet).
+(async () => {
+  const note = document.getElementById("release-note");
+  try {
+    const r = await fetch("https://api.github.com/repos/hirejohndougan-art/lighteningfox/releases/latest");
+    if (r.status === 404) {
+      note.textContent = "No release has been published yet. Until the first one, build Ironswift from the source (below).";
+      return;
+    }
+    if (!r.ok) throw new Error(r.status);
+    const rel = await r.json();
+    const assets = rel.assets || [];
+    for (const a of document.querySelectorAll("[data-asset]")) {
+      const re = new RegExp(a.dataset.asset);
+      const hit = assets.find((x) => re.test(x.name));
+      if (hit) { a.href = hit.browser_download_url; a.title = hit.name; }
+    }
+    const date = rel.published_at ? new Date(rel.published_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "";
+    note.innerHTML = "";
+    note.append("Latest release: ");
+    const link = document.createElement("a");
+    link.href = rel.html_url; link.textContent = rel.name || rel.tag_name;
+    note.append(link, date ? `, published ${date}.` : ".");
+    document.getElementById("hero-version").textContent = `${rel.tag_name} for Linux · Windows and macOS later`;
+  } catch (e) {
+    note.innerHTML = 'See the <a href="https://github.com/hirejohndougan-art/lighteningfox/releases">releases page</a> for downloads.';
+  }
+})();
+</script>
+</body>
+</html>
