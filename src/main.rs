@@ -813,6 +813,58 @@ fn fetch_page_with(url: &str, post: Option<&forms::PostBody>, preview: &mut dyn 
     prepare(final_url, body, true, xml, &headers)
 }
 
+/// Remove the elements a page's HTML filters (`##^…`) name; returns the HTML that's left
+/// (parsed again from the trimmed markup) or the page as it was when nothing matched.
+fn apply_html_filters(url: &str, body: String, mut dom: dom::Dom) -> (String, dom::Dom) {
+    let filters = blocklist::html_filters(url);
+    if filters.is_empty() {
+        return (body, dom);
+    }
+    let mut removed = 0;
+    for (sel, text) in &filters {
+        let sels = css::parse_selector_list(sel);
+        if sels.is_empty() {
+            continue;
+        }
+        let hits: Vec<dom::NodeId> = dom
+            .descendants(dom::Dom::ROOT)
+            .into_iter()
+            .filter(|&n| matches!(dom.nodes[n].data, dom::NodeData::Element { .. }) && sels.iter().any(|s| style::matches(&dom, n, s)) && text.as_ref().is_none_or(|t| t.found_in(&dom.text_content(n))))
+            .collect();
+        for n in hits {
+            // Skip what's already gone with an ancestor.
+            if dom.nodes[n].parent.is_some() {
+                dom.detach(n);
+                removed += 1;
+            }
+        }
+    }
+    if removed == 0 {
+        return (body, dom);
+    }
+    log!("[content blocking] {url}: HTML filters removed {removed} elements");
+    let mut html = String::with_capacity(body.len());
+    for &c in &dom.nodes[dom::Dom::ROOT].children {
+        match &dom.nodes[c].data {
+            // Keep the doctype whole: its identifiers decide quirks mode.
+            dom::NodeData::Doctype { name, public_id, system_id } => {
+                html.push_str("<!DOCTYPE ");
+                html.push_str(name);
+                match (public_id, system_id) {
+                    (Some(p), Some(s)) => html.push_str(&format!(" PUBLIC \"{p}\" \"{s}\"")),
+                    (Some(p), None) => html.push_str(&format!(" PUBLIC \"{p}\"")),
+                    (None, Some(s)) => html.push_str(&format!(" SYSTEM \"{s}\"")),
+                    (None, None) => {}
+                }
+                html.push('>');
+            }
+            _ => dom.outer_html_into(c, &mut html),
+        }
+    }
+    let dom = html::parse(&html);
+    (html, dom)
+}
+
 /// Parse a page and fetch what it needs: stylesheets and scripts, and with `full`, images
 /// and web fonts too (a preview of a half-downloaded page skips those).
 fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(String, String)]) -> Prepared {
@@ -821,6 +873,9 @@ fn prepare(final_url: String, body: String, full: bool, xml: bool, headers: &[(S
     if std::env::var("IRONSWIFT_PARSE_TIME").is_ok() {
         eprintln!("parse: {:?} for {} bytes", parse_t.elapsed(), body.len());
     }
+    // Filter lists' HTML filters (`##^…`) take elements out of the page before anything uses
+    // it; the page is then the HTML that's left, so scripts parse it the same way.
+    let (body, dom) = if xml { (body, dom) } else { apply_html_filters(&final_url, body, dom) };
 
     // The page's security policy: CSP from headers and <meta http-equiv>, framing rules, and
     // the sandbox of the frame it's shown in. Registered before anything else is fetched, so

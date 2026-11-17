@@ -66,7 +66,10 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
   URL must contain, and by the page's domain; a blocked request can be answered with a
   stand-in from `redirects.js`. Before a page's first script, `Js::page_start` runs the
   scriptlets its filters name (`scriptlets.js`) and the procedural cosmetic filter runner
-  (`cosmetic.js`); plain element hiding goes into the page's style sheets.
+  (`cosmetic.js`); plain element hiding goes into the page's style sheets and is rebuilt as
+  the page's classes and ids change. HTML filters (`##^…`) remove elements from the page's
+  HTML in `prepare` before it's parsed for scripts; inline scripts pass through
+  `blocklist::filter_inline_script` (`##^script:has-text()`, `rpnt`) before they run.
 - **Scripts act for their page only.** The script engine holds a `PageCtx` (URL, top-level
   page, sandbox, policy) where scripts can't reach it; the natives for cookies, storage,
   network requests and history use it rather than any URL a script passes. A Boa host hook

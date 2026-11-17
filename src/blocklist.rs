@@ -189,6 +189,9 @@ pub struct Engine {
     scriptlets_on: HashMap<String, Vec<(String, bool)>>,
     /// HTML filters for inline scripts (`##^script:has-text(…)`): domain -> what to look for.
     script_removals_on: HashMap<String, Vec<String>>,
+    /// Other HTML filters (`##^.ad-frame`, `##^div:has-text(…)`): domain -> selector. The
+    /// elements are taken out of the page's HTML before it's used.
+    html_filters_on: HashMap<String, Vec<String>>,
     /// Is the list being added trusted (uBlock Origin's own lists and your own rules)? Only
     /// trusted lists may use the `trusted-…` scriptlets, as in uBlock Origin.
     loading_trusted: bool,
@@ -1009,10 +1012,9 @@ impl Engine {
                 for d in positive {
                     self.script_removals_on.entry(d).or_default().push(needle.to_string());
                 }
-            } else if !html.contains(":has-text(") || html.starts_with(|c: char| c.is_ascii_alphabetic() || c == '.' || c == '#' || c == '[') {
-                let rule = format!("{html}:remove()");
+            } else if !html.is_empty() {
                 for d in positive {
-                    self.procedural_on.entry(d).or_default().push(rule.clone());
+                    self.html_filters_on.entry(d).or_default().push(html.to_string());
                 }
             }
             return;
@@ -1512,6 +1514,19 @@ impl Engine {
             .collect()
     }
 
+    /// HTML filters for this page (selectors, each maybe ending in `:has-text(…)`).
+    fn html_filters_for(&self, page: &str) -> Vec<String> {
+        let Some(page_host) = host_of(page) else { return Vec::new() };
+        if self.page_flags(page, &page_host) & PAGE_ALL != 0 {
+            return Vec::new();
+        }
+        let keys = page_keys(&page_host);
+        let unhidden = |s: &str| keys.iter().chain([String::new()].iter()).any(|d| self.unhide.contains(&(d.clone(), format!("^{s}"))));
+        let mut out: Vec<String> = keys.iter().filter_map(|k| self.html_filters_on.get(k)).flatten().filter(|s| !unhidden(s)).cloned().collect();
+        out.dedup();
+        out
+    }
+
     /// What an inline script should become before it runs: None = don't run it (an HTML
     /// filter removes it), else its text with the `rpnt` edits filters make to scripts.
     fn filter_script(&self, page: &str, code: &str) -> Option<String> {
@@ -1917,6 +1932,34 @@ fn scriptlets_needed(names: &HashSet<&str>) -> String {
     out
 }
 
+/// HTML filters (`##^…`) for a page: (plain CSS selector, text the element must contain).
+pub fn html_filters(page: &str) -> Vec<(String, Option<HtmlText>)> {
+    if !web(page) || exempt(page) {
+        return Vec::new();
+    }
+    engine()
+        .html_filters_for(page)
+        .into_iter()
+        .filter_map(|f| match f.rfind(":has-text(") {
+            Some(i) if f.ends_with(')') => {
+                let needle = &f[i + 10..f.len() - 1];
+                let base = if i == 0 { "*" } else { &f[..i] };
+                text_pattern(needle).map(|p| (base.to_string(), Some(HtmlText(p))))
+            }
+            _ => (!f.contains(":has-text(")).then(|| (f, None)),
+        })
+        .collect()
+}
+
+/// Text an HTML filter's element must contain (`:has-text(…)`).
+pub struct HtmlText(TextPattern);
+
+impl HtmlText {
+    pub fn found_in(&self, text: &str) -> bool {
+        self.0.test(text)
+    }
+}
+
 /// An inline script about to run in `page`: None = drop it, else the (possibly edited) code.
 pub fn filter_inline_script(page: &str, code: &str) -> Option<String> {
     if !web(page) || exempt(page) {
@@ -2300,7 +2343,7 @@ mod tests {
         assert_eq!(names(&e), vec!["set"], "an untrusted list can't use trusted scriptlets");
         assert_eq!(e.filter_script("https://news.com/", "showAds(1);"), Some("showAds(1);".into()));
         assert_eq!(e.filter_script("https://news.com/", "if (adblockDetected) wall();"), None, "##^script:has-text drops the script");
-        assert_eq!(e.procedural_for("https://news.com/"), vec![".ad-frame:remove()"]);
+        assert_eq!(e.html_filters_for("https://news.com/"), vec![".ad-frame"]);
         let mut e = Engine::default();
         e.add_list_from(rules, Kind::Ads, true);
         assert_eq!(names(&e), vec!["trusted-set-constant", "rpnt", "set"]);

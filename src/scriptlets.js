@@ -148,6 +148,8 @@ function currentScriptText() {
   return s.textContent || '';
 }
 
+function toArray(l) { return Array.prototype.slice.call(l || []); }
+
 var scriptlets = {};
 var aliases = {};
 function def(names, f) {
@@ -735,7 +737,6 @@ def('xml-prune', function(selector, needle, urlPattern) {
   editFetch(urlPattern, edit);
   editXhr(urlPattern, edit);
 });
-function toArray(l) { return Array.prototype.slice.call(l || []); }
 
 // Links that go through a tracker: point them at their real destination.
 def('href-sanitizer', function(selector, source) {
@@ -992,6 +993,57 @@ def('trusted-suppress-native-method', function(path, signature, how) {
       if (how === 'abort') throw new ReferenceError('blocked');
       return undefined;
     },
+  });
+});
+
+// Pages get an unpatched fetch() (and the like) from a fresh iframe's window: give the iframe
+// this window's patched one as soon as it's added.
+def('trusted-prevent-dom-bypass', function(methodPath, targetProp) {
+  if (!methodPath) return;
+  var parts = methodPath.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  if (!owner || typeof owner[prop] !== 'function') return;
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var r = safe.apply(t, self, args);
+      var nodes = [];
+      for (var k = 0; k < args.length; k++) {
+        var n = args[k];
+        if (n && n.nodeType === 1) {
+          if (n.nodeName === 'IFRAME') nodes.push(n);
+          if (n.querySelectorAll) nodes = nodes.concat(toArray(n.querySelectorAll('iframe')));
+        }
+      }
+      nodes.forEach(function(f) {
+        try {
+          var w = f.contentWindow;
+          if (!w) return;
+          if (targetProp) {
+            safe.defineProperty(w, targetProp, { value: win[targetProp], configurable: true, writable: true });
+          } else {
+            w.fetch = win.fetch; w.XMLHttpRequest = win.XMLHttpRequest; w.setTimeout = win.setTimeout; w.setInterval = win.setInterval;
+          }
+        } catch (e) {}
+      });
+      return r;
+    },
+  });
+});
+
+// Put markup the filter gives into an element (replacement content), for `duration` ms if set.
+def('trusted-create-html', function(selector, html, duration) {
+  if (!selector || !html) return;
+  onReady(function() {
+    var parent = doc.querySelector(selector);
+    if (!parent) return;
+    var box = doc.createElement('div');
+    box.innerHTML = html;
+    var added = toArray(box.childNodes);
+    added.forEach(function(n) { parent.appendChild(n); });
+    var ms = Number(duration);
+    if (ms > 0) safe.setTimeout.call(win, function() { added.forEach(function(n) { if (n.parentNode) n.parentNode.removeChild(n); }); }, ms);
   });
 });
 

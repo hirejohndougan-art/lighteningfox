@@ -693,6 +693,8 @@ fn content_blocking_more_scriptlets() {
         call(&["trusted-replace-outbound-text", "getMsg", "/blocker/", "friend"]),
         call(&["trusted-replace-argument", "report", "0", "\"clean\""]),
         call(&["trusted-suppress-native-method", "console.warn", "/AdBlock/"]),
+        call(&["trusted-create-html", ".feed", "<span id=\"made\">made</span>"]),
+        call(&["trusted-prevent-dom-bypass", "Node.prototype.appendChild", "fetch"]),
     ];
     let code = crate::blocklist::code_for(&calls, &[]);
     eval(&mut page, "window.getMsg = function () { return 'hello blocker'; }; window.report = function (x) { window.reported = x; };");
@@ -718,10 +720,13 @@ fn content_blocking_more_scriptlets() {
             report("dirty");
             out.push(window.reported);
             out.push(String(console.warn("AdBlock found")));
+            out.push(document.getElementById("made") ? "made" : "none");
+            const kid = document.createElement("p");
+            out.push(String(document.body.appendChild(kid) === kid));
             return out.join("|");
         })()"##,
     );
-    assert_eq!(r.trim_matches('"'), "false|https://bayou.example/story|block|90px|0|hello friend|clean|undefined");
+    assert_eq!(r.trim_matches('"'), "false|https://bayou.example/story|block|90px|0|hello friend|clean|undefined|made|true");
 }
 
 #[test]
