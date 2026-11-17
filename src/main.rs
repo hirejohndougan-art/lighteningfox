@@ -42,6 +42,7 @@ mod glsl;
 mod glsl_gen;
 mod glsl_vm;
 mod grid;
+mod grid_align;
 mod html;
 mod http;
 mod record;

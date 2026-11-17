@@ -2708,7 +2708,27 @@ impl<'a> Ctx<'a> {
         let mut row_content: Vec<(f32, f32)> = vec![(0.0, 0.0); rows.len()];
         for (k, p) in placed.iter().enumerate() {
             let h = match &items[p.item] {
-                FlexItem::Node(n) => self.layout_at(*n, span_w(p), None).h,
+                FlexItem::Node(n) => {
+                    // An item's percentage heights resolve against its grid area: only rows of
+                    // a fixed size give one while the rows are being sized.
+                    let area = rows[p.row..p.row + p.rspan].iter().try_fold(row_gap * (p.rspan as f32 - 1.0), |a, t| match t.max {
+                        grid::Max::Px(px) if t.min.is_none_or(|m| m == px) => Some(a + px),
+                        _ => None,
+                    });
+                    // A picture whose percentage height has nothing to resolve against yet adds
+                    // nothing (it's "compressible"): BBC's NEWS logo is an <svg> 100% as tall as
+                    // its 26px grid, which then stretches its row to fit.
+                    let pct_h = matches!(self.styles[*n].height, Len::Pct(_) | Len::Mix(..));
+                    let picture = matches!(self.dom.tag(*n), Some("img" | "svg" | "video" | "canvas" | "iframe" | "object" | "embed"));
+                    if area.is_none() && pct_h && picture {
+                        0.0
+                    } else {
+                        self.cb_heights.push(area);
+                        let h = self.layout_at(*n, span_w(p), None).h;
+                        self.cb_heights.pop();
+                        h
+                    }
+                }
                 FlexItem::Text(nodes) => self.detach_text(&nodes.clone(), span_w(p), Align::Left).h,
             };
             natural[k] = h;
@@ -2717,7 +2737,8 @@ impl<'a> Ctx<'a> {
                 row_content[p.row].1 = row_content[p.row].1.max(h);
             }
         }
-        let mut heights = grid::size_tracks(&rows, &row_content, definite_h.unwrap_or(0.0), row_gap, definite_h.is_some());
+        let align_content = self.styles[id].flex.align_content;
+        let mut heights = grid::size_tracks(&rows, &row_content, definite_h.unwrap_or(0.0), row_gap, definite_h.is_some() && align_content.is_none());
         if definite_h.is_none() {
             grid::size_flexible_rows(&rows, &row_content, &mut heights);
         }
@@ -2730,11 +2751,13 @@ impl<'a> Ctx<'a> {
             }
         }
         let mut row_y = Vec::with_capacity(heights.len());
-        let mut ry = y;
+        let (lead, between) = crate::grid_align::row_offsets(align_content, definite_h, &heights, row_gap);
+        let mut ry = y + lead;
         for rh in &heights {
             row_y.push(ry);
-            ry += rh + row_gap;
+            ry += rh + row_gap + between;
         }
+        ry -= lead + between * heights.len() as f32;
         for p in &placed {
             if let FlexItem::Node(n) = &items[p.item] {
                 if let Some(e) = self.subgrid.get_mut(n) {
@@ -2765,7 +2788,9 @@ impl<'a> Ctx<'a> {
                         };
                         (own, dx.max(0.0))
                     };
+                    self.cb_heights.push(Some(area_h));
                     let d = self.layout_at(*n, item_w, stretch.then_some(area_h));
+                    self.cb_heights.pop();
                     let dy = match align {
                         AlignItems::Center => (area_h - d.h) / 2.0,
                         AlignItems::End => area_h - d.h,
@@ -3051,8 +3076,8 @@ impl<'a> Ctx<'a> {
             // Measure: lay out at the full width, left-aligned, and see how far content reaches.
             let was = self.measuring;
             self.measuring = true;
-            let probe = self.detach(|cx| (avail, cx.block(id, 0.0, 0.0, avail, 0.0).0));
-            self.measuring = was;
+                let probe = self.detach(|cx| (avail, cx.block(id, 0.0, 0.0, avail, 0.0).0));
+                self.measuring = was;
             let right = self.measured_right(id, &probe.items);
             let st = &self.styles[id];
             let tail = st.padding[1].resolve(avail) + st.border[1] + st.margin[1].resolve(avail);

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- From BBC News (2026-11): the lead headline is centred beside its picture by a
+     `display: grid; align-content: center; height: 100%` box in a grid cell; the NEWS logo is an
+     <svg> `height: 100%` of a 26px grid; and the menu's links are padded blocks with no
+     background, inside a shrink-to-fit flex row. -->
+<html><head><title>align-content, grid areas, padded links</title>
+<style>
+  #outer { display: grid; grid-template-columns: 200px 300px; }
+  #pic { grid-column: 2; grid-row: 1; height: 300px; }
+  #center { display: grid; align-content: center; height: 100%; }
+  #center a { display: block; height: 100%; }
+  #logo { display: grid; place-items: center; height: 26px; }
+  #logo svg { width: auto; height: 100%; }
+  #menu { display: inline-flex; } #menu a { display: block; padding: 0 8px; }
+</style></head>
+<body>
+<div id="outer"><div id="pic"></div><div style="grid-column: 1"><div id="center"><a><p id="text" style="margin: 0; height: 60px">Headline</p></a></div></div></div>
+<h1 id="logo"><svg viewBox="0 0 104 27"><rect width="104" height="27"/></svg></h1>
+<div id="menu"><a id="m1">Home</a><a>News</a></div>
+<span id="plain">Home</span>
+<p id="out"></p>
+<script>
+  const r = (id) => document.getElementById(id).getBoundingClientRect();
+  const outer = r("outer");
+  document.getElementById("out").textContent = [
+    Math.round(r("text").top - outer.top),
+    Math.round(document.querySelector("#logo svg").getBoundingClientRect().height),
+    r("m1").width - r("plain").width >= 16 && r("m1").width - r("plain").width < 20,
+  ].join(";");
+</script>
+</body></html>

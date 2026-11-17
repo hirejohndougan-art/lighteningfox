@@ -345,6 +345,8 @@ pub struct Flex {
     /// Grid: justify-items (container) and justify-self (item); None = normal (stretch).
     pub justify_items: Option<AlignItems>,
     pub justify_self: Option<AlignItems>,
+    /// align-content; None = normal (stretch). Grid rows only so far (grid_align.rs).
+    pub align_content: Option<Justify>,
 }
 
 impl Default for Flex {
@@ -366,6 +368,7 @@ impl Default for Flex {
             grid_columns: None,
             justify_items: None,
             justify_self: None,
+            align_content: None,
         }
     }
 }
@@ -2533,6 +2536,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 }
             }
         }
+        "align-content" => st.flex.align_content = crate::grid_align::parse_align_content(&lower),
         "justify-content" => {
             st.flex.justify = match lower.trim_start_matches("safe ").trim() {
                 "center" => Justify::Center,

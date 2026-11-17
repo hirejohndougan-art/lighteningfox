@@ -752,3 +752,12 @@ fn deep_recursion_with_many_locals() {
     let _page = open("tests/sites/deep-frames.html");
     assert_eq!(text_of("out"), "1500");
 }
+
+/// BBC News: align-content centres grid rows; percentage heights of grid items use their grid
+/// area (a picture's adds nothing while rows are sized); padded links measure their padding.
+#[test]
+fn grid_align_content_areas_and_padded_links() {
+    let _serial = serial();
+    let _page = open("tests/sites/grid-align-content.html");
+    assert_eq!(text_of("out"), "120;26;true");
+}

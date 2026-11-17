@@ -113,8 +113,11 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
             dst.flex.wrap = src.flex.wrap;
         }
         "justify-content" => dst.flex.justify = src.flex.justify,
-        "place-content" => dst.flex.justify = src.flex.justify,
-        "align-content" => {}
+        "place-content" => {
+            dst.flex.justify = src.flex.justify;
+            dst.flex.align_content = src.flex.align_content;
+        }
+        "align-content" => dst.flex.align_content = src.flex.align_content,
         "align-items" => dst.flex.align_items = src.flex.align_items,
         "align-self" => dst.flex.align_self = src.flex.align_self,
         "place-items" => {
