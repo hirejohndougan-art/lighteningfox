@@ -1315,6 +1315,8 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("doctype.js", include_str!("doctype.js")),
     ("defaultvalue.js", include_str!("defaultvalue.js")),
     ("devconsole.js", include_str!("devconsole.js")),
+    ("winhandlers.js", include_str!("winhandlers.js")),
+    ("perftiming.js", include_str!("perftiming.js")),
 ];
 
 impl Drop for Js {
