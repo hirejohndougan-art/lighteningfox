@@ -141,7 +141,7 @@ browser process and pass positions to the page process.
 `writing-mode` (vertical-rl/lr), `text-orientation`, `text-combine-upright`.
 
 ### T04. Parallel styling and layout
-**Status:** free
+**Status:** claimed by chat-opus-geo 2026-11-17 16:16
 **After:** T01 and batch K done (`docs/BATCHES.md`)
 **Checklist:** §14 "Parallel styling and layout across CPU cores (Rayon)"
 **Files:** `src/style.rs`, `src/cascade.rs`, `src/boxtree.rs`
