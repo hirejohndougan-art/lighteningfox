@@ -111,7 +111,7 @@ SVG written directly in HTML is hidden today (SVG *images* work). Draw it, with 
 its elements where practical.
 
 ### X6. Geolocation
-**Status:** free
+**Status:** claimed by chat-opus-geo 2026-11-17 05:04
 **After:** —
 **Checklist:** none
 **Files:** new `src/geo.rs`, the geolocation part of the JS APIs
