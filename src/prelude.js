@@ -26,6 +26,7 @@
   }
   globalThis.__wrapFn = wrap;
   const idOf = (n) => (n && n.__id !== undefined ? n.__id : -1);
+  const attrName = (el, n) => (n = String(n), el.namespaceURI === "http://www.w3.org/1999/xhtml" ? n.replace(/[A-Z]+/g, (c) => c.toLowerCase()) : n);
   const kebab = (k) => k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 
   // ------------------------------------------------------------ events
@@ -318,9 +319,14 @@
     get tagName() { const t = __tag(this.__id); return this.namespaceURI === "http://www.w3.org/1999/xhtml" ? t.toUpperCase() : t; }
     get nodeName() { return this.tagName; }
     get localName() { return __tag(this.__id); }
-    getAttribute(n) { return __getAttr(this.__id, String(n).toLowerCase()); }
-    setAttribute(n, v) { __setAttr(this.__id, String(n).toLowerCase(), String(v)); }
-    removeAttribute(n) { __removeAttr(this.__id, String(n).toLowerCase()); }
+    // Attribute names are ASCII-lowercased on HTML elements only.
+    getAttribute(n) { return __getAttr(this.__id, attrName(this, n)); }
+    setAttribute(n, v) {
+      n = String(n);
+      if (!/^[^\t\n\f\r \0\/=>]+$/.test(n)) throw new DOMException("'" + n + "' is not a valid attribute name.", "InvalidCharacterError");
+      __setAttr(this.__id, attrName(this, n), String(v));
+    }
+    removeAttribute(n) { __removeAttr(this.__id, attrName(this, n)); }
     hasAttribute(n) { return this.getAttribute(n) !== null; }
     toggleAttribute(n, force) {
       const on = force === undefined ? !this.hasAttribute(n) : force;

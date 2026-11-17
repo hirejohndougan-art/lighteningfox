@@ -537,6 +537,9 @@ fn n_remove_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
             if let NodeData::Element { attrs, .. } = &mut d.nodes[id].data {
                 attrs.retain(|(k, _)| *k != name);
             }
+            if let Some(m) = d.attr_ns.get_mut(&id) {
+                m.retain(|(k, _)| *k != name);
+            }
         });
     }
     Ok(JsValue::undefined())
@@ -705,43 +708,6 @@ fn n_create(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
     let tag = arg_str(a, 0, ctx)?;
     let id = with_dom_mut(|d| d.create(NodeData::Element { tag, attrs: Vec::new() }));
     Ok(JsValue::from(id as f64))
-}
-
-/// `__createNS(namespace or null, qualifiedName)`: the element's id, or the name of the
-/// DOMException to throw ("validate and extract" failed).
-fn n_create_ns(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let ns = match a.first() {
-        Some(v) if !v.is_null_or_undefined() => Some(v.to_string(ctx)?.to_std_string_escaped()),
-        _ => None,
-    };
-    let qualified = arg_str(a, 1, ctx)?;
-    let q = match crate::qname::validate_and_extract(ns.as_deref(), &qualified, false) {
-        Ok(q) => q,
-        Err(e) => return Ok(JsValue::from(JsString::from(e))),
-    };
-    use crate::dom::{Ns, NsName};
-    let kind = match q.ns.as_deref() {
-        Some("http://www.w3.org/1999/xhtml") => Ns::Html,
-        Some("http://www.w3.org/2000/svg") => Ns::Svg,
-        Some("http://www.w3.org/1998/Math/MathML") => Ns::MathMl,
-        _ => Ns::Other,
-    };
-    let id = with_dom_mut(|d| {
-        let id = d.create(NodeData::Element { tag: q.local, attrs: Vec::new() });
-        if kind != Ns::Html {
-            d.ns.insert(id, kind);
-        }
-        if kind == Ns::Other || q.prefix.is_some() {
-            d.ns_names.insert(id, NsName { uri: if kind == Ns::Other { q.ns } else { None }, prefix: q.prefix });
-        }
-        id
-    });
-    Ok(JsValue::from(id as f64))
-}
-
-/// `__validName(name)`: whether `createElement` accepts it as an element's local name.
-fn n_valid_name(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    Ok(JsValue::from(crate::qname::valid_element_local_name(&arg_str(a, 0, ctx)?)))
 }
 
 fn n_create_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -1296,6 +1262,7 @@ const INTL: &str = include_str!("intl.js");
 /// Extra web APIs, each in its own file: (file, code).
 const EXTRA_APIS: &[(&str, &str)] = &[
     ("customelements.js", include_str!("customelements.js")),
+    ("ns.js", include_str!("ns.js")),
     ("userevents.js", include_str!("userevents.js")),
     ("observers.js", include_str!("observers.js")),
     ("traversal.js", include_str!("traversal.js")),
@@ -1424,8 +1391,6 @@ impl Js {
             ("__byId", 1, n_by_id),
             ("__wrapList", 1, n_wrap_list),
             ("__create", 1, n_create),
-            ("__createNS", 2, n_create_ns),
-            ("__validName", 1, n_valid_name),
             ("__createText", 1, n_create_text),
             ("__write", 1, n_write),
             ("__log", 2, n_log),
@@ -1460,7 +1425,7 @@ impl Js {
             ("__geomGen", 0, n_geom_gen),
             ("__elScrollGen", 0, n_el_scroll_gen),
         ];
-        for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES) {
+        for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES).chain(crate::qname::script::NATIVES) {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
                 .expect("register native");
         }

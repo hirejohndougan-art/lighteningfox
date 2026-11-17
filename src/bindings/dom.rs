@@ -246,12 +246,17 @@ pub fn attribute_names(this: Option<NodeId>) -> Vec<String> {
     attr_names(this)
 }
 
+/// Attribute names are ASCII-lowercased on HTML elements only.
+fn attr_name(this: Option<NodeId>, name: String) -> String {
+    if this.is_some_and(|id| with_dom(|d| d.ns_of(id) == Ns::Html)) { name.to_ascii_lowercase() } else { name }
+}
+
 pub fn get_attribute(this: Option<NodeId>, name: String) -> Option<String> {
-    attr(this, &name.to_lowercase())
+    attr(this, &attr_name(this, name))
 }
 
 pub fn has_attribute(this: Option<NodeId>, name: String) -> bool {
-    attr(this, &name.to_lowercase()).is_some()
+    attr(this, &attr_name(this, name)).is_some()
 }
 
 pub fn element_children(this: Option<NodeId>) -> Vec<NodeId> {

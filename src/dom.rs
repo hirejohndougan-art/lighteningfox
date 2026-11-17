@@ -62,6 +62,9 @@ pub struct Dom {
     pub ns: std::collections::HashMap<NodeId, Ns>,
     /// Namespace URIs and prefixes that `Ns` alone can't hold (see `NsName`).
     pub ns_names: std::collections::HashMap<NodeId, NsName>,
+    /// Attributes in a namespace (`setAttributeNS`): each element's (qualified name, namespace).
+    /// Attributes not listed have no namespace.
+    pub attr_ns: std::collections::HashMap<NodeId, Vec<(String, String)>>,
     /// Each `<template>`'s contents fragment.
     pub template_contents: std::collections::HashMap<NodeId, NodeId>,
     pub quirks: Quirks,
@@ -308,13 +311,16 @@ impl Dom {
 
     /// Give `dst` the namespace (and URI/prefix) `src` has in `from`, for copies of nodes.
     pub fn copy_ns(&mut self, from: Option<&Dom>, src: NodeId, dst: NodeId) {
-        let (ns, name) = {
+        let (ns, name, attrs) = {
             let from: &Dom = match from {
                 Some(o) => o,
                 None => self,
             };
-            (from.ns.get(&src).copied(), from.ns_names.get(&src).cloned())
+            (from.ns.get(&src).copied(), from.ns_names.get(&src).cloned(), from.attr_ns.get(&src).cloned())
         };
+        if let Some(a) = attrs {
+            self.attr_ns.insert(dst, a);
+        }
         if let Some(ns) = ns {
             self.ns.insert(dst, ns);
         }

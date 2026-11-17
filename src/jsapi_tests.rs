@@ -390,3 +390,36 @@ fn create_element_ns_any_namespace() {
          InvalidCharacterError,NamespaceError,InvalidCharacterError,NamespaceError,InvalidCharacterError,html,test,true,1,0,false"
     );
 }
+
+/// Namespaced attributes, getElementsByTagNameNS and the namespace lookups (X16).
+#[test]
+fn namespaced_attributes_and_lookups() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const XL = "http://www.w3.org/1999/xlink", XMLNS = "http://www.w3.org/2000/xmlns/";
+            const el = document.createElementNS("urn:a", "p:el");
+            el.setAttributeNS(XL, "xlink:Href", "#x");
+            el.setAttributeNS(XMLNS, "xmlns:q", "urn:q");
+            el.setAttribute("Plain", "1");
+            out.push(el.getAttributeNS(XL, "Href"), el.getAttribute("xlink:Href"), el.hasAttributeNS(null, "Href"), el.getAttribute("Plain"));
+            out.push(el.lookupNamespaceURI("p"), el.lookupNamespaceURI("q"), el.lookupPrefix("urn:a"), el.isDefaultNamespace(null));
+            try { el.setAttributeNS(null, "a:b", "1"); } catch (e) { out.push(e.name); }
+            el.removeAttributeNS(XL, "Href");
+            out.push(el.hasAttribute("xlink:Href"));
+            const d = document.createElement("div");
+            d.setAttribute("ABC", "1");
+            out.push(d.getAttributeNames().join("+"), d.getAttribute("aBc"));
+            document.body.appendChild(el);
+            out.push(document.getElementsByTagNameNS("urn:a", "el").length, document.getElementsByTagNameNS("*", "el").length, document.body.lookupNamespaceURI(null));
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(
+        r.trim_matches('"'),
+        "#x,#x,false,1,urn:a,urn:q,p,true,NamespaceError,false,abc,1,1,1,http://www.w3.org/1999/xhtml"
+    );
+}
