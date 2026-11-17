@@ -43,11 +43,17 @@ Compare with Chrome side by side:
 
 ## Record again
 
-After fixes, or for another site, run the "Record sites" workflow (`gh` is set up in every chat):
+After fixes, or for another site, run the "Record sites" workflow. Chats can't use
+`gh workflow run` or `gh run list` (they go through GitHub's GraphQL API, which is blocked
+here); use the REST API through `gh api`:
 
-    gh workflow run record-sites.yml -R hirejohndougan-art/lighteningfox \
-      -f urls="https://www.bbc.com/news" -f branch=rec-bbc -f ref=main
-    gh run list -R hirejohndougan-art/lighteningfox -w record-sites.yml -L 1   # ~12 minutes
+    gh api -X POST repos/hirejohndougan-art/lighteningfox/actions/workflows/record-sites.yml/dispatches \
+      -f ref=main -f "inputs[urls]=https://www.bbc.com/news" -f "inputs[branch]=rec-bbc" -f "inputs[ref]=main"
+    # ~12 minutes; check on it with:
+    gh api "repos/hirejohndougan-art/lighteningfox/actions/workflows/record-sites.yml/runs?per_page=5" \
+      --jq '.workflow_runs[] | "\(.id) \(.status) \(.conclusion) \(.created_at)"'
+    # the run's log (script errors, hangs): gh api repos/hirejohndougan-art/lighteningfox/actions/runs/<id>/jobs --jq '.jobs[0].id'
+    #   then: gh api repos/hirejohndougan-art/lighteningfox/actions/jobs/<job id>/logs
     git clone -q --depth 1 -b rec-bbc https://github.com/hirejohndougan-art/lighteningfox /tmp/rec-bbc
 
 `ref` is what gets built: `main`, or a branch you pushed with fixes that aren't on `main` yet.

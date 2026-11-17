@@ -1,8 +1,8 @@
 name: Record sites
 # Record live sites with Ironswift so they can be replayed offline (docs/SITE_DEBUGGING.md).
-# Start it with:
-#   gh workflow run record-sites.yml -R hirejohndougan-art/lighteningfox \
-#     -f urls="https://www.bbc.com/news https://www.nytimes.com/" -f branch=rec-bbc-nyt
+# Start it with (the REST API: `gh workflow run` needs GraphQL, which chats can't use):
+#   gh api -X POST repos/hirejohndougan-art/lighteningfox/actions/workflows/record-sites.yml/dispatches \
+#     -f ref=main -f "inputs[urls]=https://www.bbc.com/news https://www.nytimes.com/" -f "inputs[branch]=rec-bbc-nyt"
 # Each site's responses, Ironswift's log and screenshot, Chrome's screenshot and (if it hung)
 # backtraces are pushed to the branch named, which is replaced each time. Built from `ref`.
 on:
