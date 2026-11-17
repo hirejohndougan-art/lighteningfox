@@ -1106,6 +1106,8 @@ const BLOB: &str = include_str!("blob.js");
 const INDEXEDDB: &str = include_str!("indexeddb.js");
 const FORMS: &str = include_str!("forms.js");
 const INTL: &str = include_str!("intl.js");
+/// Extra web APIs, each in its own file: (file, code).
+const EXTRA_APIS: &[(&str, &str)] = &[("customelements.js", include_str!("customelements.js"))];
 
 impl Js {
     pub fn new(url: &str) -> Js {
@@ -1214,6 +1216,11 @@ impl Js {
         }
         if let Err(e) = ctx.eval(Source::from_bytes(INTL.as_bytes())) {
             log!("[ironswift] Intl setup failed: {e}");
+        }
+        for (file, code) in EXTRA_APIS {
+            if let Err(e) = ctx.eval(Source::from_bytes(code.as_bytes())) {
+                log!("[ironswift] {file} failed: {e}");
+            }
         }
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }

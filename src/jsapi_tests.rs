@@ -37,3 +37,13 @@ fn es_modules() {
     assert_eq!(text_of("order"), "classic;classic2;module;");
     let _ = eval;
 }
+
+#[test]
+fn custom_elements() {
+    let _page = open("tests/custom-elements.html");
+    assert_eq!(
+        text_of("log"),
+        "name:null>Ada;connected Ada;upgraded true true;created true;name:null>Grace;connected Grace;\
+         name:null>Linus;connected Linus;disconnected Linus;name:null>Alan;connected Alan;bad SyntaxError get true;whenDefined;"
+    );
+}

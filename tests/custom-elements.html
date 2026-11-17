@@ -1,0 +1,29 @@
+<!doctype html><html><head><style>
+user-card { display: block; border: 2px solid #36c; padding: 6px; margin: 4px; font-family: sans-serif; }
+</style></head><body>
+<user-card name="Ada">fallback</user-card>
+<div id=log></div>
+<script>
+const log = (s) => { document.getElementById('log').textContent += s + ';'; };
+class UserCard extends HTMLElement {
+  static get observedAttributes() { return ['name']; }
+  constructor() { super(); this.greeting = 'Hi'; const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<b>card:</b> <span></span> <slot></slot>'; }
+  connectedCallback() { log('connected ' + this.getAttribute('name')); }
+  disconnectedCallback() { log('disconnected ' + this.getAttribute('name')); }
+  attributeChangedCallback(n, o, v) { this.shadowRoot.querySelector('span').textContent = this.greeting + ' ' + v; log(n + ':' + o + '>' + v); }
+}
+customElements.whenDefined('user-card').then(() => log('whenDefined'));
+customElements.define('user-card', UserCard);
+const first = document.querySelector('user-card');
+log('upgraded ' + (first instanceof UserCard) + ' ' + (first instanceof HTMLElement));
+const c = document.createElement('user-card');
+log('created ' + (c instanceof UserCard));
+c.setAttribute('name', 'Grace');
+document.body.insertBefore(c, document.getElementById('log'));
+const d = new UserCard(); d.setAttribute('name', 'Linus'); document.body.insertBefore(d, document.getElementById('log'));
+d.remove();
+document.body.insertAdjacentHTML('beforeend', '<user-card name="Alan">via html</user-card>');
+let bad = 'none'; try { customElements.define('nodash', class extends HTMLElement {}); } catch (e) { bad = e.name; }
+log('bad ' + bad + ' get ' + (customElements.get('user-card') === UserCard));
+</script>
+</body></html>
