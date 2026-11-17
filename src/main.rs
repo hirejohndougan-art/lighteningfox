@@ -36,6 +36,9 @@ mod zoom;
 mod images;
 mod js;
 mod jsnest;
+mod jsmodules;
+#[cfg(test)]
+mod jsapi_tests;
 mod layout;
 mod library;
 mod cache;

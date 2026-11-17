@@ -233,6 +233,8 @@ pub struct Js {
     pub stats: Stats,
     /// This page's tag on background requests (pages in other tabs have their own).
     epoch: u64,
+    /// Finds and caches the page's ES modules.
+    modules: std::rc::Rc<crate::jsmodules::Loader>,
 }
 
 // ------------------------------------------------------------ helpers
@@ -760,6 +762,11 @@ fn n_fp_seed(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(JsValue::from(seed as f64))
 }
 
+/// The document's URL (for the module loader).
+pub fn page_url(ctx: &Context) -> String {
+    page_ctx(ctx, |p| p.url.clone()).unwrap_or_default()
+}
+
 /// __pageUrl(): the document's URL as the browser knows it.
 fn n_page_url(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     Ok(JsValue::from(JsString::from(page_ctx(ctx, |p| p.url.clone()).unwrap_or_default())))
@@ -1107,7 +1114,12 @@ impl Js {
     /// A script engine for the page at `url`, under the page's security policy.
     pub fn with_policy(url: &str, policy: std::sync::Arc<crate::security::PagePolicy>) -> Js {
         let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-        let mut ctx = boa_engine::context::ContextBuilder::new().host_hooks(std::rc::Rc::new(Hooks)).build().expect("script engine");
+        let modules = std::rc::Rc::new(crate::jsmodules::Loader::default());
+        let mut ctx = boa_engine::context::ContextBuilder::new()
+            .host_hooks(std::rc::Rc::new(Hooks))
+            .module_loader(modules.clone())
+            .build()
+            .expect("script engine");
         let frame = crate::security::frame_info(url);
         let sandbox = match (&frame.as_ref().and_then(|f| f.sandbox.clone()), &policy.sandbox) {
             (Some(a), Some(b)) => Some(a.and(b)),
@@ -1194,7 +1206,7 @@ impl Js {
         if let Err(e) = ctx.eval(Source::from_bytes(INDEXEDDB.as_bytes())) {
             log!("[ironswift] IndexedDB setup failed: {e}");
         }
-        Js { ctx, start: Instant::now(), stats: Stats::default(), epoch }
+        Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
 
     fn eval(&mut self, code: &str, label: &str) -> Option<JsValue> {
@@ -1216,6 +1228,23 @@ impl Js {
                 log!("[js error] {label}: {e}");
                 None
             }
+        }
+    }
+
+    /// Run code typed into the developer console and describe the result (or the error).
+    pub fn run(&mut self, code: &str) -> Result<String, String> {
+        let r = self.ctx.eval(Source::from_bytes(code.as_bytes()));
+        let _ = self.ctx.run_jobs();
+        match r {
+            Ok(v) => {
+                let shown = self.ctx.global_object().get(js_string!("__inspect"), &mut self.ctx).ok().and_then(|f| f.as_callable());
+                let text = match shown {
+                    Some(f) => f.call(&JsValue::undefined(), &[v.clone()], &mut self.ctx).ok().and_then(|s| s.as_string().map(|s| s.to_std_string_escaped())),
+                    None => None,
+                };
+                Ok(text.unwrap_or_else(|| v.display().to_string()))
+            }
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1249,9 +1278,14 @@ impl Js {
         let (ty, src, inline) = with_dom(|d| {
             (d.attr(id, "type").unwrap_or("").to_ascii_lowercase(), d.attr(id, "src").map(String::from), d.text_content(id))
         });
+        let is_module = ty.trim() == "module";
         let is_js = ty.is_empty() || ty.contains("javascript") || ty.contains("ecmascript");
-        if !is_js {
-            return; // modules, JSON, templates: not yet
+        if !is_js && !is_module {
+            return; // JSON, templates, import maps: not scripts
+        }
+        // `nomodule` scripts are fallbacks for browsers without modules; this one has them.
+        if !is_module && with_dom(|d| d.attr(id, "nomodule").is_some()) {
+            return;
         }
         let nonce = with_dom(|d| d.attr(id, "nonce").map(String::from));
         let policy = page_ctx(&self.ctx, |p| p.policy.clone());
@@ -1284,7 +1318,34 @@ impl Js {
         self.eval("__namedIds()", "named ids");
         self.ctx.global_object().set(js_string!("__currentScript"), JsValue::from(id as f64), false, &mut self.ctx).ok();
         self.stats.scripts += 1;
-        self.eval(&code, &label);
+        if is_module {
+            // An inline module's imports resolve against the page.
+            let url = if label.starts_with("inline") { format!("{}#inline-{id}", base_url.split('#').next().unwrap_or(base_url)) } else { label.clone() };
+            self.run_module(&code, &url, &label);
+        } else {
+            self.eval(&code, &label);
+        }
+    }
+
+    /// Parse, load (with its imports), link and run a module.
+    fn run_module(&mut self, code: &str, url: &str, label: &str) {
+        let t = Instant::now();
+        let module = match self.modules.parse(code, url, &mut self.ctx) {
+            Ok(m) => m,
+            Err(e) => {
+                self.stats.errors += 1;
+                log!("[js error] {label}: {e}");
+                return;
+            }
+        };
+        let promise = module.load_link_evaluate(&mut self.ctx);
+        let _ = self.ctx.run_jobs();
+        self.stats.script_time += t.elapsed();
+        if let boa_engine::builtins::promise::PromiseState::Rejected(e) = promise.state() {
+            self.stats.errors += 1;
+            let msg = e.to_string(&mut self.ctx).map(|s| s.to_std_string_escaped()).unwrap_or_default();
+            log!("[js error] {label}: {msg}");
+        }
     }
 
     /// Parse the page and run its scripts as the parser reaches them, the way browsers do:
@@ -1301,8 +1362,10 @@ impl Js {
             // Hand the document to the scripts while one runs, then take it back.
             let dom = PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| std::mem::take(&mut tb.dom))).unwrap_or_default();
             let (has_src, delayed) = (dom.attr(script, "src").is_some(), dom.attr(script, "defer").is_some() || dom.attr(script, "async").is_some());
+            // Module scripts, inline or not, wait for the parser like deferred scripts.
+            let module = dom.attr(script, "type").is_some_and(|t| t.trim().eq_ignore_ascii_case("module"));
             set_dom(dom);
-            if has_src && delayed {
+            if (has_src && delayed) || module {
                 later.push(script);
             } else {
                 PARSER.with(|p| p.borrow_mut().as_mut().map(|tb| tb.begin_script()));
