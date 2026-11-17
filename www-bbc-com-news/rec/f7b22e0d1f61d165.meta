@@ -1,0 +1,19 @@
+GET https://cdn.privacy-mgmt.com/unified/wrapperMessagingWithoutDetection.js
+200 OK
+content-type: text/javascript
+strict-transport-security: max-age=31536000
+server: AmazonS3
+last-modified: Wed, 28 Oct 2026 14:08:52 GMT
+x-amz-server-side-encryption: AES256
+date: Tue, 17 Nov 2026 20:57:40 GMT
+cache-control: max-age=3600
+etag: W/"6428e0406731174436c53d2e74f4f824"
+vary: Accept-Encoding
+x-cache: Hit from cloudfront
+via: 1.1 c09e1ee371c0b677b7724c2a52462928.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P4
+x-amz-cf-id: DafyxVjOETHBvnfpjSMZVO8T6QierPg8TCQIn7JdFWlyMacVRpPpyg==
+age: 3337
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff

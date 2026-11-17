@@ -1,0 +1,20 @@
+GET https://emp.bbci.co.uk/emp/bump-4/bump-4.js
+200 OK
+content-type: application/javascript; charset=utf-8
+access-control-allow-origin: *
+server: AmazonS3
+cache-control: public, max-age=300, s-max-age=150
+origin-agent-cluster: ?0
+last-modified: Mon, 26 Oct 2026 10:52:42 GMT
+etag: "4341be60fe71e27de6273217d90a6d43"
+x-amz-cf-pop: LHR82-P1
+x-amz-cf-id: oGJqb1EYOqXV6Gd0fcpMRHGr6zd3UaildW2La2nYmP-nlnSYmIsz3w==
+date: Tue, 17 Nov 2026 21:53:15 GMT
+vary: Accept-Encoding
+nel: {"report_to":"default","max_age": 604800,"include_subdomains":true,"failure_fraction":0.01}
+report-to: {"group":"default","max_age":3600,"endpoints":[{"url":"https://assets.bbc-reporting-api.app/report-endpoint","priority":1}],"include_subdomains":true}
+timing-allow-origin: https://www.bbc.co.uk, https://www.bbc.com
+access-control-max-age: 300
+access-control-allow-credentials: false
+access-control-allow-headers: *
+access-control-allow-methods: HEAD,GET

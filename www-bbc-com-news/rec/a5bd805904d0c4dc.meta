@@ -1,0 +1,14 @@
+GET https://uk-script.dotmetrics.net/hit.gif?id=13934&url=https%3A%2F%2Fwww.bbc.com%2Fnews&dom=www.bbc.com&r=1794952401792&pvs=1&ecid=8a79e7dc-96b2-455c-87a4-2bd2536ad56c&c=true&tzOffset=0&doorUrl=http%3a%2f%2fuk-script.dotmetrics.net%2fdoor.js%3fd%3dwww.bbc.com%26t%3dnewsstudio&dfph=&ver=374
+200 OK
+content-type: image/gif
+date: Tue, 17 Nov 2026 21:53:21 GMT
+p3p: policyref="https://uk-script.dotmetrics.net/w3c/p3p.xml", CP="NOI DSP LAW CURa ADMa DEVa PSAa HISa OUR IND STA"
+dotmetrics-hit-status: 01 OK
+server: Kestrel
+cache-control: no-cache
+set-cookie: DotMetrics.DeviceKey=DeviceID=; expires=Wed, 17 Nov 2027 21:53:21 GMT; domain=.dotmetrics.net; path=/; SameSite=None; secure
+set-cookie: DotMetrics.UniqueUserIdentityCookie=UserID=198b5e4c-9a4f-4278-80b1-1435ea6e8c44&Created=11/17/2026 21:53:21&UserMode=0&guid=f4d7c2d1-14fd-4a93-9395-fc569c581e8a&ver=1; expires=Wed, 17 Nov 2027 21:53:21 GMT; domain=.dotmetrics.net; path=/; SameSite=None; secure
+x-cache: Miss from cloudfront
+via: 1.1 7eeed291abf48890d3f36565208941a8.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD12-P1
+x-amz-cf-id: YQgxG0hTXpzCSIoYl-T38mrlVERfLnmhCT1iwscTy6zyBYgiyx-M0w==

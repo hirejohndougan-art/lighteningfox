@@ -1,0 +1,21 @@
+GET https://web-cdn.api.bbci.co.uk/xd/schedule?country=us
+200 OK
+content-type: application/json; charset=utf-8
+age: 23
+date: Tue, 17 Nov 2026 21:52:56 GMT
+via: 1.1 Belfrage, 1.1 05133180bbd1649d4b8f97441bf305e8.cloudfront.net (CloudFront)
+access-control-allow-credentials: true
+access-control-allow-origin: *
+belfrage-cache-status: MISS
+bid: cedric
+brequestid: c3ff47fe84944ce28cde3304127ef405
+bsig: 70c3218defaa35a257033af8949a78a8
+cache-control: public, stale-if-error=90, stale-while-revalidate=30, max-age=30
+strict-transport-security: max-age=604800
+country: us
+req-svc-chain: cloudfront,BELFRAGE
+server: Belfrage
+vary: Accept-Encoding
+x-cache: Hit from cloudfront
+x-amz-cf-pop: IAD12-P3
+x-amz-cf-id: pfCAeD5ZtkeR2dg0Fe6lm86OayDY-56dYsVL4S-x42fudSp99znxmQ==

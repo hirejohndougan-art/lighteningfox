@@ -1,0 +1,18 @@
+GET https://cdn.privacy-mgmt.com/mms/v2/get_site_data?hasCsp=true&href=https%3A%2F%2Fwww.bbc.com%2Fnews&account_id=1786
+200 OK
+content-type: application/javascript
+date: Tue, 17 Nov 2026 03:46:49 GMT
+strict-transport-security: max-age=15552000; includeSubdomains
+cache-control: max-age=3600, s-maxage=86400
+access-control-allow-origin: *
+access-control-allow-methods: GET
+access-control-allow-credentials: true
+x-sp-mms-node: ip-10-128-17-89
+x-cache: Hit from cloudfront
+via: 1.1 c09e1ee371c0b677b7724c2a52462928.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P4
+x-amz-cf-id: qI2zz5H9V3yf9S9U1avIjkq_CLo3ut9oKezjfVTtJIfbsrc3ovRLrA==
+age: 65188
+x-xss-protection: 1; mode=block
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff

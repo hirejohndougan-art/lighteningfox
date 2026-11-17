@@ -1,0 +1,13 @@
+GET https://uk-script.dotmetrics.net/door.js?d=www.bbc.com&t=newsstudio
+200 OK
+content-type: application/javascript
+date: Tue, 17 Nov 2026 21:53:21 GMT
+vary: Accept-Encoding
+p3p: policyref="https://uk-script.dotmetrics.net/w3c/p3p.xml", CP="NOI DSP LAW CURa ADMa DEVa PSAa HISa OUR IND STA"
+server: Kestrel
+cache-control: private
+x-amz-cf-id: 7TOYCpB_A_uRq8LnZS02hbMA31N7LAWaBjoiRmKoN5pV8ANb1a-LWw==
+etag: ".www.bbc.com.newsstudio.374.2026111721"
+x-cache: Miss from cloudfront
+via: 1.1 7eeed291abf48890d3f36565208941a8.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD12-P1

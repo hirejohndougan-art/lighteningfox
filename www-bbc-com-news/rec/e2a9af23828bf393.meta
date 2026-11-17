@@ -1,0 +1,18 @@
+GET https://ichef.bbci.co.uk/news/320/cpsprodpb/2025/live/a8f37f00-e2a4-11f1-99b6-a35a62fa4264.jpg.webp
+200 OK
+server: AmazonS3
+accept-ranges: bytes
+last-modified: Tue, 17 Nov 2026 16:38:51 GMT
+etag: "09cd2b5f98acab452dd14738a9ecc83e"
+content-type: image/webp
+x-amz-server-side-encryption: AES256
+content-length: 6486
+expires: Wed, 17 Nov 2027 16:41:28 GMT
+cache-control: max-age=31536000
+date: Tue, 17 Nov 2026 21:53:16 GMT
+timing-allow-origin: https://www.bbc.co.uk, https://www.bbc.com
+access-control-allow-headers: *
+access-control-allow-methods: HEAD,GET
+access-control-allow-credentials: false
+access-control-max-age: 300
+access-control-allow-origin: *
