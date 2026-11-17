@@ -3342,7 +3342,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             #[cfg(feature = "gpu")]
             let popups = folder_menu.is_some() || dropdown.is_some() || bubble.is_some() || (editing && !suggestions.is_empty()) || find.is_some() || selection.is_some() || status_link.is_some() || ctx_menu.is_some() || dl_panel.is_some() || toast.is_some() || !perm_queue.is_empty();
             #[cfg(feature = "gpu")]
-            let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay);
+            let gpu_tiled = gpu.is_some() && use_tiles && !popups && page_tiles.sync(page_version, w, &lay, &page.images);
             #[cfg(not(feature = "gpu"))]
             let gpu_tiled = false;
             if gpu_tiled {
@@ -3361,7 +3361,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if draw_times.len() == 60 {
                     let mut v = std::mem::take(&mut draw_times);
                     v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                    log!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused);
+                    log!("[frames] draw avg {:.2} ms, median {:.2} ms, worst {:.2} ms (tiles painted {}, reused {}, kept {})", v.iter().sum::<f64>() / 60.0, v[30], v[59], page_tiles.stats.painted, page_tiles.stats.reused, page_tiles.stats.kept);
                 }
             }
             if let Some(menu) = &folder_menu {
@@ -3601,7 +3601,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     // otherwise painted whole.
     let tiled = match page {
         PagePaint::Tiles(t, version) => {
-            let ok = t.sync(version, canvas.w, lay);
+            let ok = t.sync(version, canvas.w, lay, images);
             if ok {
                 t.compose(canvas, fonts, images, lay, bar_h(), scroll);
             }

@@ -54,6 +54,8 @@ pub struct Gpu {
     frame: Option<Tex>,
     tiles: HashMap<usize, Tex>,
     tiles_version: u64,
+    /// Which paint of each page strip its texture holds.
+    tile_gens: HashMap<usize, u64>,
     pub name: String,
 }
 
@@ -196,7 +198,7 @@ impl Gpu {
             mapped_at_creation: false,
         });
         let name = format!("{} ({:?})", info.name, info.backend);
-        Ok(Gpu { surface, device, queue, config, pipeline, layout, sampler, vertices, frame: None, tiles: HashMap::new(), tiles_version: 0, name })
+        Ok(Gpu { surface, device, queue, config, pipeline, layout, sampler, vertices, frame: None, tiles: HashMap::new(), tiles_version: 0, tile_gens: HashMap::new(), name })
     }
 
     pub fn resize(&mut self, w: u32, h: u32) {
@@ -258,11 +260,13 @@ impl Gpu {
         let mut quads: Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Option<usize>)> = Vec::new();
         quads.push((0.0, 0.0, w as f32, top_rows as f32, 0.0, 0.0, 1.0, top_rows as f32 / h as f32, None));
         if let Some((pt, version, scroll)) = tiles {
-            if version != self.tiles_version || pt.width() != w as usize {
+            // Strips repainted since they were uploaded are uploaded again; unchanged ones stay.
+            if pt.width() != w as usize {
                 self.tiles.clear();
-                self.tiles_version = version;
             }
-            self.tiles.retain(|i, _| pt.get(*i).is_some());
+            self.tiles_version = version;
+            let gens = &self.tile_gens;
+            self.tiles.retain(|i, _| pt.get(*i).is_some() && pt.generation(*i).is_some_and(|g| gens.get(i) == Some(&g)));
             let view_h = h.saturating_sub(top_rows) as usize;
             for idx in PageTiles::visible(scroll, view_h) {
                 let Some(px) = pt.get(idx) else { continue };
@@ -270,6 +274,9 @@ impl Gpu {
                     let t = self.make_tex(w, TILE_H as u32);
                     self.upload(&t, px, w, TILE_H as u32);
                     self.tiles.insert(idx, t);
+                    if let Some(g) = pt.generation(idx) {
+                        self.tile_gens.insert(idx, g);
+                    }
                 }
                 let y = top_rows as f32 + (idx * TILE_H) as f32 - scroll;
                 quads.push((0.0, y, w as f32, TILE_H as f32, 0.0, 0.0, 1.0, 1.0, Some(idx)));
