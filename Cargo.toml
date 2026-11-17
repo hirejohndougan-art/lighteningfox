@@ -39,3 +39,14 @@ opt-level = 3
 default = ["gpu"]
 # Draw with the graphics card (Vulkan or OpenGL); falls back to software drawing at run time.
 gpu = ["dep:wgpu", "dep:pollster"]
+
+# Ironswift's own copy of the Boa JavaScript engine (batch M: Boa speed work). The changes
+# are listed in vendor/boa/IRONSWIFT.md.
+[patch.crates-io]
+boa_engine = { path = "vendor/boa/boa_engine" }
+boa_gc = { path = "vendor/boa/boa_gc" }
+boa_ast = { path = "vendor/boa/boa_ast" }
+boa_parser = { path = "vendor/boa/boa_parser" }
+boa_interner = { path = "vendor/boa/boa_interner" }
+boa_string = { path = "vendor/boa/boa_string" }
+boa_macros = { path = "vendor/boa/boa_macros" }

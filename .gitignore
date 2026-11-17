@@ -4,3 +4,6 @@
 /dist/
 /build-flatpak/
 /.flatpak-builder/
+perf.data*
+callgrind.out*
+profile.svg
