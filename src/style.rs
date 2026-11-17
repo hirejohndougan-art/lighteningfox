@@ -377,6 +377,8 @@ pub struct Style {
     pub color: Color,
     pub font_size: f32,
     pub bold: bool,
+    /// The numeric font-weight (100–900); `bold` is whether it's 600 or more. See `font_weight`.
+    pub weight: u16,
     pub italic: bool,
     pub mono: bool,
     /// The `font-family` list, lower-case (web fonts are matched against it).
@@ -527,6 +529,7 @@ impl Default for Style {
             color: Color::BLACK,
             font_size: 16.0,
             bold: false,
+            weight: 400,
             italic: false,
             mono: false,
             family: None,
@@ -608,11 +611,22 @@ impl Default for Style {
 }
 
 impl Style {
+    /// The font-weight to match fonts with: `weight`, kept in step with `bold` (which some
+    /// code sets on its own).
+    pub fn font_weight(&self) -> u16 {
+        match (self.bold, self.weight >= 600) {
+            (true, false) => 700,
+            (false, true) => 400,
+            _ => self.weight,
+        }
+    }
+
     pub(crate) fn inherit(parent: &Style) -> Style {
         Style {
             color: parent.color,
             font_size: parent.font_size,
             bold: parent.bold,
+            weight: parent.weight,
             italic: parent.italic,
             mono: parent.mono,
             family: parent.family.clone(),
@@ -2914,11 +2928,16 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "font-weight" => {
-            st.bold = match lower.as_str() {
-                "bold" | "bolder" => true,
-                "normal" | "lighter" => false,
-                n => n.parse::<u32>().map(|w| w >= 600).unwrap_or(st.bold),
-            }
+            let pw = parent.font_weight();
+            st.weight = match lower.as_str() {
+                "bold" => 700,
+                "normal" => 400,
+                // Relative to the parent's weight (CSS Fonts: the bolder/lighter table).
+                "bolder" => if pw < 350 { 400 } else if pw < 550 { 700 } else { 900 },
+                "lighter" => if pw < 550 { 100 } else if pw < 750 { 400 } else { 700 },
+                n => n.parse::<f32>().ok().filter(|w| (1.0..=1000.0).contains(w)).map(|w| w.round() as u16).unwrap_or_else(|| st.font_weight()),
+            };
+            st.bold = st.weight >= 600;
         }
         "font-style" => st.italic = lower == "italic" || lower.starts_with("oblique"),
         "font-family" => {
@@ -2930,13 +2949,18 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             let mut rest = lower.as_str();
             st.italic = false;
             st.bold = false;
+            st.weight = 400;
             while let Some((tok, after)) = rest.split_once(' ') {
                 if tok.chars().next().map_or(false, |c| c.is_ascii_digit() || c == '.') && !tok.chars().all(|c| c.is_ascii_digit()) {
                     break;
                 }
                 match tok {
                     "italic" | "oblique" => st.italic = true,
-                    "bold" | "bolder" | "600" | "700" | "800" | "900" => st.bold = true,
+                    "bold" | "bolder" => (st.bold, st.weight) = (true, 700),
+                    w if w.len() == 3 && w.ends_with("00") && w.as_bytes()[0].is_ascii_digit() => {
+                        st.weight = w.parse().unwrap_or(400);
+                        st.bold = st.weight >= 600;
+                    }
                     _ => {}
                 }
                 rest = after.trim_start();

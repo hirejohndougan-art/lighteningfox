@@ -82,7 +82,7 @@ fn plan(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts) -> Vec<crate::font::Shap
                 if st.text.letter_spacing != 0.0 {
                     continue;
                 }
-                let font = fonts.resolve(st.family.as_deref(), st.bold, st.italic, st.mono);
+                let font = fonts.resolve_weight(st.family.as_deref(), st.font_weight(), st.italic, st.mono);
                 let size = st.font_size;
                 if st.pre {
                     for line in t.replace('\t', "    ").split('\n') {

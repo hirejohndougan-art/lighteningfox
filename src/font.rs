@@ -46,6 +46,13 @@ pub fn take_web_families() -> HashMap<String, Vec<(u16, u16, bool, u8)>> {
 /// Choose a font for a `font-family` list: the first named web font the page loaded,
 /// else the first generic family (monospace…), else the default sans-serif.
 pub fn resolve(family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {
+    resolve_weight(family, if bold { 700 } else { 400 }, italic, mono)
+}
+
+/// `resolve` for a numeric font-weight: a family with 400, 500 and 700 faces gives 500 its own
+/// face (BBC News sets its headlines in Reith Serif Medium).
+pub fn resolve_weight(family: Option<&str>, weight: u16, italic: bool, mono: bool) -> u8 {
+    let bold = weight >= 600;
     let fallback = Fonts::pick(bold, italic, mono);
     let Some(list) = family else { return fallback };
     FAMILIES.with(|fams| {
@@ -53,11 +60,13 @@ pub fn resolve(family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8
         for name in list.split(',') {
             let name = name.trim().trim_matches(|c| c == '"' || c == '\'').trim();
             if let Some(faces) = fams.get(name) {
-                let want = if bold { 700 } else { 400 };
-                // Prefer the right style, then the closest weight.
+                let want = weight;
+                // Prefer the right style, then the closest weight; on a tie, lighter faces for
+                // weights up to 500 and heavier ones above (as CSS Fonts' matching does).
                 let best = faces.iter().min_by_key(|(lo, hi, it, _)| {
-                    let dist = if want < *lo { lo - want } else { want.saturating_sub(*hi) };
-                    ((*it != italic) as u32) * 10_000 + dist as u32
+                    let (dist, heavier) = if want < *lo { (lo - want, true) } else { (want.saturating_sub(*hi), false) };
+                    let wrong_side = dist > 0 && heavier == (want <= 500);
+                    ((*it != italic) as u32) * 10_000 + dist as u32 * 2 + wrong_side as u32
                 });
                 if let Some(&(_, _, _, id)) = best {
                     return id;
@@ -272,8 +281,8 @@ pub struct Fonts {
     /// Installed fonts already loaded: (file, index) -> font id.
     system: RefCell<HashMap<(String, u32), u8>>,
     /// font-family list (+ bold, italic, mono) -> font id, for the current web fonts.
-    /// (generation, list → font id for each of the 8 bold/italic/mono combinations).
-    resolved: RefCell<(u64, HashMap<String, [Option<u8>; 8]>)>,
+    /// (generation, list → font id for each weight class (100–900, or 1000) × italic × mono).
+    resolved: RefCell<(u64, HashMap<String, [Option<u8>; 40]>)>,
     /// The last answer (layout asks about the same family list word after word): flags,
     /// generation, id and the list.
     last_resolved: RefCell<(usize, u64, u8, String)>,
@@ -407,17 +416,26 @@ impl Fonts {
     /// the computer (by name, or a free look-alike for Arial, Times New Roman…), then the
     /// generic families; DejaVu Sans when nothing matches.
     pub fn resolve(&self, family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {
+        self.resolve_weight(family, if bold { 700 } else { 400 }, italic, mono)
+    }
+
+    /// `resolve` for a numeric font-weight (web fonts with several weights pick the closest).
+    pub fn resolve_weight(&self, family: Option<&str>, weight: u16, italic: bool, mono: bool) -> u8 {
+        // Weights are matched by class (each 100); the cache has one slot per class.
+        let weight = ((weight.clamp(100, 1000) + 50) / 100 * 100).min(1000);
+        let bold = weight >= 600;
         let fallback = Self::pick(bold, italic, mono);
         let Some(list) = family else { return fallback };
         let generation = FAMILIES_GEN.with(|g| g.get());
-        let flags = bold as usize | (italic as usize) << 1 | (mono as usize) << 2;
+        let flags = (weight / 100 - 1) as usize | (italic as usize) << 4 | (mono as usize) << 5;
+        let flags = (flags & 15) + 10 * (flags >> 4);
         {
             let last = self.last_resolved.borrow();
             if last.0 == flags && last.1 == generation && last.3 == list {
                 return last.2;
             }
         }
-        let id = self.resolve_list(list, flags, generation, bold, italic, mono);
+        let id = self.resolve_list(list, flags, generation, weight, italic, mono);
         let mut last = self.last_resolved.borrow_mut();
         last.3.clear();
         last.3.push_str(list);
@@ -425,7 +443,7 @@ impl Fonts {
         id
     }
 
-    fn resolve_list(&self, list: &str, flags: usize, generation: u64, bold: bool, italic: bool, mono: bool) -> u8 {
+    fn resolve_list(&self, list: &str, flags: usize, generation: u64, weight: u16, italic: bool, mono: bool) -> u8 {
         {
             let r = self.resolved.borrow();
             if r.0 == generation {
@@ -434,22 +452,23 @@ impl Fonts {
                 }
             }
         }
-        let id = self.resolve_uncached(list, bold, italic, mono);
+        let id = self.resolve_uncached(list, weight, italic, mono);
         let mut r = self.resolved.borrow_mut();
         if r.0 != generation || r.1.len() > 4096 {
             *r = (generation, HashMap::new());
         }
-        r.1.entry(list.to_string()).or_default()[flags] = Some(id);
+        r.1.entry(list.to_string()).or_insert([None; 40])[flags] = Some(id);
         id
     }
 
-    fn resolve_uncached(&self, list: &str, bold: bool, italic: bool, mono: bool) -> u8 {
+    fn resolve_uncached(&self, list: &str, weight: u16, italic: bool, mono: bool) -> u8 {
+        let bold = weight >= 600;
         let idx = crate::sysfonts::index();
         let strict = crate::settings::get().resist_fingerprinting;
         for name in list.split(',') {
             let name = name.trim().trim_matches(|c| c == '"' || c == '\'').trim();
             if FAMILIES.with(|f| f.borrow().contains_key(name)) {
-                return resolve(Some(name), bold, italic, mono);
+                return resolve_weight(Some(name), weight, italic, mono);
             }
             match name {
                 // The built-in faces: the default sans-serif and monospace.

@@ -522,3 +522,16 @@ fn legacy_navigation_timing() {
     assert_eq!(r.trim_matches('"'), "0,0,1,true,0,number");
 }
 
+
+/// BBC News headlines: font-weight 500 uses the family's 500 face, not the 400 one.
+#[test]
+fn numeric_font_weights_pick_the_closest_face() {
+    let _serial = serial();
+    let mut page = open("tests/font-weights.html");
+    let w = |page: &mut crate::Page, id: &str| eval(page, &format!("document.getElementById('{id}').getBoundingClientRect().width"));
+    let (w300, w400, w500, w600, short) = (w(&mut page, "w300"), w(&mut page, "w400"), w(&mut page, "w500"), w(&mut page, "w600"), w(&mut page, "short"));
+    assert_eq!(w300, w400, "300 falls back to the 400 face");
+    assert_ne!(w400, w500, "500 has its own face");
+    assert_eq!(w500, w600, "600 falls back to the 500 face (no heavier one)");
+    assert_eq!(w500, short, "the font shorthand's weight");
+}

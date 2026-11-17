@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- From BBC News (2026-11): Reith Serif comes in 400, 500 and 700 faces and headlines use 500.
+     A numeric weight picks the closest face (lighter first up to 500, heavier first above), not
+     just "bold or not". Here the 500 face is a bold file, so it's easy to tell apart. -->
+<html><head><title>Font weights</title>
+<style>
+  @font-face { font-family: "W"; src: url(fonts/poppins-regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: "W"; src: url(fonts/poppins-bold.woff2) format("woff2"); font-weight: 500; }
+  span { font-family: "W"; font-size: 20px; }
+</style></head>
+<body>
+<p><span id="w300" style="font-weight: 300">Headline text</span></p>
+<p><span id="w400" style="font-weight: 400">Headline text</span></p>
+<p><span id="w500" style="font-weight: 500">Headline text</span></p>
+<p><span id="w600" style="font-weight: 600">Headline text</span></p>
+<p style="font: 500 20px W"><span id="short" style="font-family: W">Headline text</span></p>
+<script>/* layout is read by the test */</script>
+</body></html>
