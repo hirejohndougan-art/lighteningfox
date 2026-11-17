@@ -32,6 +32,9 @@ mod filepicker;
 mod forms;
 mod formui;
 mod geometry;
+mod webgl;
+mod webgl_raster;
+mod webgl_tex;
 mod glsl;
 mod glsl_gen;
 mod glsl_vm;
@@ -4696,6 +4699,7 @@ mod screenshot_tests {
         ("about:home", 1024),
         ("tests/images.html", 1024),
         ("tests/canvas.html", 860),
+        ("tests/webgl.html", 1024),
         ("tests/dotted.html", 400),
         ("tests/css3.html", 900),
         ("tests/backgrounds.html", 1024),

@@ -487,6 +487,7 @@
     if (typeof img === "object" && img.nodeType === 1) {
       const tag = img.localName;
       if (tag === "canvas") {
+        if (g.__glFlushCanvas) g.__glFlushCanvas(img.__id);
         if (!contexts.has(img.__id) && canvasDim(img, "width", 300) && canvasDim(img, "height", 150)) getContext.call(img, "2d");
         const s = __cvSourceSize(1, String(img.__id));
         return s ? [1, String(img.__id), s[0], s[1]] : null;
@@ -849,14 +850,20 @@
 
   // ---- the <canvas> element
   const contexts = new Map();
-  function getContext(type) {
+  function getContext(type, attrs) {
     type = String(type);
+    if (type === "webgl" || type === "experimental-webgl" || type === "webgl2") {
+      if (contexts.has(this.__id) || !g.__webglGetContext) return null;
+      return g.__webglGetContext(this, type === "webgl2" ? "webgl2" : "webgl", attrs);
+    }
     if (type !== "2d") return null;
+    if (g.__webglHas && g.__webglHas(this.__id)) return null;
     let c = contexts.get(this.__id);
     if (!c) { c = new CanvasRenderingContext2D(this); contexts.set(this.__id, c); }
     return c;
   }
   function toDataURL(type, q) {
+    if (g.__glFlushCanvas) g.__glFlushCanvas(this.__id);
     const c = contexts.get(this.__id);
     if (!c) {
       // A canvas never drawn on is still a blank image of its size.
@@ -906,6 +913,7 @@
       this.setAttribute(name, String(v));
       const c = contexts.get(this.__id);
       if (c) c.__reset(); // setting the size clears the canvas, even to the same value
+      if (g.__glResizeCanvas) g.__glResizeCanvas(this);
     });
   }
 
@@ -917,10 +925,10 @@
       this.__offscreen.__offscreenOwner = this;
     }
     get width() { return this.__offscreen.__offscreenSize[0]; }
-    set width(v) { this.__offscreen.__offscreenSize[0] = Math.max(0, v | 0); const c = contexts.get(this.__offscreen.__id); if (c) c.__reset(); }
+    set width(v) { this.__offscreen.__offscreenSize[0] = Math.max(0, v | 0); const c = contexts.get(this.__offscreen.__id); if (c) c.__reset(); if (g.__glResizeCanvas) g.__glResizeCanvas(this.__offscreen); }
     get height() { return this.__offscreen.__offscreenSize[1]; }
-    set height(v) { this.__offscreen.__offscreenSize[1] = Math.max(0, v | 0); const c = contexts.get(this.__offscreen.__id); if (c) c.__reset(); }
-    getContext(type) { return getContext.call(this.__offscreen, type); }
+    set height(v) { this.__offscreen.__offscreenSize[1] = Math.max(0, v | 0); const c = contexts.get(this.__offscreen.__id); if (c) c.__reset(); if (g.__glResizeCanvas) g.__glResizeCanvas(this.__offscreen); }
+    getContext(type, attrs) { return getContext.call(this.__offscreen, type, attrs); }
     convertToBlob(opts) {
       return new Promise((res) => toBlob.call(this.__offscreen, res, opts && opts.type));
     }

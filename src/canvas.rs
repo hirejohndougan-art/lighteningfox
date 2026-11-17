@@ -78,10 +78,13 @@ pub fn install(ctx: &mut Context) {
     if let Err(e) = ctx.eval(Source::from_bytes(include_str!("canvas.js").as_bytes())) {
         log!("[ironswift] canvas setup failed: {e}");
     }
+    // WebGL contexts come from the same getContext().
+    crate::webgl::install(ctx);
 }
 
 /// Copy canvases drawn on since the last call into the page's images.
 pub fn publish(ctx: &Context, images: &mut Images) {
+    crate::webgl::present(ctx);
     let Some(store) = ctx.get_data::<RefCell<Store>>() else { return };
     let mut store = store.borrow_mut();
     for (id, cv) in store.canvases.iter_mut() {
@@ -1098,4 +1101,32 @@ fn n_decode_into(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     st.canvases.insert(id, Cv { pix, clip: None, saved: Vec::new(), version, published: 0 });
     drop(st);
     Ok(JsArray::from_iter([JsValue::from(w), JsValue::from(h)], ctx).into())
+}
+
+/// Replace a canvas's pixels with a WebGL frame (premultiplied RGBA, top row first).
+pub(crate) fn set_frame(ctx: &Context, id: NodeId, w: u32, h: u32, px: &[u8]) {
+    let Some(store) = ctx.get_data::<RefCell<Store>>() else { return };
+    let mut s = store.borrow_mut();
+    let Some(mut pix) = Pixmap::new(w.max(1), h.max(1)) else { return };
+    if w > 0 && h > 0 && px.len() >= (w * h * 4) as usize {
+        for (dst, c) in pix.pixels_mut().iter_mut().zip(px.chunks_exact(4)) {
+            if let Some(p) = tiny_skia::PremultipliedColorU8::from_rgba(c[0], c[1], c[2], c[3]) {
+                *dst = p;
+            }
+        }
+    }
+    let version = s.canvases.get(&id).map_or(1, |c| c.version + 1);
+    s.canvases.insert(id, Cv { pix, clip: None, saved: Vec::new(), version, published: 0 });
+}
+
+/// Straight RGBA pixels (top row first) of an image source: 0 = <img>, 1 = canvas.
+pub(crate) fn source_rgba(ctx: &Context, kind: u8, key: &str) -> Option<(u32, u32, Vec<u8>)> {
+    let store = ctx.get_data::<RefCell<Store>>()?;
+    let pix = source_pixmap(&mut store.borrow_mut(), kind, key)?;
+    let mut out = Vec::with_capacity(pix.pixels().len() * 4);
+    for p in pix.pixels() {
+        let c = p.demultiply();
+        out.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    Some((pix.width(), pix.height(), out))
 }
