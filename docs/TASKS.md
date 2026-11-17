@@ -51,7 +51,7 @@ process keeping the window, network, cookies and storage.
 Measure before and after with the JavaScript benchmark page and `tools/perf_check.py`.
 
 ### T09. `<video>` and `<audio>` playback
-**Status:** free
+**Status:** claimed by chat-opus-t09 2026-11-17 04:52
 **After:** —
 **Checklist:** §7 "`<video>` and `<audio>` playback"
 **Files:** new `src/media.rs`, a new JS file for HTMLMediaElement, replaced-element parts of `src/layout.rs`
