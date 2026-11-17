@@ -34,6 +34,8 @@ mod devtools;
 mod pdf;
 mod treebuilder;
 mod zoom;
+mod effects;
+mod anim;
 mod images;
 mod js;
 mod jsnest;
@@ -420,6 +422,7 @@ impl Page {
         if self.styled_for.0 > 0.0 {
             css::set_viewport(self.styled_for.0, self.styled_for.1);
         }
+        anim::set_current(self.anim_key());
         self.styles = js::with_dom(|d| match d.composed() {
             Some(c) => style::compute(&c, &self.sheets),
             None => style::compute(d, &self.sheets),
@@ -450,6 +453,14 @@ impl Page {
         });
         geometry::publish(&lay, cw, ch);
         if (z - 1.0).abs() < 1e-4 { lay } else { lay.scaled(z) }
+    }
+
+    /// This page's CSS animation timeline.
+    fn anim_key(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.loaded_at.hash(&mut h);
+        h.finish()
     }
 
     fn zoom(&self) -> f32 {
@@ -2011,7 +2022,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 animating = true;
             }
         }
-        if js::take_dirty() {
+        // CSS transitions and animations move every frame while they run.
+        if js::take_dirty() || anim::active() {
             page.restyle();
             lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
             page_version += 1;

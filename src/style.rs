@@ -317,6 +317,13 @@ pub struct Style {
     /// `transform`, with the individual `translate`/`rotate`/`scale` properties folded in front.
     pub transform: Option<Rc<str>>,
     pub transform_origin: Option<Rc<str>>,
+    /// `filter` and `backdrop-filter` (not inherited).
+    pub filter: Option<Rc<[crate::effects::Filter]>>,
+    pub backdrop: Option<Rc<[crate::effects::Filter]>>,
+    /// `text-shadow` (inherited).
+    pub text_shadow: Option<Rc<[crate::effects::TextShadow]>>,
+    /// `animation-*` and `transition-*` (not inherited).
+    pub anim: Option<Rc<crate::anim::AnimSpec>>,
     /// box-sizing: border-box — width/height include padding and border.
     pub border_box: bool,
     /// float: Some(true) = left, Some(false) = right.
@@ -392,6 +399,10 @@ impl Default for Style {
             max_height: Len::Auto,
             transform: None,
             transform_origin: None,
+            filter: None,
+            backdrop: None,
+            text_shadow: None,
+            anim: None,
             border_box: false,
             float: None,
             clear: (false, false),
@@ -440,6 +451,7 @@ impl Style {
             list_style: parent.list_style,
             hidden: parent.hidden,
             fade: parent.fade,
+            text_shadow: parent.text_shadow.clone(),
             vars: parent.vars.clone(),
             border_spacing: parent.border_spacing,
             border_collapse: parent.border_collapse,
@@ -610,6 +622,7 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
     let mut styles: Vec<Rc<Style>> = vec![hidden; dom.nodes.len()];
     styles[0] = Rc::new(Style { display: Display::Block, ..Style::default() });
     let mut shared: HashMap<(usize, Vec<usize>, String), Rc<Style>> = HashMap::new();
+    crate::anim::begin_pass(sheets);
     // Walk the tree parent-first (scripts can move nodes, so ids aren't in tree order).
     let mut stack: Vec<NodeId> = dom.nodes[0].children.iter().rev().copied().collect();
     while let Some(id) = stack.pop() {
@@ -666,7 +679,9 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             // dir="auto" depends on the element's own text.
             + &if dom.attr(id, "dir").is_some_and(|d| d.eq_ignore_ascii_case("auto")) { format!("#{id}") } else { String::new() };
         let key = (Rc::as_ptr(&parent_style) as usize, matched.iter().map(|m| m.decl as *const Decl as usize).collect(), attr_key);
-        if let Some(s) = shared.get(&key) {
+        // Animated elements each move on their own clock: never share their style.
+        let animated = crate::anim::has_state(id) || matched.iter().any(|m| crate::anim::is_anim_prop(&m.decl.name)) || dom.attr(id, "style").is_some_and(|s| s.contains("animation") || s.contains("transition"));
+        if let Some(s) = shared.get(&key).filter(|_| !animated) {
             styles[id] = s.clone();
             continue;
         }
@@ -700,6 +715,19 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
         if !hinted {
             presentational_hints(dom, id, &mut st, &parent_style);
         }
+        // Transitions and animations override the cascaded values.
+        if st.anim.is_some() || crate::anim::has_state(id) {
+            let mut won: Vec<(String, String)> = Vec::new();
+            for m in matched.iter().filter(|m| !m.decl.name.starts_with("--")) {
+                let value = if m.decl.value.contains("var(") { substitute_vars(&m.decl.value, &st.vars, 0) } else { m.decl.value.clone() };
+                won.retain(|(n, _)| *n != m.decl.name);
+                won.push((m.decl.name.clone(), value.trim().to_string()));
+            }
+            for (name, value) in crate::anim::animate(id, st.anim.clone().as_deref(), &won) {
+                let value = if value.contains("var(") { substitute_vars(&value, &st.vars, 0) } else { value };
+                apply(&mut st, &parent_style, &name, &value);
+            }
+        }
         // The reader's minimum font size (Settings → Appearance).
         if min_font > 0.0 && st.font_size < min_font {
             st.font_size = min_font;
@@ -729,9 +757,12 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
             st.border_color = st.color;
         }
         let st = Rc::new(st);
-        shared.insert(key, st.clone());
+        if !animated {
+            shared.insert(key, st.clone());
+        }
         styles[id] = st;
     }
+    crate::anim::end_pass();
     styles
 }
 
@@ -1753,6 +1784,26 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
         return; // inherited props already inherited; good enough for now
     }
     let fs = st.font_size;
+    if crate::anim::is_anim_prop(name) {
+        crate::anim::apply_prop(&mut st.anim, name, v);
+        return;
+    }
+    match name {
+        "filter" | "-webkit-filter" | "backdrop-filter" | "-webkit-backdrop-filter" => {
+            if let Some(f) = crate::effects::parse_filters(v, fs) {
+                let f = (!f.is_empty()).then(|| Rc::from(f));
+                if name.ends_with("backdrop-filter") { st.backdrop = f } else { st.filter = f }
+            }
+            return;
+        }
+        "text-shadow" => {
+            if let Some(s) = crate::effects::parse_text_shadow(v, fs) {
+                st.text_shadow = (!s.is_empty()).then(|| Rc::from(s));
+            }
+            return;
+        }
+        _ => {}
+    }
     let lens = |s: &str| -> Option<Vec<Len>> {
         css::split_top(s, ' ').iter().filter(|t| !t.trim().is_empty()).map(|t| parse_len(t, fs)).collect()
     };

@@ -36,6 +36,30 @@ pub enum Item {
     /// off-screen over the page area (x, y, w, h), then onto the page through matrix `m`.
     TransformPush { m: [f32; 6], x: f32, y: f32, w: f32, h: f32 },
     TransformPop,
+    /// Start of an element with `filter`/`backdrop-filter` (or a blurred text shadow): the
+    /// items up to the matching EffectPop are drawn off-screen, filtered, then blended in.
+    EffectPush(Box<crate::effects::Effect>),
+    EffectPop,
+}
+
+/// Index of the EffectPop matching the EffectPush just before `from` (or items.len()).
+fn matching_pop(items: &[Item], from: usize) -> usize {
+    let mut depth = 1;
+    let mut j = from;
+    while j < items.len() {
+        match items[j] {
+            Item::EffectPush(_) => depth += 1,
+            Item::EffectPop => {
+                depth -= 1;
+                if depth == 0 {
+                    return j;
+                }
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+    items.len()
 }
 
 /// How far a sticky box moves down at this scroll position.
@@ -57,7 +81,7 @@ fn rounded_dist(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32) -> f32
 
 /// Coverage (0..1) of pixel center (px, py) inside a rounded rectangle. Anti-aliased edges.
 #[inline]
-fn rounded_cov(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32) -> f32 {
+pub(crate) fn rounded_cov(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32, r: f32) -> f32 {
     if w <= 0.0 || h <= 0.0 {
         return 0.0;
     }
@@ -183,6 +207,16 @@ impl Canvas {
         let g = mix(c.g, (d >> 8) & 0xFF);
         let b = mix(c.b, d & 0xFF);
         self.buf[i] = (r << 16) | (g << 8) | b;
+    }
+
+    /// Blend one pixel (respecting the current clips).
+    pub(crate) fn blend_px(&mut self, x: i32, y: i32, c: Color, coverage: f32) {
+        self.blend(x, y, c, coverage);
+    }
+
+    /// Paint a group of items with page coordinates shifted by (dx, dy), no scrolling.
+    pub(crate) fn paint_group(&mut self, fonts: &Fonts, images: &Images, items: &[Item], dx: f32, dy: f32) {
+        self.paint_at(fonts, images, items, dx, dy, 0.0);
     }
 
     /// Draw a small ARGB image (an icon) with its alpha, top-left at (x, y).
@@ -415,7 +449,13 @@ impl Canvas {
             let item = &items[i];
             i += 1;
             match item {
-                Item::Mark { .. } | Item::ScrollArea { .. } | Item::TransformPop => {}
+                Item::Mark { .. } | Item::ScrollArea { .. } | Item::TransformPop | Item::EffectPop => {}
+                Item::EffectPush(fx) => {
+                    let j = matching_pop(items, i);
+                    let inner = &items[i..j.min(items.len())];
+                    i = j + 1;
+                    self.draw_effect(fonts, images, inner, fx, dx, dy);
+                }
                 Item::TransformPush { m, x, y, w, h: th } => {
                     // Find the matching pop.
                     let mut depth = 1;

@@ -4,6 +4,8 @@
 pub struct Stylesheet {
     pub rules: Vec<Rule>,
     pub font_faces: Vec<FontFace>,
+    /// `@keyframes` rules, for CSS animations.
+    pub keyframes: Vec<crate::anim::Keyframes>,
 }
 
 /// An `@font-face` rule: a downloadable font for a family name.
@@ -107,7 +109,8 @@ pub fn parse(src: &str) -> Stylesheet {
     let mut rules = Vec::new();
     let mut font_faces = Vec::new();
     parse_block(&clean, &mut rules, &mut font_faces, None);
-    Stylesheet { rules, font_faces }
+    let keyframes = if clean.contains("keyframes") { crate::anim::find_keyframes(&clean) } else { Vec::new() };
+    Stylesheet { rules, font_faces, keyframes }
 }
 
 /// Parse a declaration list like the `style=""` attribute.

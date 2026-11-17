@@ -107,6 +107,7 @@ impl Layout {
                 Item::StickyPush { id, y, h, top, limit } => Item::StickyPush { id: *id, y: y * z, h: h * z, top: top * z, limit: limit * z },
                 Item::ScrollArea { id, x, y, w, h, max } => Item::ScrollArea { id: *id, x: x * z, y: y * z, w: w * z, h: h * z, max: max * z },
                 Item::TransformPush { m, x, y, w, h } => Item::TransformPush { m: [m[0], m[1], m[2], m[3], m[4] * z, m[5] * z], x: x * z, y: y * z, w: w * z, h: h * z },
+                Item::EffectPush(fx) => Item::EffectPush(Box::new(fx.scaled(z))),
                 other => other.clone(),
             })
             .collect();
@@ -486,7 +487,8 @@ fn shift_item(it: &mut Item, dx: f32, dy: f32) {
             *y += dy;
             *m = crate::transform::mul(crate::transform::translate(dx, dy), crate::transform::mul(*m, crate::transform::translate(-dx, -dy)));
         }
-        Item::TransformPop => {}
+        Item::EffectPush(fx) => fx.shift(dx, dy),
+        Item::TransformPop | Item::EffectPop => {}
         Item::ClipPop | Item::FixedPush | Item::FixedPop | Item::StickyPop => {}
     }
 }
@@ -927,12 +929,29 @@ impl<'a> Ctx<'a> {
         }
         // A stacking context (a transform, or a positioned box with a z-index) keeps the
         // z-index layers of its descendants inside itself, ordered among its own content.
-        let forms_context = self.styles[id].transform.is_some() || positioned && self.styles[id].z_index != 0;
+        let forms_context = self.styles[id].transform.is_some() || self.styles[id].filter.is_some() || self.styles[id].backdrop.is_some() || positioned && self.styles[id].z_index != 0;
         if forms_context && self.layers.len() > layers_start && !self.measuring {
             let inner: Vec<(i32, Vec<Item>)> = self.layers.drain(layers_start..).collect();
             let own: Vec<Item> = self.items.drain(start.0..).collect();
             let merged = merge_layers(own, inner);
             self.items.extend(merged);
+        }
+        // filter / backdrop-filter: the element's items are drawn off-screen and filtered.
+        let (fil, bd) = (self.styles[id].filter.clone(), self.styles[id].backdrop.clone());
+        if (fil.is_some() || bd.is_some()) && !self.measuring {
+            let area = self.items_bounds(start.0, (bx, top, box_w, box_h));
+            let fx = crate::effects::Effect {
+                x: bx,
+                y: top,
+                w: box_w,
+                h: box_h,
+                radius,
+                area,
+                filter: fil.map(|f| f.to_vec()).unwrap_or_default(),
+                backdrop: bd.map(|f| f.to_vec()).unwrap_or_default(),
+            };
+            self.items.insert(start.0, Item::EffectPush(Box::new(fx)));
+            self.items.push(Item::EffectPop);
         }
         // CSS transforms. A pure translation just moves everything; anything else is drawn
         // off-screen and mapped through the matrix at paint time.
@@ -1005,6 +1024,10 @@ impl<'a> Ctx<'a> {
                 Item::TransformPush { m, x, y, w, h } => {
                     let (bx, by, bw, bh) = crate::transform::bounds(m, *x, *y, *w, *h);
                     grow(bx, by, bw, bh)
+                }
+                Item::EffectPush(fx) => {
+                    let m = fx.margin();
+                    grow(fx.area.0 - m, fx.area.1 - m, fx.area.2 + 2.0 * m, fx.area.3 + 2.0 * m)
                 }
                 _ => {}
             }
@@ -2378,10 +2401,11 @@ impl<'a> Ctx<'a> {
                 | Item::StickyPush { y, .. } => col_of(*y),
                 Item::Shadow { y, blur, .. } => col_of(*y - *blur),
                 Item::Text { y, size, .. } => col_of(*y - *size),
-                Item::ClipPop | Item::TransformPop | Item::StickyPop | Item::FixedPop => stack.pop().unwrap_or(last),
+                Item::EffectPush(fx) => col_of(fx.area.1),
+                Item::ClipPop | Item::TransformPop | Item::StickyPop | Item::FixedPop | Item::EffectPop => stack.pop().unwrap_or(last),
                 Item::FixedPush => last,
             };
-            if matches!(it, Item::ClipPush { .. } | Item::TransformPush { .. } | Item::StickyPush { .. } | Item::FixedPush) {
+            if matches!(it, Item::ClipPush { .. } | Item::TransformPush { .. } | Item::StickyPush { .. } | Item::FixedPush | Item::EffectPush(_)) {
                 stack.push(c);
             }
             last = c;
@@ -2942,6 +2966,8 @@ impl<'a> Ctx<'a> {
             }
             carried = open.into_iter().map(|(n, _)| n).collect();
             boxes.sort_by_key(|(d, _)| *d);
+            // Text items whose text has a text-shadow (their shadows go in after the line).
+            let mut shadowed: Vec<(usize, NodeId)> = Vec::new();
             for (pi, p) in line.items.iter().enumerate() {
                 let (rdx, rdy) = self.inline_rel(tok_node(&toks[p.tok]), w);
                 let px = x + shift + p.x + rdx;
@@ -2974,6 +3000,9 @@ impl<'a> Ctx<'a> {
                                 _ => false,
                             };
                             if !joined {
+                                if s.text_shadow.is_some() {
+                                    shadowed.push((self.items.len(), *node));
+                                }
                                 self.items.push(Item::Text { x: px, y: baseline, text: text.clone(), font, size, color: s.color });
                             }
                             let deco = s.underline || s.line_through || s.overline;
@@ -3053,6 +3082,12 @@ impl<'a> Ctx<'a> {
                         }
                     }
                     _ => {}
+                }
+            }
+            for &(i, n) in shadowed.iter().rev() {
+                if let Some(sh) = self.styles[n].text_shadow.clone() {
+                    let extra = crate::effects::text_shadow_items(&self.items[i], &sh);
+                    self.items.splice(i..i, extra);
                 }
             }
             if !boxes.is_empty() {
