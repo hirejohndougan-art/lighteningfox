@@ -20,7 +20,7 @@ struct Geometry {
     version: u64,
 }
 
-type Provider = Box<dyn Fn(f32, f32) -> Layout>;
+pub type Provider = Box<dyn Fn(f32, f32) -> Layout>;
 
 thread_local! {
     static GEOM: RefCell<Geometry> = RefCell::new(Geometry { view_w: 1024.0, view_h: 768.0, version: u64::MAX, ..Default::default() });
@@ -44,6 +44,11 @@ pub fn set_provider(p: Option<Provider>) {
         g.version = u64::MAX;
         g.scroll = 0.0;
     });
+}
+
+/// Take the on-demand layout function out (the page's tab is going to the background).
+pub fn take_provider() -> Option<Provider> {
+    PROVIDER.with(|c| c.borrow_mut().take())
 }
 
 /// Record a finished layout (the window calls this whenever it lays out).

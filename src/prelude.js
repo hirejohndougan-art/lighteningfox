@@ -996,10 +996,11 @@
                  onLine: true, cookieEnabled: true, globalPrivacyControl: true, doNotTrack: "1", hardwareConcurrency: 2, maxTouchPoints: 0, vendor: "" },
     screen: { width: 1366, height: 768, availWidth: 1366, availHeight: 768, colorDepth: 24 },
     devicePixelRatio: 1, scrollX: 0, pageXOffset: 0,
+    open(url) { const u = url == null || url === "" ? "about:blank" : __resolve(location.href, String(url)); return __open(u) ? { closed: false, focus() {}, close() {}, location: { href: u }, document: null, postMessage() {} } : null; },
     scrollTo(a, b) { __scrollTo(typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0)); },
     scrollBy(a, b) { __scrollTo(g.scrollY + (typeof a === "object" && a ? Number(a.top || 0) : Number(b || 0))); },
     scroll(a, b) { g.scrollTo(a, b); },
-    focus() {}, blur() {}, print() {}, open() { return null; }, close() {},
+    focus() {}, blur() {}, print() {}, close() {},
     alert: (m) => __log("alert", String(m)), confirm: () => false, prompt: () => null,
     getComputedStyle: (el) => el.style,
     matchMedia: (q) => {

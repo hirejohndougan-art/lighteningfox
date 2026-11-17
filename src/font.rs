@@ -27,6 +27,10 @@ pub fn set_web_families(map: HashMap<String, Vec<(u16, u16, bool, u8)>>) {
     FAMILIES.with(|f| *f.borrow_mut() = map);
 }
 
+pub fn take_web_families() -> HashMap<String, Vec<(u16, u16, bool, u8)>> {
+    FAMILIES.with(|f| std::mem::take(&mut *f.borrow_mut()))
+}
+
 /// Choose a font for a `font-family` list: the first named web font the page loaded,
 /// else the first generic family (monospace…), else the default sans-serif.
 pub fn resolve(family: Option<&str>, bold: bool, italic: bool, mono: bool) -> u8 {

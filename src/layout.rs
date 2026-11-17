@@ -26,6 +26,15 @@ pub fn set_element_scroll(id: NodeId, y: f32) {
     });
 }
 
+/// Take a page's box scroll positions out (its tab is going to the background) / put them back.
+pub fn take_element_scrolls() -> HashMap<NodeId, f32> {
+    SCROLLS.with(|s| std::mem::take(&mut *s.borrow_mut()))
+}
+
+pub fn set_element_scrolls(m: HashMap<NodeId, f32>) {
+    SCROLLS.with(|s| *s.borrow_mut() = m);
+}
+
 /// A new page: every box starts unscrolled.
 pub fn reset_element_scrolls() {
     SCROLLS.with(|s| s.borrow_mut().clear());
@@ -117,6 +126,7 @@ impl Rect {
     }
 }
 
+#[derive(Default)]
 pub struct Layout {
     pub items: Vec<Item>,
     pub links: Vec<(Rect, String)>,

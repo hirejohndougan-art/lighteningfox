@@ -22,7 +22,7 @@ pub fn uses_hover(sheets: &[Stylesheet]) -> bool {
 
 pub const VIEWPORT_W: f32 = 1024.0;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Color {
     pub r: u8,
     pub g: u8,

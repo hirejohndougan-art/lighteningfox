@@ -29,6 +29,9 @@ thread_local! {
     /// Requests from script for the browser: submit a form, move focus.
     static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
     static HISTORY: RefCell<Vec<HistoryOp>> = const { RefCell::new(Vec::new()) };
+    static OPEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// True while a user's click is being handled (window.open is allowed then).
+    static ACTIVATION: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Things scripts ask the browser to do that the window loop carries out.
@@ -96,6 +99,8 @@ pub struct Js {
     ctx: Context,
     start: Instant,
     pub stats: Stats,
+    /// This page's tag on background requests (pages in other tabs have their own).
+    epoch: u64,
 }
 
 // ------------------------------------------------------------ helpers
@@ -587,6 +592,40 @@ fn n_set_el_scroll(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
     Ok(JsValue::undefined())
 }
 
+/// Make this page's requests the ones new fetches are tagged with (its tab became active).
+pub fn activate(js: &Js) {
+    EPOCH.store(js.epoch, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// A closed page's undelivered requests can be dropped.
+pub fn forget(js: &Js) {
+    if let Ok(mut q) = NET_DONE.lock() {
+        q.retain(|d| d.0 != js.epoch);
+    }
+}
+
+/// Take the page's DOM out (its tab is going to the background).
+pub fn take_dom() -> Dom {
+    DOM.with(|d| std::mem::replace(&mut *d.borrow_mut(), Dom::new()))
+}
+
+/// Pages that a script asked to open (window.open) during a click.
+pub fn take_open_requests() -> Vec<String> {
+    OPEN.with(|o| std::mem::take(&mut *o.borrow_mut()))
+}
+
+/// __open(url): window.open — only while handling a click, so pages can't pop up windows on their own.
+fn n_open(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let url = arg_str(a, 0, ctx)?;
+    let allowed = ACTIVATION.with(Cell::get);
+    if allowed {
+        OPEN.with(|o| o.borrow_mut().push(url));
+    } else {
+        eprintln!("[popup blocked] {url}");
+    }
+    Ok(JsValue::from(allowed))
+}
+
 /// True while any background request is still running or waiting to be delivered.
 pub fn network_busy() -> bool {
     NET_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst) > 0 || NET_DONE.lock().map(|q| !q.is_empty()).unwrap_or(false)
@@ -651,7 +690,7 @@ const PRELUDE: &str = include_str!("prelude.js");
 
 impl Js {
     pub fn new(url: &str) -> Js {
-        EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let epoch = EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         let mut ctx = Context::default();
         // Keep runaway scripts from freezing the browser.
         ctx.runtime_limits_mut().set_loop_iteration_limit(200_000_000);
@@ -682,6 +721,7 @@ impl Js {
             ("__navigate", 1, n_navigate),
             ("__request", 3, n_request),
             ("__history", 3, n_history),
+            ("__open", 1, n_open),
             ("__storageLoad", 1, n_storage_load),
             ("__storageSave", 2, n_storage_save),
             ("__netStart", 8, n_net_start),
@@ -710,7 +750,7 @@ impl Js {
         if let Err(e) = ctx.eval(Source::from_bytes(PRELUDE.as_bytes())) {
             eprintln!("[lighteningfox] prelude failed: {e}");
         }
-        Js { ctx, start: Instant::now(), stats: Stats::default() }
+        Js { ctx, start: Instant::now(), stats: Stats::default(), epoch }
     }
 
     fn eval(&mut self, code: &str, label: &str) -> Option<JsValue> {
@@ -799,10 +839,18 @@ impl Js {
 
     /// Advance timers to "now" and deliver finished requests. Returns true if anything ran.
     pub fn tick(&mut self) -> bool {
-        let done: Vec<_> = NET_DONE.lock().map(|mut q| std::mem::take(&mut *q)).unwrap_or_default();
+        // Take only this page's finished requests; other tabs' wait in the queue.
+        let epoch = self.epoch;
+        let done: Vec<_> = NET_DONE
+            .lock()
+            .map(|mut q| {
+                let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut *q).into_iter().partition(|d| d.0 == epoch);
+                *q = rest;
+                mine
+            })
+            .unwrap_or_default();
         let delivered = !done.is_empty();
-        let epoch = EPOCH.load(std::sync::atomic::Ordering::SeqCst);
-        for (_, id, r) in done.into_iter().filter(|d| d.0 == epoch) {
+        for (_, id, r) in done {
             let code = format!("__netDone({id}, {})", response_js(&r));
             self.eval(&code, "network");
         }
@@ -856,6 +904,9 @@ impl Js {
 
     /// Dispatch a click on a node. Returns false if the page called preventDefault().
     pub fn click(&mut self, node: NodeId) -> bool {
-        self.eval(&format!("__dispatch({node}, 'click')"), "click").map_or(true, |v| v.to_boolean())
+        ACTIVATION.with(|a| a.set(true));
+        let r = self.eval(&format!("__dispatch({node}, 'click')"), "click").map_or(true, |v| v.to_boolean());
+        ACTIVATION.with(|a| a.set(false));
+        r
     }
 }

@@ -32,7 +32,12 @@ use std::time::Instant;
 use std::rc::Rc;
 use style::Color;
 
-const BAR_H: usize = 36;
+/// The tab strip above the toolbar, and the toolbar itself.
+const TAB_H: f32 = 34.0;
+const TOOL_H: f32 = 36.0;
+const BAR_H: usize = (TAB_H + TOOL_H) as usize;
+const TAB_MAX_W: f32 = 220.0;
+const NEW_TAB_W: f32 = 32.0;
 /// Toolbar buttons: (x, label). Each is BTN_W wide.
 const BTN_W: f32 = 30.0;
 const BUTTONS: [(f32, &str); 3] = [(6.0, "←"), (38.0, "→"), (70.0, "↻")];
@@ -50,11 +55,101 @@ enum Go {
 
 /// Which toolbar button (0 back, 1 forward, 2 reload) is under (x, y), if any.
 fn button_at(x: f32, y: f32) -> Option<usize> {
-    if y >= BAR_H as f32 {
+    if y < TAB_H || y >= BAR_H as f32 {
         return None;
     }
     BUTTONS.iter().position(|(bx, _)| x >= *bx && x < bx + BTN_W)
 }
+/// What's under the mouse in the tab strip.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum TabHit {
+    Tab(usize),
+    Close(usize),
+    New,
+}
+
+/// Each tab's (x, width) in a window `w` wide holding `n` tabs.
+fn tab_rects(w: f32, n: usize) -> Vec<(f32, f32)> {
+    let avail = (w - 8.0 - NEW_TAB_W - 8.0).max(60.0);
+    let tw = (avail / n.max(1) as f32).min(TAB_MAX_W).floor();
+    (0..n).map(|i| (6.0 + i as f32 * tw, tw)).collect()
+}
+
+fn tab_at(x: f32, y: f32, w: f32, n: usize) -> Option<TabHit> {
+    if y >= TAB_H || y < 4.0 {
+        return None;
+    }
+    let rects = tab_rects(w, n);
+    for (i, &(tx, tw)) in rects.iter().enumerate() {
+        if x >= tx && x < tx + tw {
+            // The × sits at the right end of a tab.
+            return Some(if tw > 60.0 && x >= tx + tw - 26.0 { TabHit::Close(i) } else { TabHit::Tab(i) });
+        }
+    }
+    let end = rects.last().map_or(6.0, |&(tx, tw)| tx + tw);
+    (x >= end + 4.0 && x < end + 4.0 + NEW_TAB_W).then_some(TabHit::New)
+}
+
+/// A tab that isn't showing: everything the window loop keeps for the visible tab, plus the
+/// page's per-thread state (its DOM, box scroll positions, web fonts, on-demand layout).
+struct Saved {
+    page: Page,
+    scroll: f32,
+    back: Vec<Entry>,
+    forward: Vec<Entry>,
+    current: Entry,
+    focused: Option<dom::NodeId>,
+    address: String,
+    dom: dom::Dom,
+    scrolls: HashMap<dom::NodeId, f32>,
+    families: HashMap<String, Vec<(u16, u16, bool, u8)>>,
+    provider: Option<geometry::Provider>,
+}
+
+/// A background tab. A page that finishes loading while its tab is hidden waits in
+/// `pending` and is built when the tab is shown (so hidden tabs cost little).
+struct Slot {
+    saved: Option<Saved>,
+    loading: Option<Loading>,
+    pending: Option<(Loading, Prepared)>,
+    title: String,
+    url: String,
+}
+
+/// What the tab strip and shortcuts asked for; carried out at the top of the next frame.
+enum TabCmd {
+    Switch(usize),
+    Close(usize),
+    /// Open a URL in a new tab, in front or in the background.
+    Open(String, bool),
+}
+
+impl Page {
+    /// A page with nothing in it, touching no per-thread state (a placeholder while tabs swap).
+    fn empty() -> Page {
+        Page {
+            url: "about:blank".into(),
+            title: String::new(),
+            sheets: Vec::new(),
+            styles: Vec::new(),
+            images: images::Images::default(),
+            js: None,
+            hover_rules: false,
+            doc: 0,
+            form_defaults: Vec::new(),
+        }
+    }
+
+    fn label(&self) -> String {
+        if self.title.trim().is_empty() { self.url.clone() } else { self.title.trim().to_string() }
+    }
+}
+
+/// The <title> of a fetched page, for a background tab's label.
+fn prepared_title(p: &Prepared) -> String {
+    p.dom.find_all("title").first().map(|&t| p.dom.text_content(t).trim().to_string()).filter(|t| !t.is_empty()).unwrap_or_else(|| p.url.clone())
+}
+
 const START_PAGE: &str = include_str!("start.html");
 
 struct Page {
@@ -201,6 +296,8 @@ fn install_fonts(fonts: Vec<WebFont>) {
 fn fetch_page(url: &str, post: Option<&str>) -> Prepared {
     let (final_url, body) = if url == "about:home" || url.is_empty() {
         ("about:home".to_string(), START_PAGE.to_string())
+    } else if url == "about:blank" {
+        ("about:blank".to_string(), String::new())
     } else {
         let got = match post {
             Some(body) => net::post_form(url, body),
@@ -615,9 +712,159 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
     let mut dropdown: Option<Dropdown> = None;
     window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
     let mut current = Entry { url: page.url.clone(), doc: page.doc, state: "null".into() };
+    // Tabs: the visible one lives in the variables above; the others are packed into `tabs`
+    // (its own slot holds None).
+    let mut tabs: Vec<Option<Slot>> = vec![None];
+    let mut active = 0usize;
+    let mut tab_cmd: Option<TabCmd> = None;
+    let mut pending_nav: Option<Go> = None;
+    let mut closed: Vec<String> = Vec::new();
+    let mut tab_hover: Option<TabHit> = None;
+    let mut was_mid = false;
+
+    // Pack the visible tab away (into a Saved) / show a packed tab.
+    macro_rules! stash {
+        () => {
+            Saved {
+                page: std::mem::replace(&mut page, Page::empty()),
+                scroll,
+                back: std::mem::take(&mut back),
+                forward: std::mem::take(&mut forward),
+                current: current.clone(),
+                focused,
+                address: address.clone(),
+                dom: js::take_dom(),
+                scrolls: layout::take_element_scrolls(),
+                families: font::take_web_families(),
+                provider: geometry::take_provider(),
+            }
+        };
+    }
+    macro_rules! restore {
+        ($slot:expr) => {{
+            let slot: Slot = $slot;
+            loading = slot.loading;
+            match slot.saved {
+                Some(sv) => {
+                    page = sv.page;
+                    scroll = sv.scroll;
+                    back = sv.back;
+                    forward = sv.forward;
+                    current = sv.current;
+                    focused = sv.focused;
+                    address = sv.address;
+                    js::set_dom(sv.dom);
+                    layout::set_element_scrolls(sv.scrolls);
+                    font::set_web_families(sv.families);
+                    geometry::set_provider(sv.provider);
+                    if let Some(j) = page.js.as_ref() {
+                        js::activate(j);
+                    }
+                }
+                None => {
+                    page = load("about:blank");
+                    back.clear();
+                    forward.clear();
+                    current = Entry { url: slot.url.clone(), doc: page.doc, state: "null".into() };
+                    focused = None;
+                    address = slot.url.clone();
+                    scroll = 0.0;
+                }
+            }
+            // A page that finished loading while hidden: hand it to the normal arrival code.
+            if let Some((l, p)) = slot.pending {
+                let g = l.generation;
+                loading = Some(l);
+                let _ = tx.send((g, p));
+            }
+            dropdown = None;
+            editing = false;
+            hovered = None;
+            style::set_hover(None);
+            layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
+            lay = page.layout(fonts, w as f32, h.saturating_sub(BAR_H) as f32);
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
+            window.set_title(&format!("{} — LighteningFox", page.label()));
+            dirty = true;
+        }};
+    }
 
     while window.is_open() {
-        let mut navigate: Option<Go> = None;
+        // Tab strip and shortcut actions from the last frame.
+        if let Some(cmd) = tab_cmd.take() {
+            match cmd {
+                TabCmd::Switch(i) if i != active && i < tabs.len() => {
+                    let (title, url) = (page.label(), page.url.clone());
+                    let saved = stash!();
+                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), pending: None, title, url });
+                    let slot = tabs[i].take().expect("tab slot");
+                    active = i;
+                    restore!(slot);
+                }
+                TabCmd::Switch(_) => {}
+                TabCmd::Open(url, true) => {
+                    generation += 1;
+                    let (g, t, tx) = (generation, url.clone(), tx.clone());
+                    std::thread::spawn(move || {
+                        let _ = tx.send((g, fetch_page(&t, None)));
+                    });
+                    let l = Loading { generation, kind: Go::To(url.clone()), started: Instant::now() };
+                    tabs.insert(active + 1, Some(Slot { saved: None, loading: Some(l), pending: None, title: url.clone(), url }));
+                    dirty = true;
+                }
+                TabCmd::Open(url, false) => {
+                    let (title, old_url) = (page.label(), page.url.clone());
+                    let saved = stash!();
+                    tabs[active] = Some(Slot { saved: Some(saved), loading: loading.take(), pending: None, title, url: old_url });
+                    // A new empty tab goes at the end; one opened from a page sits beside it.
+                    let blank = url == "about:blank";
+                    let at = if blank { tabs.len() } else { active + 1 };
+                    tabs.insert(at, None);
+                    active = at;
+                    restore!(Slot { saved: None, loading: None, pending: None, title: url.clone(), url: url.clone() });
+                    if blank {
+                        // A new empty tab: start typing an address.
+                        editing = true;
+                        address.clear();
+                    } else {
+                        pending_nav = Some(Go::To(url));
+                    }
+                }
+                TabCmd::Close(i) if i < tabs.len() => {
+                    if tabs.len() == 1 {
+                        break;
+                    }
+                    if i == active {
+                        closed.push(page.url.clone());
+                        if let Some(j) = page.js.as_ref() {
+                            js::forget(j);
+                        }
+                        drop(std::mem::replace(&mut page, Page::empty()));
+                        let _ = (js::take_dom(), layout::take_element_scrolls(), font::take_web_families(), geometry::take_provider());
+                        tabs.remove(i);
+                        let next = i.min(tabs.len() - 1);
+                        let slot = tabs[next].take().expect("tab slot");
+                        active = next;
+                        restore!(slot);
+                        release_free_memory();
+                    } else {
+                        if let Some(slot) = tabs.remove(i) {
+                            closed.push(slot.url.clone());
+                            if let Some(j) = slot.saved.as_ref().and_then(|sv| sv.page.js.as_ref()) {
+                                js::forget(j);
+                            }
+                        }
+                        if i < active {
+                            active -= 1;
+                        }
+                        release_free_memory();
+                        dirty = true;
+                    }
+                }
+                TabCmd::Close(_) => {}
+            }
+        }
+        let mut navigate: Option<Go> = pending_nav.take();
         let mut reflow = false;
         let mut stop_key = false;
 
@@ -675,6 +922,27 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         let view_h = h.saturating_sub(BAR_H) as f32;
         let max_scroll = (lay.height - view_h).max(0.0);
 
+        // Tab shortcuts: Ctrl+T new, Ctrl+W close, Ctrl+(Shift+)Tab next/previous,
+        // Ctrl+1…8 / Ctrl+9 (last), Ctrl+Shift+T reopen the last closed tab.
+        {
+            let ctrl = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+            let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+            if ctrl {
+                for key in window.get_keys_pressed(KeyRepeat::No) {
+                    let n = tabs.len();
+                    let digit = [Key::Key1, Key::Key2, Key::Key3, Key::Key4, Key::Key5, Key::Key6, Key::Key7, Key::Key8].iter().position(|&k| k == key);
+                    tab_cmd = match key {
+                        Key::T if shift => closed.pop().map(|u| TabCmd::Open(u, false)),
+                        Key::T => Some(TabCmd::Open("about:blank".into(), false)),
+                        Key::W => Some(TabCmd::Close(active)),
+                        Key::Tab if shift => Some(TabCmd::Switch((active + n - 1) % n)),
+                        Key::Tab => Some(TabCmd::Switch((active + 1) % n)),
+                        Key::Key9 => Some(TabCmd::Switch(n - 1)),
+                        _ => digit.filter(|&d| d < n).map(TabCmd::Switch).or(tab_cmd.take()),
+                    };
+                }
+            }
+        }
         // Typing in the address bar.
         let chars: Vec<char> = typed.borrow_mut().drain(..).collect();
         let typing = !editing && focused.is_some_and(|f| js::with_dom(|d| forms::is_editable(d, f)));
@@ -754,7 +1022,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                 if let Some(f) = focused {
                     let kind = js::with_dom(|d| forms::control(d, f));
                     let handled = match key {
-                        Key::Tab => {
+                        Key::Tab if !ctrl => {
                             let shift = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
                             let all = js::with_dom(focusable);
                             let i = all.iter().position(|&n| n == f).unwrap_or(0);
@@ -857,7 +1125,28 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
 
         // Mouse: hover cursor and clicks.
         let down = window.get_mouse_down(MouseButton::Left);
+        let mid = window.get_mouse_down(MouseButton::Middle);
         if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
+            let th = tab_at(mx, my, w as f32, tabs.len());
+            if th != tab_hover {
+                tab_hover = th;
+                dirty = true;
+            }
+            // Middle click: close a tab, or open a link in a background tab.
+            if mid && !was_mid {
+                match th {
+                    Some(TabHit::Tab(i) | TabHit::Close(i)) => tab_cmd = Some(TabCmd::Close(i)),
+                    _ if my >= BAR_H as f32 => {
+                        if let Some(href) = lay.link_at(mx, my - BAR_H as f32, scroll) {
+                            let target = net::resolve(&page.url, href);
+                            if !target.starts_with("javascript:") && !target.starts_with("mailto:") {
+                                tab_cmd = Some(TabCmd::Open(target, true));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
             let view_y = my - BAR_H as f32;
             let hit = if my >= BAR_H as f32 { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             let btn = button_at(mx, my);
@@ -877,7 +1166,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             }
             window.set_cursor_style(if hit.is_some() || btn.is_some() {
                 CursorStyle::ClosedHand
-            } else if (my as usize) < BAR_H {
+            } else if my >= TAB_H && (my as usize) < BAR_H && mx >= FIELD_X {
                 CursorStyle::Ibeam
             } else {
                 CursorStyle::Arrow
@@ -900,6 +1189,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                     fire(&mut page, dd.select, "change");
                 }
                 form_changed = true;
+            } else if down && !was_down && my < TAB_H {
+                tab_cmd = match th {
+                    Some(TabHit::Tab(i)) => Some(TabCmd::Switch(i)),
+                    Some(TabHit::Close(i)) => Some(TabCmd::Close(i)),
+                    Some(TabHit::New) => Some(TabCmd::Open("about:blank".into(), false)),
+                    None => None,
+                };
             } else if down && !was_down {
                 if let Some(b) = btn {
                     editing = false;
@@ -908,11 +1204,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         1 => Go::Forward,
                         _ => Go::Reload,
                     });
-                } else if (my as usize) < BAR_H {
+                } else if (my as usize) < BAR_H && mx >= FIELD_X {
                     editing = true;
                     address.clear();
                     dirty = true;
-                } else {
+                } else if (my as usize) >= BAR_H {
                     // Let the page's JavaScript see the click first.
                     let node = lay.hit_at(mx, view_y, scroll);
                     // Checkboxes and radio buttons change before the click event, so handlers
@@ -1002,10 +1298,34 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
                         }
                     }
                     if let (true, None, Some(href)) = (allowed, ctrl, &hit) {
-                    let target = net::resolve(&page.url, href);
-                    if !target.starts_with("mailto:") && !target.starts_with("javascript:") {
-                        navigate = Some(Go::To(target));
+                        let target = net::resolve(&page.url, href);
+                        if !target.starts_with("mailto:") && !target.starts_with("javascript:") {
+                            // Ctrl+click: background tab. target="_blank": new tab in front.
+                            let ctrl_key = window.is_key_down(Key::LeftCtrl) || window.is_key_down(Key::RightCtrl);
+                            let blank = node.is_some_and(|n| {
+                                js::with_dom(|d| {
+                                    let mut cur = Some(n);
+                                    while let Some(x) = cur {
+                                        if d.tag(x) == Some("a") {
+                                            return d.attr(x, "target").is_some_and(|t| t.eq_ignore_ascii_case("_blank"));
+                                        }
+                                        cur = d.nodes[x].parent;
+                                    }
+                                    false
+                                })
+                            });
+                            if ctrl_key {
+                                tab_cmd = Some(TabCmd::Open(target, true));
+                            } else if blank {
+                                tab_cmd = Some(TabCmd::Open(target, false));
+                            } else {
+                                navigate = Some(Go::To(target));
+                            }
+                        }
                     }
+                    // window.open() during this click opens a new tab.
+                    if let Some(u) = js::take_open_requests().pop() {
+                        tab_cmd = Some(TabCmd::Open(u, false));
                     }
                 }
             }
@@ -1028,6 +1348,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             dirty = true;
         }
         was_down = down;
+        was_mid = mid;
 
         // The reload button (and Esc) stop a load in progress.
         if matches!(navigate, Some(Go::Reload)) && loading.is_some() || (stop_key && loading.is_some()) {
@@ -1132,7 +1453,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
         // A finished load: build the page here, where JavaScript lives.
         while let Ok((g, prepared)) = rx.try_recv() {
-            let Some(l) = loading.take_if(|l| l.generation == g) else { continue };
+            let Some(l) = loading.take_if(|l| l.generation == g) else {
+                // A page for a background tab: keep it until the tab is shown.
+                if let Some(slot) = tabs.iter_mut().flatten().find(|s| s.loading.as_ref().is_some_and(|l| l.generation == g)) {
+                    slot.title = prepared_title(&prepared);
+                    let l = slot.loading.take().expect("loading");
+                    slot.pending = Some((l, prepared));
+                    dirty = true;
+                }
+                continue;
+            };
             let mut state = "null".to_string();
             match l.kind {
                 Go::To(_) | Go::Post(..) => {
@@ -1165,18 +1495,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
             // A URL with a #fragment opens scrolled to it.
             scroll = fragment_target(&page.url).unwrap_or(0.0).clamp(0.0, (lay.height - h.saturating_sub(BAR_H) as f32).max(0.0));
             address = page.url.clone();
-            window.set_title(&format!("{} — LighteningFox", if page.title.is_empty() { &page.url } else { &page.title }));
+            window.set_title(&format!("{} — LighteningFox", page.label()));
             dirty = true;
         }
         // Animate the loading bar about ten times a second.
-        if loading.is_some() && last_spin.elapsed().as_millis() >= 100 {
+        let any_loading = loading.is_some() || tabs.iter().flatten().any(|s| s.loading.is_some());
+        if any_loading && last_spin.elapsed().as_millis() >= 100 {
             last_spin = Instant::now();
             dirty = true;
         }
 
         // Idle: poll less often. Anything happening (input, redraws, loading) goes back to 60 fps.
-        let active = dirty || animating || loading.is_some() || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
-        if active {
+        let busy = dirty || animating || any_loading || js::network_busy() || window.get_mouse_down(MouseButton::Left) || !window.get_keys().is_empty();
+        if busy {
             idle_frames = 0;
             if slow {
                 window.set_target_fps(60);
@@ -1191,7 +1522,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
         }
         if dirty {
             let spin = loading.as_ref().map(|l| l.started.elapsed().as_secs_f32());
-            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin };
+            let labels: Vec<(String, bool)> = tabs
+                .iter()
+                .enumerate()
+                .map(|(i, s)| match s {
+                    None if i == active => (page.label(), loading.is_some()),
+                    Some(s) => (s.title.clone(), s.loading.is_some()),
+                    None => (String::new(), false),
+                })
+                .collect();
+            let ui = Toolbar { address: &address, editing, can_back: !back.is_empty(), can_forward: !forward.is_empty(), hover, loading: spin, tabs: &labels, active, tab_hover };
             draw(&mut canvas, fonts, &page.images, &lay, scroll, &ui);
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
@@ -1205,6 +1545,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize) {
 }
 
 struct Toolbar<'a> {
+    tabs: &'a [(String, bool)],
+    active: usize,
+    tab_hover: Option<TabHit>,
     address: &'a str,
     editing: bool,
     can_back: bool,
@@ -1225,28 +1568,72 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     canvas.paint(fonts, images, &lay.items, BAR_H as f32, scroll);
     let w = canvas.w as f32;
     let bar = BAR_H as f32;
-    canvas.fill_rect(0.0, 0.0, w, bar, Color::rgb(236, 236, 240));
+    let top = TAB_H;
+    // Tab strip
+    canvas.fill_rect(0.0, 0.0, w, top, Color::rgb(222, 222, 228));
+    let toolbar_bg = Color::rgb(236, 236, 240);
+    for (i, ((label, loading), &(tx, tw))) in ui.tabs.iter().zip(tab_rects(w, ui.tabs.len()).iter()).enumerate() {
+        let is_active = i == ui.active;
+        let hovered = matches!(ui.tab_hover, Some(TabHit::Tab(j) | TabHit::Close(j)) if j == i);
+        let bg = if is_active { toolbar_bg } else if hovered { Color::rgb(232, 232, 238) } else { Color::rgb(222, 222, 228) };
+        canvas.fill_rect(tx, 5.0, tw - 2.0, top - 5.0, bg);
+        if !is_active && i + 1 != ui.active && i + 1 < ui.tabs.len() {
+            canvas.fill_rect(tx + tw - 2.0, 11.0, 1.0, top - 18.0, Color::rgb(190, 190, 198));
+        }
+        // A small orange dot while the tab loads.
+        let mut text_x = tx + 10.0;
+        if *loading {
+            canvas.fill_rect(tx + 9.0, 17.0, 6.0, 6.0, Color::rgb(249, 115, 22));
+            text_x += 12.0;
+        }
+        // Fit the title, leaving room for the ×.
+        let room = (tw - (text_x - tx) - 30.0).max(0.0);
+        let mut title: String = label.chars().filter(|c| !c.is_control()).collect();
+        if fonts.width(font::REGULAR, &title, 13.0) > room {
+            while !title.is_empty() && fonts.width(font::REGULAR, &format!("{title}…"), 13.0) > room {
+                title.pop();
+            }
+            title.push('…');
+        }
+        let ink = if is_active { Color::rgb(30, 30, 40) } else { Color::rgb(80, 80, 92) };
+        canvas.draw_text(fonts, text_x, 24.0, &title, font::REGULAR, 13.0, ink);
+        if tw > 60.0 {
+            let close_hot = ui.tab_hover == Some(TabHit::Close(i));
+            if close_hot {
+                canvas.fill_rect(tx + tw - 24.0, 10.0, 18.0, 18.0, Color::rgb(205, 205, 212));
+            }
+            canvas.draw_text(fonts, tx + tw - 20.0, 24.0, "×", font::REGULAR, 15.0, if close_hot || is_active || hovered { ink } else { Color::rgb(140, 140, 150) });
+        }
+    }
+    let end = tab_rects(w, ui.tabs.len()).last().map_or(6.0, |&(tx, tw)| tx + tw);
+    if ui.tab_hover == Some(TabHit::New) {
+        canvas.fill_rect(end + 4.0, 7.0, NEW_TAB_W, top - 12.0, Color::rgb(205, 205, 212));
+    }
+    canvas.draw_text(fonts, end + 4.0 + (NEW_TAB_W - fonts.width(font::REGULAR, "+", 18.0)) / 2.0, 26.0, "+", font::REGULAR, 18.0, Color::rgb(60, 60, 70));
+
+    // Toolbar
+    canvas.fill_rect(0.0, top, w, bar - top, toolbar_bg);
     canvas.fill_rect(0.0, bar - 1.0, w, 1.0, Color::rgb(200, 200, 205));
 
     // Back, forward, reload
     let enabled = [ui.can_back, ui.can_forward, true];
     for (i, (bx, label)) in BUTTONS.iter().enumerate() {
         if ui.hover == Some(i) && enabled[i] {
-            canvas.fill_rect(*bx, 4.0, BTN_W, bar - 8.0, Color::rgb(214, 214, 222));
+            canvas.fill_rect(*bx, top + 4.0, BTN_W, TOOL_H - 8.0, Color::rgb(214, 214, 222));
         }
         let ink = if enabled[i] { Color::rgb(40, 40, 50) } else { Color::rgb(170, 170, 178) };
         let size = 18.0;
         // While loading, reload becomes stop.
         let label = if i == 2 && ui.loading.is_some() { &"✕" } else { label };
         let tw = fonts.width(font::BOLD, label, size);
-        canvas.draw_text(fonts, bx + (BTN_W - tw) / 2.0, 24.0, label, font::BOLD, size, ink);
+        canvas.draw_text(fonts, bx + (BTN_W - tw) / 2.0, top + 24.0, label, font::BOLD, size, ink);
     }
 
     // Address field
     let field = if ui.editing { Color::rgb(255, 255, 255) } else { Color::rgb(248, 248, 250) };
-    canvas.fill_rect(FIELD_X, 5.0, w - FIELD_X - 8.0, bar - 10.0, field);
+    canvas.fill_rect(FIELD_X, top + 5.0, w - FIELD_X - 8.0, TOOL_H - 10.0, field);
     let text = if ui.editing { format!("{}|", ui.address) } else { ui.address.to_string() };
-    canvas.draw_text(fonts, FIELD_X + 8.0, 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
+    canvas.draw_text(fonts, FIELD_X + 8.0, top + 23.0, &text, font::REGULAR, 14.0, Color::rgb(40, 40, 50));
     // Loading bar: a segment sliding along the bottom of the toolbar.
     if let Some(t) = ui.loading {
         let span = w * 0.25;
