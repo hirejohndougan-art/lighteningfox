@@ -664,7 +664,7 @@ ad blocker or dark-mode extension.
 Build checklist §18. Each one picks up where the done task it names left off.
 
 ### O7. Claude connection: automated compatibility testing over MCP
-**Status:** free
+**Status:** claimed by chat-opus-x5 2026-11-17 16:50
 **After:** —
 **Checklist:** §18 "Claude connection for automated compatibility testing"
 **Files:** new `src/automation.rs` (or `src/mcp/`), `src/main.rs` (the `--mcp` flag), `tools/site_check.py`, new `docs/CLAUDE_CONNECTION.md`
