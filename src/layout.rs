@@ -237,32 +237,25 @@ pub fn frame_key(dom: &Dom, id: NodeId) -> String {
 }
 
 pub fn layout(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
-    // ::before and ::after boxes are laid out as extra nodes; hits on them count as their element's.
-    let Some((full, full_styles)) = crate::pseudo::expand(dom, styles) else {
-        return layout_tree(dom, styles, fonts, images, width, viewport_h);
-    };
-    let mut lay = layout_tree(&full, &full_styles, fonts, images, width, viewport_h);
-    let n = dom.nodes.len();
-    let real = |mut id: NodeId| {
-        while id >= n {
-            id = full.nodes[id].parent.unwrap_or(0);
-        }
-        id
-    };
+    // Layout works on the box tree (anonymous boxes, ::before/::after, markers,
+    // display: contents); hits and element boxes are reported in DOM ids.
+    let tree = crate::boxtree::build(dom, styles);
+    let mut lay = layout_tree(&tree.dom, &tree.styles, &tree.markers, fonts, images, width, viewport_h);
     for h in &mut lay.hits {
-        h.1 = real(h.1);
+        h.1 = tree.origin(h.1);
     }
     for s in &mut lay.scrollers {
-        s.0 = real(s.0);
+        s.0 = tree.origin(s.0);
     }
-    lay.boxes.retain(|&id, _| id < n);
+    lay.boxes.retain(|&id, _| tree.is_dom_node(id));
     lay
 }
 
-fn layout_tree(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
+fn layout_tree(dom: &Dom, styles: &[Rc<Style>], markers: &HashMap<NodeId, String>, fonts: &Fonts, images: &Images, width: f32, viewport_h: f32) -> Layout {
     let mut cx = Ctx {
         dom,
         styles,
+        markers,
         fonts,
         images,
         items: Vec::new(),
@@ -340,6 +333,8 @@ fn layout_tree(dom: &Dom, styles: &[Rc<Style>], fonts: &Fonts, images: &Images, 
 struct Ctx<'a> {
     dom: &'a Dom,
     styles: &'a [Rc<Style>],
+    /// Outside list markers' text (from the box tree).
+    markers: &'a HashMap<NodeId, String>,
     fonts: &'a Fonts,
     images: &'a Images,
     items: Vec<Item>,
@@ -2732,28 +2727,14 @@ impl<'a> Ctx<'a> {
 
     fn list_marker(&mut self, id: NodeId, cx: f32, cy: f32) {
         let st = &self.styles[id];
-        let text = match st.list_style {
-            ListStyle::Decimal => {
-                let parent = self.dom.nodes[id].parent.unwrap_or(0);
-                let n = self.dom.nodes[parent]
-                    .children
-                    .iter()
-                    .filter(|&&c| self.dom.tag(c) == Some("li"))
-                    .position(|&c| c == id)
-                    .unwrap_or(0)
-                    + 1;
-                format!("{n}.")
-            }
-            _ => "•".to_string(),
-        };
+        // The box tree worked the text out (the list-item counter, list-style-type,
+        // ::marker content); no entry means no outside marker.
+        let Some(text) = self.markers.get(&id).cloned() else { return };
         let line_h = st.font_size * st.line_height;
         // ::marker can change the marker's color, size and text.
         let marker = st.pseudo.as_ref().and_then(|p| p.marker.clone());
         let (text, size, color, bold) = match &marker {
-            Some(m) => {
-                let custom = m.content.as_deref().and_then(|c| crate::pseudo::content_text(c, self.dom, id, &Default::default(), &mut 0));
-                (custom.unwrap_or(text), m.font_size, m.color, m.bold)
-            }
+            Some(m) => (text, m.font_size, m.color, m.bold),
             None => (text, st.font_size, st.color, false),
         };
         let font = Fonts::pick(bold, false, false);

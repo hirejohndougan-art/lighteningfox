@@ -23,7 +23,10 @@ pub fn is_inherited(name: &str) -> bool {
 pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
     let n = name.trim_start_matches("-webkit-");
     match n {
-        "display" => dst.display = src.display,
+        "display" => {
+            dst.display = src.display;
+            dst.contents = src.contents;
+        }
         "color" => dst.color = src.color,
         "font-size" => dst.font_size = src.font_size,
         "font-weight" => dst.bold = src.bold,
@@ -64,7 +67,11 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
         }
         "letter-spacing" | "word-spacing" | "word-break" | "overflow-wrap" | "word-wrap" | "hyphens" | "text-overflow" | "text-wrap" | "text-wrap-mode" | "line-break"
         | "text-decoration-style" | "text-decoration-thickness" | "text-underline-offset" | "tab-size" => dst.text = src.text.clone(),
-        "list-style" | "list-style-type" => dst.list_style = src.list_style,
+        "list-style" | "list-style-type" | "list-style-position" => {
+            dst.list_style = src.list_style;
+            dst.list_type = src.list_type;
+            dst.list_inside = src.list_inside;
+        }
         "visibility" => dst.hidden = src.hidden,
         "background-color" => {
             dst.background = src.background;

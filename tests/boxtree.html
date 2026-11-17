@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Box tree</title>
+<style>
+body { font-family: sans-serif; margin: 16px; }
+section { border: 1px solid #99a; padding: 6px 10px; margin-bottom: 12px; width: 520px; }
+h2 { font-size: 15px; margin: 0 0 6px; color: #335; }
+.mixed { background: #eef4ff; text-indent: 0; }
+.mixed p { background: #ffe; margin: 6px 0; border-left: 4px solid #cc9; }
+.contents { display: contents; border: 8px solid red; background: red; }
+.grid-like { display: flex; gap: 8px; }
+.grid-like > * { background: #dfd; padding: 4px 8px; }
+ol.roman { list-style-type: upper-roman; }
+ol.alpha { list-style: lower-alpha inside; background: #f6f6f6; }
+ul.square { list-style-type: square; }
+ul.inside { list-style-position: inside; background: #f6f6f6; }
+li::marker { color: #a33; }
+.pseudo-contents::before { content: "[before] "; color: #36c; }
+.pseudo-contents::after { content: " [after]"; color: #36c; }
+</style>
+</head>
+<body>
+<section>
+  <h2>Text beside blocks (anonymous block boxes)</h2>
+  <div class="mixed">Text before the paragraph, <b>with bold</b> inline.
+    <p>A paragraph in the middle.</p>
+    Text after the paragraph.<span style="position:absolute;left:600px">abs</span>
+  </div>
+</section>
+<section>
+  <h2>display: contents</h2>
+  <div class="grid-like">
+    <span class="contents"><b>one</b><b>two</b></span>
+    <b>three</b>
+  </div>
+  <p><span class="contents pseudo-contents">Its children stay; its border and background don't.</span></p>
+</section>
+<section>
+  <h2>List markers</h2>
+  <ol start="4"><li>four</li><li>five</li><li value="9">nine</li><li>ten</li></ol>
+  <ol reversed><li>three</li><li>two</li><li>one</li></ol>
+  <ol class="roman"><li>roman one</li><li>roman two</li></ol>
+  <ol class="alpha"><li>alpha inside</li><li>second</li></ol>
+  <ul class="square"><li>square</li></ul>
+  <ul class="inside"><li>bullet inside</li></ul>
+</section>
+</body>
+</html>

@@ -98,6 +98,7 @@ mod gpu;
 mod net;
 mod paint;
 mod style;
+mod boxtree;
 mod pseudo;
 mod textedit;
 mod transform;
@@ -4647,6 +4648,7 @@ mod screenshot_tests {
         ("tests/grid-extras.html", 600),
         ("tests/overflow-height.html", 500),
         ("tests/emoji-and-small-text.html", 700),
+        ("tests/boxtree.html", 700),
         ("tests/real-world/react.html", 1024),
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),

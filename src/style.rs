@@ -364,6 +364,12 @@ pub struct Style {
     pub line_height: f32,
     pub pre: bool,
     pub list_style: ListStyle,
+    /// The `list-style-type` keyword (`disc`, `decimal`, `lower-roman`…) for list markers.
+    pub list_type: &'static str,
+    /// `list-style-position: inside`: the marker sits in the first line of text.
+    pub list_inside: bool,
+    /// `display: contents`: the element makes no box; its children take its place.
+    pub contents: bool,
     pub hidden: bool,
     /// The product of this element's and its ancestors' opacity (applied to its colors).
     pub fade: f32,
@@ -492,6 +498,9 @@ impl Default for Style {
             line_height: 1.25,
             pre: false,
             list_style: ListStyle::Disc,
+            list_type: "disc",
+            list_inside: false,
+            contents: false,
             hidden: false,
             vars: Rc::default(),
             background: Color::TRANSPARENT,
@@ -550,7 +559,7 @@ impl Default for Style {
 }
 
 impl Style {
-    fn inherit(parent: &Style) -> Style {
+    pub(crate) fn inherit(parent: &Style) -> Style {
         Style {
             color: parent.color,
             font_size: parent.font_size,
@@ -572,6 +581,8 @@ impl Style {
             line_height: parent.line_height,
             pre: parent.pre,
             list_style: parent.list_style,
+            list_type: parent.list_type,
+            list_inside: parent.list_inside,
             hidden: parent.hidden,
             fade: parent.fade,
             text_shadow: parent.text_shadow.clone(),
@@ -2110,6 +2121,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
     }
     match name {
         "display" => {
+            st.contents = lower == "contents";
             st.display = match lower.as_str() {
                 "none" => Display::None,
                 "inline" | "contents" => Display::Inline,
@@ -2679,7 +2691,14 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
                 _ => 0,
             }
         }
+        "list-style-position" => st.list_inside = lower.trim() == "inside",
         "list-style" | "list-style-type" => {
+            if name == "list-style" {
+                st.list_inside = lower.split_whitespace().any(|w| w == "inside");
+            }
+            if let Some(t) = lower.split_whitespace().find_map(list_type_keyword) {
+                st.list_type = t;
+            }
             if lower.contains("none") {
                 st.list_style = ListStyle::None;
             } else if lower.contains("decimal") || lower.contains("roman") || lower.contains("alpha") {
@@ -2909,4 +2928,13 @@ mod state_tests {
         set_active(None);
         set_visited("", Default::default());
     }
+}
+
+/// A `list-style-type` keyword this engine can draw.
+fn list_type_keyword(w: &str) -> Option<&'static str> {
+    const KNOWN: &[&str] = &[
+        "none", "disc", "circle", "square", "decimal", "decimal-leading-zero", "lower-roman", "upper-roman",
+        "lower-alpha", "upper-alpha", "lower-latin", "upper-latin", "lower-greek",
+    ];
+    KNOWN.iter().find(|k| **k == w).copied()
 }
