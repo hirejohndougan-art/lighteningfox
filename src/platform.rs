@@ -167,7 +167,30 @@ pub fn notify(title: &str, body: &str) -> bool {
         let script = format!("display notification \"{}\" with title \"{}\"", q(body), q(title));
         std::process::Command::new("osascript").args(["-e", &script]).spawn().is_ok()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // A Windows toast. The text comes from a website: it reaches the script through the
+        // environment and is XML-escaped there, never pasted into the script.
+        const SCRIPT: &str = r#"
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$t = [Security.SecurityElement]::Escape($env:IRONSWIFT_TOAST_TITLE)
+$b = [Security.SecurityElement]::Escape($env:IRONSWIFT_TOAST_BODY)
+$x = New-Object Windows.Data.Xml.Dom.XmlDocument
+$x.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$t</text><text>$b</text></binding></visual></toast>")
+$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show([Windows.UI.Notifications.ToastNotification]::new($x))
+"#;
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT])
+            .env("IRONSWIFT_TOAST_TITLE", title)
+            .env("IRONSWIFT_TOAST_BODY", body)
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .is_ok()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = (title, body);
         false
@@ -179,18 +202,19 @@ pub fn notify(title: &str, body: &str) -> bool {
 pub fn file_chooser(multiple: bool, filters: &[String], title: &str) -> Option<std::process::Command> {
     #[cfg(windows)]
     {
-        let q = |s: &str| s.replace('\'', "''");
-        let filter = if filters.is_empty() { "All files|*.*".to_string() } else { format!("Accepted files|{}|All files|*.*", filters.join(";")) };
-        let script = format!(
-            "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; \
-             $d.Title = '{}'; $d.Filter = '{}'; $d.Multiselect = ${}; \
-             if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{ $d.FileNames -join \"`n\" }}",
-            q(title),
-            q(&filter),
-            multiple
-        );
+        use std::os::windows::process::CommandExt;
+        // The file types come from the page's `accept`: they reach the script through the
+        // environment, never pasted into it.
+        let filter = if filters.is_empty() { "All files|*.*".to_string() } else { format!("Accepted files|{}|All files|*.*", filters.join(";").replace('|', "")) };
+        const SCRIPT: &str = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; \
+             $d.Title = $env:IRONSWIFT_PICK_TITLE; $d.Filter = $env:IRONSWIFT_PICK_FILTER; $d.Multiselect = ($env:IRONSWIFT_PICK_MANY -eq '1'); \
+             if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $d.FileNames -join \"`n\" }";
         let mut c = std::process::Command::new("powershell");
-        c.args(["-NoProfile", "-STA", "-Command", &script]);
+        c.args(["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", SCRIPT])
+            .env("IRONSWIFT_PICK_TITLE", title)
+            .env("IRONSWIFT_PICK_FILTER", filter)
+            .env("IRONSWIFT_PICK_MANY", if multiple { "1" } else { "0" })
+            .creation_flags(0x0800_0000);
         Some(c)
     }
     #[cfg(target_os = "macos")]
@@ -263,5 +287,118 @@ mod tests {
     #[test]
     fn windows_drive_paths() {
         assert_eq!(path_from_url("/D:/a/b c.html"), std::path::PathBuf::from(r"D:\a\b c.html"));
+    }
+}
+
+/// Run a PowerShell script on Windows with extra environment variables (values pass through
+/// the environment, never through the script's text, so nothing in them is ever run).
+#[cfg(windows)]
+pub fn powershell(script: &str, env: &[(&str, &str)]) -> Option<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut c = std::process::Command::new("powershell");
+    c.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]).creation_flags(CREATE_NO_WINDOW);
+    for (k, v) in env {
+        c.env(k, v);
+    }
+    c.output().ok()
+}
+
+/// Send a PDF to the default printer. False when the system has no way to (the caller then
+/// saves the PDF instead).
+pub fn print_pdf(path: &std::path::Path) -> bool {
+    #[cfg(windows)]
+    {
+        let ok = powershell("Start-Process -FilePath $env:IRONSWIFT_PDF -Verb Print -ErrorAction Stop", &[("IRONSWIFT_PDF", &path.to_string_lossy())]).is_some_and(|o| o.status.success());
+        if !ok {
+            // No program offers "Print" for PDFs: open it, where the user can print it.
+            open_path(path);
+        }
+        ok
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("lp").arg(path).output().is_ok_and(|o| o.status.success())
+    }
+}
+
+/// Offer Ironswift as the default browser. Ok(message) to show; Err(why not).
+pub fn make_default_browser() -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        // Windows lets the user, not the program, choose the default: register Ironswift as
+        // a browser for this user (no administrator rights needed), then open Default apps.
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let cmd = format!("\"{}\" \"%1\"", exe.display());
+        let caps = r"HKCU\Software\Clients\StartMenuInternet\Ironswift\Capabilities";
+        let entries: Vec<Vec<String>> = vec![
+            vec![caps.into(), "ApplicationName".into(), "Ironswift".into()],
+            vec![caps.into(), "ApplicationDescription".into(), "A web browser built from scratch".into()],
+            vec![format!(r"{caps}\URLAssociations"), "http".into(), "IronswiftURL".into()],
+            vec![format!(r"{caps}\URLAssociations"), "https".into(), "IronswiftURL".into()],
+            vec![format!(r"{caps}\FileAssociations"), ".html".into(), "IronswiftHTML".into()],
+            vec![format!(r"{caps}\FileAssociations"), ".htm".into(), "IronswiftHTML".into()],
+            vec![r"HKCU\Software\Clients\StartMenuInternet\Ironswift\shell\open\command".into(), String::new(), format!("\"{}\"", exe.display())],
+            vec![r"HKCU\Software\Classes\IronswiftURL".into(), String::new(), "Ironswift web page".into()],
+            vec![r"HKCU\Software\Classes\IronswiftURL".into(), "URL Protocol".into(), String::new()],
+            vec![r"HKCU\Software\Classes\IronswiftURL\shell\open\command".into(), String::new(), cmd.clone()],
+            vec![r"HKCU\Software\Classes\IronswiftHTML".into(), String::new(), "Ironswift HTML document".into()],
+            vec![r"HKCU\Software\Classes\IronswiftHTML\shell\open\command".into(), String::new(), cmd],
+            vec![r"HKCU\Software\RegisteredApplications".into(), "Ironswift".into(), r"Software\Clients\StartMenuInternet\Ironswift\Capabilities".into()],
+        ];
+        for e in &entries {
+            let mut c = std::process::Command::new("reg");
+            c.args(["add", &e[0], "/f", "/t", "REG_SZ", "/d", &e[2]]);
+            if e[1].is_empty() {
+                c.arg("/ve");
+            } else {
+                c.args(["/v", &e[1]]);
+            }
+            let ok = c.output().is_ok_and(|o| o.status.success());
+            if !ok {
+                return Err(format!("couldn't register Ironswift with Windows ({})", e[0]));
+            }
+        }
+        let _ = std::process::Command::new("explorer").arg("ms-settings:defaultapps?registeredAppUser=Ironswift").spawn();
+        Ok("Ironswift is registered as a browser. In the Default apps window that opened, choose Ironswift.".into())
+    }
+    #[cfg(not(windows))]
+    {
+        let ok = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "ironswift.desktop"]).output().is_ok_and(|o| o.status.success());
+        if ok { Ok("Ironswift is now your default browser.".into()) } else { Err("install Ironswift first (packaging/linux/install.sh), then try again".into()) }
+    }
+}
+
+/// One position from Windows' location service: (latitude, longitude, accuracy in metres,
+/// altitude, speed, heading). Needs location turned on in Windows' privacy settings.
+#[cfg(windows)]
+pub fn windows_location(high: bool) -> Result<(f64, f64, f64, Option<f64>, Option<f64>, Option<f64>), String> {
+    let script = r#"
+Add-Type -AssemblyName System.Device
+$acc = if ($env:IRONSWIFT_GEO_HIGH -eq '1') { [System.Device.Location.GeoPositionAccuracy]::High } else { [System.Device.Location.GeoPositionAccuracy]::Default }
+$w = New-Object System.Device.Location.GeoCoordinateWatcher($acc)
+if (-not $w.TryStart($false, [TimeSpan]::FromSeconds(10))) { Write-Output 'ERR could not start'; exit }
+$t = 0
+while ($w.Status -ne 'Ready' -and $t -lt 100) { Start-Sleep -Milliseconds 100; $t++ }
+if ($w.Permission -eq 'Denied') { Write-Output 'ERR denied'; exit }
+$c = $w.Position.Location
+if ($c.IsUnknown) { Write-Output 'ERR unknown'; exit }
+$inv = [Globalization.CultureInfo]::InvariantCulture
+Write-Output ('OK ' + (@($c.Latitude, $c.Longitude, $c.HorizontalAccuracy, $c.Altitude, $c.Speed, $c.Course) | ForEach-Object { $_.ToString($inv) }) -join ' ')
+"#;
+    let out = powershell(script, &[("IRONSWIFT_GEO_HIGH", if high { "1" } else { "0" })]).ok_or("Windows' location service isn't available")?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let line = text.lines().find(|l| l.starts_with("OK ") || l.starts_with("ERR ")).unwrap_or("ERR no answer");
+    if let Some(e) = line.strip_prefix("ERR ") {
+        return Err(match e.trim() {
+            "denied" => "Windows doesn't allow Ironswift to use your location (Settings → Privacy → Location)".into(),
+            other => format!("No location from Windows ({other})"),
+        });
+    }
+    let n: Vec<f64> = line[3..].split_whitespace().map(|v| v.parse().unwrap_or(f64::NAN)).collect();
+    let opt = |v: Option<&f64>| v.copied().filter(|x| x.is_finite());
+    match (n.first(), n.get(1), n.get(2)) {
+        (Some(&la), Some(&lo), Some(&ac)) if la.is_finite() && lo.is_finite() => Ok((la, lo, if ac.is_finite() { ac } else { 1000.0 }, opt(n.get(3)), opt(n.get(4)), opt(n.get(5)))),
+        _ => Err("No location from Windows".into()),
     }
 }

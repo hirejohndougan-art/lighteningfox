@@ -279,7 +279,9 @@ fn thread_main() {
             Err(Refused(msg)) => Err(msg),
         }
     };
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    let result = windows_serve();
+    #[cfg(not(any(target_os = "linux", windows)))]
     let result: Result<(), String> = Err("Location isn't available on this system yet".into());
     if let Err(msg) = result {
         log!("[geolocation] {msg}");
@@ -290,6 +292,24 @@ fn thread_main() {
         }
         st.running = false;
     }
+}
+
+/// Windows' location service, asked again every few seconds while anyone is waiting or
+/// watching (each ask starts the service, so it isn't kept running in between).
+#[cfg(windows)]
+fn windows_serve() -> Result<(), String> {
+    let mut first = true;
+    let mut last = Instant::now() - Duration::from_secs(60);
+    while let Some(high) = keep_going() {
+        if first || last.elapsed() >= Duration::from_secs(5) {
+            let (latitude, longitude, accuracy, altitude, speed, heading) = crate::platform::windows_location(high)?;
+            deliver(Position { latitude, longitude, accuracy, altitude, speed, heading, timestamp: now_ms() }, !first);
+            first = false;
+            last = Instant::now();
+        }
+        std::thread::sleep(POLL);
+    }
+    Ok(())
 }
 
 fn fake_position() -> Option<Position> {

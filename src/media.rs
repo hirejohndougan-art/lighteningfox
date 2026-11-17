@@ -67,10 +67,12 @@ fn ffprobe() -> Option<&'static Path> {
 }
 
 /// Can media play at all here?
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn ffmpeg_path() -> Option<PathBuf> {
     ffmpeg().map(Path::to_path_buf)
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn ffprobe_path() -> Option<PathBuf> {
     ffprobe().map(Path::to_path_buf)
 }

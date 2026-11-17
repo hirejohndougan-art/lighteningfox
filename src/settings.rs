@@ -271,11 +271,9 @@ pub fn clear_data(everything: bool) -> String {
 /// Make Ironswift the desktop's default web browser (needs the desktop entry that
 /// packaging/linux/install.sh puts in place).
 fn make_default() -> String {
-    let ok = std::process::Command::new("xdg-settings").args(["set", "default-web-browser", "ironswift.desktop"]).output().is_ok_and(|o| o.status.success());
-    if ok {
-        "Ironswift is now your default browser.".into()
-    } else {
-        "Couldn't set the default browser: install Ironswift first (packaging/linux/install.sh), then try again.".into()
+    match crate::platform::make_default_browser() {
+        Ok(msg) => msg,
+        Err(why) => format!("Couldn't set the default browser: {why}."),
     }
 }
 

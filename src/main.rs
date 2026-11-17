@@ -3976,7 +3976,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     let name: String = page.label().chars().map(|c| if c.is_alphanumeric() || " -_.".contains(c) { c } else { '_' }).take(80).collect();
                     let printed = matches!(a, Ctx::Print) && {
                         let tmp = std::env::temp_dir().join(format!("ironswift-print-{}.pdf", std::process::id()));
-                        pdf::write(&tmp, &sheets).is_ok() && std::process::Command::new("lp").arg(&tmp).output().is_ok_and(|o| o.status.success())
+                        pdf::write(&tmp, &sheets).is_ok() && crate::platform::print_pdf(&tmp)
                     };
                     if printed {
                         toast = Some((i18n::tf("toast-printed", &[("n", &sheets.len().to_string())]), Instant::now()));

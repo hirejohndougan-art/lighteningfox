@@ -322,6 +322,7 @@ pub fn protect_site_renderer() -> bool {
 /// Lock down a media decoder (`ffmpeg`/`ffprobe` started for a site process, media_broker.rs),
 /// which parses untrusted files: no network, no writing, read-only system files. It may still
 /// start a program, once: itself (`--media-decoder` runs this, then the decoder).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn protect_media_decoder() -> bool {
     if std::env::var("IRONSWIFT_NO_SANDBOX").is_ok_and(|v| v == "1") {
         return true;

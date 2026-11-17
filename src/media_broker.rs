@@ -16,7 +16,6 @@
 //!
 //! `Proc` is what media.rs holds either way: a local child process, or one the browser runs.
 
-use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 #[cfg(unix)]
@@ -31,6 +30,7 @@ pub enum Prog {
     Sink,
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 impl Prog {
     fn name(self) -> &'static str {
         match self {
@@ -101,6 +101,7 @@ impl Proc {
         if let Some(mut o) = self.stdout.take() {
             let _ = io::Read::read_to_end(&mut o, &mut out);
         }
+        #[allow(irrefutable_let_patterns)]
         if let Inner::Local(c) = &mut self.inner {
             let _ = c.wait();
         }
@@ -172,6 +173,7 @@ pub fn run_decoder(_: &[String]) -> ! {
 mod linux {
     use super::*;
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+    use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
 
     // ---------------------------------------------------------------- the site process's side
