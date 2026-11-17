@@ -590,6 +590,7 @@ header, footer, main, nav, section, article, aside, figure, figcaption, address,
 thead, tbody, tfoot, caption, center, details, summary, menu, legend, hgroup, search, dialog { display: block; }
 table { display: table; border-spacing: 2px; }
 iframe { display: inline-block; border: 2px inset #767676; }
+audio:not([controls]) { display: none; }
 thead, tbody, tfoot { display: table-row-group; }
 tr { display: table-row; }
 td, th { display: table-cell; vertical-align: middle; }

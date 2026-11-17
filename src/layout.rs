@@ -589,7 +589,7 @@ impl<'a> Ctx<'a> {
             || st.display == Display::InlineBlock
             || st.multicol.is_some_and(|m| m.count.is_some() || m.width.is_some())
             || self.dom.nodes[id].parent == Some(Dom::ROOT)
-            || matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "input" | "select" | "textarea" | "button"))
+            || matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio" | "input" | "select" | "textarea" | "button"))
     }
 
     /// The first in-flow child, if it is a block with nothing but whitespace before it.
@@ -684,7 +684,7 @@ impl<'a> Ctx<'a> {
         };
         let mut constrained = st.width != Len::Auto;
         // A block-level <img> takes the image's size instead of its children's.
-        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
+        let replaced = if matches!(self.dom.tag(id), Some("img" | "iframe" | "canvas" | "video" | "audio")) { self.replaced_size(id, avail - ml - mr - extra) } else { None };
         if let Some((rw, _)) = replaced {
             w = rw;
             constrained = true;
@@ -2640,6 +2640,8 @@ impl<'a> Ctx<'a> {
             frame_key(self.dom, id)
         } else if self.dom.tag(id) == Some("canvas") {
             format!("canvas:{id}")
+        } else if matches!(self.dom.tag(id), Some("video" | "audio")) {
+            format!("media:{id}")
         } else {
             // srcset / <picture> pick the picture (srcset.rs).
             crate::srcset::current_src(self.dom, id).unwrap_or_default()
@@ -2694,6 +2696,11 @@ impl<'a> Ctx<'a> {
             Some((300.0, 150.0))
         } else if self.dom.tag(id) == Some("canvas") {
             Some((canvas_dim("width", 300.0), canvas_dim("height", 150.0)))
+        } else if self.dom.tag(id) == Some("video") {
+            // The video's (or poster's) own size once known, else 300×150 (media.rs).
+            Some(self.images.size(&format!("media:{id}")).filter(|&(w, h)| w > 0.0 && h > 0.0).unwrap_or((300.0, 150.0)))
+        } else if self.dom.tag(id) == Some("audio") {
+            Some((300.0, 54.0))
         } else {
             self.image_size(id)
         };
@@ -2800,10 +2807,10 @@ impl<'a> Ctx<'a> {
                     "br" => return out.push(Tok::Break { node: id }),
                     // A picture with its own border, padding, margin or background is laid
                     // out as a little block, which draws those.
-                    "img" | "canvas" if self.inline_box_edges(id, avail).is_some() || self.styles[id].border[0] > 0.0 || self.styles[id].border[2] > 0.0 => {
+                    "img" | "canvas" | "video" | "audio" if self.inline_box_edges(id, avail).is_some() || self.styles[id].border[0] > 0.0 || self.styles[id].border[2] > 0.0 => {
                         return out.push(Tok::InlineBlock { node: id, link: link.map(String::from) });
                     }
-                    "img" | "iframe" | "canvas" if !(tag != "img" && self.styles[id].display == Display::InlineBlock) => {
+                    "img" | "iframe" | "canvas" | "video" | "audio" if !(tag != "img" && self.styles[id].display == Display::InlineBlock) => {
                         match self.replaced_size(id, avail) {
                             Some((w, h)) => {
                                 let src = Some(self.replaced_src(id));
@@ -3367,8 +3374,9 @@ impl<'a> Ctx<'a> {
                         } else if let Some(src) = loaded {
                             let src = src.to_string();
                             self.push_image(*node, r.x, r.y, r.w, r.h, src);
-                        } else if !src.as_deref().is_some_and(|s| s.starts_with("canvas:")) {
-                            // (A canvas nothing has drawn on is simply transparent.)
+                        } else if !src.as_deref().is_some_and(|s| s.starts_with("canvas:") || s.starts_with("media:")) {
+                            // (A canvas nothing has drawn on, or a video with nothing to show
+                            // yet, is simply transparent.)
                             let c = Color { r: 200, g: 200, b: 200, a: 255 };
                             self.items.push(Item::Rect { x: r.x, y: r.y, w: r.w, h: r.h, color: c });
                         }

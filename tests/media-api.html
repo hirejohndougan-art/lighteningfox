@@ -1,0 +1,29 @@
+<!doctype html>
+<title>HTMLMediaElement API</title>
+<video id="v" src="media/clip.webm" muted></video>
+<p id="out"></p>
+<p id="checks"></p>
+<p id="errs"></p>
+<p id="perr"></p>
+<script>
+const v = document.getElementById("v"), ev = [];
+for (const t of ["play", "playing", "pause", "ended", "ratechange", "error", "timeupdate", "seeked"])
+  v.addEventListener(t, () => { if (t !== "timeupdate" || ev[ev.length - 1] !== "timeupdate") ev.push(t); });
+v.playbackRate = 4;
+v.play().then(() => ev.push("resolved"));
+v.addEventListener("ended", () => {
+  document.getElementById("out").textContent = ev.join(",") + " t=" + v.currentTime.toFixed(1) + " paused=" + v.paused +
+    " ended=" + v.ended + " played=" + v.played.length + ":" + v.played.end(0).toFixed(1);
+});
+const r = [];
+try { v.volume = 2; } catch (e) { r.push(e.name); }
+try { v.currentTime = NaN; } catch (e) { r.push(e.name); }
+r.push(v.HAVE_ENOUGH_DATA, HTMLMediaElement.NETWORK_LOADING, v.networkState, v.preload, v.canPlayType("video/x-nope"));
+r.push(v.src.startsWith("file:") || v.src.startsWith("http"), v instanceof HTMLVideoElement, new Audio() instanceof HTMLAudioElement);
+document.getElementById("checks").textContent = r.join(",");
+const bad = new Audio("media/missing.ogg");
+bad.addEventListener("error", () => {
+  document.getElementById("errs").textContent = "error " + bad.error.code + " " + bad.networkState + " " + (bad.error instanceof MediaError);
+});
+bad.play().catch((e) => { document.getElementById("perr").textContent = e.name; });
+</script>

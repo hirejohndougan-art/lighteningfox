@@ -237,6 +237,11 @@ pub fn with_dom_mut<R>(f: impl FnOnce(&mut Dom) -> R) -> R {
     DOM.with(|d| f(&mut d.borrow_mut()))
 }
 
+/// Ask for a restyle and repaint without a DOM change (a new video frame).
+pub fn mark_dirty() {
+    DIRTY.with(|d| d.set(true));
+}
+
 /// True if scripts changed the DOM since the last call.
 pub fn take_dirty() -> bool {
     DIRTY.with(|d| d.replace(false))
@@ -1339,6 +1344,8 @@ impl Js {
         }
         // <canvas> 2D drawing (canvas.rs, canvas.js) and the DOMMatrix family.
         crate::canvas::install(&mut ctx);
+        // <video> and <audio> (media.rs, media.js).
+        crate::media::install(&mut ctx);
         if let Err(e) = ctx.eval_cached(BLOB.as_bytes()) {
             log!("[ironswift] Blob setup failed: {e}");
         }
@@ -1467,6 +1474,7 @@ impl Js {
     /// Hand canvases drawn on since last time to the page's images (before a layout).
     pub fn publish_canvases(&self, images: &mut crate::images::Images) {
         crate::canvas::publish(&self.ctx, images);
+        crate::media::publish(&self.ctx, images);
     }
 
     /// The answer to permission requests `ids` (from the prompt, or automatic).

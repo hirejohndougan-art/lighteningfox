@@ -71,6 +71,7 @@ mod layout;
 mod library;
 mod cache;
 mod canvas;
+mod media;
 mod channels;
 mod clipboard;
 mod downloads;
@@ -4649,6 +4650,7 @@ mod screenshot_tests {
         ("tests/real-world/vue.html", 1024),
         ("tests/real-world/jquery.html", 1024),
         ("tests/real-world/bootstrap.html", 1024),
+        ("tests/media.html", 1024),
     ];
 
     fn read_png(path: &str) -> Option<(usize, usize, Vec<u8>)> {

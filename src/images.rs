@@ -37,7 +37,12 @@ enum Data {
     Svg(Arc<resvg::usvg::Tree>),
     /// Frames (decoded, maybe scaled down) and when each one ends, in ms from the start.
     Animated { frames: Vec<Arc<image::RgbaImage>>, ends: Vec<u32> },
+    /// Drawn on demand at the size it's painted (a `<video>` with its controls).
+    Drawn(Drawer),
 }
+
+/// Draws a picture at exactly w×h device pixels.
+pub type Drawer = Arc<dyn Fn(u32, u32) -> Option<image::RgbaImage> + Send + Sync>;
 
 pub struct Img {
     /// The image's own size (CSS px), whatever it's decoded at.
@@ -126,6 +131,11 @@ pub fn freeze_animations() {
     FROZEN.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
+/// Is this a snapshot (animations, video and sound held still)?
+pub fn animations_frozen() -> bool {
+    FROZEN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 fn clock() -> Instant {
     static START: OnceLock<Instant> = OnceLock::new();
     *START.get_or_init(Instant::now)
@@ -165,6 +175,13 @@ impl Images {
                 cache.bytes -= c.img.as_raw().len();
             }
         }
+    }
+
+    /// Add a picture that's drawn when painted, at the painted size (`w`×`h` is its own size,
+    /// for layout; 0×0 if it has none).
+    pub fn insert_drawn(&mut self, key: &str, w: u32, h: u32, draw: Drawer) {
+        self.insert(key, image::RgbaImage::new(1, 1));
+        self.by_src.insert(key.to_string(), Arc::new(Img { w, h, data: Data::Drawn(draw) }));
     }
 
     /// A copy sharing the downloaded images (cheap), for laying the page out on demand.
@@ -219,6 +236,7 @@ impl Images {
         }
         let out = match &img.data {
             Data::Svg(tree) => render_svg(tree, w, h)?,
+            Data::Drawn(draw) => draw(w, h)?,
             Data::Pixels(p) => resize(p, w, h),
             Data::Animated { frames, .. } => resize(&frames[frame as usize], w, h),
             Data::Encoded(bytes) => {

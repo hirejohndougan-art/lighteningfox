@@ -1,0 +1,25 @@
+<!doctype html>
+<title>video and audio</title>
+<style>body { font: 14px sans-serif; } video { background: #ddd; }</style>
+<p>Plain video (first frame):</p>
+<video id="v1" src="media/clip.webm"></video>
+<p>Video with controls, sized by width only:</p>
+<video id="v2" src="media/clip.webm" controls width="320"></video>
+<p>Poster, then a seek to 1s from script:</p>
+<video id="v3" src="media/clip.webm" poster="media/poster.png" controls></video>
+<video id="v4" src="media/clip.webm" width="200" height="60"></video>
+<p>Audio with controls, and without (hidden):</p>
+<audio id="a1" src="media/tone.ogg" controls></audio><audio id="a2" src="media/tone.ogg"></audio>
+<p id="log"></p>
+<script>
+const log = [];
+const v4 = document.getElementById("v4");
+for (const t of ["loadstart", "durationchange", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "seeking", "seeked"]) v4.addEventListener(t, () => log.push(t));
+v4.addEventListener("loadeddata", () => { v4.currentTime = 1; });
+v4.addEventListener("seeked", () => {
+  const a = document.getElementById("a1");
+  document.getElementById("log").textContent = log.join(" ") + " | " + v4.videoWidth + "x" + v4.videoHeight +
+    " d=" + v4.duration.toFixed(1) + " t=" + v4.currentTime + " rs=" + v4.readyState + " audio d=" + a.duration.toFixed(1) +
+    " canPlay=" + v4.canPlayType('video/webm; codecs="vp8, vorbis"') + " " + (v4 instanceof HTMLMediaElement);
+});
+</script>
