@@ -158,7 +158,7 @@ Styles use `Rc` and per-thread state (hover, viewport, animations) today; see ba
 inside `@container` are matched in order, not in parallel (they need ancestors' styles).
 
 ### T04b. Parallel layout
-**Status:** free
+**Status:** claimed by chat-opus-geo 2026-11-17 17:20
 **After:** T04
 **Checklist:** §14 "Parallel styling and layout across CPU cores (Rayon)" (the layout half; tick
 the item when this is done)
