@@ -31,6 +31,7 @@ mod icon;
 mod tokenizer;
 mod a11y;
 mod i18n;
+mod keynav;
 mod chrome;
 mod favicon;
 mod devtools;
@@ -1660,9 +1661,9 @@ fn control_for(d: &dom::Dom, node: dom::NodeId) -> Option<dom::NodeId> {
     None
 }
 
-/// Every control Tab can move to, in document order.
-fn focusable(d: &dom::Dom) -> Vec<dom::NodeId> {
-    d.descendants(dom::Dom::ROOT).into_iter().filter(|&n| forms::control(d, n).is_some() && !forms::is_disabled(d, n)).collect()
+/// Everything Tab can move to, in tab order (links, controls, tabindex elements).
+fn focusable(d: &dom::Dom, styles: &[Rc<style::Style>]) -> Vec<dom::NodeId> {
+    a11y::tab_order(d, (styles.len() == d.nodes.len()).then_some(styles))
 }
 
 /// Fire an event at a node if the page runs scripts. Returns false if a script cancelled it.
@@ -1840,6 +1841,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut pointer = userinput::Pointer::default();
     // The focused form control (typing goes into it) and an open <select> list.
     let mut focused: Option<dom::NodeId> = None;
+    // Focus moved by the keyboard shows a focus ring; Enter or Space on a focused element
+    // becomes a click at its middle (window coordinates) on the next mouse pass.
+    let mut focus_visible = false;
+    let mut key_click: Option<(f32, f32)> = None;
     let mut dropdown: Option<Dropdown> = None;
     // A form control's validation message, shown after a blocked submission.
     let mut bubble: Option<formui::Bubble> = None;
@@ -2111,7 +2116,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // Requests from scripts: focus(), blur(), form.submit(), form.reset().
         for req in js::take_requests() {
             match req {
-                js::Request::Focus(n) if js::with_dom(|d| forms::control(d, n).is_some()) => {
+                js::Request::Focus(n) if js::with_dom(|d| forms::control(d, n).is_some() || a11y::is_focusable(d, n)) => {
                     focused = Some(n);
                     form_changed = true;
                 }
@@ -2393,16 +2398,33 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     let handled = match key {
                         Key::Tab if !ctrl => {
                             let shift = p.shift;
-                            let all = js::with_dom(focusable);
+                            let all = js::with_dom(|d| focusable(d, &page.styles));
                             let i = all.iter().position(|&n| n == f).unwrap_or(0);
                             let next = if shift { (i + all.len() - 1) % all.len().max(1) } else { (i + 1) % all.len().max(1) };
                             if let Some(&n) = all.get(next) {
                                 fire(&mut page, f, "blur");
                                 focused = Some(n);
                                 fire(&mut page, n, "focus");
+                                focus_visible = true;
+                                if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, n)) {
+                                    if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
+                                        scroll = smooth.to(scroll, s);
+                                    }
+                                }
                             }
                             dropdown = None;
                             form_changed = true;
+                            true
+                        }
+                        // Enter (and Space, except on links) activates a focused link, button,
+                        // <summary> or tabindex element as a click would.
+                        Key::Enter | Key::NumPadEnter | Key::Space
+                            if !matches!(kind, Some(forms::Control::Text { .. } | forms::Control::TextArea | forms::Control::Checkbox | forms::Control::Radio | forms::Control::Select))
+                                && !(key == Key::Space && js::with_dom(|d| a11y::role_of(d, f)) == "link") =>
+                        {
+                            if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
+                                key_click = Some(keynav::center_on_screen(r, fixed, bar_h() as f32, scroll));
+                            }
                             true
                         }
                         Key::Escape => {
@@ -2448,6 +2470,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                 }
                 match key {
+                    // Nothing focused yet: Tab starts at the first focusable element (Shift+Tab
+                    // at the last).
+                    Key::Tab if !ctrl && focused.is_none() => {
+                        let all = js::with_dom(|d| focusable(d, &page.styles));
+                        let pick = if p.shift { all.last() } else { all.first() };
+                        if let Some(&n) = pick {
+                            focused = Some(n);
+                            fire(&mut page, n, "focus");
+                            focus_visible = true;
+                            form_changed = true;
+                            if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, n)) {
+                                if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
+                                    scroll = smooth.to(scroll, s);
+                                }
+                            }
+                        }
+                    }
                     Key::Down => scroll = smooth.by(scroll, 48.0),
                     Key::Up => scroll = smooth.by(scroll, -48.0),
                     Key::PageDown | Key::Space => scroll = smooth.by(scroll, view_h * 0.9),
@@ -2561,10 +2600,17 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         geometry::set_scroll(scroll / page.scale());
 
         // Mouse: hover cursor and clicks.
-        let down = window.get_mouse_down(MouseButton::Left);
+        // A keyboard activation is a press at the element's middle for this one frame.
+        let synthetic = key_click.take();
+        if synthetic.is_some() {
+            was_down = false;
+        } else if window.get_mouse_down(MouseButton::Left) && !was_down {
+            focus_visible = false;
+        }
+        let down = synthetic.is_some() || window.get_mouse_down(MouseButton::Left);
         let mid = window.get_mouse_down(MouseButton::Middle);
         let right = window.get_mouse_down(MouseButton::Right);
-        if let Some((mx, my)) = window.get_mouse_pos(MouseMode::Discard) {
+        if let Some((mx, my)) = synthetic.or_else(|| window.get_mouse_pos(MouseMode::Discard)) {
             let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
                 sugg_hover = sh;
@@ -2884,6 +2930,23 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     // Let the page's JavaScript see the click first.
                     let node = lay.hit_at(mx, view_y, scroll);
+                    // The focusable element clicked (a link, a tabindex element) takes focus, so
+                    // keyboard users keep their place after activating it. Found before the
+                    // page's click handlers run, since they may replace the node clicked.
+                    let clicked_focusable = {
+                        node.and_then(|n| {
+                            js::with_dom(|d| {
+                                let mut cur = Some(n);
+                                while let Some(x) = cur {
+                                    if a11y::is_focusable(d, x) {
+                                        return Some(x);
+                                    }
+                                    cur = d.nodes[x].parent;
+                                }
+                                None
+                            })
+                        })
+                    };
                     // Checkboxes and radio buttons change before the click event, so handlers
                     // (React's onChange, for one) see the new state; a cancelled click undoes it.
                     let toggled = node
@@ -2928,13 +2991,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     // Form controls: focus, check, open a list, submit or reset.
                     let ctrl = node.and_then(|n| js::with_dom(|d| control_for(d, n)));
                     let ctrl = ctrl.filter(|&c| !js::with_dom(|d| forms::is_disabled(d, c)));
-                    if ctrl != focused {
+                    let focus_to = ctrl.or(clicked_focusable);
+                    if focus_to != focused {
                         if let Some(old) = focused {
                             fire(&mut page, old, "change");
                             fire(&mut page, old, "blur");
                         }
-                        focused = ctrl;
-                        if let Some(n) = ctrl {
+                        focused = focus_to;
+                        if let Some(n) = focus_to {
                             fire(&mut page, n, "focus");
                         }
                         form_changed = true;
@@ -3039,7 +3103,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         }
         if form_changed {
-            let editable = focused.is_some_and(|f| js::with_dom(|d| forms::control(d, f).is_some()));
+            let editable = focused.is_some_and(|f| js::with_dom(|d| forms::control(d, f).is_some() || a11y::is_focusable(d, f)));
             if !editable {
                 focused = None;
             }
@@ -3476,6 +3540,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let Some(dd) = &dropdown {
                 draw_dropdown(&mut canvas, fonts, dd, scroll);
+            }
+            if let (true, Some(f)) = (focus_visible, focused) {
+                if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
+                    keynav::draw_ring(&mut canvas, r, fixed, bar_h() as f32, scroll.round(), h as f32, settings::get().high_contrast);
+                }
             }
             if let Some(b) = &bubble {
                 if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == b.node).map(|(r, _)| *r) {

@@ -138,7 +138,7 @@ impl Layout {
     }
 
     /// Is link/hit `i` part of a fixed box (which doesn't scroll)?
-    fn is_fixed(&self, i: usize, links: bool) -> bool {
+    pub fn is_fixed(&self, i: usize, links: bool) -> bool {
         self.fixed.iter().any(|(l, h)| if links { l.contains(&i) } else { h.contains(&i) })
     }
 
