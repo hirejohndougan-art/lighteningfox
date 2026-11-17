@@ -471,7 +471,9 @@ pub fn interpolate(a: &str, b: &str, t: f32) -> String {
 /// Values used when a keyframe or transition has nothing declared for a property.
 fn initial(prop: &str) -> Option<&'static str> {
     Some(match prop {
-        "opacity" => "1",
+        "opacity" | "fill-opacity" | "stroke-opacity" | "stop-opacity" | "stroke-width" => "1",
+        "fill" | "stop-color" => "black",
+        "stroke-dashoffset" => "0",
         "transform" | "filter" | "backdrop-filter" | "box-shadow" | "text-shadow" => "none",
         "background-color" | "border-color" | "outline-color" => "transparent",
         "letter-spacing" | "word-spacing" | "margin-top" | "margin-bottom" | "margin-left" | "margin-right" | "padding-top" | "padding-bottom" | "padding-left" | "padding-right" | "border-radius" => "0px",

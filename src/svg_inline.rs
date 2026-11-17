@@ -46,6 +46,24 @@ pub fn declared<'a>(decls: impl Iterator<Item = &'a crate::css::Decl>, vars: &Ha
     (!out.is_empty()).then(|| Rc::new(out))
 }
 
+/// Presentation attributes that CSS transitions and animations start from when no rule sets
+/// the property (`transform` is left out: its attribute syntax isn't CSS's).
+const PRESENTATION: &[&str] = &["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dashoffset", "opacity", "stop-color", "stop-opacity", "color"];
+
+pub fn presentation_attrs(dom: &Dom, id: NodeId) -> Vec<(String, String)> {
+    PRESENTATION.iter().filter_map(|&n| dom.attr(id, n).map(|v| (n.to_string(), v.trim().to_string()))).collect()
+}
+
+/// An element's SVG declarations with the animated values (anim.rs) on top.
+pub fn with_animated(decls: Option<Rc<Vec<(String, String)>>>, animated: Vec<(String, String)>) -> Option<Rc<Vec<(String, String)>>> {
+    let mut out: Vec<(String, String)> = decls.map(|d| (*d).clone()).unwrap_or_default();
+    for (n, v) in animated {
+        out.retain(|(k, _)| *k != n);
+        out.push((n, v));
+    }
+    Some(Rc::new(out))
+}
+
 /// An outermost `<svg>`: one in the SVG namespace whose parent isn't.
 pub fn is_root(dom: &Dom, id: NodeId) -> bool {
     dom.tag(id) == Some("svg") && dom.ns_of(id) == Ns::Svg && dom.nodes[id].parent.is_none_or(|p| dom.ns_of(p) != Ns::Svg)
@@ -234,7 +252,11 @@ fn element(dom: &Dom, styles: &[Rc<Style>], id: NodeId, root: bool, out: &mut St
             refs_in(n, v, refs);
             style.push_str(n);
             style.push(':');
-            style.push_str(v.trim_end_matches(';'));
+            if n == "transform" {
+                style.push_str(&svg_transform(v.trim_end_matches(';')));
+            } else {
+                style.push_str(v.trim_end_matches(';'));
+            }
             style.push(';');
         }
     }
@@ -270,6 +292,50 @@ fn element(dom: &Dom, styles: &[Rc<Style>], id: NodeId, root: bool, out: &mut St
     out.push_str("</");
     out.push_str(tag);
     out.push('>');
+}
+
+/// A CSS `transform` value in the SVG attribute syntax the renderer reads: units dropped
+/// (`rotate(45deg)` → `rotate(45)`, `translate(10px, 0)` → `translate(10 0)`) and the
+/// one-axis CSS functions spelled out. 3D functions and percentages are left out.
+pub fn svg_transform(css: &str) -> String {
+    let mut out: Vec<String> = Vec::new();
+    for f in crate::css::split_top(css.trim(), ' ') {
+        let f = f.trim();
+        let Some((name, args)) = f.split_once('(') else { continue };
+        let args: Vec<f32> = args
+            .trim_end_matches(')')
+            .split(|c: char| c == ',' || c.is_whitespace())
+            .filter(|a| !a.is_empty())
+            .filter_map(|a| {
+                let num: String = a.chars().take_while(|c| c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e')).collect();
+                let v: f32 = num.parse().ok()?;
+                Some(match &a[num.len()..] {
+                    "" | "px" | "deg" => v,
+                    "rad" => v.to_degrees(),
+                    "turn" => v * 360.0,
+                    "grad" => v * 0.9,
+                    _ => return None,
+                })
+            })
+            .collect();
+        let a = |i: usize, d: f32| args.get(i).copied().unwrap_or(d);
+        let part = match name.trim().to_ascii_lowercase().as_str() {
+            "translate" if !args.is_empty() => format!("translate({} {})", a(0, 0.0), a(1, 0.0)),
+            "translatex" if !args.is_empty() => format!("translate({} 0)", a(0, 0.0)),
+            "translatey" if !args.is_empty() => format!("translate(0 {})", a(0, 0.0)),
+            "scale" if !args.is_empty() => format!("scale({} {})", a(0, 1.0), a(1, a(0, 1.0))),
+            "scalex" if !args.is_empty() => format!("scale({} 1)", a(0, 1.0)),
+            "scaley" if !args.is_empty() => format!("scale(1 {})", a(0, 1.0)),
+            "rotate" if !args.is_empty() => format!("rotate({})", a(0, 0.0)),
+            "skewx" if !args.is_empty() => format!("skewX({})", a(0, 0.0)),
+            "skewy" if !args.is_empty() => format!("skewY({})", a(0, 0.0)),
+            "skew" if !args.is_empty() => format!("skewX({}) skewY({})", a(0, 0.0), a(1, 0.0)),
+            "matrix" if args.len() == 6 => format!("matrix({})", args.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ")),
+            _ => continue,
+        };
+        out.push(part);
+    }
+    if out.is_empty() { "translate(0 0)".to_string() } else { out.join(" ") }
 }
 
 /// The id an element without one has in the published drawing.
@@ -366,6 +432,14 @@ mod tests {
         let doc = document(&dom, &styles, id, &mut None);
         assert!(doc.contains("<defs><symbol id=\"star\""), "{doc}");
         assert!(doc.contains("<linearGradient id=\"g\""), "{doc}");
+    }
+
+    #[test]
+    fn css_transforms_in_svg_syntax() {
+        assert_eq!(svg_transform("rotate(45deg)"), "rotate(45)");
+        assert_eq!(svg_transform("translate(50px, 0) scale(2)"), "translate(50 0) scale(2 2)");
+        assert_eq!(svg_transform("translateX(5px) rotate(0.5turn)"), "translate(5 0) rotate(180)");
+        assert_eq!(svg_transform("none"), "translate(0 0)");
     }
 
     #[test]

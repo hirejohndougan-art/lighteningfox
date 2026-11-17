@@ -1182,9 +1182,21 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                 won.retain(|(n, _)| *n != m.decl.name);
                 won.push((m.decl.name.clone(), value.trim().to_string()));
             }
+            let svg = dom.ns_of(id) == crate::dom::Ns::Svg;
+            if svg {
+                // SVG presentation attributes (fill="red") are what a transition starts from.
+                won.splice(0..0, crate::svg_inline::presentation_attrs(dom, id));
+            }
+            let mut svg_anim: Vec<(String, String)> = Vec::new();
             for (name, value) in crate::anim::animate(id, st.anim.clone().as_deref(), &won) {
                 let value = if value.contains("var(") { substitute_vars(&value, &st.vars, 0) } else { value };
+                if svg && crate::svg_inline::is_svg_prop(&name) {
+                    svg_anim.push((name.clone(), value.clone()));
+                }
                 apply(&mut st, &parent_style, &name, &value);
+            }
+            if !svg_anim.is_empty() {
+                st.svg_decls = crate::svg_inline::with_animated(st.svg_decls.take(), svg_anim);
             }
         }
         // The reader's minimum font size (Settings → Appearance).
