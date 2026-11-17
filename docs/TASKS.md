@@ -143,11 +143,12 @@ browser process and pass positions to the page process.
 **Files:** `src/boxtree.rs`, `src/layout.rs`
 
 ### T03. Vertical text for East Asian languages
-**Status:** claimed by chat-opus-t07 2026-11-17 10:30
+**Status:** done
 **After:** T01
 **Checklist:** §6 "Vertical text for East Asian layouts"
 **Files:** `src/boxtree.rs`, text parts of `src/layout.rs`, `src/font.rs`
 `writing-mode` (vertical-rl/lr), `text-orientation`, `text-combine-upright`.
+Left undone: logical properties (inline-size, margin-block…) still map as in horizontal text; body→root writing-mode propagation; a descendant's text-orientation applies only to its own text runs (letter-spaced text uses the root's); padding of a horizontal box inside vertical text lands on the turned sides; link/hit areas inside such a box are turned with the column; sideways glyph placement is centred approximately (WPT orientation-font ref tests still differ by a few pixels).
 
 ### T04. Parallel styling and layout
 **Status:** done
