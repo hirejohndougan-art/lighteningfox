@@ -157,9 +157,10 @@ pages and adds a size cap that stops compiling if it is exceeded).
 ## Cranelift version
 
 `cranelift-codegen`, `cranelift-frontend`, `cranelift-jit`, `cranelift-module` and
-`cranelift-native` 0.137.2 (needs Rust 1.97). WebAssembly (task P1a) had not picked a runtime
-when J1 was done; if it picks `wasmtime`, use the Cranelift version that `wasmtime` release
-depends on and move the JIT to it, so the browser carries one copy of Cranelift.
+`cranelift-native` 0.137.2 (needs Rust 1.97). WebAssembly (task P1a) chose the `wasmi` interpreter
+rather than `wasmtime` (`docs/ARCHITECTURE.md`), so there is no second copy of Cranelift to keep
+in step with. If WebAssembly ever moves to `wasmtime`, move the JIT to the Cranelift version that
+`wasmtime` release uses.
 
 ## Security notes (for `SECURITY.md` in J4)
 
