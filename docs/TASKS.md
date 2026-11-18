@@ -1219,7 +1219,7 @@ results as the interpreter on every test262 and Boa test with the JIT forced on 
 function (`BOA_JIT=always`). Measure the summing-loop and V8 suite in `docs/boa-speed.md`.
 
 ### J3. Baseline JIT: properties, calls and exceptions
-**Status:** claimed by chat-wasm-1 2026-11-18 08:35
+**Status:** done
 **After:** J2
 **Checklist:** none
 **Files:** `vendor/boa/boa_engine/src/jit/`, `fuzz/`
@@ -1227,6 +1227,25 @@ Property reads and writes (calling into the VM's existing paths), function calls
 directions, `try`/`catch`/`finally` and generators/async functions either compiled or left to
 the interpreter. Add a fuzz target that runs each program with and without the JIT and fails on
 any difference.
+
+**Result:** Compiled code now runs every opcode the interpreter can step one at a time
+(property reads/writes, calls, `throw`, handlers) by calling back into the VM for that
+instruction, and can resume at any pc. Calls go both ways through a trampoline in
+`jit::runtime::run`, so compiled → interpreted → compiled never nests native frames.
+`try`/`catch`/`finally` compile; generators, async functions and class constructors are left
+to the interpreter. Machine code belongs to its Context and is freed with it; functions over
+32 KB of bytecode stay interpreted. test262: `BOA_JIT=off` and `always` give byte-identical
+results (51,226 / 53,578 pass), peak memory under 2 GB. Boa's own tests pass in both modes;
+Ironswift's 422 tests pass with `--features boa_jit` and `BOA_JIT=always`. New fuzz target
+`jit_diff` (run with `cargo fuzz`; an 8-minute instrumented run found no differences). Speed:
+jit-sum 785 → 278 ms; V8 suite 287 → 291 (details in `docs/boa-speed.md`).
+Choices: the fuzz target runs each mode on a 256 MB-stack thread, because 340 nested `(`
+overflowed the fuzzer's 8 MB main thread with the JIT off too (the parser recurses per level;
+the browser already runs scripts on a big stack, so not a browser bug).
+**Left undone:** Richards and DeltaBlue are ~20% slower with the JIT (per-instruction calls
+back into the VM for property and call opcodes; inline paths for these belong in a later
+task); generators, async functions and class constructors stay interpreted; functions over
+32 KB stay interpreted.
 
 ### J4. Baseline JIT: on by default
 **Status:** free
