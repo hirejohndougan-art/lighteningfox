@@ -37,6 +37,8 @@ pub enum Event {
     Resize { w: u32, h: u32 },
     /// Scroll the page to this y (find in page jumping to a match).
     ScrollTo(f32),
+    /// An option was picked in the window's list for the <select> `id` (see Update::Select).
+    SelectChoose { id: u32, index: u32 },
     /// Back or Forward moved within the page's own history entries (a top-level page in a site
     /// process): its new address and state, and whether to fire popstate.
     HistoryMoved { url: String, state: String, popstate: bool },
@@ -60,6 +62,10 @@ pub enum Update {
     /// The text on the page and where it's drawn (page coordinates), for find in page and
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
+    /// A <select> was clicked (a top-level page in a site process): the window shows its list
+    /// of options under the box at (x, y, w) (frame pixels, after scrolling) and answers with
+    /// Event::SelectChoose.
+    Select { id: u32, x: f32, y: f32, w: f32, options: Vec<String> },
     /// The page's script changed its history: pushState, replaceState, location.hash, back…
     /// (a top-level page in a site process).
     History(js::HistoryOp),
@@ -144,6 +150,10 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::SelectChoose { id, index } => {
+                put(&mut m, b"choose");
+                put(&mut m, &f32s(&[*id as f32, *index as f32]));
+            }
             Event::HistoryMoved { url, state, popstate } => {
                 put(&mut m, b"histmoved");
                 put(&mut m, url.as_bytes());
@@ -197,6 +207,10 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"choose" => match read_f32s(&get(r)?)[..] {
+                [id, index] if id >= 0.0 && index >= 0.0 => Event::SelectChoose { id: id as u32, index: index as u32 },
+                _ => return Err(std::io::Error::other("bad choice")),
+            },
             b"histmoved" => {
                 let url = String::from_utf8_lossy(&get(r)?).to_string();
                 let state = String::from_utf8_lossy(&get(r)?).to_string();
@@ -233,6 +247,13 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::Select { id, x, y, w, options } => {
+                put(&mut m, b"select");
+                put(&mut m, &f32s(&[*id as f32, *x, *y, *w, options.len() as f32]));
+                for o in options {
+                    put(&mut m, o.as_bytes());
+                }
             }
             Update::History(op) => {
                 put(&mut m, b"history");
@@ -279,6 +300,17 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"select" => {
+                let [id, x, y, w, n] = read_f32s(&get(r)?)[..] else { return Err(std::io::Error::other("bad select")) };
+                if !(0.0..=10_000.0).contains(&n) || id < 0.0 {
+                    return Err(std::io::Error::other("bad select"));
+                }
+                let mut options = Vec::with_capacity(n as usize);
+                for _ in 0..n as usize {
+                    options.push(String::from_utf8_lossy(&get(r)?).to_string());
+                }
+                Update::Select { id: id as u32, x, y, w, options }
+            }
             b"history" => {
                 let kind = get(r)?;
                 let url = String::from_utf8_lossy(&get(r)?).to_string();
@@ -553,6 +585,14 @@ impl Host {
                         }
                     }
                 }
+                Some(forms::Control::Select) if self.job.top_level => {
+                    // A top-level page: the window shows the list (Event::SelectChoose answers).
+                    let r = self.lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r);
+                    let options = js::with_dom(|d| forms::options(d, c).into_iter().map(|o| forms::option_label(d, o)).collect());
+                    if let Some(r) = r {
+                        out(Update::Select { id: c as u32, x: r.x, y: r.y + r.h - self.scroll, w: r.w.max(120.0), options });
+                    }
+                }
                 Some(forms::Control::Select) => {
                     // No drop-down list inside a frame yet: a click picks the next option.
                     let next = js::with_dom(|d| {
@@ -745,6 +785,15 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::SelectChoose { id, index } => {
+                let c = id as NodeId;
+                let opt = js::with_dom(|d| (c < d.nodes.len() && matches!(forms::control(d, c), Some(forms::Control::Select))).then(|| forms::options(d, c).get(index as usize).copied()).flatten());
+                if let Some(o) = opt {
+                    js::with_dom_mut(|d| forms::select_option(d, c, o));
+                    self.fire(c, "input");
+                    self.fire(c, "change");
+                }
+            }
             Event::HistoryMoved { url, state, popstate } => {
                 if crate::net::origin_of(&url) == crate::net::origin_of(&self.page.url) {
                     let old = std::mem::replace(&mut self.page.url, url.clone());
@@ -987,6 +1036,9 @@ pub struct Pumped {
     pub post: Option<(String, forms::PostBody)>,
     /// A top-level page's new title.
     pub title: Option<String>,
+    /// A top-level page in a site process opened a <select>: its id, where to show the list
+    /// (window page coordinates: x, top, width) and the options.
+    pub select: Option<(u32, f32, f32, f32, Vec<String>)>,
     /// History changes a top-level page in a site process made (still to be checked).
     pub history: Vec<js::HistoryOp>,
 }
@@ -1030,6 +1082,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 }
                 Update::Text(_) => {}
                 Update::History(op) if f.top_level => out.history.push(op),
+                Update::Select { id, x, y, w, options } if f.top_level => out.select = Some((id, x, y, w, options)),
+                Update::Select { .. } => {}
                 Update::History(_) => {}
             }
         }
@@ -1100,6 +1154,19 @@ pub fn site_runs(doc: u64, lay: &layout::Layout) -> Option<Vec<crate::chrome::Te
             .map(|r| crate::chrome::TextRun { x: r.x + x0, y: r.y + y0 - if r.fixed { 0.0 } else { f.scroll }, fixed: false, ..r.clone() })
             .collect(),
     )
+}
+
+/// Where the site-process page of `doc` is drawn in the window's layout (top-left).
+pub fn site_origin(doc: u64, lay: &layout::Layout) -> Option<(f32, f32)> {
+    let live = LIVE.lock().ok()?;
+    site_box(&live, doc, lay).map(|(_, x, y)| (x, y))
+}
+
+/// Pass a picked <select> option to the site-process page shown for `doc`.
+pub fn site_select(doc: u64, id: u32, index: u32) {
+    if let Some(key) = site_frame(doc) {
+        send(doc, &key, Event::SelectChoose { id, index });
+    }
 }
 
 /// Back/Forward moved within the history entries of the site-process page shown for `doc`:
@@ -1596,6 +1663,7 @@ mod tests {
             Event::Keys { keys: vec![(Key::A, true, false, false), (Key::Backspace, false, true, false)], text: "héllo".into() },
             Event::Blur,
             Event::ScrollTo(120.0),
+            Event::SelectChoose { id: 42, index: 3 },
             Event::HistoryMoved { url: "https://a.com/x#y".into(), state: "{\"n\":1}".into(), popstate: true },
         ];
         for e in evs {
@@ -1614,6 +1682,8 @@ mod tests {
             let b = Update::History(op.clone()).encode();
             assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::History(o) if o == op));
         }
+        let b = Update::Select { id: 7, x: 1.0, y: 20.0, w: 120.0, options: vec!["Apple".into(), "Bänana".into()] }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Select { id: 7, options, .. } if options == ["Apple", "Bänana"]));
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];
         let b = Update::Text(runs.clone()).encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Text(r) if r == runs));

@@ -1746,6 +1746,9 @@ struct Dropdown {
     w: f32,
     options: Vec<(dom::NodeId, String)>,
     hover: Option<usize>,
+    /// The <select> is in the page's site process: `select` is its id there, and each option's
+    /// id is its index.
+    remote: bool,
 }
 const OPTION_H: f32 = 22.0;
 
@@ -2418,6 +2421,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A page in a site process: its title, its forms, and its size follows the window.
         frames::fit(page.doc, &lay);
+        // A <select> it opened: the list, under the box.
+        if let Some((id, x, y, w, labels)) = fr.select {
+            if let Some((x0, y0)) = frames::site_origin(page.doc, &lay) {
+                let options = labels.into_iter().enumerate().map(|(i, l)| (i as dom::NodeId, l)).collect();
+                dropdown = Some(Dropdown { select: id as dom::NodeId, x: x0 + x, y: y0 + y, w, options, hover: None, remote: true });
+                dirty = true;
+            }
+        }
         // Its history changes, if they stay on its own origin (as pushState must).
         for op in fr.history {
             let ok = match &op {
@@ -3244,7 +3255,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let view_y = my - bar_h() as f32;
             // Over a live iframe, the mouse belongs to the frame's document (frames.rs).
-            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
+            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() && dropdown.is_none() { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
             if over_frame.as_ref().map(|f| &f.0) != frame_hover.as_ref() {
                 if let Some(k) = frame_hover.take() {
                     frames::leave(page.doc, &k);
@@ -3507,7 +3518,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             } else if down && !was_down && dropdown.is_some() {
                 // A click while a list is open picks an option or closes the list.
                 let dd = dropdown.take().unwrap();
-                if let Some(i) = dd.row_at(mx, my - bar_h() as f32 + scroll) {
+                if let (Some(i), true) = (dd.row_at(mx, my - bar_h() as f32 + scroll), dd.remote) {
+                    frames::site_select(page.doc, dd.select as u32, dd.options[i].0 as u32);
+                } else if let Some(i) = dd.row_at(mx, my - bar_h() as f32 + scroll) {
                     let opt = dd.options[i].0;
                     js::with_dom_mut(|d| forms::select_option(d, dd.select, opt));
                     fire(&mut page, dd.select, "input");
@@ -3797,7 +3810,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             Some(forms::Control::Select) => {
                                 if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == c).map(|(r, _)| *r) {
                                     let options = js::with_dom(|d| forms::options(d, c).into_iter().map(|o| (o, forms::option_label(d, o))).collect());
-                                    dropdown = Some(Dropdown { select: c, x: r.x, y: r.y + r.h, w: r.w.max(120.0), options, hover: None });
+                                    dropdown = Some(Dropdown { select: c, x: r.x, y: r.y + r.h, w: r.w.max(120.0), options, hover: None, remote: false });
                                     dirty = true;
                                 }
                             }
