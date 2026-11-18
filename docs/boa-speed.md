@@ -58,3 +58,19 @@ session. Instruction counts (valgrind, in `vendor/boa/IRONSWIFT.md`) are steadie
 benchmark now does 2–15% less work than stock. SplayLatency, which scores GC pauses, was
 1093 vs 1145 stock: the bigger GC heap (change 1) makes each pause a little longer. A
 generational or incremental collector is the fix if pauses become a problem on real pages.
+
+## Baseline JIT (J2, `--features boa_jit`)
+
+Same build, same session (2026-11-18), `BOA_JIT=off` then `BOA_JIT=on`:
+
+| | Richards | DeltaBlue | Crypto | RayTrace | EarleyBoyer | RegExp | Splay | NavierStokes | Score |
+|---|---|---|---|---|---|---|---|---|---|
+| JIT off | 164 | 123 | 175 | 279 | 287 | 38.9 | 350 | 385 | 222 |
+| JIT on (J2) | 144 | 141 | 154 | 221 | 270 | 33.1 | 736 | 332 | 228 |
+
+The V8 suite is unchanged within noise: its hot functions read properties and call other
+functions, which J2 leaves to the interpreter (J3 compiles them). Number loops are where J2
+shows. A summing loop (`for (let i = 0; i < n; i++) s += i`, 200 × 100,000) plus Collatz step
+counts for 1–30,000 (`tools/bench/jit-sum.js`), best of 3:
+**903 ms → 308 ms (2.9×)**, same output.
+

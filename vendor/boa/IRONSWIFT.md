@@ -178,3 +178,13 @@ miss on the global object (and every assignment) checks the realm's global decla
 with the TDZ and `const` errors. Only misses pay for it: found global properties take the same
 path as before. Found by WPT `wasm/jsapi` (`instanceTestFactory.js` reads a `let` from the test
 file loaded after it); real pages split across scripts hit the same thing.
+
+### boa_engine: baseline JIT, numbers and loops (`src/jit/compiler.rs`, `helpers.rs`, `runtime.rs`, task J2)
+
+Eligible hot functions are compiled with Cranelift and run on the frame's own registers;
+entered from `function_call` and `IncrementLoopIteration`. Small `jit`-only accessors added:
+`JsValue::jit_bits`/`jit_from_bits` (`value/mod.rs`, `value/inner/nan_boxed.rs`) and
+`Stack::jit_pointers` (`vm/mod.rs`). 19 JIT tests compare compiled and interpreted results for
+every operator over edge values; the 1,116 engine tests pass with `BOA_JIT=always`. Number
+loops 2.9× faster; V8 suite unchanged (`docs/boa-speed.md`).
+
