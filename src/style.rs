@@ -443,6 +443,8 @@ pub struct Style {
     /// object-position (x, y): where the picture sits in its box; 50% 50% by default.
     pub object_position: (Len, Len),
     pub clip: bool,
+    /// The `clip` property's `rect(…)` (absolutely positioned boxes only; clip_rect.rs).
+    pub clip_rect: Option<crate::clip_rect::ClipRect>,
     /// overflow: auto / scroll: the box scrolls its content instead of only clipping it.
     pub scrolls: bool,
     pub shadow: Option<Shadow>,
@@ -573,6 +575,7 @@ impl Default for Style {
             inset: [Len::Auto; 4],
             z_index: 0,
             opacity: 1.0,
+            clip_rect: None,
             border_line: 0,
             aspect_ratio: None,
             object_fit: ObjectFit::Fill,
@@ -2776,6 +2779,7 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "box-sizing" => st.border_box = lower == "border-box",
+        "clip" => st.clip_rect = crate::clip_rect::parse(&lower, st.font_size),
         "opacity" => {
             let v = lower.trim();
             let n = match v.strip_suffix('%') {

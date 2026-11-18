@@ -1611,7 +1611,30 @@ impl<'a> Ctx<'a> {
             if fixed {
                 self.items.push(Item::FixedPush);
             }
+            // clip: rect(…) cuts the box to a rectangle of its border box (clip_rect.rs).
+            let cut = self.styles[id].clip_rect.map(|r| {
+                let m = self.styles[id].margin.map(|l| if l == Len::Auto { 0.0 } else { l.resolve(cb.w) });
+                let (cx, cy, cw, ch) = crate::clip_rect::area(&r, x + m[3], y + m[0], d.w - m[1] - m[3], d.h - m[0] - m[2]);
+                Item::ClipPush { x: cx, y: cy, w: cw, h: ch, radius: 0.0 }
+            });
+            let area = match &cut {
+                Some(Item::ClipPush { x, y, w, h, .. }) => Some(Rect { x: *x, y: *y, w: *w, h: *h }),
+                _ => None,
+            };
+            if let Some(c) = cut {
+                self.items.push(c);
+            }
             self.place_detached(d, x, y);
+            if let Some(a) = area {
+                self.items.push(Item::ClipPop);
+                let cut = |r: &mut Rect| {
+                    let (x0, y0) = (r.x.max(a.x), r.y.max(a.y));
+                    let (x1, y1) = ((r.x + r.w).min(a.x + a.w), (r.y + r.h).min(a.y + a.h));
+                    *r = Rect { x: x0, y: y0, w: (x1 - x0).max(0.0), h: (y1 - y0).max(0.0) };
+                };
+                self.links[l0..].iter_mut().for_each(|(r, _)| cut(r));
+                self.hits[h0..].iter_mut().for_each(|(r, _)| cut(r));
+            }
             if fixed {
                 self.items.push(Item::FixedPop);
                 self.fixed.push((l0..self.links.len(), h0..self.hits.len()));

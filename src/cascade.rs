@@ -140,6 +140,7 @@ pub fn copy_prop(dst: &mut Style, src: &Style, name: &str) -> bool {
         "inset" => dst.inset = src.inset,
         "z-index" => dst.z_index = src.z_index,
         "opacity" => dst.opacity = src.opacity,
+        "clip" => dst.clip_rect = src.clip_rect,
         "aspect-ratio" => dst.aspect_ratio = src.aspect_ratio,
         "object-fit" => dst.object_fit = src.object_fit,
         "object-position" => dst.object_position = src.object_position,

@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- NYT (2026-11): "Skip to content" uses the visually-hidden pattern: an absolutely
+     positioned 1px box with padding, overflow: hidden and clip: rect(0 0 0 0). Without the
+     clip property its first letters showed beside the search button. -->
+<html><head><title>clip rect</title>
+<style>
+body { margin: 0 }
+.sr { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 11px 12px 8px;
+      position: absolute; width: 1px; left: 44px; top: 10px; background: rgb(255, 255, 254); white-space: nowrap }
+.half { position: absolute; left: 10px; top: 40px; width: 100px; height: 40px; background: rgb(255, 0, 1); clip: rect(0px, 50px, auto, 0px) }
+</style></head>
+<body><a class="sr" id="skip" href="#content">Skip to content</a><div class="half" id="half"></div></body></html>

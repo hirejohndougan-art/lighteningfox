@@ -137,6 +137,7 @@ mod paint;
 mod style;
 mod boxtree;
 mod relayout;
+mod clip_rect;
 mod svg_inline;
 mod svg_hit;
 mod svg_foreign;
