@@ -167,3 +167,14 @@ owns). `JsArrayBuffer::from_external` (`object/builtins/jsarraybuffer.rs`) makes
 have a detach key, so script can't transfer it and `resize` refuses it (it's fixed-length), and
 detaching it drops the pointer without freeing anything. Ironswift uses it for
 `WebAssembly.Memory.prototype.buffer`, so typed arrays see the module's memory itself (task P1b).
+
+### boa_engine: global `let` declared by a later script
+
+`environments/runtime/mod.rs` (`later_global_lexical`, used by `get_binding`, `set_binding`
+and `is_initialized_binding`) and `vm/opcode/get/name.rs` (`GetNameGlobal`): a function
+compiled before a later script declared `let x` had `x` bound to the global object, so it
+threw "x is not defined" (and assigning created a global property beside the `let`). Now a
+miss on the global object (and every assignment) checks the realm's global declarations first,
+with the TDZ and `const` errors. Only misses pay for it: found global properties take the same
+path as before. Found by WPT `wasm/jsapi` (`instanceTestFactory.js` reads a `let` from the test
+file loaded after it); real pages split across scripts hit the same thing.

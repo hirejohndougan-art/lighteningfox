@@ -92,6 +92,8 @@ mod memory;
 mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
+#[cfg(test)]
+mod global_lexical_tests;
 mod wasm;
 mod layout;
 mod doc_extent;

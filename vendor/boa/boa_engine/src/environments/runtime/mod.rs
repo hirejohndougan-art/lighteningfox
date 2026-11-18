@@ -1,4 +1,5 @@
 use crate::{
+    error::JsNativeError,
     Context, JsResult, JsString, JsSymbol, JsValue,
     object::{JsObject, PrivateName},
 };
@@ -592,6 +593,14 @@ impl Context {
         Ok(None)
     }
 
+    /// Ironswift change: a name compiled as a global object property may since have been
+    /// declared by a later script as a global `let`/`const`/`class` (which shadows the global
+    /// object). Returns that binding's index in the realm's global environment.
+    fn later_global_lexical(&self, locator: &BindingLocator) -> Option<u32> {
+        let b = self.realm().scope().get_binding(locator.name())?;
+        matches!(b.scope(), BindingLocatorScope::GlobalDeclarative).then(|| b.binding_index())
+    }
+
     /// Checks if the binding pointed by `locator` is initialized.
     ///
     /// # Panics
@@ -602,7 +611,11 @@ impl Context {
             BindingLocatorScope::GlobalObject => {
                 let key = locator.name().clone();
                 let obj = self.global_object();
-                obj.has_property(key, self)
+                if obj.has_property(key, self)? {
+                    return Ok(true);
+                }
+                let env = self.vm.frame().realm.environment();
+                Ok(self.later_global_lexical(locator).is_some_and(|i| env.get(i).is_some()))
             }
             BindingLocatorScope::GlobalDeclarative => {
                 let env = self.vm.frame().realm.environment();
@@ -648,7 +661,13 @@ impl Context {
             BindingLocatorScope::GlobalObject => {
                 let key = locator.name().clone();
                 let obj = self.global_object();
-                obj.try_get(key, self)
+                let found = obj.try_get(key, self)?;
+                if found.is_none()
+                    && let Some(i) = self.later_global_lexical(locator)
+                {
+                    return Ok(self.vm.frame().realm.environment().get(i));
+                }
+                Ok(found)
             }
             BindingLocatorScope::GlobalDeclarative => {
                 let env = self.vm.frame().realm.environment();
@@ -679,6 +698,27 @@ impl Context {
     ) -> JsResult<()> {
         match locator.scope() {
             BindingLocatorScope::GlobalObject => {
+                if let Some(i) = self.later_global_lexical(locator) {
+                    let env = self.vm.frame().realm.environment();
+                    if env.get(i).is_none() {
+                        return Err(JsNativeError::reference()
+                            .with_message(format!(
+                                "cannot access '{}' before initialization",
+                                locator.name().to_std_string_escaped()
+                            ))
+                            .into());
+                    }
+                    if self.realm().scope().is_binding_mutable(locator.name()) == Some(false) {
+                        return Err(JsNativeError::typ()
+                            .with_message(format!(
+                                "cannot assign to constant '{}'",
+                                locator.name().to_std_string_escaped()
+                            ))
+                            .into());
+                    }
+                    env.set(i, value);
+                    return Ok(());
+                }
                 let key = locator.name().clone();
                 let obj = self.global_object();
                 obj.set(key, value, strict, self)?;

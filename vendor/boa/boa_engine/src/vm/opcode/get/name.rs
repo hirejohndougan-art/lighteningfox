@@ -87,6 +87,11 @@ impl GetNameGlobal {
 
             let context = &mut InternalMethodPropertyContext::new(context);
             let Some(result) = object.__try_get__(&key, object.clone().into(), context)? else {
+                // Ironswift change: a later script may have declared it as a global `let`.
+                if let Some(v) = context.get_binding(&binding_locator)? {
+                    context.vm.set_register(dst.into(), v);
+                    return Ok(());
+                }
                 let name = binding_locator.name().to_std_string_escaped();
                 return Err(JsNativeError::reference()
                     .with_message(format!("{name} is not defined"))
