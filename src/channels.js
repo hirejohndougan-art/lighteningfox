@@ -134,7 +134,6 @@
       super();
       if (arguments.length === 0) throw new TypeError("Worker needs a script URL");
       opts = opts || {};
-      if (opts.type === "module") throw new TypeError("Module workers aren't supported yet");
       this.onmessage = this.onerror = this.onmessageerror = null;
       const abs = __resolve(g.location.href, String(url));
       let src = null;
@@ -151,7 +150,7 @@
       const id = ++workerSeq;
       Object.defineProperty(this, "__wid", { value: id });
       workers.set(id, this);
-      if (!__workerStart(id, abs, src, String(opts.name || ""))) {
+      if (!__workerStart(id, abs, src, String(opts.name || ""), opts.type === "module")) {
         throw DOMEx("The worker couldn't be started", "SecurityError");
       }
     }

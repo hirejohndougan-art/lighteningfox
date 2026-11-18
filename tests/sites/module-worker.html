@@ -1,0 +1,11 @@
+<!doctype html>
+<!-- ffmpeg.wasm (@ffmpeg/ffmpeg 0.12, 2026-11) starts its worker with {type: "module"}, which
+     threw "Module workers aren't supported yet". The worker's script is an ES module: imports,
+     top-level await, and importScripts() throws a TypeError. -->
+<html><head><title>module worker</title></head>
+<body><pre id="out">waiting</pre>
+<script>
+const w = new Worker("dyn/module-worker.js", { type: "module" });
+w.onmessage = (e) => { document.getElementById("out").textContent = e.data; };
+w.onerror = (e) => { document.getElementById("out").textContent = "error " + e.message; };
+</script></body></html>

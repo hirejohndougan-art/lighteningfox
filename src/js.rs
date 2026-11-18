@@ -1829,6 +1829,13 @@ impl Js {
         }
     }
 
+    /// A module worker's script (worker.rs): run as a module; an error comes back as its message.
+    pub(crate) fn run_module_script(&mut self, code: &str, url: &str) -> Result<(), String> {
+        let before = self.stats.errors;
+        self.run_module(code, url, url);
+        if self.stats.errors > before { Err("error in module script (see the log)".into()) } else { Ok(()) }
+    }
+
     /// Parse, load (with its imports), link and run a module.
     fn run_module(&mut self, code: &str, url: &str, label: &str) {
         let t = Instant::now();

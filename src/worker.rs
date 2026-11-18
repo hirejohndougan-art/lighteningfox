@@ -121,6 +121,9 @@ pub struct Start {
     pub page: String,
     pub top: String,
     pub policy: Arc<crate::security::PagePolicy>,
+    /// `new Worker(url, {type: "module"})`: the script is an ES module (imports, top-level
+    /// await) and importScripts() throws.
+    pub module: bool,
 }
 
 pub fn start(s: Start) -> bool {
@@ -144,6 +147,12 @@ pub fn start(s: Start) -> bool {
         };
         let mut js = crate::js::Js::for_worker(&own_url, &s.url, &s.top, s.policy.clone(), &s.name);
         match source {
+            Ok(src) if s.module => {
+                js.run_code("globalThis.importScripts = function importScripts() { throw new TypeError(\"importScripts() can't be used in a module worker\"); };", "module worker").ok();
+                if let Err(e) = js.run_module_script(&src, &s.url) {
+                    error(&format!("Uncaught {e}"));
+                }
+            }
             Ok(src) => {
                 // A script that doesn't parse never starts; one that throws while running does.
                 if let Some(e) = js.syntax_error(&src) {
@@ -292,6 +301,10 @@ mod tests {
     }
 
     fn start_with(epoch: u64, src: &str) {
+        start_kind(epoch, src, false);
+    }
+
+    fn start_kind(epoch: u64, src: &str, module: bool) {
         assert!(start(Start {
             epoch,
             id: 1,
@@ -301,7 +314,18 @@ mod tests {
             page: "about:blank".into(),
             top: "about:blank".into(),
             policy: Default::default(),
+            module,
         }));
+    }
+
+    #[test]
+    fn module_worker() {
+        // ffmpeg.wasm (2026-11) starts its worker with {type: "module"}: top-level await
+        // works, and importScripts throws so the script falls back to import().
+        let epoch = 800_009;
+        start_kind(epoch, "const x = await Promise.resolve(4); let how; try { importScripts('x.js'); how = 'classic'; } catch (e) { how = e.name; } postMessage('module ' + x + ' ' + how);", true);
+        let ev = wait(epoch, "\"message\"");
+        assert!(ev.iter().any(|e| e.contains("module 4 TypeError")), "{ev:?}");
     }
 
     #[test]

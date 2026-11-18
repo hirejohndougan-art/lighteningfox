@@ -1397,3 +1397,13 @@ fn function_sees_a_later_scripts_let() {
     let _page = open("tests/sites/global-let-later.html");
     assert_eq!(text_of("out"), "number:7");
 }
+
+#[test]
+fn module_worker_runs_an_es_module() {
+    let _serial = serial();
+    let mut page = open("tests/sites/module-worker.html");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_secs(3));
+    }
+    assert_eq!(text_of("out"), "42 TypeError");
+}

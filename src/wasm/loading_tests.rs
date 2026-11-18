@@ -108,6 +108,7 @@ fn start_worker(epoch: u64, src: String) {
         page: "https://wasm.example/".into(),
         top: "https://wasm.example/".into(),
         policy: Default::default(),
+        module: false,
     }));
 }
 

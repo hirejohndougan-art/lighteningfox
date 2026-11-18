@@ -85,6 +85,7 @@ fn n_worker_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsV
         _ => None,
     };
     let name = arg_str(a, 3, ctx)?;
+    let module = a.get(4).is_some_and(JsValue::to_boolean);
     let Some((page, top, policy, epoch)) = page_ctx(ctx, |p| (p.url.clone(), p.top.clone(), p.policy.clone(), p.epoch)) else {
         return Ok(JsValue::from(false));
     };
@@ -100,7 +101,7 @@ fn n_worker_start(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsV
     if !same_origin {
         return Ok(JsValue::from(false));
     }
-    let ok = crate::worker::start(crate::worker::Start { epoch, id, url, source, name, page, top, policy });
+    let ok = crate::worker::start(crate::worker::Start { epoch, id, url, source, name, page, top, policy, module });
     Ok(JsValue::from(ok))
 }
 
