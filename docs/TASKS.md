@@ -1248,13 +1248,37 @@ task); generators, async functions and class constructors stay interpreted; func
 32 KB stay interpreted.
 
 ### J4. Baseline JIT: on by default
-**Status:** claimed by chat-wasm-1 2026-11-18 20:28
+**Status:** done
 **After:** J3
 **Checklist:** §14 "Baseline JIT compiler (via Cranelift)"
 **Files:** `vendor/boa/`, `Cargo.toml`, `src/settings.rs`
 x86-64 and ARM64, Linux and Windows (and macOS if CI allows); a Settings switch "JavaScript JIT"
 (on by default) for the cautious; test262, WPT and the site check unchanged; record the speedups.
 Note the security review points in `SECURITY.md`.
+
+**Result:** The JIT is built in by default (`boa_jit` is a default feature) with a Settings
+switch, "JavaScript JIT", on by default, in all six languages (`src/js_jit.rs`; applied at
+startup in every process; `BOA_JIT` still wins). Measured on, J3's rule (compile every eligible
+function) made the V8 suite slower (275 vs 297: each property access or call costs a trip back
+to the interpreter), so in the default mode a function now compiles only if at most 25% of its
+instructions need the interpreter (`MAX_STEPPED_PERCENT`; 0/10/25/50% scored 298/308/315/295).
+Result: V8 suite 312–315 vs 297–309 off, number-heavy code 13–40% faster, `jit-sum` 785 →
+274 ms, nothing meaningfully slower (`docs/boa-speed.md`). test262 with `on` is byte-identical
+to `off` (51,226 / 53,578); Boa's 1,148 tests pass in `on` and `always`; Ironswift's 431 pass
+by default and with `BOA_JIT=always`. New `tests/jit-check.html`; CI runs it and the tests with
+`BOA_JIT=always` on Linux x86-64, a new Linux ARM64 job, Windows and macOS. Security review
+points in `SECURITY.md` ("The JavaScript JIT").
+Choices: fixed two other chats' CI breaks on the way, since they hid the JIT's CI results:
+`record::save` unused outside tests (`-D warnings`), and `src/shm.rs` calling `libc` on
+Windows (now Unix-only; Windows sends pictures through the pipe). CI with `BOA_JIT=always`
+roughly doubles the Linux test step (about 7 minutes more).
+**Left undone:** ARM64 and Windows verified only by CI (this sandbox can't download those Rust
+targets); object- and call-heavy code is no faster than the interpreter (needs inline caches,
+no task yet); machine code of collected functions stays until its page closes (not measured on
+long-lived pages); no Spectre index masking in compiled code. Not caused by J4, found while
+checking: CI's WebGL2 tests fail by one in a colour value (254 vs 255) on the software GPU, and
+`perf_check.py` shows "DOM: create+append 2000 nodes" at ~1,700 ms against a 30 ms baseline
+with the JIT on or off.
 
 ### Live-site check on John's computer
 **Status:** not for chats: John's to do (needs open internet).
