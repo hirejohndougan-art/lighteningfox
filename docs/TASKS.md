@@ -1201,7 +1201,7 @@ Cranelift (`cranelift-codegen`, `cranelift-frontend`, `cranelift-jit`) behind it
 `wasmtime`, share its Cranelift version.
 
 ### J2. Baseline JIT: numbers, locals, branches and loops
-**Status:** free
+**Status:** claimed by chat-jit-1 2026-11-18 06:31
 **After:** J1
 **Checklist:** none
 **Files:** `vendor/boa/boa_engine/src/jit/`
