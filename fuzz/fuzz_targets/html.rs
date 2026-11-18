@@ -1,4 +1,5 @@
-//! The HTML tokenizer and tree builder (and the XHTML/XML path) on arbitrary input.
+//! The HTML tokenizer and tree builder (and the XHTML/XML path, and fragment parsing) on
+//! arbitrary input.
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
@@ -32,6 +33,19 @@ fuzz_target!(|data: &[u8]| {
         tb.end_script();
     }
     let _ = tb.finish();
+    // Fragment parsing (innerHTML, insertAdjacentHTML) in tricky contexts, chosen by the
+    // first byte (brought over from the parallel-work branch's html_fragment target).
+    const CONTEXTS: &[&str] = &["div", "body", "table", "tr", "select", "template", "textarea", "script", "svg", "math", "html", "td", "title", "plaintext"];
+    if let Some((&first, rest)) = data.split_first() {
+        let ctx = CONTEXTS[first as usize % CONTEXTS.len()];
+        let ns = match ctx {
+            "svg" => dom::Ns::Svg,
+            "math" => dom::Ns::MathMl,
+            _ => dom::Ns::Html,
+        };
+        let frag = treebuilder::TreeBuilder::parse_fragment(&String::from_utf8_lossy(rest), ctx, ns, first & 0x80 != 0);
+        let _ = frag.descendants(dom::Dom::ROOT).len();
+    }
 });
 
 /// dom.rs keeps per-document form state; the parser doesn't need any.
