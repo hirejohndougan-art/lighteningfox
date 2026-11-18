@@ -26,8 +26,17 @@ pub fn replaying() -> Option<PathBuf> {
 
 /// The file name for a request: FNV-1a of the method and URL (stable across builds).
 fn key(method: &str, url: &str) -> String {
+    key_with(method, url, None)
+}
+
+/// A request with a body (a GraphQL POST) is also told apart by its body: one URL answers
+/// many different queries (NYT's video player got another query's answer on replay).
+fn key_with(method: &str, url: &str, body: Option<&[u8]>) -> String {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in method.to_ascii_uppercase().bytes().chain([b' ']).chain(url.bytes()) {
+    let body = body.filter(|b| !b.is_empty());
+    let tail: &[u8] = body.unwrap_or(&[]);
+    let sep: &[u8] = if body.is_some() { b" " } else { b"" };
+    for &b in method.to_ascii_uppercase().as_bytes().iter().chain(b" ").chain(url.as_bytes()).chain(sep).chain(tail) {
         h ^= u64::from(b);
         h = h.wrapping_mul(0x0100_0000_01b3);
     }
@@ -45,7 +54,16 @@ pub struct Saved {
 /// Save one response. The `.meta` file is plain text: the request line, the status line, then
 /// one `name: value` header per line.
 pub fn save(dir: &std::path::Path, method: &str, url: &str, r: &Saved) {
+    save_with(dir, method, url, None, r);
+}
+
+/// `save` for a request that sent `body`: kept under the body too, and as the plain request
+/// (what replays of recordings made before bodies counted look for).
+pub fn save_with(dir: &std::path::Path, method: &str, url: &str, body: Option<&[u8]>, r: &Saved) {
     let _ = std::fs::create_dir_all(dir);
+    if body.is_some_and(|b| !b.is_empty()) {
+        write(dir, &key_with(method, url, body), method, url, r);
+    }
     let k = key(method, url);
     // A revalidation (304, empty body) of something already saved: keep the full response.
     // Replaying with a fresh profile there is no cached copy for a 304 to refer to (NYT's
@@ -53,6 +71,10 @@ pub fn save(dir: &std::path::Path, method: &str, url: &str, r: &Saved) {
     if r.status == 304 && load(dir, method, url).is_some_and(|old| old.status != 304) {
         return;
     }
+    write(dir, &k, method, url, r);
+}
+
+fn write(dir: &std::path::Path, k: &str, method: &str, url: &str, r: &Saved) {
     let mut meta = format!("{} {}\n{} {}\n", method.to_ascii_uppercase(), url, r.status, r.status_text);
     for (n, v) in &r.headers {
         meta.push_str(&format!("{n}: {}\n", v.replace(['\r', '\n'], " ")));
@@ -63,7 +85,21 @@ pub fn save(dir: &std::path::Path, method: &str, url: &str, r: &Saved) {
 
 /// The saved response for a request, if there is one.
 pub fn load(dir: &std::path::Path, method: &str, url: &str) -> Option<Saved> {
-    let k = key(method, url);
+    load_key(dir, &key(method, url), url)
+}
+
+/// The saved response for a request that sent `body`: the one for that body if there is one,
+/// else whatever was saved for the plain request.
+pub fn load_with(dir: &std::path::Path, method: &str, url: &str, body: Option<&[u8]>) -> Option<Saved> {
+    if body.is_some_and(|b| !b.is_empty()) {
+        if let Some(s) = load_key(dir, &key_with(method, url, body), url) {
+            return Some(s);
+        }
+    }
+    load(dir, method, url)
+}
+
+fn load_key(dir: &std::path::Path, k: &str, url: &str) -> Option<Saved> {
     let meta = std::fs::read_to_string(dir.join(format!("{k}.meta"))).ok()?;
     let mut lines = meta.lines();
     let first = lines.next()?;
@@ -86,6 +122,20 @@ pub fn read_body(mut r: impl Read, max: u64) -> std::io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn posts_are_told_apart_by_their_body() {
+        let dir = std::env::temp_dir().join(format!("ironswift-rec-post-{}", std::process::id()));
+        let url = "https://example.com/graphql";
+        let ok = |b: &[u8]| Saved { status: 200, status_text: "OK".into(), headers: vec![], body: b.to_vec() };
+        save_with(&dir, "POST", url, Some(b"{\"q\":1}"), &ok(b"one"));
+        save_with(&dir, "POST", url, Some(b"{\"q\":2}"), &ok(b"two"));
+        assert_eq!(load_with(&dir, "POST", url, Some(b"{\"q\":1}")).unwrap().body, b"one");
+        assert_eq!(load_with(&dir, "POST", url, Some(b"{\"q\":2}")).unwrap().body, b"two");
+        // An unknown body (or an older recording) gets the last one saved for the URL.
+        assert_eq!(load_with(&dir, "POST", url, Some(b"{\"q\":3}")).unwrap().body, b"two");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn a_revalidation_keeps_the_full_response() {

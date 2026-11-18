@@ -296,7 +296,7 @@ pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<
         }
     }
     let r = if let Some(dir) = crate::record::replaying() {
-        match crate::record::load(&dir, method, url) {
+        match crate::record::load_with(&dir, method, url, body) {
             Some(s) => Ok(Stream { status: s.status, status_text: s.status_text, headers: s.headers, body: Box::new(std::io::Cursor::new(s.body)) }),
             None => Err(format!("[net] {url}: not in the recording")),
         }
@@ -306,7 +306,7 @@ pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<
             (Ok(st), Some(dir)) => {
                 let bytes = crate::record::read_body(st.body, MAX_BODY).map_err(|e| format!("[net] {url}: {e}"))?;
                 let saved = crate::record::Saved { status: st.status, status_text: st.status_text, headers: st.headers, body: bytes };
-                crate::record::save(&dir, method, url, &saved);
+                crate::record::save_with(&dir, method, url, body, &saved);
                 Ok(Stream { status: saved.status, status_text: saved.status_text, headers: saved.headers, body: Box::new(std::io::Cursor::new(saved.body)) })
             }
             (r, _) => r,
