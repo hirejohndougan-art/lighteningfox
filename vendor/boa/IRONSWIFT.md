@@ -208,3 +208,11 @@ code in `function_call`), `vm/opcode/iteration/loop_ops.rs` and `builtins/string
 (`IncrementLoopIteration::charge` for native loops). Compiled code hands every instruction it
 doesn't compile to the interpreter one at a time, and JavaScript calls go through the
 interpreter's frames, so nothing nests. Details in `docs/JIT.md`.
+
+### boa_engine: baseline JIT, J4 (on by default)
+
+`jit/support.rs` (`MAX_STEPPED_PERCENT`, `worth_compiling`), `jit/mod.rs` (`tier_up` rejects
+"mostly interpreter work" in the default mode), `jit/tests.rs`. In `BOA_JIT=on` a function
+whose instructions are more than 25% ones compiled code hands to the interpreter stays
+interpreted; `always` is unchanged.
+

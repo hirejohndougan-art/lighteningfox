@@ -120,3 +120,25 @@ pub(crate) fn scan(code: &CodeBlock) -> Result<(), Rejection> {
     }
     Ok(())
 }
+
+/// The largest share of a function's instructions, in percent, that may be ones compiled code
+/// hands back to the interpreter one at a time, for the function to be compiled in the default
+/// mode. Each of those costs more than the interpreter running it directly (a call out of
+/// machine code and back), so a function made mostly of them gets slower; `BOA_JIT=always`
+/// compiles them anyway, for testing. Chosen on the V8 suite (J4, `docs/boa-speed.md`): 0%
+/// scored 298, 10% 308, 25% 315 and 50% 295, against 297 with the JIT off.
+pub(crate) const MAX_STEPPED_PERCENT: usize = 25;
+
+/// Whether enough of `code` compiles to machine code of its own to be worth compiling: the
+/// share of instructions only the interpreter can run is at most [`MAX_STEPPED_PERCENT`].
+pub(crate) fn worth_compiling(code: &CodeBlock) -> bool {
+    let (mut inline, mut stepped) = (0usize, 0usize);
+    for (_, opcode, _) in InstructionIterator::new(&code.bytecode) {
+        if is_supported(opcode) {
+            inline += 1;
+        } else {
+            stepped += 1;
+        }
+    }
+    stepped * 100 <= (inline + stepped) * MAX_STEPPED_PERCENT
+}

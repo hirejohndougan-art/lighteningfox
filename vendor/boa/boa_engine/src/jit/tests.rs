@@ -120,6 +120,38 @@ fn tier_up_from_a_hot_loop_in_one_call() {
 }
 
 #[test]
+fn on_leaves_mostly_object_code_to_the_interpreter() {
+    // J4: in the default mode a function made mostly of instructions the interpreter would run
+    // for compiled code anyway stays interpreted; number code still compiles, and `always`
+    // compiles both.
+    const OBJECTS: &str = "function g(o) { o.a = o.b; o.c = o.d; return o.e.f; } g";
+    with_mode(JitMode::On, || {
+        let mut context = Context::default();
+        let objects = code_of(&mut context, OBJECTS);
+        let numbers = code_of(&mut context, SUM);
+        let calls = super::CALL_THRESHOLD + 1;
+        context
+            .eval(Source::from_bytes(&format!(
+                "for (let i = 0; i < {calls}; i++) {{ g({{ b: 1, d: 2, e: {{ f: 3 }} }}); sum(3); }}"
+            )))
+            .unwrap();
+        assert!(
+            matches!(objects.jit.state(), TierState::Rejected(r) if r.reason == "mostly interpreter work"),
+            "{:?}",
+            objects.jit.state()
+        );
+        assert_eq!(numbers.jit.state(), TierState::Compiled);
+    });
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        let objects = code_of(&mut context, OBJECTS);
+        let result = context.eval(Source::from_bytes("g({ b: 1, d: 2, e: { f: 3 } })")).unwrap();
+        assert_eq!(result, JsValue::new(3));
+        assert_eq!(objects.jit.state(), TierState::Compiled);
+    });
+}
+
+#[test]
 fn off_never_tiers_up() {
     with_mode(JitMode::Off, || {
         let mut context = Context::default();

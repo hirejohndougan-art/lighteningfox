@@ -78,7 +78,14 @@ pub(crate) fn tier_up(code: &Gc<CodeBlock>, context: &crate::Context) {
         return;
     }
     CONSIDERED.fetch_add(1, Ordering::Relaxed);
-    match support::scan(code) {
+    let scanned = support::scan(code).and_then(|()| {
+        if mode() == JitMode::On && !support::worth_compiling(code) {
+            Err(Rejection { reason: "mostly interpreter work", pc: None })
+        } else {
+            Ok(())
+        }
+    });
+    match scanned {
         Ok(()) => {
             ELIGIBLE.fetch_add(1, Ordering::Relaxed);
             code.jit.set_state(TierState::Eligible);
