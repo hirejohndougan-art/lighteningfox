@@ -396,7 +396,7 @@ for that tab, and send the answer back to `__permDone`. A site process also read
 tell its processes. Test with a real sandboxed renderer, as `geo_relay::tests` does.
 
 ### X25. Lay out independent blocks on several cores
-**Status:** free
+**Status:** claimed by chat-nsX16 2026-11-18 01:33
 **After:** —
 **Checklist:** none
 **Files:** `src/style.rs` (Rc → Arc), `src/font.rs`, `src/layout.rs`, `src/relayout.rs`, new files for the parallel parts
