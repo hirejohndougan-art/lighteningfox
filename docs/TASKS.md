@@ -1085,22 +1085,20 @@ Apple's terms first and write down what they require before building.
 ## Not for the chats
 
 ### X21. Windows and macOS builds (from batch J)
-**Status:** claimed by main-chat 2026-11-17 14:00. **Progress (15:45):** builds on Windows
-and macOS; CI draws four test pages on each (they match Linux, with the systems' own Arial) and
-runs the unit tests there. Done: `src/platform.rs` (profile in %APPDATA% / Application Support,
-font folders, file chooser via PowerShell / AppleScript, opening downloads, Mac notifications,
-memory readings), DejaVu-or-system fonts and background font scanning, Windows `file:` URLs,
-Cmd shortcuts on macOS, release zips (`ironswift.exe` + fonts; unsigned `Ironswift.app`), no
-self-update outside Linux. **Still to do:** try the real window on a Windows and a Mac computer
-(only headless drawing is tested); screen readers (needs accesskit_winit), location, and an OS
-sandbox for page processes on Windows/macOS; Apple signing and notarization (needs a paid
-Apple developer account, John's decision); Intel-Mac build.
-**After:** —
-**Checklist:** §16 Windows and macOS builds
-**Files:** `Cargo.toml`, `#[cfg]` gates on Linux-only modules, `.github/workflows/`, `packaging/`
-Batch J's chat stopped after winit and Wayland. Make the browser build and run on Windows and
-macOS: gate Linux-only parts (seccomp, Landlock, AT-SPI, GeoClue, fontconfig) behind
-`cfg(target_os = "linux")` with fallbacks, add Windows and macOS jobs to CI and release builds.
+**Status:** Windows done for now (main-chat, 2026-11-17 19:10); macOS builds and passes its
+checks but its real window hasn't been tried.
+**Result:** CI builds, tests (336 pass) and opens the real window on Windows every push
+(`tools/windows_smoke.ps1`): the page draws, Tab and typing fill a form field, Ctrl+T opens a tab
+and typing goes to the address bar, Ctrl+W closes it, clicks work. Screenshots of that run:
+`docs/windows-window-test.png`. Windows has its own profile folder (%APPDATA%), fonts (DejaVu
+shipped, else Arial/Consolas), file chooser, printing, default-browser registration (the user
+picks Ironswift in Default apps), toast notifications, location (Windows location service),
+`file:` URLs, and a release zip; no self-update outside Linux.
+**Known gaps (new tasks if wanted):** screen readers on Windows (AccessKit's Windows adapter via
+accesskit_winit); page processes on Windows aren't locked down (job objects / AppContainer); the
+first window can be larger than a small screen (1040 px wide on a 1024 px screen); on machines
+with no graphics card it draws in software (fine, slower). macOS: real window untested, no
+signing (needs an Apple developer account).
 
 ### X22. Boa: bytecode compiler emits fewer instructions (from batch M)
 **Status:** claimed by main-chat 2026-11-17 14:00 (after X21)
