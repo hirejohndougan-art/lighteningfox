@@ -20,7 +20,7 @@ pub struct Raw {
 }
 
 /// The largest body kept in memory (bigger things are downloads).
-const MAX_BODY: u64 = 50_000_000;
+pub(crate) const MAX_BODY: u64 = 50_000_000;
 
 // ---------------------------------------------------------------- DNS cache
 
@@ -285,7 +285,7 @@ pub fn open(method: &str, url: &str, headers: &[(String, String)], body: Option<
     let started = Instant::now();
     // In a site process the browser makes the request (process.rs).
     if let Some(r) = crate::process::remote_http(method, url, headers, body, timeout) {
-        return r.map(|raw| Stream { status: raw.status, status_text: raw.status_text, headers: raw.headers, body: Box::new(std::io::Cursor::new(raw.body)) });
+        return r;
     }
     // Extensions listening with webRequest may cancel or redirect it.
     match crate::extensions::webrequest::check(method, url, headers) {

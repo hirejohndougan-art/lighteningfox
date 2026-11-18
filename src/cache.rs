@@ -28,7 +28,8 @@ fn now() -> u64 {
 }
 
 fn enabled() -> bool {
-    !std::env::var("IRONSWIFT_PRIVATE").is_ok_and(|v| v == "1") && !std::env::var("IRONSWIFT_NO_CACHE").is_ok_and(|v| v == "1")
+    // A site process can't reach the cache: the browser looks it up when it fetches for it.
+    !crate::process::in_renderer() && !std::env::var("IRONSWIFT_PRIVATE").is_ok_and(|v| v == "1") && !std::env::var("IRONSWIFT_NO_CACHE").is_ok_and(|v| v == "1")
 }
 
 fn dir() -> Option<PathBuf> {

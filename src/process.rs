@@ -325,6 +325,7 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
                             let sites = PROCS.lock().ok().and_then(|g| g.as_ref()?.get(&key).map(|p| p.sites.clone())).unwrap_or_default();
                             serve_async(Auth::site(&sites), parts, in_flight.clone(), move |answer| {
                                 write_to(&stdin, &response(rid, &answer));
+                                pump_body(&answer, rid, &stdin);
                             });
                         }
                         _ => return Err(std::io::Error::other("unknown message")),
@@ -505,8 +506,50 @@ pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
             }
             let body = (parts.get(4).is_some_and(|b| b.first() == Some(&1))).then(|| parts.get(5).cloned().unwrap_or_default());
             let secs = arg(6).parse::<u64>().unwrap_or(30).clamp(1, 24 * 3600);
-            match crate::http::open(&method, &url, &headers, body.as_deref(), Duration::from_secs(secs)).and_then(|s| s.read_all(&url)) {
+            // Plain GETs go through the browser's disk cache (cache.rs), as its own pages' do.
+            let cacheable = method.eq_ignore_ascii_case("GET") && body.is_none() && !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("range"));
+            let lookup = if cacheable { crate::cache::lookup(&url) } else { crate::cache::Lookup::Miss };
+            let stale = match lookup {
+                crate::cache::Lookup::Fresh(e) => {
+                    let mut h = e.headers;
+                    h.retain(|(k, _)| k != "set-cookie" && k != "set-cookie2");
+                    return vec![b"ok".to_vec(), e.status.to_string().into_bytes(), b"OK".to_vec(), headers_bytes(&h), e.body];
+                }
+                crate::cache::Lookup::Revalidate(_, cond) => {
+                    headers.extend(cond);
+                    true
+                }
+                crate::cache::Lookup::Miss => false,
+            };
+            let opened = crate::http::open(&method, &url, &headers, body.as_deref(), Duration::from_secs(secs));
+            // A big (or unknown-size) body the process may take as it arrives: send the head now
+            // and the body in pieces after the answer (see pump_body).
+            if let (Ok(s), true) = (&opened, arg(7) == "1") {
+                let len = s.headers.iter().find(|(k, _)| k == "content-length").and_then(|(_, v)| v.trim().parse::<usize>().ok());
+                if s.status != 304 && len.is_none_or(|n| n > STREAM_OVER) {
+                    let s = opened.unwrap();
+                    let set: Vec<String> = s.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
+                    if let Some(top) = &top {
+                        cookies::receive(&url, top, &set);
+                    }
+                    let mut h = s.headers;
+                    h.retain(|(k, _)| k != "set-cookie" && k != "set-cookie2");
+                    let token = NEXT_BODY.fetch_add(1, Ordering::SeqCst);
+                    if let Ok(mut b) = BODIES.lock() {
+                        b.get_or_insert_with(HashMap::new).insert(token, s.body);
+                    }
+                    return vec![b"ok".to_vec(), s.status.to_string().into_bytes(), s.status_text.into_bytes(), headers_bytes(&h), Vec::new(), b"stream".to_vec(), token.to_string().into_bytes()];
+                }
+            }
+            match opened.and_then(|s| s.read_all(&url)) {
                 Ok(mut r) => {
+                    if r.status == 304 && stale {
+                        if let Some(e) = crate::cache::refreshed(&url, &r.headers) {
+                            (r.status, r.status_text, r.headers, r.body) = (e.status, "OK".into(), e.headers, e.body);
+                        }
+                    } else if cacheable {
+                        crate::cache::store(&url, r.status, &r.headers, &r.body);
+                    }
                     let set: Vec<String> = r.headers.iter().filter(|(k, _)| k == "set-cookie").map(|(_, v)| v.clone()).collect();
                     if let Some(top) = &top {
                         cookies::receive(&url, top, &set);
@@ -556,6 +599,45 @@ pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
             Vec::new()
         }
     }
+}
+
+/// Bodies bigger than this (or of unknown size) are streamed to a site process that can take
+/// them in pieces.
+const STREAM_OVER: usize = 1 << 20;
+const CHUNK: usize = 64 * 1024;
+static NEXT_BODY: AtomicU32 = AtomicU32::new(1);
+/// Bodies answered with "stream", waiting to be sent in pieces (by token).
+static BODIES: Mutex<Option<HashMap<u32, Box<dyn std::io::Read + Send>>>> = Mutex::new(None);
+
+/// After answering request `rid` with a streamed head: send its body in pieces ("chunk", rid,
+/// bytes), then an empty piece to end it (or the process stopped listening).
+fn pump_body(answer: &[Vec<u8>], rid: u32, stdin: &Mutex<std::process::ChildStdin>) {
+    if answer.get(5).map(Vec::as_slice) != Some(b"stream") {
+        return;
+    }
+    let Some(token) = answer.get(6).and_then(|t| text(t).parse::<u32>().ok()) else { return };
+    let Some(mut body) = BODIES.lock().ok().and_then(|mut b| b.as_mut()?.remove(&token)) else { return };
+    let chunk = |data: &[u8]| {
+        let mut m = Vec::new();
+        put(&mut m, b"chunk");
+        put(&mut m, &rid.to_le_bytes());
+        put(&mut m, data);
+        write_to(stdin, &m)
+    };
+    let mut buf = vec![0u8; CHUNK];
+    let mut total = 0u64;
+    loop {
+        match body.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                total += n as u64;
+                if total > crate::http::MAX_BODY || !chunk(&buf[..n]) {
+                    break;
+                }
+            }
+        }
+    }
+    chunk(&[]);
 }
 
 /// Take the renderer's cookie placeholder out of `headers` (and any Cookie header it tried to
@@ -614,6 +696,41 @@ fn download(url: &str) {
 static OUT: OnceLock<Mutex<std::io::Stdout>> = OnceLock::new();
 static PENDING: Mutex<Option<HashMap<u32, Sender<Vec<Vec<u8>>>>>> = Mutex::new(None);
 static NEXT_RID: AtomicU32 = AtomicU32::new(1);
+/// Streamed bodies (request id → its pieces), while they arrive; and the receiving ends waiting
+/// for remote_http to take them.
+static STREAMS: Mutex<Option<HashMap<u32, Sender<Vec<u8>>>>> = Mutex::new(None);
+static STREAM_RX: Mutex<Option<HashMap<u32, std::sync::mpsc::Receiver<Vec<u8>>>>> = Mutex::new(None);
+/// This process takes streamed bodies (a site process; frame processes get them whole).
+static STREAMING: AtomicBool = AtomicBool::new(false);
+
+/// A streamed body, read as its pieces arrive.
+struct Pieces {
+    rx: std::sync::mpsc::Receiver<Vec<u8>>,
+    buf: Vec<u8>,
+    at: usize,
+    wait: Duration,
+    done: bool,
+}
+
+impl std::io::Read for Pieces {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        while self.at >= self.buf.len() {
+            if self.done {
+                return Ok(0);
+            }
+            match self.rx.recv_timeout(self.wait) {
+                Ok(p) if p.is_empty() => self.done = true,
+                Ok(p) => (self.buf, self.at) = (p, 0),
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => self.done = true,
+                Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "the browser stopped sending")),
+            }
+        }
+        let n = out.len().min(self.buf.len() - self.at);
+        out[..n].copy_from_slice(&self.buf[self.at..self.at + n]);
+        self.at += n;
+        Ok(n)
+    }
+}
 
 fn send_out(m: &[u8]) -> bool {
     OUT.get().and_then(|o| o.lock().ok()).map(|mut o| o.write_all(m).and_then(|_| o.flush()).is_ok()).unwrap_or(false)
@@ -642,6 +759,11 @@ pub(crate) fn deliver(rid: u32, parts: Vec<Vec<u8>>) {
 
 /// Ask the browser and wait for the answer (None: no answer).
 fn call(parts: &[&[u8]], wait: Duration) -> Option<Vec<Vec<u8>>> {
+    call_rid(parts, wait).map(|(_, r)| r)
+}
+
+/// call, also giving the request's id.
+fn call_rid(parts: &[&[u8]], wait: Duration) -> Option<(u32, Vec<Vec<u8>>)> {
     let rid = NEXT_RID.fetch_add(1, Ordering::SeqCst);
     let (tx, rx) = channel();
     PENDING.lock().ok()?.get_or_insert_with(HashMap::new).insert(rid, tx);
@@ -655,26 +777,30 @@ fn call(parts: &[&[u8]], wait: Duration) -> Option<Vec<Vec<u8>>> {
             p.remove(&rid);
         }
     }
-    r
+    r.map(|r| (rid, r))
 }
 
-/// http.rs: one request, made by the browser. None outside a site process.
-pub fn remote_http(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Option<Result<crate::http::Raw, String>> {
+/// http.rs: one request, made by the browser. None outside a site process. A big body may
+/// arrive in pieces after the head (a site process): it's read as they come.
+pub fn remote_http(method: &str, url: &str, headers: &[(String, String)], body: Option<&[u8]>, timeout: Duration) -> Option<Result<crate::http::Stream, String>> {
     if !in_renderer() {
         return None;
     }
     let hb = headers_bytes(headers);
     let secs = timeout.as_secs().max(1).to_string();
-    let parts: [&[u8]; 7] = [b"http", method.as_bytes(), url.as_bytes(), &hb, &[body.is_some() as u8], body.unwrap_or(&[]), secs.as_bytes()];
+    let stream_ok: &[u8] = if STREAMING.load(Ordering::SeqCst) { b"1" } else { b"0" };
+    let parts: [&[u8]; 8] = [b"http", method.as_bytes(), url.as_bytes(), &hb, &[body.is_some() as u8], body.unwrap_or(&[]), secs.as_bytes(), stream_ok];
     let wait = timeout.min(Duration::from_secs(600)) + Duration::from_secs(5);
-    let Some(r) = call(&parts, wait) else { return Some(Err(format!("[net] {url}: the browser didn't answer"))) };
+    let Some((rid, r)) = call_rid(&parts, wait) else { return Some(Err(format!("[net] {url}: the browser didn't answer"))) };
     Some(match r.first().map(Vec::as_slice) {
-        Some(b"ok") if r.len() == 5 => Ok(crate::http::Raw {
-            status: text(&r[1]).parse().unwrap_or(0),
-            status_text: text(&r[2]),
-            headers: headers_from(&r[3]),
-            body: r[4].clone(),
-        }),
+        Some(b"ok") if r.len() >= 5 => {
+            let pieces = (r.get(5).map(Vec::as_slice) == Some(b"stream")).then(|| STREAM_RX.lock().ok().and_then(|mut m| m.as_mut()?.remove(&rid))).flatten();
+            let body: Box<dyn std::io::Read + Send> = match pieces {
+                Some(rx) => Box::new(Pieces { rx, buf: Vec::new(), at: 0, wait: timeout.max(Duration::from_secs(30)), done: false }),
+                None => Box::new(std::io::Cursor::new(r[4].clone())),
+            };
+            Ok(crate::http::Stream { status: text(&r[1]).parse().unwrap_or(0), status_text: text(&r[2]), headers: headers_from(&r[3]), body })
+        }
         Some(b"err") => Err(r.get(1).map(|b| text(b)).unwrap_or_default()),
         _ => Err(format!("[net] {url}: refused")),
     })
@@ -750,6 +876,7 @@ pub fn remote_download(url: &str) -> bool {
 /// each, until stdin closes.
 pub fn serve(site: &str) {
     IN_RENDERER.store(true, Ordering::SeqCst);
+    STREAMING.store(true, Ordering::SeqCst);
     if site.is_empty() || !sandbox::protect_site_renderer() {
         log!("[process] refusing to run without a site and a sandbox");
         return;
@@ -822,9 +949,31 @@ pub fn serve(site: &str) {
                         sites.push(s);
                     }
                 }
+                b"chunk" => {
+                    let rid = get_u32(&mut input)?;
+                    let data = get(&mut input)?;
+                    if let Ok(mut s) = STREAMS.lock() {
+                        let s = s.get_or_insert_with(HashMap::new);
+                        let end = data.is_empty();
+                        if let Some(tx) = s.get(&rid) {
+                            let _ = tx.send(data);
+                        }
+                        if end {
+                            s.remove(&rid);
+                        }
+                    }
+                }
                 b"resp" => {
                     let rid = get_u32(&mut input)?;
                     let parts = get_list(&mut input)?;
+                    // A streamed body: its pieces come next; get ready before they do.
+                    if parts.get(5).map(Vec::as_slice) == Some(b"stream") {
+                        let (tx, rx) = channel();
+                        if let (Ok(mut s), Ok(mut r)) = (STREAMS.lock(), STREAM_RX.lock()) {
+                            s.get_or_insert_with(HashMap::new).insert(rid, tx);
+                            r.get_or_insert_with(HashMap::new).insert(rid, rx);
+                        }
+                    }
                     let tx = PENDING.lock().ok().and_then(|mut p| p.as_mut()?.remove(&rid));
                     if let Some(tx) = tx {
                         let _ = tx.send(parts);
@@ -846,6 +995,31 @@ pub fn serve(site: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streamed_bodies_read_as_they_arrive() {
+        use std::io::Read;
+        let (tx, rx) = channel();
+        let mut p = Pieces { rx, buf: Vec::new(), at: 0, wait: Duration::from_secs(5), done: false };
+        let feeder = std::thread::spawn(move || {
+            for piece in [b"hello ".to_vec(), b"wor".to_vec(), b"ld".to_vec(), Vec::new()] {
+                std::thread::sleep(Duration::from_millis(20));
+                tx.send(piece).unwrap();
+            }
+        });
+        let mut all = String::new();
+        p.read_to_string(&mut all).unwrap();
+        feeder.join().unwrap();
+        assert_eq!(all, "hello world");
+        // The browser going away mid-body ends it rather than hanging.
+        let (tx, rx) = channel::<Vec<u8>>();
+        tx.send(b"part".to_vec()).unwrap();
+        drop(tx);
+        let mut p = Pieces { rx, buf: Vec::new(), at: 0, wait: Duration::from_secs(5), done: false };
+        let mut v = Vec::new();
+        p.read_to_end(&mut v).unwrap();
+        assert_eq!(v, b"part");
+    }
 
     #[test]
     fn lists_and_headers_round_trip() {
