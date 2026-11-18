@@ -3,6 +3,8 @@
 //! sibling margin collapsing) and inline flow (word wrapping, alignment, links, <br>, <pre>).
 
 use crate::dom::{Dom, NodeData, NodeId};
+#[path = "paint_order.rs"]
+mod paint_order;
 use crate::font::Fonts;
 use crate::grid;
 use crate::style::Background;
@@ -2883,6 +2885,9 @@ impl<'a> Ctx<'a> {
         let mut prev_mb = 0.0;
         let mut run: Vec<NodeId> = Vec::new();
         let children = self.dom.nodes[id].children.clone();
+        // Children that paint in the positioned layer go after their in-flow siblings.
+        let mut later: Vec<paint_order::Span> = Vec::new();
+        let fixed_before = self.fixed.len();
         for c in children {
             if self.styles[c].display == Display::None {
                 continue;
@@ -2930,7 +2935,11 @@ impl<'a> Ctx<'a> {
                     (x, w)
                 };
                 self.flow_child = true;
+                let s = self.span_start();
                 let (h, mb) = self.block(c, bx, cy, bw, prev_mb);
+                if self.paints_positioned(c) {
+                    later.push(self.span_since(s));
+                }
                 cy += h;
                 prev_mb = mb;
             } else {
@@ -2944,6 +2953,7 @@ impl<'a> Ctx<'a> {
             }
             cy += h;
         }
+        self.paint_positioned_last(&later, fixed_before);
         (cy - y, prev_mb)
     }
 

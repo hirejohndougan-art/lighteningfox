@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- NYT (2026-11): the masthead's date and "Today's Paper" sit in a zero-height bar with
+     `transform: translateY(48px)` and `align-items: flex-end`, overflowing into the logo row
+     after it. CSS 2 Appendix E paints positioned (z-index auto/0) and transformed boxes after
+     the in-flow blocks, so they show over that row's background. -->
+<html><head><title>paint order</title>
+<style>
+body { margin: 0 }
+.h0 { height: 0 }
+.kid { height: 40px; width: 50px }
+.later { height: 80px; background: rgb(200, 255, 200) }
+</style></head>
+<body>
+<div class="h0" style="position: relative"><div class="kid" style="background: rgb(1, 0, 255)"></div></div>
+<div class="h0" style="transform: translateX(60px)"><div class="kid" style="background: rgb(2, 0, 255)"></div></div>
+<div class="h0" style="opacity: 0.9; margin-left: 120px"><div class="kid" style="background: rgb(3, 0, 255)"></div></div>
+<div class="h0" style="display: flex; align-items: flex-end; transform: translateY(40px); margin-left: 180px"><div class="kid" style="background: rgb(4, 0, 255)"></div></div>
+<div class="h0" style="margin-left: 240px"><div class="kid" style="background: rgb(5, 0, 255)"></div></div>
+<div class="later"></div>
+</body></html>
