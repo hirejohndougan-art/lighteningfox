@@ -514,7 +514,11 @@
   const arrOf = (T, v, off, len) => {
     if (v === null || v === undefined || typeof v !== "object") throw new TypeError("uniform: expected an array");
     let a = v instanceof T ? v : T.from(v);
-    if (off || len) a = a.subarray(off || 0, len ? (off || 0) + len : undefined);
+    off = off >>> 0;
+    len = len >>> 0;
+    // A source range outside the array is INVALID_VALUE (the caller reports it).
+    if (off > a.length || (len && off + len > a.length)) return null;
+    if (off || len) a = a.subarray(off, len ? off + len : undefined);
     return a;
   };
   for (let n = 1; n <= 4; n++) {
@@ -522,12 +526,22 @@
       const kind = base * 100 + 10 + n;
       const T = typedOf(base);
       P["uniform" + n + suffix] = function (loc, ...v) { this.__uniform(loc, kind, T.from(v.slice(0, n).map((x) => +x || 0))); };
-      P["uniform" + n + suffix + "v"] = function (loc, v, off, len) { if (loc == null) return; this.__uniform(loc, kind, arrOf(T, v, off, len)); };
+      P["uniform" + n + suffix + "v"] = function (loc, v, off, len) {
+        const a = arrOf(T, v, off, len);
+        if (!a) return this.__err(0x501);
+        if (loc == null) return;
+        this.__uniform(loc, kind, a);
+      };
     }
   }
   for (const [c, r] of [[2, 2], [3, 3], [4, 4], [2, 3], [2, 4], [3, 2], [3, 4], [4, 2], [4, 3]]) {
     const name = c === r ? "uniformMatrix" + c + "fv" : "uniformMatrix" + c + "x" + r + "fv";
-    P[name] = function (loc, transpose, v, off, len) { if (loc == null) return; this.__uniform(loc, c * 10 + r, arrOf(Float32Array, v, off, len), transpose); };
+    P[name] = function (loc, transpose, v, off, len) {
+      const a = arrOf(Float32Array, v, off, len);
+      if (!a) return this.__err(0x501);
+      if (loc == null) return;
+      this.__uniform(loc, c * 10 + r, a, transpose);
+    };
   }
   // Uniform blocks (WebGL 2).
   P.getUniformBlockIndex = function (p, name) { const id = this.__id(p, WebGLProgram); return id > 0 ? __glUniformBlock(this.__cid, 0, id, String(name)) : 0xffffffff; };

@@ -946,6 +946,10 @@ impl Gl {
                         if (l + n) as usize > MAX_ATTRIBS {
                             return Err(format!("attribute '{}' location is out of range", a.name));
                         }
+                        // GLSL ES 3.00: two inputs (used or not) on the same location fail.
+                        if v2 && (l..l + n).any(|k| used[k as usize]) {
+                            return Err(format!("attribute '{}' shares a location with another attribute", a.name));
+                        }
                         for k in l..l + n {
                             used[k as usize] = true;
                         }
@@ -1042,6 +1046,9 @@ impl Gl {
         let Some(prog) = self.program_ref(self.program) else { return self.error(INVALID_OPERATION) };
         let Some(l) = prog.linked.as_ref() else { return self.error(INVALID_OPERATION) };
         let attribs_needed: Vec<(u32, Ty, u32)> = l.attribs.iter().map(|a| (a.2, a.1.clone(), a.3)).collect();
+        if self.v2 && !self.samplers_match_textures() {
+            return self.error(INVALID_OPERATION);
+        }
         if count == 0 || instances == 0 {
             return;
         }
@@ -1082,6 +1089,50 @@ impl Gl {
             }
         };
         self.draw_ids(mode, &ids, instances as u32, &attribs_needed);
+    }
+
+    /// WebGL 2: each sampler the program uses must suit the texture on its unit — float
+    /// samplers take float, normalized or (comparison off) depth textures; integer samplers
+    /// the matching integer textures; shadow samplers depth textures with comparison on (the
+    /// bound sampler object's setting wins over the texture's).
+    fn samplers_match_textures(&self) -> bool {
+        let Some(l) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()) else { return true };
+        for un in &l.uniforms {
+            let Ty::Sampler(s) = &un.ty else { continue };
+            let Some(&(stage, slot)) = un.slots.first() else { continue };
+            let mem = if stage == 0 { &l.vs_mem } else { &l.fs_mem };
+            let k = match s.dim {
+                Dim::D2 => 0,
+                Dim::D3 => 1,
+                Dim::Cube => 2,
+                Dim::D2Array => 3,
+            };
+            for el in 0..un.count as usize {
+                let Some(unit) = mem.get(slot as usize + el).map(|m| m[0].to_bits() as usize).filter(|&u| u < MAX_UNITS) else { continue };
+                let Some(t) = self.texture(self.units[unit][k]) else { continue };
+                let Some(img) = t.base_image() else { continue };
+                let compare = match self.objs.get(&self.samplers[unit]) {
+                    Some(Obj::Sampler(sp)) if self.samplers[unit] != 0 => sp.compare_mode,
+                    _ => t.p.compare_mode,
+                };
+                let f = &img.fmt;
+                let int = matches!(f.num, crate::webgl_tex::Num::Int);
+                let uint = matches!(f.num, crate::webgl_tex::Num::Uint);
+                let ok = if s.shadow {
+                    f.depth && compare == e::COMPARE_REF_TO_TEXTURE
+                } else {
+                    match s.base {
+                        Base::I => int && !f.depth,
+                        Base::U => uint && !f.depth,
+                        _ => if f.depth { compare != e::COMPARE_REF_TO_TEXTURE } else { !int && !uint },
+                    }
+                };
+                if !ok {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     fn draw_restart(&mut self, mode: u32, v: &[u32], restart: u32, instances: i32) {
@@ -3664,6 +3715,10 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
             0x9247 if v2 => n(0),
             // EXT_texture_filter_anisotropic
             0x84FF => n(16),
+            // Capabilities, as isEnabled reports them.
+            CULL_FACE | BLEND | DITHER | STENCIL_TEST | DEPTH_TEST | SCISSOR_TEST | POLYGON_OFFSET_FILL | SAMPLE_ALPHA_TO_COVERAGE | SAMPLE_COVERAGE => P::B(gl.cap(pname)),
+            // Transform feedback is never active or paused (not implemented yet).
+            0x8E23 | 0x8E24 if v2 => P::B(false),
             _ => {
                 gl.error(INVALID_ENUM);
                 P::Null
