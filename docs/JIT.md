@@ -101,6 +101,12 @@ loop counter and limit, an accumulator slot and the entry pc) and returns the pc
 interpreter goes on from. Reaching `Return` is just an exit at the `Return` instruction with the
 accumulator set, so early exits and frame popping stay the interpreter's.
 
+Checked (2026-11-18): test262 at the commit Boa 0.22 pins, 53,578 tests, gives the same result
+for every test with `BOA_JIT=off` and `BOA_JIT=always` (51,226 pass, 571 fail, 1,781 ignored,
+95.61%); Boa's engine tests and Ironswift's 404 tests pass with `BOA_JIT=always`. To repeat:
+`tools/test262.sh` with `--features boa_engine/jit` added to its `cargo build`, run with each
+mode and compare the `latest.json` files.
+
 Measured (`docs/boa-speed.md`): number loops 2.9× faster; the V8 suite unchanged, since its hot
 code reads properties and calls functions.
 

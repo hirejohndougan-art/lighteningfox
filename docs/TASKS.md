@@ -1204,7 +1204,10 @@ Cranelift (`cranelift-codegen`, `cranelift-frontend`, `cranelift-jit`) behind it
 `wasmtime`, share its Cranelift version.
 
 ### J2. Baseline JIT: numbers, locals, branches and loops
-**Status:** claimed by chat-jit-1 2026-11-18 06:31
+**Status:** done
+**Left undone:** the V8 suite doesn't get faster yet (its hot code reads properties and calls functions, J3's part); bitwise operators and shifts only run in machine code on int32 inputs (doubles bail out to the interpreter, which then usually gives up on that function); compiled code is never freed before its thread ends (J4 adds a size cap).
+**Result:** `vendor/boa/boa_engine/src/jit/compiler.rs` (Cranelift code, one block per bytecode instruction, entry at pc 0 and after each loop header), `helpers.rs` (each operation wraps the interpreter's own `*_fast` path, so results are bit-identical; int32 add/sub, inc/dec and loop compares in line), `runtime.rs` (compile at tier-up, enter from `function_call` and `IncrementLoopIteration`, give up after 64 bailouts if more than 1 entry in 4 bails). Compiled code works on the frame's own registers and only ever leaves by setting the frame's pc, so `Return`, early exits and the loop limit stay the interpreter's. Same results as the interpreter: all 53,578 test262 tests give the same result with `BOA_JIT=always` as with it off (95.61% both), Boa's 1,116 engine tests and Ironswift's 404 tests pass with `BOA_JIT=always`; 19 JIT tests compare every operator over edge values (-0, NaN, int32 limits, strings, objects, missing arguments) and check the functions really ran compiled. Speed (`docs/boa-speed.md`): summing loop + Collatz 903 → 308 ms (2.9×); V8 suite 222 → 228, within noise. `BOA_JIT_LOG=1` prints functions Cranelift refused.
+
 **After:** J1
 **Checklist:** none
 **Files:** `vendor/boa/boa_engine/src/jit/`
