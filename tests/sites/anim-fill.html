@@ -1,0 +1,10 @@
+<!doctype html>
+<!-- NYT (2026-11): the market ticker's items start at opacity: 0 and fade in with
+     `animation: … 5s forwards` (keyframes added with insertRule). Styling for scripts started
+     every animation's clock afresh, so getComputedStyle (and snapshots) stayed at 0 s. -->
+<html><head><title>animation fill</title>
+<style id="s"></style>
+<style>.fade { width: 60px; height: 30px; background: green; opacity: 0; animation: fadein 0.1s forwards }</style></head>
+<body><div class="fade" id="box"></div>
+<script>document.getElementById("s").sheet.insertRule("@keyframes fadein { from { opacity: 0 } to { opacity: 1 } }", 0);</script>
+</body></html>

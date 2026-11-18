@@ -619,10 +619,7 @@ impl Page {
 
     /// This page's CSS animation timeline.
     fn anim_key(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        self.loaded_at.hash(&mut h);
-        h.finish()
+        anim_key_of(self.loaded_at)
     }
 
     fn zoom(&self) -> f32 {
@@ -1274,6 +1271,14 @@ fn load_fonts() -> Option<&'static Fonts> {
     Some(f)
 }
 
+/// The animation timeline key of a page loaded at `t` (anim.rs keeps one timeline per page).
+fn anim_key_of(t: Instant) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    t.hash(&mut h);
+    h.finish()
+}
+
 /// Turn fetched resources into a live page: install the DOM, run scripts, style it.
 /// Runs on the UI thread (JavaScript and the DOM live there).
 fn build_page(p: Prepared) -> Page {
@@ -1291,6 +1296,10 @@ fn build_page(p: Prepared) -> Page {
     let live = Rc::new(RefCell::new(livesheets::Live::new(&url, policy.clone(), &dom, sheets.clone())));
     js::set_dom(dom);
     layout::reset_element_scrolls();
+    // Styling for scripts uses the page's animation timeline, so getComputedStyle and
+    // geometry see animations where they are now, not at 0 s.
+    let loaded_at = Instant::now();
+    let anim_key = anim_key_of(loaded_at);
     // Scripts that ask where elements are get a fresh layout of the page as it is then.
     let provider: Option<Box<dyn Fn(f32, f32) -> layout::Layout>> = FONTS.with(|c| c.get()).map(|fonts| {
         let live = live.clone();
@@ -1305,6 +1314,7 @@ fn build_page(p: Prepared) -> Page {
                 let c = d.composed();
                 let d = c.as_ref().unwrap_or(d);
                 // Styled without :visited, like getComputedStyle (which reuses these styles).
+                anim::set_current(anim_key);
                 let styles = style::without_visited(|| style::compute(d, &sheets));
                 geometry::note_styles(&styles);
                 layout::layout(d, &styles, fonts, &images, w, h)
@@ -1322,6 +1332,7 @@ fn build_page(p: Prepared) -> Page {
                     l.sheets()
                 };
                 let c = d.composed();
+                anim::set_current(anim_key);
                 // Scripts must not learn which links were visited.
                 style::without_visited(|| style::compute(c.as_ref().unwrap_or(d), &sheets))
             })
@@ -1351,7 +1362,7 @@ fn build_page(p: Prepared) -> Page {
     let form_defaults = js::with_dom(forms::defaults);
     static DOCS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     let doc = DOCS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut page = Page { url, icon, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at: Instant::now(), styled_for: (0.0, 0.0), live };
+    let mut page = Page { url, icon, title: String::new(), sheets, styles: Vec::new(), images, js, hover_rules, doc, form_defaults, loaded_at, styled_for: (0.0, 0.0), live };
     page.restyle();
     release_free_memory();
     page
@@ -1562,6 +1573,12 @@ fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout,
     geometry::set_viewport(width as f32, 768.0);
     css::set_viewport(width as f32, 768.0); // vw/vh and @media while scripts run at load
     let mut page = load(url);
+    // Playing in real time: style the page now so its animations' clock starts at load, as
+    // in the window (otherwise the pass after the wait was their first: everything at 0 s,
+    // and an `opacity: 0` fade-in with `forwards` never showed).
+    if wait_for.is_some() {
+        page.restyle();
+    }
     // Give fetch() calls and short timers a moment to fill the page in before the snapshot.
     if let Some(js) = page.js.as_mut() {
         match &wait_for {
@@ -1572,7 +1589,8 @@ fn render_page(fonts: &Fonts, url: &str, width: usize) -> (Page, layout::Layout,
             }
             None => js.settle(std::time::Duration::from_secs(5)),
         }
-        if js::take_dirty() {
+        // Real time: the animations moved during the wait even if the DOM didn't.
+        if js::take_dirty() || wait_for.is_some() {
             page.restyle();
         }
     }

@@ -1407,3 +1407,15 @@ fn module_worker_runs_an_es_module() {
     }
     assert_eq!(text_of("out"), "42 TypeError");
 }
+
+/// NYT: getComputedStyle sees an animation where it is now (here finished, held by
+/// `forwards`), not at 0 s.
+#[test]
+fn computed_style_follows_running_animations() {
+    let _serial = serial();
+    let mut page = open("tests/sites/anim-fill.html");
+    let op = |page: &mut crate::Page| eval(page, "getComputedStyle(document.getElementById('box')).opacity");
+    op(&mut page);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(op(&mut page), "\"1\"");
+}

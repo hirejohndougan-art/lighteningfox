@@ -36,10 +36,14 @@ pub fn computed_style(dom: &Dom, id: NodeId) -> Option<String> {
     // Lay out first: that styles the page too and leaves the styles here (note_styles).
     let size = page_rect(dom, id).map(|(r, _)| (r.w, r.h));
     let version = GEN.with(Cell::get);
-    let stale = STYLES.with(|c| c.borrow().0 != version);
+    // While animations run, the styles change without the DOM changing: style again, at
+    // most once a frame.
+    let moving = crate::anim::active() && STYLED_AT.with(|t| t.get().is_none_or(|t| t.elapsed() >= std::time::Duration::from_millis(16)));
+    let stale = moving || STYLES.with(|c| c.borrow().0 != version);
     if stale {
         let styles = STYLER.with(|s| s.borrow().as_ref().map(|f| f()))?;
         STYLES.with(|c| *c.borrow_mut() = (version, styles));
+        STYLED_AT.with(|t| t.set(Some(std::time::Instant::now())));
     }
     let st = STYLES.with(|c| c.borrow().1.get(id).cloned())?;
     Some(crate::style::computed_json(&st, size))
@@ -54,6 +58,8 @@ thread_local! {
     static STYLER: RefCell<Option<Styler>> = const { RefCell::new(None) };
     static STYLES: RefCell<(u64, Vec<std::rc::Rc<crate::style::Style>>)> = const { RefCell::new((u64::MAX, Vec::new())) };
     static SCROLL_REQUEST: Cell<Option<f32>> = const { Cell::new(None) };
+    /// When getComputedStyle last styled the page.
+    static STYLED_AT: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
 }
 
 /// The styles a layout of the current DOM was made from, kept for getComputedStyle so it
