@@ -1528,6 +1528,8 @@ impl Js {
         }
         crate::channels::install(&mut ctx);
         crate::geo::install(&mut ctx);
+        // WebAssembly (wasm/mod.rs, wasm.js).
+        crate::wasm::install(&mut ctx);
         Js { ctx, start: Instant::now(), stats: Stats::default(), epoch, modules }
     }
 

@@ -92,6 +92,7 @@ mod memory;
 mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
+mod wasm;
 mod layout;
 mod doc_extent;
 mod cssvars;

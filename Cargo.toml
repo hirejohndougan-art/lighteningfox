@@ -50,6 +50,9 @@ rayon = "1"
 # A fast, randomly seeded hasher for the font caches layout hits for every word (font.rs).
 foldhash = "0.2"
 
+# WebAssembly (src/wasm/): the wasmi interpreter; why not wasmtime is in docs/ARCHITECTURE.md.
+wasmi = { version = "2", default-features = false, features = ["std", "validate", "simd", "memory64", "auto-dispatch"] }
+
 # Linux only: screen readers over AT-SPI and the location service (GeoClue), both on D-Bus.
 [target.'cfg(target_os = "linux")'.dependencies]
 accesskit_unix = "0.24"
@@ -59,6 +62,8 @@ zbus = { version = "5.19", default-features = false, features = ["async-io", "bl
 libc = "0.2"
 
 [dev-dependencies]
+# WebAssembly tests write their modules as text (src/wasm/tests.rs).
+wat = "1"
 # Tests talk to a pretend GeoClue over a socket pair (src/geo.rs).
 zbus = { version = "5.19", default-features = false, features = ["async-io", "blocking-api", "p2p"] }
 
