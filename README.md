@@ -168,15 +168,20 @@ GitHub Actions runs the same tests on every push (`.github/workflows/ci.yml`).
 - [Conformance](docs/CONFORMANCE.md): results on the official test suites (Test262, WPT) and how to run them
 - [Site compatibility](docs/SITE_COMPAT.md): how 40 popular sites fare, graded against Chrome every week by `tools/site_check.py --tracker` (run it yourself for a side-by-side report)
 - [Packaging](packaging/README.md): the `.deb`, AppImage, Flatpak and `.tar.gz`, and how releases are made
-- [Work batches](docs/BATCHES.md): how the remaining work is split between parallel contributors
+- [Open tasks](docs/TASKS.md): the remaining work, one task per contributor ([Work batches](docs/BATCHES.md) for the earlier rounds)
+- [WebGL on the GPU](docs/WEBGL_GPU.md): how fast software WebGL is today and the plan for a GPU path
 - Debugging: `about:log` shows the debug log, `about:crashes` lists crash reports (kept on your computer only)
 
 ## Roadmap
 
-1. **Security**: run each top-level site in its own sandboxed process
-2. **Standards**: the missing DOM pieces, `::before`/`::after`, `<canvas>` and the rest of
-   [the batches](docs/BATCHES.md) (see [Conformance](docs/CONFORMANCE.md))
-3. **JavaScript speed**: profile Boa on real sites and work on its interpreter
+Done since 0.1: each site in its own sandboxed process, `<canvas>`, `<video>`/`<audio>`,
+WebGL 1 and 2, and most of the earlier batches. What's left is in [docs/TASKS.md](docs/TASKS.md);
+the larger pieces:
+
+1. **Site compatibility**: every tracked site in [Site compatibility](docs/SITE_COMPAT.md) at "Works"
+2. **Standards**: WebAssembly, service workers, WebRTC, WebGPU and the smaller APIs (see
+   [Conformance](docs/CONFORMANCE.md))
+3. **Speed**: JavaScript (Boa's interpreter), layout on several cores, WebGL on the GPU
 4. *Optional, after everything else:* a JIT compiler for Boa
 
 ## License

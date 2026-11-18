@@ -16,6 +16,8 @@ are a baseline to measure progress against, not a finish line: each fix should m
 | **CSS selectors** (WPT `css/selectors`) | Selector matching | 450 of 816 script subtests; 39 of 135 reference pages |
 | **Flexbox** (WPT `css/css-flexbox`) | Flex layout | 291 of 894 reference pages; 79 of 398 script subtests |
 | **Floats** (WPT `css/CSS2/floats`) | Float layout | 19 of 78 reference pages; 19 of 51 script subtests |
+| **WebGL 2** (Khronos `conformance2`, without `textures/`; 18 November) | WebGL 2 API, GLSL ES 3.00, rendering | 173 of 258 pages fully pass; 23,898 of 24,375 checks (98.0%) |
+| **WebGL 2 textures** (Khronos `conformance2/textures`; 18 November) | Uploads from arrays, images, canvases, video, ImageBitmap; formats | 861 of 926 pages fully pass |
 
 Reference tests pass only when the test page and its reference page render to *identical*
 pixels at 800×600. Official WPT allows small pixel differences on some tests, so these numbers
@@ -49,6 +51,18 @@ A WPT checkout of just the needed folders:
 git clone --depth 1 --filter=blob:none --sparse https://github.com/web-platform-tests/wpt
 cd wpt && git sparse-checkout set resources common fonts IndexedDB html/syntax/parsing dom/nodes shadow-dom css/css-flexbox css/CSS2/floats css/selectors
 ```
+
+WebGL: the Khronos suite from a sparse checkout of
+[KhronosGroup/WebGL](https://github.com/KhronosGroup/WebGL) (`sdk/tests/js`, `resources`,
+`conformance2`, and `conformance/extensions` for the compressed-texture pages):
+
+```sh
+python3 tools/khronos_webgl.py /path/to/WebGL conformance2/rendering conformance2/textures/misc
+# KHR_DETAILS=out.json keeps every page's failures; KHR_JOBS and KHR_TIMEOUT tune the run
+```
+
+The runner's profiles turn anti-fingerprinting off, since its noise on `readPixels` fails the
+exact-color checks.
 
 `tools/wpt.py` swaps the checkout's `resources/testharnessreport.js` for ours (the original is
 kept as `.orig`), serves the files on localhost and runs the browser headless on each test.

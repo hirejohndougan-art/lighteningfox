@@ -20,6 +20,18 @@ entry here, newest first.
   encodings, proxy settings, clearer error pages.
 - Standard event dispatch (capture, target, bubble), mouse/keyboard/focus event classes,
   `window.<id>` named access, `template.content`.
+- **`<canvas>`**: the whole 2D API (paths, gradients, patterns, shadows, text, image data,
+  `OffscreenCanvas`), `createImageBitmap` with its options, and `drawImage` from video.
+- **WebGL 1 and 2**, drawn in software with its own GLSL ES 1.00/3.00 compiler: transform
+  feedback, queries and fences, multiple draw buffers (`OES_draw_buffers_indexed`), sRGB,
+  `blitFramebuffer`, multisampled renderbuffers, pixel buffers, video and ImageBitmap textures,
+  S3TC/ETC/ETC2/RGTC compressed textures. Khronos conformance (WebGL 2): 98% of checks outside
+  the texture folder, 861 of 926 texture pages.
+- **`<video>` and `<audio>`** with built-in controls (decoded by ffmpeg in a sandboxed
+  helper), Media Source Extensions for streaming sites.
+- **Inline SVG**: shapes, transforms, animation, hit testing, `<foreignObject>`;
+  `createElementNS` and namespaced attributes for any namespace.
+- `<dialog>` and popovers, import maps, binary `fetch()` bodies, WebSockets, geolocation.
 
 - **Security and privacy**:
   - The same-origin policy is enforced by the browser for cookies, `localStorage`,
@@ -42,8 +54,8 @@ entry here, newest first.
   - Embedded sites get partitioned cookies and storage; per-site cookie rules (always
     allow, block, delete on close) and a list of sites with cookies on about:settings.
   - Permission prompts for camera, microphone, location and notifications, remembered per site.
-  - Fingerprinting: fixed screen size, processor count and fonts for scripts; canvas noise
-    ready for when `<canvas>` lands.
+  - Fingerprinting: fixed screen size, processor count and fonts for scripts; noise on
+    canvas, WebGL `readPixels` and audio readback.
   - Daily update checks; per-user installs update themselves (SHA-256 verified).
   - Fuzz targets for the HTML, CSS, JavaScript, CSP and filter-list parsers.
 
