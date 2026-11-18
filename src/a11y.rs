@@ -83,6 +83,15 @@ const ROLES: &[&str] = &[
     "treegrid", "treeitem",
 ];
 
+/// The role named `s` as one of ours (a tree sent from a site process): unknown ones are generic.
+pub fn intern_role(s: &str) -> &'static str {
+    match s {
+        "text" => "text",
+        "document" => "document",
+        _ => ROLES.iter().find(|&&r| r == s).copied().unwrap_or("generic"),
+    }
+}
+
 /// Roles whose name comes from their contents when nothing else names them.
 const NAME_FROM_CONTENT: &[&str] = &[
     "button", "cell", "checkbox", "columnheader", "gridcell", "heading", "link", "menuitem", "menuitemcheckbox",

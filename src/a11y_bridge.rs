@@ -80,6 +80,31 @@ pub struct Page<'a> {
     pub url: &'a str,
 }
 
+/// The page's accessibility tree with where each node is drawn: built from the window's own
+/// page (`page_tree`) or sent by the page's site process (a11y_remote.rs).
+#[derive(Debug, Clone, Default)]
+pub struct PageTree {
+    pub tree: a11y::Tree,
+    /// For each tree node: its box in page coordinates, and whether it stays put when the page
+    /// scrolls (position: fixed).
+    pub rects: Vec<Option<(crate::layout::Rect, bool)>>,
+    pub url: String,
+    pub scroll: f32,
+    /// Where the page's top-left is in the window's page area (a site-process page's frame).
+    pub origin: (f32, f32),
+}
+
+/// The tree of a page laid out in this process.
+pub fn page_tree(page: &Page) -> PageTree {
+    let tree = a11y::build(page.dom, Some(page.styles), page.focused);
+    let rects = tree
+        .nodes
+        .iter()
+        .map(|n| node_rect(page.dom, page.layout, n.dom).map(|r| (r, page.layout.boxes.get(&n.dom).is_some_and(|b| b.1))))
+        .collect();
+    PageTree { tree, rects, url: page.url.to_string(), scroll: page.scroll, origin: (0.0, 0.0) }
+}
+
 /// Windows and macOS need AccessKit's per-window adapters (accesskit_winit); until then the
 /// bridge is Linux-only and `Bridge::new` returns None elsewhere.
 #[cfg(target_os = "linux")]
@@ -182,7 +207,29 @@ impl Bridge {
         }
         self.last_key = key;
         self.last = Some(Instant::now());
-        self.adapter.update_if_active(|| tree_update(title, chrome, page));
+        self.adapter.update_if_active(|| tree_update(title, chrome, &page_tree(page)));
+    }
+
+    /// Like `update`, for a page whose tree came from its site process; `version` changes
+    /// whenever the tree, its position or its scrolling does.
+    pub fn update_remote(&mut self, title: &str, chrome: &Chrome, pt: &PageTree, version: u64) {
+        if !self.active() {
+            self.last_key = 0;
+            return;
+        }
+        let mut h: u64 = version ^ 0x9e37_79b9_7f4a_7c15;
+        for b in title.bytes().chain(chrome.address.bytes()).chain([chrome.editing_address as u8, chrome.can_back as u8, chrome.can_forward as u8, chrome.active_tab as u8]) {
+            h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+        }
+        let focus = if chrome.editing_address { 0xfffe } else { pt.tree.nodes.iter().find(|n| n.states.focused).map_or(0xffff, |n| (n.dom as u64) & 0xfffd) };
+        let key = (h & !0xffff) | focus;
+        let soon = self.last.is_some_and(|t| t.elapsed() < Duration::from_millis(100));
+        if key == self.last_key || (soon && !focus_changed(self.last_key, key)) {
+            return;
+        }
+        self.last_key = key;
+        self.last = Some(Instant::now());
+        self.adapter.update_if_active(|| tree_update(title, chrome, pt));
     }
 
     /// Requests from screen readers since the last call.
@@ -360,9 +407,9 @@ fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
     Rect { x0: x as f64, y0: y as f64, x1: (x + w) as f64, y1: (y + h) as f64 }
 }
 
-fn tree_update(title: &str, chrome: &Chrome, page: &Page) -> TreeUpdate {
+fn tree_update(title: &str, chrome: &Chrome, page: &PageTree) -> TreeUpdate {
     let mut nodes: Vec<(AkId, Node)> = Vec::new();
-    let t = a11y::build(page.dom, Some(page.styles), page.focused);
+    let t = &page.tree;
     let page_id = |i: usize| AkId(PAGE0 + t.nodes[i].dom as u64);
 
     // The window.
@@ -452,7 +499,7 @@ fn tree_update(title: &str, chrome: &Chrome, page: &Page) -> TreeUpdate {
             node.set_level(l as usize);
         }
         if let Some(h) = &n.href {
-            node.set_url(crate::net::resolve(page.url, h));
+            node.set_url(crate::net::resolve(&page.url, h));
         }
         if let Some((min, max, now)) = n.range {
             node.set_min_numeric_value(min);
@@ -507,10 +554,9 @@ fn tree_update(title: &str, chrome: &Chrome, page: &Page) -> TreeUpdate {
         }
         if i != 0 {
             node.add_action(Action::ScrollIntoView);
-            if let Some(r) = node_rect(page.dom, page.layout, n.dom) {
-                let fixed = page.layout.boxes.get(&n.dom).is_some_and(|b| b.1);
-                let y = chrome.page_top + r.y - if fixed { 0.0 } else { page.scroll };
-                node.set_bounds(rect(r.x, y, r.w, r.h));
+            if let Some((r, fixed)) = page.rects.get(i).copied().flatten() {
+                let y = chrome.page_top + page.origin.1 + r.y - if fixed { 0.0 } else { page.scroll };
+                node.set_bounds(rect(page.origin.0 + r.x, y, r.w, r.h));
             }
         }
         node.set_children(n.children.iter().map(|&c| page_id(c)).collect::<Vec<_>>());
@@ -558,7 +604,7 @@ mod tests {
             tab_rects: &[(0.0, 200.0)],
         };
         let page = Page { dom: &dom, styles: &styles, layout: &lay, focused: None, scroll: 0.0, url: "http://a/" };
-        let u = tree_update("T", &chrome, &page);
+        let u = tree_update("T", &chrome, &page_tree(&page));
         let find = |r: Role| u.nodes.iter().find(|(_, n)| n.role() == r).map(|(_, n)| n.clone());
         assert_eq!(find(Role::Heading).unwrap().label(), Some("Hi"));
         let link = find(Role::Link).unwrap();

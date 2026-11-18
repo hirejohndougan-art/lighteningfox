@@ -15,6 +15,7 @@ macro_rules! log {
     }};
 }
 
+mod a11y_remote;
 mod clicks;
 mod mcp;
 mod cookies;
@@ -2520,9 +2521,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if bridge.wants_frame() {
                 dirty = true;
             }
+            let site = frames::site_frame(page.doc).is_some();
             for req in bridge.take_requests() {
                 use a11y_bridge::Request as R;
                 match req {
+                    // A page in a site process: its elements are there.
+                    R::Focus(n) if site => frames::site_a11y_action(page.doc, 0, n, ""),
+                    R::Click(n) if site => frames::site_a11y_action(page.doc, 1, n, ""),
+                    R::ScrollTo(n) if site => frames::site_a11y_action(page.doc, 2, n, ""),
+                    R::SetValue(n, ref v) if site => frames::site_a11y_action(page.doc, 3, n, v),
                     R::Focus(n) | R::ScrollTo(n) | R::Click(n) if n >= js::with_dom(|d| d.nodes.len()) => {}
                     R::Focus(n) => {
                         if focused != Some(n) {
@@ -4374,6 +4381,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     window_active = window.is_active();
                     bridge.window_focused(window_active);
                 }
+                if !bridge.active() {
+                    // No screen reader: a page in a site process can stop sending its tree.
+                    frames::site_a11y(page.doc, &lay, false);
+                }
                 if bridge.active() {
                     let names: Vec<String> = labels.iter().map(|l| l.0.clone()).collect();
                     let rects = tab_rects(w as f32, tabs.len());
@@ -4396,10 +4407,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     };
                     let title = page.title.clone();
                     let url = page.url.clone();
-                    js::with_dom(|d| {
-                        let pg = a11y_bridge::Page { dom: d, styles: &page.styles, layout: &lay, focused, scroll, url: &url };
-                        bridge.update(&title, &chrome, &pg);
-                    });
+                    if let Some((pt, version)) = frames::site_a11y(page.doc, &lay, true) {
+                        // A page in a site process sends its own tree.
+                        bridge.update_remote(&title, &chrome, &pt, version);
+                    } else {
+                        js::with_dom(|d| {
+                            let pg = a11y_bridge::Page { dom: d, styles: &page.styles, layout: &lay, focused, scroll, url: &url };
+                            bridge.update(&title, &chrome, &pg);
+                        });
+                    }
                 }
             }
             let t0 = Instant::now();

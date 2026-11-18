@@ -41,6 +41,11 @@ pub enum Event {
     /// "run" (console code in `arg`) or "print" (the printed sheets, as PNGs: see print_sheets).
     /// Answered with Update::Answer.
     Ask { what: String, arg: String },
+    /// A screen reader is listening (true) or stopped (false): send Update::A11y while it is.
+    A11y(bool),
+    /// A screen reader's request for a page element: 0 focus, 1 click, 2 scroll into view,
+    /// 3 set the value of a text field to `value`.
+    A11yAction { kind: u8, node: u32, value: String },
     /// An option was picked in the window's list for the <select> `id` (see Update::Select).
     SelectChoose { id: u32, index: u32 },
     /// Back or Forward moved within the page's own history entries (a top-level page in a site
@@ -66,6 +71,9 @@ pub enum Update {
     /// The text on the page and where it's drawn (page coordinates), for find in page and
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
+    /// The page's accessibility tree (a11y_remote.rs), when it changed and a screen reader is
+    /// listening (a top-level page in a site process).
+    A11y(Vec<u8>),
     /// The answer to Event::Ask.
     Answer { what: String, data: Vec<u8> },
     /// A right click the page didn't cancel (a top-level page in a site process): the link and
@@ -159,6 +167,15 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::A11y(on) => {
+                put(&mut m, b"a11y");
+                put(&mut m, &[*on as u8]);
+            }
+            Event::A11yAction { kind, node, value } => {
+                put(&mut m, b"a11yact");
+                put(&mut m, &f32s(&[*kind as f32, *node as f32]));
+                put(&mut m, value.as_bytes());
+            }
             Event::Ask { what, arg } => {
                 put(&mut m, b"ask");
                 put(&mut m, what.as_bytes());
@@ -221,6 +238,11 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"a11y" => Event::A11y(get(r)? == [1]),
+            b"a11yact" => match read_f32s(&get(r)?)[..] {
+                [kind, node] if (0.0..=3.0).contains(&kind) && node >= 0.0 => Event::A11yAction { kind: kind as u8, node: node as u32, value: String::from_utf8_lossy(&get(r)?).to_string() },
+                _ => return Err(std::io::Error::other("bad a11y action")),
+            },
             b"ask" => {
                 let what = String::from_utf8_lossy(&get(r)?).to_string();
                 Event::Ask { what, arg: String::from_utf8_lossy(&get(r)?).to_string() }
@@ -265,6 +287,10 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::A11y(b) => {
+                put(&mut m, b"a11ytree");
+                put(&mut m, b);
             }
             Update::Answer { what, data } => {
                 put(&mut m, b"answer");
@@ -328,6 +354,7 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"a11ytree" => Update::A11y(get(r)?),
             b"answer" => {
                 let what = String::from_utf8_lossy(&get(r)?).to_string();
                 Update::Answer { what, data: get(r)? }
@@ -406,6 +433,9 @@ struct Host {
     title: String,
     /// The page text last sent to the window (a top-level page in a site process).
     sent_runs: Vec<crate::chrome::TextRun>,
+    /// A screen reader is listening in the window, and the tree last sent to it.
+    a11y_on: bool,
+    sent_a11y: Vec<u8>,
 }
 
 impl Drop for Host {
@@ -488,7 +518,60 @@ impl Host {
                 self.sent_runs = runs.clone();
                 self.outbox.push(Update::Text(runs));
             }
+            self.send_a11y();
         }
+    }
+
+    /// Send the accessibility tree if a screen reader is listening and it changed.
+    fn send_a11y(&mut self) {
+        if !self.a11y_on || !self.job.top_level {
+            return;
+        }
+        let tree = js::with_dom(|d| {
+            let pg = crate::a11y_bridge::Page { dom: d, styles: &self.page.styles, layout: &self.lay, focused: self.focused, scroll: 0.0, url: &self.page.url };
+            crate::a11y_remote::encode(&crate::a11y_bridge::page_tree(&pg))
+        });
+        if tree != self.sent_a11y {
+            self.sent_a11y = tree.clone();
+            self.outbox.push(Update::A11y(tree));
+        }
+    }
+
+    /// A screen reader's request (Event::A11yAction).
+    fn a11y_action(&mut self, kind: u8, node: u32, value: String, out: &mut dyn FnMut(Update)) {
+        let n = node as NodeId;
+        if !js::with_dom(|d| n < d.nodes.len()) {
+            return;
+        }
+        let rect = js::with_dom(|d| crate::a11y_bridge::node_rect(d, &self.lay, n));
+        let reveal = |host: &mut Self| {
+            if let Some(r) = rect {
+                if r.y < host.scroll || r.y + r.h > host.scroll + host.h as f32 {
+                    host.scroll = (r.y - 40.0).max(0.0);
+                }
+            }
+        };
+        match kind {
+            0 => {
+                reveal(self);
+                self.change_focus(Some(n));
+            }
+            1 => {
+                reveal(self);
+                if let Some(r) = rect {
+                    self.click(r.x + r.w / 2.0, r.y + r.h / 2.0 - self.scroll, out);
+                }
+            }
+            2 => reveal(self),
+            _ => {
+                if js::with_dom(|d| forms::is_editable(d, n)) {
+                    js::with_dom_mut(|d| forms::set_value(d, n, &value));
+                    self.fire(n, "input");
+                    self.fire(n, "change");
+                }
+            }
+        }
+        self.relayout();
     }
 
     /// Open another document in the frame (a link, a form, a script setting location).
@@ -844,6 +927,12 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::A11y(on) => {
+                self.a11y_on = on;
+                self.sent_a11y.clear();
+                self.send_a11y();
+            }
+            Event::A11yAction { kind, node, value } => self.a11y_action(kind, node, value, out),
             Event::Ask { what, arg } => {
                 let data: Vec<u8> = match what.as_str() {
                     "print" => {
@@ -937,6 +1026,8 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         outbox: Vec::new(),
         title: String::new(),
         sent_runs: Vec::new(),
+        a11y_on: false,
+        sent_a11y: Vec::new(),
     };
     host.settle();
     host.relayout();
@@ -1056,6 +1147,11 @@ struct Live {
     runs_version: u64,
     /// Updates that came in while the window waited for an answer (site_ask), still to pump.
     held: Vec<Update>,
+    /// Its accessibility tree (a top-level page in a site process), how often it changed,
+    /// and whether it was asked to send it.
+    a11y: Option<crate::a11y_bridge::PageTree>,
+    a11y_version: u64,
+    a11y_on: bool,
 }
 
 impl Drop for Live {
@@ -1101,7 +1197,7 @@ pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option
             .ok()?;
         Sink::Thread(etx)
     };
-    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level, runs: Vec::new(), runs_version: 0, held: Vec::new() };
+    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level, runs: Vec::new(), runs_version: 0, held: Vec::new(), a11y: None, a11y_version: 0, a11y_on: false };
     let first = loop {
         match live.updates.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
             Ok(Update::Picture { img, scroll, max, inner }) => {
@@ -1189,6 +1285,13 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 Update::ContextMenu { .. } => {}
                 // Too late: whoever asked stopped waiting.
                 Update::Answer { .. } => {}
+                Update::A11y(b) if f.top_level => {
+                    if let Some(t) = crate::a11y_remote::decode(&b) {
+                        f.a11y = Some(t);
+                        f.a11y_version += 1;
+                    }
+                }
+                Update::A11y(_) => {}
                 Update::History(_) => {}
             }
         }
@@ -1304,6 +1407,39 @@ pub fn print_sheets(doc: u64) -> Option<Vec<image::RgbImage>> {
         sheets.push(image::load_from_memory_with_format(&png, image::ImageFormat::Png).ok()?.to_rgb8());
     }
     Some(sheets).filter(|s| !s.is_empty())
+}
+
+/// The accessibility tree of the site-process page shown for `doc`, placed where the window
+/// shows it, with a version that changes whenever it or its scrolling does. `listening`: a
+/// screen reader is there (the page sends its tree only then).
+pub fn site_a11y(doc: u64, lay: &layout::Layout, listening: bool) -> Option<(crate::a11y_bridge::PageTree, u64)> {
+    let mut live = LIVE.lock().ok()?;
+    let (x0, y0) = {
+        let (_, x, y) = site_box(&live, doc, lay)?;
+        (x, y)
+    };
+    let f = live.iter_mut().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))?;
+    let Sink::Site(id) = f.sink else { return None };
+    if f.a11y_on != listening {
+        f.a11y_on = listening;
+        crate::process::event(id, &Event::A11y(listening));
+    }
+    if !listening {
+        return None;
+    }
+    let mut t = f.a11y.clone()?;
+    t.scroll = f.scroll;
+    t.origin = (x0, y0);
+    let version = f.a11y_version.wrapping_mul(0x1_0000_0001) ^ f.scroll.to_bits() as u64 ^ ((x0.to_bits() as u64) << 20) ^ ((y0.to_bits() as u64) << 40);
+    Some((t, version))
+}
+
+/// A screen reader's request for an element of the site-process page shown for `doc`
+/// (kind: 0 focus, 1 click, 2 scroll into view, 3 set value).
+pub fn site_a11y_action(doc: u64, kind: u8, node: usize, value: &str) {
+    if let Some(key) = site_frame(doc) {
+        send(doc, &key, Event::A11yAction { kind, node: node as u32, value: value.to_string() });
+    }
 }
 
 /// Pass a picked <select> option to the site-process page shown for `doc`.
@@ -1841,6 +1977,36 @@ mod tests {
     }
 
     #[test]
+    fn a_site_process_page_sends_its_accessibility_tree_and_takes_screen_reader_actions() {
+        let (etx, erx) = channel();
+        let (utx, urx) = channel();
+        let html = "<body><button onclick=\"document.title='pressed'\">Press me</button><a href='/x'>Go</a></body>".to_string();
+        let job = FrameJob { src: FrameSrc::Doc { html, base: "about:blank".into() }, w: 400, h: 300, parent: "about:blank".into(), top: "about:blank".into(), sandbox: None, reply: channel().0, top_level: true };
+        std::thread::spawn(move || run_host(job, erx, move |u| utx.send(u).is_ok()));
+        let deadline = Instant::now() + Duration::from_secs(20);
+        // Nothing is sent until a screen reader listens.
+        etx.send(Event::A11y(true)).unwrap();
+        let mut tree = None;
+        while tree.is_none() && Instant::now() < deadline {
+            if let Ok(Update::A11y(b)) = urx.recv_timeout(Duration::from_millis(200)) {
+                tree = crate::a11y_remote::decode(&b);
+            }
+        }
+        let tree = tree.expect("no tree from the page");
+        let button = tree.tree.nodes.iter().position(|n| n.role == "button" && n.name == "Press me").expect("the button");
+        assert!(tree.rects[button].is_some(), "where it's drawn");
+        assert!(tree.tree.nodes.iter().any(|n| n.role == "link" && n.name == "Go"));
+        etx.send(Event::A11yAction { kind: 1, node: tree.tree.nodes[button].dom as u32, value: String::new() }).unwrap();
+        let mut pressed = false;
+        while !pressed && Instant::now() < deadline {
+            if let Ok(Update::Title(t)) = urx.recv_timeout(Duration::from_millis(200)) {
+                pressed = t == "pressed";
+            }
+        }
+        assert!(pressed, "the screen reader's click pressed the button");
+    }
+
+    #[test]
     fn a_site_process_page_sends_its_text_and_scrolls_on_request() {
         // The window finds and selects text on pages in site processes from what they send.
         let (etx, erx) = channel();
@@ -1888,6 +2054,9 @@ mod tests {
             runs: Vec::new(),
             runs_version: 0,
             held: Vec::new(),
+            a11y: None,
+            a11y_version: 0,
+            a11y_on: false,
         };
         let locked = security::Sandbox { scripts: true, same_origin: false, forms: false, popups: false, top_navigation: false, modals: false };
         assert!(!may_navigate_top(&live(Some(locked.clone()), false)), "a sandboxed frame can't move the tab");
