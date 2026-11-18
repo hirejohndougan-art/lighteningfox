@@ -1431,3 +1431,12 @@ fn adopted_style_sheets_apply() {
     }
     assert_eq!(text_of("out"), "true:0|true|true|true|rgb(1, 2, 3)|rgb(4, 5, 6)|rgb(7, 8, 9)");
 }
+
+/// NYT: NodeList and HTMLCollection have their own prototypes, so tagging them (core-js)
+/// leaves arrays alone.
+#[test]
+fn dom_collections_have_their_own_prototypes() {
+    let _serial = serial();
+    let _page = open("tests/sites/dom-collections.html");
+    assert_eq!(text_of("out"), "[object Array]|true|true|true|true|function");
+}

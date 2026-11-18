@@ -1614,8 +1614,14 @@
     static [Symbol.hasInstance](x) { return isHtml(x) && !KNOWN_HTML.has(x.localName) && !/^[a-z][^A-Z]*-/.test(x.localName); }
   };
   g.HTMLDocument = Document;
-  g.NodeList = Array;
-  g.HTMLCollection = Array;
+  // The DOM's lists are plain arrays, but NodeList and HTMLCollection have prototypes of their
+  // own (inheriting Array's): core-js tags each DOM collection's prototype with
+  // Symbol.toStringTag, which made every array "[object NodeList]" and threw in NYT's video
+  // library when both names were Array.
+  for (const name of ["NodeList", "HTMLCollection"]) {
+    const C = { [name]: class extends Array { static [Symbol.hasInstance](x) { return Array.isArray(x); } } }[name];
+    g[name] = C;
+  }
   g.NodeFilter = { SHOW_ALL: -1, SHOW_ELEMENT: 1, SHOW_TEXT: 4, SHOW_COMMENT: 128, FILTER_ACCEPT: 1, FILTER_REJECT: 2, FILTER_SKIP: 3 };
 
   Object.assign(g, { Headers, Response, Request, FormData, AbortController, AbortSignal, DOMException, XMLHttpRequest });

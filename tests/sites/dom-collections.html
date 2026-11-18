@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- NYT (2026-11): its video library (core-js) tags each DOM collection's prototype with
+     Symbol.toStringTag. NodeList and HTMLCollection were Array itself, so every array became
+     "[object NodeList]" and the library threw. They now have prototypes of their own. -->
+<html><head><title>DOM collections</title></head>
+<body><p id="out"></p>
+<script>
+for (const h of ["NodeList", "HTMLCollection"]) {
+  const c = window[h].prototype;
+  Object.defineProperty(c, Symbol.toStringTag, { value: h, configurable: true, writable: true, enumerable: false });
+}
+document.getElementById("out").textContent = [
+  Object.prototype.toString.call([]),
+  Object.prototype.toString.call(document.querySelectorAll("p")).length > 0,
+  document.querySelectorAll("p") instanceof NodeList,
+  document.body.children instanceof HTMLCollection,
+  NodeList.prototype !== Array.prototype,
+  typeof NodeList.prototype.forEach,
+].join("|");
+</script></body></html>
