@@ -1360,6 +1360,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("perftiming.js", include_str!("perftiming.js")),
     ("dialog.js", include_str!("dialog.js")),
     ("perfentries.js", include_str!("perfentries.js")),
+    ("reporterror.js", include_str!("reporterror.js")),
 ];
 
 impl Drop for Js {

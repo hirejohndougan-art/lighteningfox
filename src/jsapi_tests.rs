@@ -1448,3 +1448,11 @@ fn array_length_store_in_a_loop() {
     let _page = open("tests/sites/array-length-loop.html");
     assert_eq!(text_of("out"), "-1|1|49|[2]");
 }
+
+/// NYT: reportError exists and reaches onerror and "error" listeners.
+#[test]
+fn report_error_reaches_error_handlers() {
+    let _serial = serial();
+    let _page = open("tests/sites/report-error.html");
+    assert_eq!(text_of("out"), "function|wrapped|onerror:boom:true|listener:boom:Uncaught Error: boom|true");
+}

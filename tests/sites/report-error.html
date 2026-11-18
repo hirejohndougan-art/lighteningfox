@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- NYT (2026-11): wraps window.reportError and calls the saved original, which React uses to
+     report recoverable errors (hydration mismatches); reportError was missing, so the wrapper
+     threw. reportError runs onerror (five arguments) and "error" listeners, then logs. -->
+<html><head><title>reportError</title></head>
+<body><p id="out"></p>
+<script>
+const r = [typeof reportError];
+const saved = window.reportError;
+window.reportError = function () { r.push("wrapped"); return saved.apply(null, arguments); };
+window.onerror = (msg, src, line, col, err) => { r.push("onerror:" + (err && err.message) + ":" + /Uncaught/.test(msg)); return false; };
+addEventListener("error", (ev) => { r.push("listener:" + ev.error.message + ":" + ev.message); ev.preventDefault(); });
+reportError(new Error("boom"));
+try { saved(); } catch (e) { r.push(e instanceof TypeError); }
+document.getElementById("out").textContent = r.join("|");
+</script></body></html>
