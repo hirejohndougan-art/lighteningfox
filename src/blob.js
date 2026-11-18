@@ -68,7 +68,7 @@
     arrayBuffer() { return Promise.resolve(this._data.slice().buffer); }
     bytes() { return Promise.resolve(this._data.slice()); }
   }
-  Object.defineProperty(Blob.prototype, Symbol.toStringTag, { value: "Blob" });
+  Object.defineProperty(Blob.prototype, Symbol.toStringTag, { value: "Blob", configurable: true });
 
   class File extends Blob {
     constructor(parts, name, opts) {
@@ -81,7 +81,7 @@
     get lastModified() { return this._mod; }
     get webkitRelativePath() { return ""; }
   }
-  Object.defineProperty(File.prototype, Symbol.toStringTag, { value: "File" });
+  Object.defineProperty(File.prototype, Symbol.toStringTag, { value: "File", configurable: true });
 
   class FileReader extends EventTarget {
     constructor() { super(); this.readyState = 0; this.result = null; this.error = null; }

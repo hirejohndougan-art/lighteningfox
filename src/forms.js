@@ -18,7 +18,7 @@
   FLAGS.forEach((f, i) => Object.defineProperty(ValidityState.prototype, f, {
     get() { const v = __validity(this._id); return !!(v && v[i]); }, configurable: true, enumerable: true,
   }));
-  Object.defineProperty(ValidityState.prototype, Symbol.toStringTag, { value: "ValidityState" });
+  Object.defineProperty(ValidityState.prototype, Symbol.toStringTag, { value: "ValidityState", configurable: true });
   g.ValidityState = ValidityState;
 
   const states = new WeakMap();
@@ -101,7 +101,7 @@
     item(i) { return this[i] || null; }
     *[Symbol.iterator]() { for (let i = 0; i < this.length; i++) yield this[i]; }
   }
-  Object.defineProperty(FileList.prototype, Symbol.toStringTag, { value: "FileList" });
+  Object.defineProperty(FileList.prototype, Symbol.toStringTag, { value: "FileList", configurable: true });
   g.FileList = FileList;
   const isFile = (el) => el.tagName === "INPUT" && (el.getAttribute("type") || "").toLowerCase() === "file";
   define("files", {

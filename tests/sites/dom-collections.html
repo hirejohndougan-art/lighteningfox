@@ -1,11 +1,12 @@
 <!doctype html>
 <!-- NYT (2026-11): its video library (core-js) tags each DOM collection's prototype with
      Symbol.toStringTag. NodeList and HTMLCollection were Array itself, so every array became
-     "[object NodeList]" and the library threw. They now have prototypes of their own. -->
+     "[object NodeList]" and the library threw. They now have prototypes of their own, and
+     interface tags are configurable (WebIDL), so redefining FileList's doesn't throw. -->
 <html><head><title>DOM collections</title></head>
 <body><p id="out"></p>
 <script>
-for (const h of ["NodeList", "HTMLCollection"]) {
+for (const h of ["NodeList", "HTMLCollection", "FileList", "Blob", "File", "ValidityState"]) {
   const c = window[h].prototype;
   Object.defineProperty(c, Symbol.toStringTag, { value: h, configurable: true, writable: true, enumerable: false });
 }
