@@ -20,6 +20,13 @@ impl IncrementLoopIteration {
         }
 
         frame.loop_iteration_count = previous_iteration_count.wrapping_add(1);
+
+        // Ironswift change: count loop iterations for the baseline JIT (docs/JIT.md).
+        #[cfg(feature = "jit")]
+        if frame.code_block.jit.note_loop_iteration() {
+            let code = frame.code_block.clone();
+            crate::jit::tier_up(&code);
+        }
         Ok(())
     }
 }

@@ -103,6 +103,9 @@ pub mod script_cache;
 pub mod string;
 pub mod symbol;
 pub mod value;
+// Ironswift change: baseline JIT groundwork (docs/JIT.md).
+#[cfg(feature = "jit")]
+pub mod jit;
 pub mod vm;
 
 mod host_defined;

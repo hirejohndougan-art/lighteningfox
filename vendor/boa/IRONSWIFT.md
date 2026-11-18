@@ -147,3 +147,14 @@ react-dom 53.9 → 0.11, lodash 34.4 → 0.06.
 Not done: a cache on disk (so the first page after starting the browser also skips parsing).
 Boa's compiled code holds scope graphs and garbage-collected pointers and has no serialized
 form; writing one is a larger job.
+
+### boa_engine: baseline JIT groundwork (`src/jit/`, feature `jit`, task J1)
+
+Off by default; Ironswift's `boa_jit` feature turns it on. With the feature, every `CodeBlock`
+has call and loop counters (`function_call`/`function_construct` and `IncrementLoopIteration`
+bump them) and a tier state; a hot block is scanned once for the opcodes the first compiler will
+take. Cranelift 0.137 compiles into W^X memory (`JitBackend`). Nothing runs compiled code yet.
+Plan and rules: `docs/JIT.md`. Tests: in the Boa workspace above, also add the `jit` feature and
+the five optional `cranelift-*` dependencies (0.137.2) to `core/engine/Cargo.toml`, then
+`cargo test --release -p boa_engine --features jit --lib jit::`. Boa's 1,116 engine tests pass
+with `BOA_JIT=always`, and without the feature.

@@ -1012,6 +1012,12 @@ pub(crate) fn function_call(
 
     drop(function);
 
+    // Ironswift change: count calls for the baseline JIT (docs/JIT.md).
+    #[cfg(feature = "jit")]
+    if code.jit.note_call() {
+        crate::jit::tier_up(&code);
+    }
+
     let env_fp = environments.len() as u32;
 
     let frame = CallFrame::new(code, script_or_module, environments, realm)
@@ -1121,6 +1127,12 @@ fn function_construct(
     let environments = function.environments.clone();
     let script_or_module = function.script_or_module.clone();
     drop(function);
+
+    // Ironswift change: count calls for the baseline JIT (docs/JIT.md).
+    #[cfg(feature = "jit")]
+    if code.jit.note_call() {
+        crate::jit::tier_up(&code);
+    }
 
     let env_fp = environments.len() as u32;
 
