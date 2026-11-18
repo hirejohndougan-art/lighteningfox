@@ -611,7 +611,13 @@ fn n_set_html(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     let id = arg_id(a, 0, ctx)?;
     let markup = arg_str(a, 1, ctx)?;
     if let Some(id) = valid(id) {
-        let frag = parse_fragment(&markup);
+        // The element is the fragment parser's context, so `<tr>` stays a row in a <tbody>
+        // or a <template> (Svelte's table templates) instead of being dropped as in a <body>.
+        let context = with_dom(|d| d.tag(id).map(|t| (t.to_string(), d.ns_of(id))));
+        let frag = match context {
+            Some((tag, ns)) => crate::treebuilder::TreeBuilder::parse_fragment(&markup, &tag, ns, true),
+            None => parse_fragment(&markup),
+        };
         with_dom_mut(|d| {
             // A <template>'s innerHTML goes into its content fragment (Lit and other template
             // libraries build their templates this way).

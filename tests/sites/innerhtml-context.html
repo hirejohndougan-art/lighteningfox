@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- NYT (2026-11): Svelte makes its templates with template.innerHTML = "<tr>…</tr>". The
+     markup was parsed as if inside <body>, which drops table rows and cells, so the elections
+     widget's table rows came out empty and its hydration walked off the end. innerHTML parses
+     with the element as the context (HTML fragment parsing algorithm). -->
+<html><head><title>innerHTML context</title></head>
+<body><table><tbody id="tb"></tbody></table><p id="out"></p>
+<script>
+const r = [];
+const t = document.createElement("template");
+t.innerHTML = '<tr class="race"><!----><td>a</td></tr>';
+r.push(t.content.firstChild.nodeName + t.content.firstChild.childNodes.length);
+t.innerHTML = "<td>b</td>";
+r.push(t.content.firstChild.nodeName);
+const tb = document.getElementById("tb");
+tb.innerHTML = "<tr><td>c</td></tr>";
+r.push(tb.children.length + tb.innerHTML);
+const div = document.createElement("div");
+div.innerHTML = "<tr><td>d</td></tr>";
+r.push(div.innerHTML);
+document.getElementById("out").textContent = r.join("|");
+</script></body></html>

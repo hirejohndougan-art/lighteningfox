@@ -1365,3 +1365,12 @@ fn template_scripts_are_inert() {
     let _page = open("tests/sites/template-scripts.html");
     assert_eq!(text_of("out"), "plain,contents:1");
 }
+
+/// NYT: innerHTML parses with the element as context, so `<tr>` survives in a <template> or
+/// <tbody> (and is still dropped in a <div>).
+#[test]
+fn inner_html_uses_its_element_as_context() {
+    let _serial = serial();
+    let _page = open("tests/sites/innerhtml-context.html");
+    assert_eq!(text_of("out"), "TR2|TD|1<tr><td>c</td></tr>|d");
+}
