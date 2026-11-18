@@ -1086,3 +1086,12 @@ fn webgl2_pixel_buffers_and_layers() {
     );
     assert_eq!(r.trim_matches('"'), "true,0,true,80 90 100 110 120 130 140 150,0");
 }
+
+#[test]
+fn flex_items_overflow_a_definite_height_line() {
+    let _serial = serial();
+    let _page = open("tests/sites/flex-overflow-end.html");
+    // flex-end hangs up from the 0-height line; center spills both ways; stretch keeps its
+    // content height.
+    assert_eq!(text_of("out"), "60-100 190-230 320-360");
+}

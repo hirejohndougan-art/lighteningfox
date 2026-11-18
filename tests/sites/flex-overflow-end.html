@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- From the New York Times (2026-11): the masthead's date bar is a 0-height flex row with
+     align-items: flex-end, moved down with a transform; its date and "Today's Paper" hang up
+     out of it. Ironswift made the line as tall as its items and pushed them down onto the
+     section links. -->
+<html><head><title>Flex items overflowing a definite-height line</title>
+<style>body { margin: 0 } .bar { display: flex; height: 0; margin-top: 100px }
+.end { align-items: flex-end } .center { align-items: center; height: 20px } .stretch { height: 10px }
+.bar > div { width: 50px } .tall { height: 40px }</style></head>
+<body>
+<div class="bar end"><div id="a"><div class="tall"></div></div></div>
+<div class="bar center"><div id="b"><div class="tall"></div></div></div>
+<div class="bar stretch"><div id="c"><div class="tall"></div></div></div>
+<p id="out"></p>
+<script>
+  const r = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return b.top + "-" + b.bottom; };
+  document.getElementById("out").textContent = [r("a"), r("b"), r("c")].join(" ");
+</script></body></html>

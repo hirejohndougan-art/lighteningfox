@@ -1872,6 +1872,7 @@ impl<'a> Ctx<'a> {
             }
         }
         let mut cy = y;
+        let mut items_bottom = y;
         let single_line = lines.len() == 1;
         for (li, line) in lines.iter().enumerate() {
             // Flexible lengths.
@@ -1955,8 +1956,11 @@ impl<'a> Ctx<'a> {
             }
             let mut cross = boxes.iter().map(|d| d.h).fold(0.0f32, f32::max);
             if single_line {
+                // A single line is as tall as a definite-height container, even when its items
+                // are taller: they overflow from where they're aligned (flex-end items hang up
+                // out of a 0-height bar on NYT's masthead, 2026-11).
                 if let Some(dh) = definite_h {
-                    cross = cross.max(dh);
+                    cross = dh;
                 }
             }
             // Stretch items with no height of their own to the line's height.
@@ -1996,6 +2000,7 @@ impl<'a> Ctx<'a> {
                     AlignItems::Baseline => line_baseline - d.baseline,
                     _ => 0.0,
                 };
+                items_bottom = items_bottom.max(cy + dy + d.h);
                 self.place_detached(d, x + pos, cy + dy);
                 pos += sizes[k] + col_gap + between;
                 if autos[k].1 {
@@ -2007,7 +2012,8 @@ impl<'a> Ctx<'a> {
                 cy += row_gap;
             }
         }
-        (cy - y).max(definite_h.unwrap_or(0.0))
+        // Items taller than a definite-height line still make the box scroll that far down.
+        (cy - y).max(items_bottom - y).max(definite_h.unwrap_or(0.0))
     }
 
     fn role(&self, id: NodeId, role: TableRole, tags: &[&str]) -> bool {
