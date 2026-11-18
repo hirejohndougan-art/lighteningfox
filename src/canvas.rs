@@ -309,10 +309,28 @@ fn img_url(key: &str) -> Option<String> {
 }
 
 /// The pixels of an image source: 0 = an <img> (by node id), 1 = a canvas (by node id).
+/// A <video> source (kind 3, keyed by element id): copy its current frame into the store's
+/// sources so drawImage and createImageBitmap can use it.
+fn refresh_video(ctx: &Context, kind: u8, key: &str) {
+    if kind != 3 {
+        return;
+    }
+    let Some(frame) = key.parse::<NodeId>().ok().and_then(|id| crate::media::current_frame(ctx, id)) else { return };
+    let Some(mut pix) = Pixmap::new(frame.width(), frame.height()) else { return };
+    for (dst, p) in pix.pixels_mut().iter_mut().zip(frame.pixels()) {
+        let [r, g, b, a] = p.0;
+        *dst = tiny_skia::ColorU8::from_rgba(r, g, b, a).premultiply();
+    }
+    store(ctx).sources.insert(format!("video:{key}"), pix);
+}
+
 fn source_pixmap(store: &mut Store, kind: u8, key: &str) -> Option<Pixmap> {
     let url;
     let key = if kind == 0 {
         url = img_url(key)?;
+        url.as_str()
+    } else if kind == 3 {
+        url = format!("video:{key}");
         url.as_str()
     } else {
         key
@@ -873,11 +891,13 @@ fn n_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 fn n_source_size(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let kind = num(a, 0, ctx) as u8;
     let key = string(a, 1, ctx);
-    let key = if kind == 0 { img_url(&key).unwrap_or_default() } else { key };
+    refresh_video(ctx, kind, &key);
+    let key = if kind == 0 { img_url(&key).unwrap_or_default() } else if kind == 3 { format!("video:{key}") } else { key };
     let size = if kind == 1 {
         key.parse::<NodeId>().ok().and_then(|id| store(ctx).canvases.get(&id).map(|c| (c.pix.width(), c.pix.height())))
     } else {
         PAGE_IMAGES.with(|i| i.borrow().as_ref().and_then(|i| i.get(&key)).map(|i| (i.w, i.h))).or_else(|| store(ctx).loaded.get(&key).map(|p| (p.width(), p.height())))
+            .or_else(|| store(ctx).sources.get(&key).map(|p| (p.width(), p.height())))
     };
     Ok(match size {
         Some((w, h)) => JsArray::from_iter([JsValue::from(w), JsValue::from(h)], ctx).into(),
@@ -899,6 +919,7 @@ fn n_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     if sw == 0.0 || sh == 0.0 || dw == 0.0 || dh == 0.0 {
         return Ok(JsValue::from(true));
     }
+    refresh_video(ctx, kind, &key);
     let mut s = store(ctx);
     let Some(src) = source_pixmap(&mut s, kind, &key) else { return Ok(JsValue::from(false)) };
     // Only the source rectangle shows: clamp it to the image, and the destination with it.

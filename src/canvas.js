@@ -496,7 +496,10 @@
         const s = __cvSourceSize(0, String(img.__id));
         return s ? [0, String(img.__id), s[0], s[1]] : null;
       }
-      if (tag === "video") return null;
+      if (tag === "video") {
+        const s = __cvSourceSize(3, String(img.__id));
+        return s ? [3, String(img.__id), s[0], s[1]] : null;
+      }
     }
     throw new TypeError("drawImage: unsupported image source");
   }
@@ -950,30 +953,60 @@
     get height() { return this.__bitmap.__offscreenSize[1]; }
     close() {}
   }
+  // createImageBitmap(source[, sx, sy, sw, sh][, options]): options imageOrientation
+  // ("flipY"), premultiplyAlpha ("none" / "premultiply", kept for WebGL uploads) and
+  // resizeWidth/resizeHeight are applied when the copy is made.
   function createImageBitmap(img, ...a) {
     return new Promise((resolve, reject) => {
+      const opts = (a.length === 1 ? a[0] : a[4]) || {};
+      const rect = a.length >= 4 ? a.slice(0, 4).map(Number) : null;
+      if (rect && (rect[2] === 0 || rect[3] === 0)) return reject(new RangeError("createImageBitmap: empty source rectangle"));
+      // Copy `from` (anything drawImage takes) into a new bitmap.
+      // straight: {data, w, h} unpremultiplied pixels when the source has them (ImageData, or
+      // a bitmap made from one), kept so WebGL uploads don't lose color under zero alpha.
+      const make = (from, w, h, straight) => {
+        let [sx, sy, sw, sh] = rect || [0, 0, w, h];
+        if (sw < 0) { sx += sw; sw = -sw; }
+        if (sh < 0) { sy += sh; sh = -sh; }
+        const dw = opts.resizeWidth > 0 ? opts.resizeWidth : opts.resizeHeight > 0 ? Math.round(sw * opts.resizeHeight / sh) : sw;
+        const dh = opts.resizeHeight > 0 ? opts.resizeHeight : opts.resizeWidth > 0 ? Math.round(sh * opts.resizeWidth / sw) : sh;
+        const b = new ImageBitmap(dw, dh);
+        if (opts.imageOrientation === "flipY") b.__ctx.setTransform(1, 0, 0, -1, 0, dh);
+        b.__ctx.drawImage(from, sx, sy, sw, sh, 0, 0, dw, dh);
+        b.__ctx.setTransform(1, 0, 0, 1, 0, 0);
+        b.__bitmapPremultiply = opts.premultiplyAlpha === "premultiply";
+        if (straight && dw === sw && dh === sh && sx >= 0 && sy >= 0 && sx + sw <= w && sy + sh <= h) {
+          const out = new Uint8ClampedArray(dw * dh * 4);
+          for (let y = 0; y < dh; y++) {
+            const from = ((sy + (opts.imageOrientation === "flipY" ? dh - 1 - y : y)) * w + sx) * 4;
+            out.set(straight.data.subarray(from, from + dw * 4), y * dw * 4);
+          }
+          b.__straight = { data: out, w: dw, h: dh };
+        }
+        return b;
+      };
       try {
         if (img instanceof ImageData) {
-          const b = new ImageBitmap(img.width, img.height);
-          b.__ctx.putImageData(img, 0, 0);
-          return resolve(b);
+          const c = document.createElement("canvas");
+          c.__offscreenSize = [img.width, img.height];
+          getContext.call(c, "2d").putImageData(img, 0, 0);
+          return resolve(make(c, img.width, img.height, { data: img.data }));
         }
         if (typeof Blob === "function" && img instanceof Blob) {
           return img.arrayBuffer().then((buf) => {
-            const b = new ImageBitmap(0, 0);
-            const size = __cvDecodeInto(b.__bitmap.__id, new Uint8Array(buf));
+            const c = document.createElement("canvas");
+            c.__offscreenSize = [0, 0];
+            const cx = getContext.call(c, "2d");
+            const size = __cvDecodeInto(c.__id, new Uint8Array(buf));
             if (!size) throw new DOMException("createImageBitmap: the image can't be decoded", "InvalidStateError");
-            b.__bitmap.__offscreenSize = [size[0], size[1]];
-            b.__ctx.__size = [size[0], size[1]];
-            resolve(b);
+            c.__offscreenSize = [size[0], size[1]];
+            cx.__size = [size[0], size[1]];
+            resolve(make(c, size[0], size[1]));
           }).catch(reject);
         }
         const src = sourceOf(img);
         if (!src) return reject(new DOMException("createImageBitmap: image not loaded", "InvalidStateError"));
-        const [sx, sy, sw, sh] = a.length >= 4 ? a.map(Number) : [0, 0, src[2], src[3]];
-        const b = new ImageBitmap(Math.abs(sw), Math.abs(sh));
-        b.__ctx.drawImage(img, sx, sy, sw, sh, 0, 0, Math.abs(sw), Math.abs(sh));
-        resolve(b);
+        resolve(make(img, src[2], src[3], img.__straight));
       } catch (e) {
         reject(e);
       }

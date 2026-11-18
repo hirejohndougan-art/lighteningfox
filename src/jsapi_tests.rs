@@ -1159,3 +1159,44 @@ fn webgl2_dom_source_subrect_and_p3() {
     );
     assert_eq!(r.trim_matches('"'), "0 255 0,255 0 0,234 51 35,true");
 }
+
+/// createImageBitmap options (imageOrientation, premultiplyAlpha, source rectangle) reach
+/// WebGL uploads, which ignore UNPACK_FLIP_Y for bitmaps; an ImageData bitmap keeps the color
+/// of transparent pixels.
+#[test]
+fn image_bitmap_options_reach_webgl() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    eval(
+        &mut page,
+        r##"(() => {
+            const d = new ImageData(1, 2);
+            d.data.set([255, 0, 0, 0, 0, 255, 0, 128]);
+            Promise.all([
+                createImageBitmap(d, { premultiplyAlpha: "none" }),
+                createImageBitmap(d, { imageOrientation: "flipY", premultiplyAlpha: "premultiply" }),
+                createImageBitmap(d, 0, 1, 1, 1),
+            ]).then((bs) => { window.__bitmaps = bs; });
+        })()"##,
+    );
+    page.js.as_mut().unwrap().settle(std::time::Duration::from_secs(1));
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const fb = gl.createFramebuffer();
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            return window.__bitmaps.map((b) => {
+                const t = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, t);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, b);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+                const px = new Uint8Array(4);
+                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+                return b.width + "x" + b.height + ":" + px.join(" ");
+            }).join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "1x2:255 0 0 0,1x2:0 128 0 128,1x1:0 255 0 128");
+}

@@ -136,6 +136,9 @@
       s.vw = s.vh = 0;
     }
     s.gen++;
+    // play() can load a src set moments ago, before the attribute observer's record for it
+    // arrives: that one record mustn't load it again.
+    s.skipSrcRecord = fromPlay ? el.getAttribute("src") : undefined;
     s.error = null;
     s.ended = false;
     s.showPoster = true;
@@ -563,7 +566,12 @@
             }
           } else if (r.type === "attributes" && isMedia(r.target)) {
             const el = r.target;
-            if (r.attributeName === "src" && el.hasAttribute("src")) load(el);
+            // (play() may already have loaded this src before the record arrives.)
+            if (r.attributeName === "src" && el.hasAttribute("src")) {
+              const s = S(el), skip = s.skipSrcRecord === el.getAttribute("src");
+              s.skipSrcRecord = undefined;
+              if (!skip) load(el);
+            }
             else if (r.attributeName === "poster") setPoster(el);
             else render(el);
           }

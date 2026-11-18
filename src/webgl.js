@@ -379,6 +379,7 @@
   // An image source: [kind, key, data, w, h] for __glTexImageSource, or null to skip.
   function sourceOf(src) {
     if (src && src.__offscreen) src = src.__offscreen;
+    if (src && src.__straight) return [2, "", src.__straight.data, src.__straight.w, src.__straight.h];
     if (src && src.__bitmap) src = src.__bitmap;
     if (typeof ImageData === "function" && src instanceof ImageData) return [2, "", src.data, src.width, src.height];
     if (src && typeof src === "object" && src.nodeType === 1) {
@@ -393,7 +394,9 @@
   P.__texSource = function (target, level, internal, format, type, src, sub, offs, is3d, size) {
     // Sources that upload nothing (a video) still get the context's checks.
     const s = sourceOf(src) || [9, "", null, 0, 0];
-    __glTexImageSource(this.__cid, target, level, internal, format, type, s[0], s[1], s[2], s[3], s[4], !!sub, offs || [0, 0, 0], !!is3d, size || null, this.__unpackSpace === "display-p3");
+    // ImageBitmaps ignore UNPACK_FLIP_Y and UNPACK_PREMULTIPLY_ALPHA: their own options apply.
+    const bitmap = src && src.__bitmap ? (src.__bitmapPremultiply ? 2 : 1) : 0;
+    __glTexImageSource(this.__cid, target, level, internal, format, type, s[0], s[1], s[2], s[3], s[4], !!sub, offs || [0, 0, 0], !!is3d, size || null, this.__unpackSpace === "display-p3", bitmap);
   };
   P.texImage2D = function (target, level, internal, a, b, c, d, e, f, srcOffset) {
     if (arguments.length <= 6 || (arguments.length === 9 && !(f === null || f === undefined || isView(f) || typeof f === "number")) || (arguments.length >= 9 && f && typeof f === "object" && !isView(f))) {

@@ -2559,6 +2559,8 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         .unwrap_or(vec![0, 0, 0]);
     let is3d = boolean(a, 13);
     let p3 = boolean(a, 15);
+    // 1: an ImageBitmap (no flip, no premultiply), 2: a premultiplied ImageBitmap.
+    let bitmap = u(a, 16, ctx);
     // WebGL 2 sub-rectangle forms: the size to take from the source (UNPACK_SKIP_* place it).
     let size: Option<Vec<i64>> = a
         .get(14)
@@ -2593,7 +2595,7 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
             to_display_p3(&mut rgba);
         }
         // With UNPACK_FLIP_Y the source is flipped first and the rectangle taken from that.
-        let mut flip = gl.unpack.flip_y;
+        let mut flip = gl.unpack.flip_y && bitmap == 0;
         let (w, h, rgba, dd) = if gl.v2 {
             // The rectangle at UNPACK_SKIP_PIXELS/ROWS (from the source's top left) of the
             // given size; 3D uploads take `depth` slices of UNPACK_IMAGE_HEIGHT rows each.
@@ -2633,7 +2635,7 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         }
         let Some((id, face)) = gl.image_target(target) else { return };
         let v2 = gl.v2;
-        let up = (flip, gl.unpack.premultiply);
+        let up = (flip, if bitmap > 0 { bitmap == 2 } else { gl.unpack.premultiply });
         if sub {
             let Some(t) = gl.texture(id) else { return };
             let Some(img) = t.level(face, level.max(0) as usize) else { return gl.error(INVALID_OPERATION) };
