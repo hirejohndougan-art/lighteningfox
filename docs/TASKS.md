@@ -20,6 +20,10 @@ left is a task below.
 Status values: `free`, `claimed by …`, `done`, `blocked: <reason>`, `not for chats: <reason>`.
 "Checklist" names the item(s) in the build checklist that the task closes; follow-ups close none.
 
+**Standard browser first (2026-11-18):** the original plan is nearly done. Until it is, take only
+these tasks, in this order of preference: X1b, P1a–P1d, J1–J4. Leave the optional add-ons (O, P2–P8,
+B tasks) alone unless none of those is free.
+
 ---
 
 ## Checklist tasks you can start now
@@ -946,17 +950,52 @@ Build checklist §19 (site features) and §20 (browser features). Site features 
 sites break without them. Run `tools/site_check.py` and the matching WPT directories before and
 after each one.
 
-### P1. WebAssembly
+### P1. WebAssembly (split into P1a–P1d below)
+**Status:** split: P1a–P1d
+**Checklist:** §9 "WebAssembly" (moved from §19 to the standard browser on 2026-11-18); ticked when P1d is done
+
+### P1a. WebAssembly: pick the runtime and run modules
 **Status:** free
 **After:** —
-**Checklist:** §19 "WebAssembly"
-**Files:** new `src/wasm/`, `src/js.rs` (the `WebAssembly` global), a new JS file
-The `WebAssembly` namespace: `Module`, `Instance`, `Memory`, `Table`, `Global`, `compile`,
-`instantiate`, `compileStreaming`, `instantiateStreaming`, and WASM ES module imports. Embed an
-existing Rust runtime (`wasmtime` with Cranelift, or `wasmi` if size and startup matter more)
-rather than writing one; pick by measuring, and note the choice in `docs/ARCHITECTURE.md`. Wire
-imports/exports to Boa values, share `Memory` as an `ArrayBuffer`. Run WPT `wasm/jsapi` and the
-spec test suite; check that a Figma-style demo, ffmpeg.wasm and a Unity/Emscripten game load.
+**Checklist:** none (P1d closes §9 "WebAssembly")
+**Files:** new `src/wasm/`, `src/js.rs` (the `WebAssembly` global), a new `src/wasm.js` if glue is easier in JS
+Embed an existing Rust runtime rather than writing one: measure `wasmtime` (Cranelift) against
+`wasmi` on startup time, binary size, memory and run speed (a CPU-heavy module such as a
+compression or image library), pick one and write down why in `docs/ARCHITECTURE.md`.
+Then `WebAssembly.Module`, `Instance`, `compile`, `instantiate`, `validate`, `CompileError`,
+`LinkError`, `RuntimeError`, with imported and exported functions and numbers (i32, i64 as
+BigInt, f32, f64) passed to and from Boa. Runaway-script limits must also stop a looping module.
+Push in stages; P1b and P1c start once `instantiate` and function calls work.
+
+### P1b. WebAssembly: Memory, Table and Global
+**Status:** free
+**After:** P1a
+**Checklist:** none
+**Files:** `src/wasm/`
+`WebAssembly.Memory` (its `buffer` is an `ArrayBuffer` over the module's memory, `grow()` detaches
+the old one; shared memory as `SharedArrayBuffer` where cross-origin isolation allows),
+`WebAssembly.Table` (funcref/externref, `get`/`set`/`grow`) and `WebAssembly.Global`, imported and
+exported both ways. Typed arrays over `memory.buffer` must see writes made by the module.
+
+### P1c. WebAssembly: streaming, modules and security
+**Status:** free
+**After:** P1a
+**Checklist:** none
+**Files:** `src/wasm/`, the fetch and module-loading code
+`compileStreaming`/`instantiateStreaming` from a `Response` or fetch promise (checks the
+`application/wasm` type, compiles as bytes arrive), `import` of `.wasm` files in ES modules, the
+CSP `wasm-unsafe-eval` rule, WebAssembly in Web Workers, and in site processes when Site isolation
+is on. `postMessage` of a `WebAssembly.Module` to a worker.
+
+### P1d. WebAssembly: conformance and real apps
+**Status:** free
+**After:** P1b, P1c
+**Checklist:** §9 "WebAssembly"
+**Files:** `tools/` (a spec-test runner), whatever the fixes need
+Run WPT `wasm/jsapi` (and `wasm/webapi`) and the WebAssembly spec test suite (`.wast` files;
+write a small runner) and record the scores in `docs/CONFORMANCE.md`. Check that ffmpeg.wasm, an
+Emscripten/Unity WebGL game, a Figma-style canvas demo and SQLite in the browser (sql.js) load and
+run; add a small test page in `tests/sites/` for each problem fixed.
 
 ### P2. Service workers, offline pages, push and installable web apps
 **Status:** free
@@ -1138,13 +1177,55 @@ boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper inst
 **Status:** not for chats: needs a license agreement with Google; John decides.
 **Checklist:** §7 "DRM (Widevine) for Netflix and similar"
 
-### Baseline JIT and the full JIT for Boa
-**Status:** not for chats: only after the whole app is built (John's decision).
-**Checklist:** §14 "Baseline JIT compiler (via Cranelift)" and "Optional … a JIT compiler for Boa"; also listed in §18 "JIT"
+### Full (optimizing) JIT for Boa
+**Status:** not for chats: optional, only after the whole app is built (John's decision).
+**Checklist:** §18 "Full (optimizing) JIT compiler for Boa"
 
-### Funding plan; live-site check on John's computer
-**Status:** not for chats: John's to do.
-**Checklist:** §16 "Funding plan", §1 "Live-site check"
+### J1. Baseline JIT for Boa: plan and groundwork
+**Status:** free
+**After:** —
+**Checklist:** none (J4 closes §14 "Baseline JIT compiler (via Cranelift)")
+**Files:** `vendor/boa/boa_engine/src/vm/`, new `vendor/boa/boa_engine/src/jit/`, `docs/JIT.md`
+Released for chats 2026-11-18 (the full JIT stays optional). Write `docs/JIT.md`: which bytecode
+opcodes the first version compiles, when a function tiers up (call and loop counters in the VM),
+how compiled code falls back to the interpreter mid-function (bail out with the frame's registers),
+how GC roots in compiled frames are found, and executable memory that is never writable and
+executable at once (W^X). Add the counters and a `boa_jit` cargo feature, off by default, with
+Cranelift (`cranelift-codegen`, `cranelift-frontend`, `cranelift-jit`) behind it. If P1a picked
+`wasmtime`, share its Cranelift version.
+
+### J2. Baseline JIT: numbers, locals, branches and loops
+**Status:** free
+**After:** J1
+**Checklist:** none
+**Files:** `vendor/boa/boa_engine/src/jit/`
+Compile functions that only use locals, number arithmetic, comparisons, branches and loops to
+machine code; anything else (or a value that isn't a number) bails out to the interpreter. Same
+results as the interpreter on every test262 and Boa test with the JIT forced on for every
+function (`BOA_JIT=always`). Measure the summing-loop and V8 suite in `docs/boa-speed.md`.
+
+### J3. Baseline JIT: properties, calls and exceptions
+**Status:** free
+**After:** J2
+**Checklist:** none
+**Files:** `vendor/boa/boa_engine/src/jit/`, `fuzz/`
+Property reads and writes (calling into the VM's existing paths), function calls in both
+directions, `try`/`catch`/`finally` and generators/async functions either compiled or left to
+the interpreter. Add a fuzz target that runs each program with and without the JIT and fails on
+any difference.
+
+### J4. Baseline JIT: on by default
+**Status:** free
+**After:** J3
+**Checklist:** §14 "Baseline JIT compiler (via Cranelift)"
+**Files:** `vendor/boa/`, `Cargo.toml`, `src/settings.rs`
+x86-64 and ARM64, Linux and Windows (and macOS if CI allows); a Settings switch "JavaScript JIT"
+(on by default) for the cautious; test262, WPT and the site check unchanged; record the speedups.
+Note the security review points in `SECURITY.md`.
+
+### Live-site check on John's computer
+**Status:** not for chats: John's to do (needs open internet).
+**Checklist:** §1 "Live-site check"
 
 ### Delete the site-recording branches
 **Status:** not for chats: John's to do (the chats' git access can't delete branches).
