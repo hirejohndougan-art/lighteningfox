@@ -379,6 +379,7 @@ pub fn page(query: &str) -> String {
         q if q.starts_with("forget_permission=") => {
             let site = crate::net::percent_decode_str(&q["forget_permission=".len()..]);
             crate::permissions::forget(&site);
+            crate::process::tell_permission(&site, None, false);
             cleared = format!("<p class=\"saved\">{}</p>", esc(&crate::i18n::tf("settings-permissions-reset", &[("site", &site)])));
         }
         _ => {}

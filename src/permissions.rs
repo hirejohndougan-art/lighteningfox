@@ -105,7 +105,7 @@ pub fn can_ask(url: &str, top: &str) -> bool {
     }
 }
 
-fn origin_key(url: &str) -> String {
+pub fn origin_key(url: &str) -> String {
     if url.starts_with("file:") { "file".into() } else { crate::net::origin_of(url) }
 }
 
@@ -133,6 +133,20 @@ pub fn set(url: &str, kind: Kind, allow: bool) {
             save(l);
         }
     });
+}
+
+/// (In a site process) a decision the browser made after this process read the file: kept in
+/// memory only (the process can't write the profile).
+pub fn learned(origin: &str, kind: Kind, allow: bool) {
+    with(|l| {
+        l.retain(|(o, k, _)| !(o == origin && k == kind.key()));
+        l.push((origin.to_string(), kind.key().to_string(), allow));
+    });
+}
+
+/// (In a site process) the browser reset a site's decisions.
+pub fn forgotten(origin: &str) {
+    with(|l| l.retain(|(o, _, _)| o != origin));
 }
 
 /// Reset every decision for a site (an origin like https://example.com).
@@ -193,6 +207,8 @@ pub struct Prompt {
     pub ids: Vec<u64>,
     /// The page that asked (the prompt goes away when it does).
     pub doc: u64,
+    /// The page runs in a site process: the answer goes there (frames::site_permission_done).
+    pub remote: bool,
     pub x: f32,
     pub y: f32,
 }

@@ -2427,6 +2427,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A page in a site process: its title, its forms, and its size follows the window.
         frames::fit(page.doc, &lay);
+        // Permissions it asks for: a prompt for this tab, if the page is the one shown (its
+        // origin) and nothing is decided yet; a decision already made is answered at once.
+        for (id, kind, url) in fr.permissions {
+            if net::origin_of(&url) != net::origin_of(&page.url) {
+                continue;
+            }
+            match permissions::state(&url, &url, kind) {
+                "prompt" => match perm_queue.iter_mut().find(|p| p.origin == url && p.kind == kind && p.doc == page.doc) {
+                    Some(p) => p.ids.push(id),
+                    None => perm_queue.push(permissions::Prompt { origin: url, kind, ids: vec![id], doc: page.doc, remote: true, x: FIELD_X, y: TOOL_BOTTOM as f32 + 6.0 }),
+                },
+                st => frames::site_permission_done(page.doc, vec![id], st == "granted"),
+            }
+            dirty = true;
+        }
         // A form it sent: remember its entries and offer to save its login, for this page's origin.
         if let Some(sub) = fr.submitted {
             autofill::record_submitted(sub, &page.url, is_private());
@@ -2488,7 +2503,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         for (id, kind, url) in js::take_permission_requests() {
             match perm_queue.iter_mut().find(|p| p.origin == url && p.kind == kind && p.doc == page.doc) {
                 Some(p) => p.ids.push(id),
-                None => perm_queue.push(permissions::Prompt { origin: url, kind, ids: vec![id], doc: page.doc, x: FIELD_X, y: TOOL_BOTTOM as f32 + 6.0 }),
+                None => perm_queue.push(permissions::Prompt { origin: url, kind, ids: vec![id], doc: page.doc, remote: false, x: FIELD_X, y: TOOL_BOTTOM as f32 + 6.0 }),
             }
             dirty = true;
         }
@@ -3458,7 +3473,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if let Some(allow) = perm_queue[0].button_at(mx, my) {
                     let p = perm_queue.remove(0);
                     permissions::set(&p.origin, p.kind, allow);
-                    if let Some(js) = page.js.as_mut() {
+                    // Site processes learn it first (the page may check the state right away).
+                    process::tell_permission(&permissions::origin_key(&p.origin), Some(p.kind), allow);
+                    if p.remote {
+                        frames::site_permission_done(p.doc, p.ids.clone(), allow);
+                    } else if let Some(js) = page.js.as_mut() {
                         js.permission_done(&p.ids, allow);
                     }
                     if js::take_dirty() {

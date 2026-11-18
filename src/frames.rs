@@ -46,6 +46,8 @@ pub enum Event {
     /// A screen reader's request for a page element: 0 focus, 1 click, 2 scroll into view,
     /// 3 set the value of a text field to `value`.
     A11yAction { kind: u8, node: u32, value: String },
+    /// The user answered permission requests `ids` (Update::Permission).
+    PermDone { ids: Vec<u64>, granted: bool },
     /// Fill these fields (a saved login or an earlier entry picked under a field).
     Fill(Vec<(u32, String)>),
     /// An option was picked in the window's list for the <select> `id` (see Update::Select).
@@ -76,6 +78,9 @@ pub enum Update {
     /// The page's accessibility tree (a11y_remote.rs), when it changed and a screen reader is
     /// listening (a top-level page in a site process).
     A11y(Vec<u8>),
+    /// The page's script asks for a permission (a top-level page in a site process): the
+    /// request's id, what for, and the page's address. Answered with Event::PermDone.
+    Permission { id: u64, kind: crate::permissions::Kind, url: String },
     /// A text field got the focus (a top-level page in a site process): what autofill needs to
     /// suggest for it, and the field's box (x, bottom, width; frame pixels after scrolling).
     Field { id: u32, x: f32, y: f32, w: f32, info: crate::autofill::FieldInfo },
@@ -175,6 +180,11 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::PermDone { ids, granted } => {
+                put(&mut m, b"permdone");
+                put(&mut m, &[*granted as u8]);
+                put(&mut m, serde_json::json!(ids).to_string().as_bytes());
+            }
             Event::Fill(fields) => {
                 put(&mut m, b"fill");
                 put(&mut m, serde_json::json!(fields).to_string().as_bytes());
@@ -250,6 +260,11 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"permdone" => {
+                let granted = get(r)? == [1];
+                let ids: Vec<u64> = serde_json::from_slice(&get(r)?).map_err(|_| std::io::Error::other("bad answer"))?;
+                Event::PermDone { ids: ids.into_iter().take(16).collect(), granted }
+            }
             b"fill" => Event::Fill(serde_json::from_slice::<Vec<(u32, String)>>(&get(r)?).map_err(|_| std::io::Error::other("bad fill"))?.into_iter().take(20).collect()),
             b"a11y" => Event::A11y(get(r)? == [1]),
             b"a11yact" => match read_f32s(&get(r)?)[..] {
@@ -300,6 +315,12 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::Permission { id, kind, url } => {
+                put(&mut m, b"perm");
+                put(&mut m, id.to_string().as_bytes());
+                put(&mut m, kind.key().as_bytes());
+                put(&mut m, url.as_bytes());
             }
             Update::Field { id, x, y, w, info } => {
                 put(&mut m, b"field");
@@ -377,11 +398,18 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"perm" => {
+                let id = String::from_utf8_lossy(&get(r)?).parse::<u64>().map_err(|_| std::io::Error::other("bad permission"))?;
+                let kind = crate::permissions::Kind::parse(&String::from_utf8_lossy(&get(r)?)).ok_or_else(|| std::io::Error::other("bad permission"))?;
+                Update::Permission { id, kind, url: String::from_utf8_lossy(&get(r)?).to_string() }
+            }
             b"field" => {
                 let [id, x, y, w] = read_f32s(&get(r)?)[..] else { return Err(std::io::Error::other("bad field")) };
                 let v: serde_json::Value = serde_json::from_slice(&get(r)?).map_err(|_| std::io::Error::other("bad field"))?;
                 let login = v.get("l").and_then(|l| serde_json::from_value::<Option<(Option<u32>, u32)>>(l.clone()).ok()).flatten();
-                let info = crate::autofill::FieldInfo {
+                let b = Update::Permission { id: 12, kind: crate::permissions::Kind::Location, url: "https://a.com/".into() }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Permission { id: 12, kind: crate::permissions::Kind::Location, url } if url == "https://a.com/"));
+        let info = crate::autofill::FieldInfo {
                     kind: v.get("k").and_then(|k| k.as_str()).map(String::from),
                     login: login.map(|(u, p)| (u.map(|u| u as NodeId), p as NodeId)),
                     typed: v.get("t").and_then(|t| t.as_str()).unwrap_or("").chars().take(500).collect(),
@@ -984,6 +1012,11 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::PermDone { ids, granted } => {
+                if let Some(js) = self.page.js.as_mut() {
+                    js.permission_done(&ids, granted);
+                }
+            }
             Event::Fill(fields) => {
                 for (id, value) in fields {
                     let n = id as NodeId;
@@ -1152,6 +1185,15 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
             host.page.restyle();
             changed = true;
         }
+        // Permission requests: a top-level page's go to the window's prompt; a frame can't ask
+        // (permissions::can_ask), so its are refused at once rather than left waiting.
+        for (id, kind, url) in js::take_permission_requests() {
+            if host.job.top_level {
+                sink.push(Update::Permission { id, kind, url });
+            } else if let Some(js) = host.page.js.as_mut() {
+                js.permission_done(&[id], false);
+            }
+        }
         // History changes the page's scripts made: a top-level page's go to the window (its
         // address bar and Back/Forward); a frame's have nowhere to go yet.
         for op in js::take_history() {
@@ -1300,6 +1342,8 @@ pub struct Pumped {
     pub post: Option<(String, forms::PostBody)>,
     /// A top-level page's new title.
     pub title: Option<String>,
+    /// Permission requests from a top-level page in a site process: (id, what, page address).
+    pub permissions: Vec<(u64, crate::permissions::Kind, String)>,
     /// A text field got the focus on a top-level page in a site process: (id, x, bottom, width,
     /// what to suggest for it).
     pub field: Option<(u32, f32, f32, f32, crate::autofill::FieldInfo)>,
@@ -1374,6 +1418,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 Update::Field { id, x, y, w, info } if f.top_level => out.field = Some((id, x, y, w, info)),
                 Update::Submitted(sub) if f.top_level => out.submitted = Some(sub),
                 Update::Field { .. } | Update::Submitted(_) => {}
+                Update::Permission { id, kind, url } if f.top_level => out.permissions.push((id, kind, url)),
+                Update::Permission { .. } => {}
                 Update::History(_) => {}
             }
         }
@@ -1521,6 +1567,13 @@ pub fn site_a11y(doc: u64, lay: &layout::Layout, listening: bool) -> Option<(cra
 pub fn site_a11y_action(doc: u64, kind: u8, node: usize, value: &str) {
     if let Some(key) = site_frame(doc) {
         send(doc, &key, Event::A11yAction { kind, node: node as u32, value: value.to_string() });
+    }
+}
+
+/// The answer to permission requests `ids` of the site-process page shown for `doc`.
+pub fn site_permission_done(doc: u64, ids: Vec<u64>, granted: bool) {
+    if let Some(key) = site_frame(doc) {
+        send(doc, &key, Event::PermDone { ids, granted });
     }
 }
 
@@ -2035,6 +2088,7 @@ mod tests {
             Event::SelectChoose { id: 42, index: 3 },
             Event::Ask { what: "run".into(), arg: "1 + 1".into() },
             Event::Fill(vec![(3, "john".into()), (5, "pä55".into())]),
+            Event::PermDone { ids: vec![4, 9], granted: true },
             Event::A11y(true),
             Event::A11yAction { kind: 3, node: 9, value: "typed".into() },
             Event::HistoryMoved { url: "https://a.com/x#y".into(), state: "{\"n\":1}".into(), popstate: true },
@@ -2102,6 +2156,45 @@ mod tests {
             }
         }
         assert!(pressed, "the screen reader's click pressed the button");
+    }
+
+    #[test]
+    fn site_process_pages_ask_the_window_for_permissions() {
+        // SAFETY: a scratch profile, so no decision is saved in yours.
+        unsafe {
+            if std::env::var_os("IRONSWIFT_PROFILE").is_none() {
+                std::env::set_var("IRONSWIFT_PROFILE", std::env::temp_dir().join(format!("ironswift-jsapi-{}", std::process::id())));
+            }
+        }
+        crate::permissions::forget("http://127.0.0.1:9");
+        let html = "<script>Notification.requestPermission().then(r => document.title = 'p:' + r)</script>".to_string();
+        let run = |top_level: bool| {
+            let (etx, erx) = channel();
+            let (utx, urx) = channel();
+            let base = "http://127.0.0.1:9/".to_string();
+            let job = FrameJob { src: FrameSrc::Doc { html: html.clone(), base: base.clone() }, w: 300, h: 200, parent: base.clone(), top: base, sandbox: None, reply: channel().0, top_level };
+            std::thread::spawn(move || run_host(job, erx, move |u| utx.send(u).is_ok()));
+            (etx, urx)
+        };
+        let deadline = Instant::now() + Duration::from_secs(20);
+        // A top-level page's request reaches the window, and its answer reaches the page.
+        let (etx, urx) = run(true);
+        let mut asked = None;
+        while asked.is_none() && Instant::now() < deadline {
+            if let Ok(Update::Permission { id, kind, .. }) = urx.recv_timeout(Duration::from_millis(200)) {
+                assert_eq!(kind, crate::permissions::Kind::Notifications);
+                asked = Some(id);
+            }
+        }
+        let id = asked.expect("the request reached the window");
+        etx.send(Event::PermDone { ids: vec![id], granted: true }).unwrap();
+        let mut title = String::new();
+        while title.is_empty() && Instant::now() < deadline {
+            if let Ok(Update::Title(t)) = urx.recv_timeout(Duration::from_millis(200)) {
+                title = t;
+            }
+        }
+        assert_eq!(title, "p:granted");
     }
 
     #[test]

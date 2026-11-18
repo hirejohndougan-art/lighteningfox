@@ -640,6 +640,21 @@ fn pump_body(answer: &[Vec<u8>], rid: u32, stdin: &Mutex<std::process::ChildStdi
     chunk(&[]);
 }
 
+/// Tell every site process about a permission decision (`kind` None: the site's decisions were
+/// all reset), so the copy of permissions.tsv it read at start stays current.
+pub fn tell_permission(origin: &str, kind: Option<crate::permissions::Kind>, allow: bool) {
+    let Ok(g) = PROCS.lock() else { return };
+    let Some(procs) = g.as_ref() else { return };
+    let mut m = Vec::new();
+    put(&mut m, b"perm");
+    put(&mut m, origin.as_bytes());
+    put(&mut m, kind.map_or("", |k| k.key()).as_bytes());
+    put(&mut m, &[allow as u8]);
+    for p in procs.values() {
+        write_to(&p.stdin, &m);
+    }
+}
+
 /// Take the renderer's cookie placeholder out of `headers` (and any Cookie header it tried to
 /// send itself): the top-level page it names, if any.
 fn take_cookie_token(headers: &mut Vec<(String, String)>) -> Option<String> {
@@ -942,6 +957,16 @@ pub fn serve(site: &str) {
                 }
                 b"close" => {
                     pages.remove(&get_u32(&mut input)?);
+                }
+                b"perm" => {
+                    // A decision made in the browser (tell_permission).
+                    let origin = text(&get(&mut input)?);
+                    let kind = crate::permissions::Kind::parse(&text(&get(&mut input)?));
+                    let allow = get(&mut input)? == [1];
+                    match kind {
+                        Some(k) => crate::permissions::learned(&origin, k, allow),
+                        None => crate::permissions::forgotten(&origin),
+                    }
                 }
                 b"allow" => {
                     let s = text(&get(&mut input)?);
