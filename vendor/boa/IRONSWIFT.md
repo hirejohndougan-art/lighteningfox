@@ -196,3 +196,15 @@ cache recorded it as a plain slot write, so from the second run of the same code
 `length` slot changed: the elements stayed, and `a[0] = x` then overwrote one in place while
 `length` stayed 0. Apollo's cache (`optimism`) empties its value arrays this way and threw
 "unknown value" on NYT. Array `length` stores are now marked not cacheable (reads still are).
+
+### boa_engine: baseline JIT, J3 (properties, calls, exceptions)
+
+`jit/` (`runtime.rs` rewritten, `compiler.rs`, `support.rs`, `tests_j3.rs`), `vm/opcode/mod.rs`
+(`OPCODE_JIT_STEPS` and `jit_steppable`, generated beside the handler tables, feature `jit`),
+`vm/completion_record.rs` (`JitStep`, `IntoJitStep`), `vm/mod.rs` (`handle_error` is
+`pub(crate)`; `handle_return` re-enters a compiled caller), `vm/opcode/call/mod.rs` (`Call` and
+`CallSpread` enter a compiled callee), `builtins/function/mod.rs` (no longer enters compiled
+code in `function_call`), `vm/opcode/iteration/loop_ops.rs` and `builtins/string/mod.rs`
+(`IncrementLoopIteration::charge` for native loops). Compiled code hands every instruction it
+doesn't compile to the interpreter one at a time, and JavaScript calls go through the
+interpreter's frames, so nothing nests. Details in `docs/JIT.md`.

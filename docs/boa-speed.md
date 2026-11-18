@@ -74,3 +74,22 @@ shows. A summing loop (`for (let i = 0; i < n; i++) s += i`, 200 × 100,000) plu
 counts for 1–30,000 (`tools/bench/jit-sum.js`), best of 3:
 **903 ms → 308 ms (2.9×)**, same output.
 
+
+## Baseline JIT (J3: properties, calls, exceptions)
+
+Same machine, idle, 2026-11-18, `--features boa_jit`. With J3 nearly every function compiles
+(only generators, async functions, class constructors and code over 32 KB stay interpreted);
+what J2 doesn't compile in line runs through the interpreter's own operation, one instruction
+at a time.
+
+| | Richards | DeltaBlue | Crypto | RayTrace | EarleyBoyer | RegExp | Splay | NavierStokes | Score |
+|---|---|---|---|---|---|---|---|---|---|
+| JIT off | 203 | 204 | 204 | 316 | 368 | 48.6 | 510 | 514 | 287 |
+| JIT on (J3) | 165 | 169 | 277 | 278 | 344 | 50.0 | 528 | 620 | 291 |
+
+The suite as a whole is unchanged within noise (Crypto and NavierStokes, number-heavy, gain
+20–35%; Richards and DeltaBlue, object- and call-heavy, lose ~18%: each property access and
+call pays a helper call and dispatch on top of the interpreter's own work). `tools/bench/jit-sum.js`
+(number loops): **785 ms → 278 ms (2.8×)**, best of 3. Making object code faster than the
+interpreter needs property access and calls compiled in line (inline caches read from compiled
+code), which is beyond J3.

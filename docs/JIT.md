@@ -8,7 +8,7 @@ at a time, without the interpreter's dispatch and decoding. It is built in stage
 |---|---|---|
 | J1 | This plan, call/loop counters, the `boa_jit` cargo feature, Cranelift and W^X memory | done |
 | J2 | Compile functions that use only locals, numbers, comparisons, branches and loops | done |
-| J3 | Property reads/writes, calls in both directions, exceptions | |
+| J3 | Property reads/writes, calls in both directions, exceptions | done |
 | J4 | On by default; x86-64 and ARM64; Settings switch; security review | |
 
 ## Building and switching it on
@@ -110,6 +110,69 @@ mode and compare the `latest.json` files.
 Measured (`docs/boa-speed.md`): number loops 2.9× faster; the V8 suite unchanged, since its hot
 code reads properties and calls functions.
 
+## What J3 adds: everything else, one instruction at a time
+
+J3 takes every function except generators, async functions and class constructors (those stay
+in the interpreter). Opcodes J2 compiles in line keep their machine code; **any other opcode is
+run by the interpreter for compiled code**: compiled code calls `runtime::step(frame, pc)`,
+which runs that one instruction with the interpreter's own operation
+(`vm::opcode::OPCODE_JIT_STEPS`, generated beside the interpreter's handler table), and
+compiled code goes on from where the instruction left the frame. So property reads and writes,
+object and array literals, closures and environments, `for-in`/`for-of`, `new`, `typeof`,
+`delete`, `in`, spread, `arguments`, `throw` and the rest behave exactly as interpreted, inline
+caches included. `support::scan` accepts an opcode when J2 compiles it or its operation finishes
+in place (`vm::opcode::jit_steppable`: its result is `()`, `JsResult<()>` or a `JsError`, plus
+`Throw`, `ReThrow` and `Exception`); the opcodes left out return or yield, and only appear in
+generators and async functions.
+
+The J2 guards changed too: where J2 bailed out (a string in `i < n`, an object in a register
+about to be overwritten, `Move` of an object), compiled code now hands that instruction to the
+interpreter and carries on. Only the loop limit still leaves compiled code the old way.
+
+- **Where compiled code goes on after a step:** the next instruction (the usual case, a direct
+  jump), or any other instruction: every instruction is an entry, through a `dispatch` block that
+  switches on the pc (a jump the step took, a `catch` it landed in). The register file's address
+  is read from the `JitFrame` at every access, since a step can grow the VM stack.
+- **Exceptions:** a step that throws runs the interpreter's `handle_error`, the same code the
+  interpreter runs: a `catch` or `finally` in this function continues in compiled code; one
+  further up the stack, or no handler, ends the compiled run (`EXIT_RESUME`) and the interpreter
+  carries on from the frame that handles it. An exception that reaches a frame returning to
+  Rust ends it with `EXIT_ERROR` and the entry point raises it.
+- **Calls, compiled → anything:** a call to a native function finishes inside the step. A call
+  to a JavaScript function pushes its frame, and compiled code ends its run with `EXIT_RESUME`.
+  `runtime::run` then goes on in the callee's machine code if it has some (else the interpreter
+  runs it). When the callee returns, the interpreter's `handle_return` calls
+  `jit::enter_after_return`, and the caller goes on in machine code right after the call. So a
+  JavaScript call never nests machine frames: deep recursion uses no more native stack than the
+  interpreter, and the recursion limit is reached at the same depth.
+- **Calls, anything → compiled:** a function with machine code starts in it from the `Call` and
+  `CallSpread` opcodes (`jit::enter_at_call`), at a loop header, and after a call returns. Calls
+  from Rust (`JsObject::call`) are not entered at their start: their frame is marked to return
+  to Rust only after it is pushed, so it runs interpreted until its first loop header. Native
+  loops that charge the loop limit (`String.prototype.repeat`) use
+  `IncrementLoopIteration::charge`, which never enters compiled code (it ran the caller's
+  machine code mid-call before).
+- **Memory:** each `Context` owns its Cranelift module (`runtime::ContextJit`) and the list of
+  code blocks compiled into it; dropping the context frees the machine code
+  (`JitBackend::drop` calls `free_memory`, which `cranelift-jit` never does by itself) and sends
+  those code blocks back to the interpreter, where they can tier up again in another context
+  (Ironswift shares compiled scripts between pages). Copies of a code block start uncompiled.
+  Code blocks with more than 32 KB of bytecode (`support::MAX_BYTECODE`) stay interpreted:
+  Cranelift's time and memory grow faster than the function, and test262's generated scripts
+  made it use gigabytes.
+- **GC:** compiled code still keeps no `JsValue` in machine registers across a step: every
+  instruction reads its operands from the register file and a step re-does a whole instruction.
+  A step is where a collection can happen, and the register file is then re-read.
+
+Checked (2026-11-18): test262 at the commit Boa 0.22 pins gives a byte-identical
+`latest.json` for all 53,578 tests with `BOA_JIT=off` and `BOA_JIT=always` (51,226 pass, 95.61%;
+the forced run peaks under 2 GB); Boa's 1,146 engine tests pass both ways.
+
+Tests: `jit/tests.rs` and `jit/tests_j3.rs` (objects, calls both ways, closures, exceptions,
+getters and proxies run once, generators called from compiled code, recursion limits, calls from
+Rust), each comparing the JIT forced on with the interpreter. The `jit_diff` fuzz target
+(`fuzz/`) runs any script both ways and fails on a difference.
+
 ## How compiled code runs and bails out
 
 Registers stay where they are. The interpreter keeps a frame's registers in the VM stack
@@ -178,10 +241,9 @@ new pages. Patching compiled code in place (for inline caches) is not done: J3 k
 data memory that compiled code reads. The test `executable_memory_is_never_writable` checks the
 page permissions through `/proc/self/maps`.
 
-`JitBackend` (one per thread, since a `Context` stays on its thread) owns the Cranelift module.
-Compiled code is freed when the backend is dropped; code blocks whose functions are collected
-leave their machine code behind until then (baseline code is small; J4 measures it on real
-pages and adds a size cap that stops compiling if it is exceeded).
+`JitBackend` (one per `Context`, since J3) owns the Cranelift module, and frees all of its
+code when it is dropped with the context. Code blocks whose functions are collected leave their
+machine code behind until then (J4 measures that on real pages and can add a size cap).
 
 ## Cranelift version
 
