@@ -955,7 +955,7 @@ after each one.
 **Checklist:** §9 "WebAssembly" (moved from §19 to the standard browser on 2026-11-18); ticked when P1d is done
 
 ### P1a. WebAssembly: pick the runtime and run modules
-**Status:** free
+**Status:** claimed by chat-wasm-1 2026-11-18 05:20
 **After:** —
 **Checklist:** none (P1d closes §9 "WebAssembly")
 **Files:** new `src/wasm/`, `src/js.rs` (the `WebAssembly` global), a new `src/wasm.js` if glue is easier in JS
