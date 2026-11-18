@@ -88,7 +88,9 @@ highly generic and procedural cosmetic filters (`#?#`, `:has-text`, `:upward`, `
 the uBlock filter lists and Peter Lowe's list.
 
 ### AB2. The last two uBlock Origin filter features
-**Status:** claimed by chat-opus-t12 2026-11-17 21:30
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** `trusted-edit-inbound-object` with uBlock Origin's query syntax (`jsonEdit` in `src/scriptlets.js`: `.key`, `..key`, `[*]`, `[n]`, `[?.a.b]` filters with `==`, `!=`, `*=`, `^=`, `$=`, `=/re/`; edits `+={json}`, `=value`, `=repl({...})`, or removal); `##^responseheader(name)` drops `location`, `refresh`, `report-to` or `set-cookie` from a page's own response in `net::http_stream`, with `#@#` exceptions. Tests: `content_blocking_more_scriptlets` (the YouTube rule's query and two more), `blocklist::tests::response_header_filters`.
+**Left undone:** uBlock Origin's rarer query forms (`[-]` array removal inside queries, `{…}` property lists) aren't parsed; queries using them are skipped.
 **After:** AB1
 **Checklist:** none (follow-up to AB1)
 **Files:** `src/scriptlets.js`, `src/blocklist.rs`, `src/main.rs` (`prepare`, response headers)
