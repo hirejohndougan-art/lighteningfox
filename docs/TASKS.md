@@ -350,7 +350,9 @@ top-level sites), and keep the iframe sandbox checks R5 added in `frames::pump`.
 "stuck frame" stop working per process.
 
 ### X15. Turn site processes on by default
-**Status:** blocked: O3 first (window features that don't work in site processes yet); O3's owner turns the default on
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** `site_processes` defaults to on; saved as `site_isolation` so profiles that saved the old off default get it too; the setting's hint updated in all six languages; `docs/ARCHITECTURE.md` updated. 45 of 45 screenshot pages were already identical both ways (X23).
+**Left undone:** `site_check.py --tracker` needs internet access: John runs the live-site check.
 **Progress:** (chat-nsX16; X23 since fixed video and audio, so all 45 screenshot pages are identical both ways) `--png` of an http(s) page goes through a site process with `IRONSWIFT_SITE_PROCESS=1` (`src/site_snapshot.rs`); `tools/site_process_check.py` draws every screenshot test page both ways. Fixed: site processes had no system fonts with a fresh profile (the browser now writes the font list they read). 43 of 45 pages identical; animated images differ only because site processes animate (snapshots freeze); `media.html` shows "This video can't be played". Memory: about 50-70 MB per site process on top of the browser (in `docs/ARCHITECTURE.md`). `site_check.py --tracker` needs internet access, so it wasn't run here; John runs the live-site check after the default changes.
 **After:** X13, X14, X23, O3
 **Checklist:** §21 "Site processes on by default" (required fix-up)
@@ -835,8 +837,9 @@ and argument handling, string interning, cheaper garbage collection. Profile wit
 `docs/boa-speed.md`. No JIT here (that stays "not for chats").
 
 ### O3. Site isolation: close the gaps and turn it on by default
-**Status:** claimed by chat-opus-t12 2026-11-17 16:50
-**Progress:** done on pages in site processes: find in page, text selection and copy (the process sends its text runs; `frames::site_runs`), pushState / replaceState / `#fragment` links / Back-Forward within the page (`Update::History`, `Event::HistoryMoved`). Next: `<select>` dropdowns, then the context menu, devtools, autofill, printing, accessibility tree, shared-memory pictures, streamed/cached responses, then X15.
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** everything T05 left undone now works on pages in site processes. The process sends what the window needs and the window does the rest (`frames.rs` Event/Update): find in page, text selection and copy (text runs); pushState / `#fragment` links / Back-Forward (history ops, origin-checked); `<select>` lists; the right-click menu (after the page's contextmenu, with the link and image under the mouse); developer tools and the console (`frames::site_ask`); print and Save as PDF (sheets laid out in the process); the accessibility tree and screen-reader actions (`a11y_remote.rs`); autofill and saved logins (the store stays in the browser: `autofill::FieldInfo` / `Submitted` / `Event::Fill`); pictures through shared memory (`shm.rs`); plain GETs through the browser's disk cache and big bodies streamed in pieces. Tested under Xvfb in the real window for each, plus unit tests for every new message. Then X15.
+**Left undone:** Ctrl+A goes to the page (select all from the menu works); copying from a text field inside a site-process page; selection and find highlights assume the page's fonts measure the same in the browser (web fonts can shift highlights slightly); the console form in about:devtools doesn't submit on Enter (also for local pages; the Run button works); frame processes (cross-site iframes) still get bodies whole and send pictures over the pipe.
 **After:** —
 **Checklist:** §18 "Sandboxing and site isolation"
 **Files:** `src/process.rs`, `src/sandbox.rs`, `src/main.rs`
