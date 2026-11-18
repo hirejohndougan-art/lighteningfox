@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/13/multimedia/00buckwalter-02-mzvg/00buckwalter-02-mzvg-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "2WHCSGzOZPua77OF7CONNgVYaPcTiwldEY5lE9KP8I0"
+expires: Wed, 18 Nov 2026 05:11:33 GMT
+fastly-io-info: ifsz=11757 idim=252x252 ifmt=jpeg ofsz=5573 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010212
+fastly-io-transform-stats: ifsz=11757 ofsz=5573 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: i814Yg==
+x-goog-generation: 1794909758746956
+x-goog-hash: crc32c=i814Yg==
+x-goog-hash: md5=d22f6v2sFCVL+3WO4Mc0JQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 11757
+x-guploader-uploadid: AFy3sg1GFsYg3kSlsNBlPdK2rfyfvwaYT5q1pRTrFGaptdCuE36oMH3f9gBrNFJ72_Hxyj92QMVFlSM
+accept-ranges: bytes
+age: 41717
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.340056,VS0,VE6
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 5573

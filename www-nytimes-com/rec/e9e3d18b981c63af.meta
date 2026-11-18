@@ -1,0 +1,25 @@
+GET https://www.nytimes.com/vi-assets/static-assets/icon-games-easymode_144x144-307b8f657d987516abff44220313daae.webp
+200 OK
+x-amz-id-2: CAa/4Shh4MvYVq+GcDySMjAHoOWxHYFK9EiOCeP7RVZb1DxlL19UJpEgawW/CDVZHhSTD06i3nwmMnjQRav0IwczmDPijrnS
+x-amz-request-id: FXWWJV61F27B57CY
+last-modified: Mon, 16 Mar 2026 19:20:09 GMT
+etag: "a2b4a973be8cc5fe1b6abab52b320c0a"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: Z_gHr3ibVCG4bVth9xS82Ovi3UlzFcut
+content-type: image/webp
+server: AmazonS3
+x-nyt-route: vi-assets
+x-origin-time: 2026-09-17 05:33:08 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:46:58 GMT
+age: 1320087
+x-served-by: cache-lga21939-LGA, cache-iad-kcgs7200101-IAD
+x-cache: HIT, HIT
+x-cache-hits: 92, 19
+x-timer: S1795020419.507523,VS0,VE1
+vary: Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 662

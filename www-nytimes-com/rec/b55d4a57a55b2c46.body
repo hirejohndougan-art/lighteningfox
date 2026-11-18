@@ -1,0 +1,99 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i}from"./vendor-u8E3U9GY.js";import{b as a,d as o}from"./urls-CWtYYmTD.js";import{t as s}from"./Button-CyKScSqg.js";import{o as c}from"./ErrorBoundary-Qtx2jJSn.js";import{a as l,o as u,r as d}from"./Button-BSBx-Mbs.js";import{t as f}from"./ExitLink-D9KbpK_i.js";import{t as p}from"./utils-BVvxEm5R.js";import{t as m}from"./MobileAppCta-DLuQvgv1.js";var h=e(t(),1);function g({colorBehavior:e,onClick:t,url:n,className:r}){return n?h.createElement(f,{className:r,url:n,onClick:t,testId:``},`Download the app`):h.createElement(s,{height:`compact`,weight:`emphasis`,colorBehavior:e,className:r,onClick:t},`Download the app`)}r();var _=i`
+  border-radius: 3px;
+  cursor: pointer;
+  transition: ease 0.6s;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-size: 12px;
+  line-height: 11px;
+  font-weight: 600;
+  padding: 8px 12px;
+  height: 11px;
+  margin-right: 7px;
+  display: inline-block;
+  font-family: ${l.franklin};
+  text-decoration: none;
+  text-transform: none;
+`,v=i`
+  border: 1px solid ${p.color.black};
+  color: ${p.color.black};
+  background-color: transparent;
+  ${_}
+`;r();function y({unit:e,className:t}){return h.createElement(m,{openInAppParam:`barone`,isLoggedIn:!0,className:n(v,t),trackInteraction:e?.trackInteraction},`Read in the app`)}r();var b=i`
+  @media (min-width: ${u.mediumLarge}px) {
+    ${p.button.action};
+    padding: 8px 12px;
+    height: 11px;
+    color: ${p.color.white};
+    margin-right: 7px;
+
+    &:hover {
+      border: 1px solid ${p.color.blue20};
+    }
+  }
+`,x=i`
+  ${p.button.transparent};
+  color: ${p.color.blue20};
+  display: inline-block;
+  font: inherit;
+  padding: inherit;
+  letter-spacing: inherit;
+  ${b}
+`,S=i`
+  font-family: ${l.franklin};
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+
+  border-radius: 3px;
+  padding: 6px 12px;
+  height: 18px;
+  color: #121212;
+
+  white-space: nowrap;
+  vertical-align: middle;
+  border: 1px solid #121212;
+  text-decoration: none;
+  text-transform: none;
+  display: inline-block;
+  margin-left: 0.5rem;
+
+  ${b}
+`,C=()=>{let e=(0,h.useId)();return h.createElement(`svg`,{xmlns:`http://www.w3.org/2000/svg`,width:`16`,height:`12.9524`,viewBox:`0 0 16 12.9524`,fill:`none`,"aria-hidden":`true`,focusable:`false`},h.createElement(`mask`,{id:e,fill:`white`},h.createElement(`path`,{d:`M4.70017 10.7188L10.4372 4.98184L10.4372 10.2521L11.7712 10.2474V2.70495H4.22876L4.22876 4.03431L9.49435 4.03903L3.75736 9.77602L4.70017 10.7188Z`})),h.createElement(`path`,{d:`M4.70017 10.7188L10.4372 4.98184L10.4372 10.2521L11.7712 10.2474V2.70495H4.22876L4.22876 4.03431L9.49435 4.03903L3.75736 9.77602L4.70017 10.7188Z`,strokeWidth:`1.33333`,stroke:`currentColor`,mask:`url(#${e})`}))},w=({className:e})=>h.createElement(`svg`,{className:e,xmlns:`http://www.w3.org/2000/svg`,width:`64`,height:`16`,viewBox:`0 0 100 25`,fill:`none`,role:`img`,focusable:`false`},h.createElement(`title`,null,`2026`),h.createElement(`rect`,{width:`25`,height:`25`,fill:`#f4564a`}),h.createElement(`path`,{d:`M17.5,19.4H7.4v-2c.8-.8,1.7-1.5,2.6-2.2.7-.6,1.3-1.1,1.9-1.7,1.3-1.2,1.7-2.1,1.7-3.1,0-.8-.4-1.5-1.3-1.5-.8,0-1.6.6-2,2l-3-.9c.9-2.8,2.9-3.8,5.2-3.8,2.6,0,4.8,1.2,4.8,4.1,0,2.7-2.5,4.6-4.6,6.1h4.7v3h.1Z`,fill:`#fff`}),h.createElement(`rect`,{x:`25`,width:`25`,height:`25`,fill:`#2b8ad8`}),h.createElement(`path`,{d:`M37.5,19.6c-3,0-5.3-2.4-5.3-6.7,0-3.9,1.9-6.7,5.3-6.7s5.3,2.9,5.3,6.7c0,4.1-2.1,6.7-5.3,6.7ZM37.5,8.7c-1.5,0-1.7,1.5-1.7,4.2,0,3,.3,4.1,1.7,4.1s1.7-1.1,1.7-4.1c0-2.7-.2-4.2-1.7-4.2Z`,fill:`#fff`}),h.createElement(`rect`,{x:`50`,width:`25`,height:`25`,fill:`#f4564a`}),h.createElement(`path`,{d:`M67.5,19.4h-10.1v-2c.8-.8,1.7-1.5,2.6-2.2.7-.6,1.3-1.1,1.9-1.7,1.3-1.2,1.7-2.1,1.7-3.1,0-.8-.4-1.5-1.3-1.5-.8,0-1.6.6-2,2l-3-.9c.9-2.8,2.9-3.8,5.2-3.8,2.6,0,4.8,1.2,4.8,4.1,0,2.7-2.5,4.6-4.6,6.1h4.7v3h.1Z`,fill:`#fff`}),h.createElement(`rect`,{x:`75`,width:`25`,height:`25`,fill:`#2b8ad8`}),h.createElement(`path`,{d:`M89.62,10.25c-.41-1.14-1.12-1.55-1.83-1.55-1.35,0-2.26.95-2.3,3.21.66-.31,1.64-.83,2.92-.83,2.03,0,4,1.29,4,3.9,0,2.7-2.36,4.62-5.18,4.62-3.07,0-5.35-2.45-5.35-6.22,0-3.63,1.91-7.28,6.07-7.28,2.12,0,3.67.87,4.58,2.97l-2.9,1.18ZM87.26,13.57c-.73,0-1.39.35-1.78.58,0,2.09.62,2.97,1.72,2.97,1.02,0,1.62-.91,1.62-1.91,0-1.1-.68-1.64-1.56-1.64Z`,fill:`#fff`}));r();var T=i`
+  box-sizing: border-box;
+  padding: 15px 14px 14px;
+  border-bottom: 1px solid ${d.gainsboro};
+  background-color: ${d.whiteDarkContentPrimary};
+  color: ${d.blackDarkBackgroundPrimary};
+  font-family: ${l.franklin};
+
+  /* The bar is mobile only. */
+  @media (min-width: ${u.mediumLarge}px) {
+    display: none;
+  }
+`,E=i`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: inherit;
+  /* Figma's 14px/1.3, in rem so a reader's text-size preference scales it. */
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  text-decoration: none;
+
+  svg {
+    vertical-align: -2px;
+  }
+`,D=i`
+  flex-shrink: 0;
+  display: block;
+`,O=i`
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
+`;r();var k=`All election coverage is `,A=`free in the app.`;function j({unit:e,className:t}){return h.createElement(`div`,{className:n(T,t)},h.createElement(m,{openInAppParam:`barone-election`,oneLinkUrl:o,isLoggedIn:e?.content?.isLoggedIn??!1,label:`${k}${A}`,className:E,trackInteraction:e?.trackInteraction},h.createElement(w,{className:D}),h.createElement(`span`,null,k,h.createElement(`span`,{className:O},A),h.createElement(C,null))))}var M=`ELECTIONS_READ_IN_APP_BAR`,N=`journeys_election2026_barone`,P=(e,t)=>{let n=e.getPresentation({program:`Acquisition`,initiative:`AllAccessSaleMonthly`}),r=e.country===`US`?`79FKF`:`9YU8R`;return{label:t(n?.totalDueWeeklyShort),uri:a(`https://www.nytimes.com/subscription`).withCampaignID({defaultCampaignID:r}).withSource(`bar1`).toString(),barOneClassname:S}},F={name:`barOne`,onlyTrackWhenVisible:!0,enableOfferEligibility:!0,fallback:null,campaigns:{SUBCON_CONV_NEWS_NONSALE_232:{tracking:{module:{element:{name:c.Subscribe}}},audiences:{offer_strategy_variant:{content:e=>{let t=e.getPresentation({program:`Acquisition`,initiative:`AllAccessMonthly`}),n=t?.totalDueWeeklyShort?`Subscribe for ${t.totalDueWeeklyShort}/week`:`Subscribe now`,r=e.country===`US`?`79FKF`:`9YU8R`;return{label:n,uri:a(`https://www.nytimes.com/subscription`).withCampaignID({defaultCampaignID:r}).withSource(`bar1`).toString(),barOneClassname:S}}}}},CONV_BAR1_DOWNLOAD_261:{tracking:{module:{element:{name:c.Subscribe}}},audiences:{"1_variant":{component:y,content:()=>({})}}},CONV_BAR1_AA_SALE_FIRST_YEAR_270:{content:e=>P(e,e=>e?`${e}/week for your first year`:`Subscribe now`),tracking:{module:{element:{name:c.Subscribe}}}},SUB_IN_GRACE_266:{content:()=>({label:`UPDATE PAYMENT INFORMATION`,uri:a(`https://myaccount.nytimes.com/get-started/manage-billing`).withSourceParam({surface:`bar_one`}).toString()}),tracking:{module:{element:{name:c.UpdatePaymentInformation,url:a(`https://myaccount.nytimes.com/get-started/manage-billing`).withSourceParam({surface:`bar_one`}).toString()}}}},STANDCON_CONV_EXISTING_SUBS_BAR1_EXPERIMENT_2212:{audiences:{v7:{content:()=>({label:`GIVE THE TIMES`,uri:a(`https://www.nytimes.com/subscription/gift`).withCampaignID({defaultCampaignID:`6F88R`}).withSource(`bar1`).toString()}),tracking:{module:{element:{name:c.Gift}}}}},tests:[{test:`GUAC_GROWTH_EXISTING_SUBS_BAR1_SPLIT`}]},APP_DOWNLOAD_IN_MUM_ELIGIBLE:{component:g},[M]:{tests:[{statsigExperiment:{name:N,parameter:`variant`}}],tracking:{module:{name:`barOne`,element:{name:c.AppDownload}}},audiences:{on:{component:j}}}}};export{x as n,F as t};
+//# sourceMappingURL=config-BLGj4O2L.js.map

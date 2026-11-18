@@ -1,0 +1,2 @@
+var e=class{static getCurrentMoment(){if(typeof window<`u`&&window.location!==void 0&&window.location.search)try{let e=new URLSearchParams(window.location.search).get(`now`);if(e)return new Date(e)}catch{}return new Date}};export{e as t};
+//# sourceMappingURL=dateTime-DRhaQ4hJ.js.map

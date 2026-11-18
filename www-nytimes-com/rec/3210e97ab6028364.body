@@ -1,0 +1,18 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i}from"./vendor-u8E3U9GY.js";import{u as a}from"./useMessageSelection-Lnro_bY7.js";import{E as o}from"./urls-CWtYYmTD.js";import{c as s,n as c,o as l,t as u,u as d}from"./ErrorBoundary-Qtx2jJSn.js";import{a as f,l as p,r as m,t as h}from"./Button-BSBx-Mbs.js";var g=e(t(),1);r();var _={name:`aigSurvey`,onlyTrackWhenVisible:!0,fallback:null,campaigns:{SUBCON_RES_AIG_SURVEY_228:{tests:[{test:`SUBCON_RES_AIG_SURVEY_228`}],audiences:{anon:{content:()=>({loggedIn:!1})},regi:{content:()=>({loggedIn:!0})}}}}},v=i`
+  color: ${m.footerGrey};
+  font-family: ${f.franklin};
+  font-size: 12px;
+  line-height: 18px;
+  margin-bottom: 8px;
+`,y=i`
+  display: inline;
+`,b=i`
+  color: ${m.footerGrey};
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.5px;
+  text-underline-offset: 2px;
+`,x=i`
+  display: none;
+`;r();function S({campaign:e,gwlp:t=2,displayNone:r=!1}){let{unit:i}=c(_),u=``,f=`paywall`,m=s.Article;t===1&&(typeof window<`u`&&(u=window.screen?.width>=1024?`DL`:window.screen?.width>=768&&window.screen?.width<1024?`T`:`P`),f=`landing page`,m=s.Landing);let S=d({module:{name:`aigSurvey`,context:f,label:`SUBCON_RES_AIG_SURVEY_228`,region:`1`,element:{url:``}}});if((0,g.useEffect)(()=>{i?.canShow&&S.trackImpression()}),i?.canShow){let s=+!!i?.content?.loggedIn,c=a(`nyt-a`),d=o(`campaignId`)||``,C=`https://nyt.qualtrics.com/jfe/form/SV_6xph8FSrgDdOgap?regi=${s}&link=${u}&pmc=${d}&mtc=ADA&src=${e}&agt=${c}&gwlp=${t}`,w=e=>{S.trackInteraction(e,{module:{name:`aigSurvey`,context:f,label:`SUBCON_RES_AIG_SURVEY_228`,region:`1`,element:{name:l.TakeSurvey,label:`Tell us why.`,url:C}},eventData:{pagetype:m,type:`click`}})};return g.createElement(`div`,{className:n(v,{[x]:r&&!i?.canShow}),"data-testid":`onsite-messaging-unit-${_?.name}`,"data-campaign":i?.campaign,"data-audience":i?.audience},g.createElement(`p`,{className:y},`Not ready to subscribe? `),g.createElement(h,{component:`a`,testId:`aig-survey-button`,href:C,target:p.Blank,className:b,onClick:w},`Tell us why.`))}return null}var C=u(S);export{C as t};
+//# sourceMappingURL=AIGSurvey-4sc2bdyH.js.map

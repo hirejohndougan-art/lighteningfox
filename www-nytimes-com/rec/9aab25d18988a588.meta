@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/04/multimedia/AS-Skillet-tortellini-with-sausage-and-kale-mpcq-copy/AS-Skillet-tortellini-with-sausage-and-kale-mpcq-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "pizEy6Irbv556PSE+gfb2Ll8KoGNf/ZV+elW+aYIDq8"
+expires: Fri, 13 Nov 2026 20:02:36 GMT
+fastly-io-info: ifsz=39138 idim=252x252 ifmt=jpeg ofsz=20612 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010247
+fastly-io-transform-stats: ifsz=39138 ofsz=20612 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: FmSLUA==
+x-goog-generation: 1794513120034486
+x-goog-hash: crc32c=FmSLUA==
+x-goog-hash: md5=AOHZnzrc+ADNW5jIuRD3JA==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 39138
+x-guploader-uploadid: AFy3sg0I3s8GyfgLUD4dzS7qMh9ZtWkm8Bv2YTM0MrnrczUPKhemFDV5YY0onTBG4gJHXWxt
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+age: 124024
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1795020410.339753,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 20612

@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/17/world/16cul-james-bond-hfo-bbb/16cul-james-bond-hfo-bbb-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "DYguGPH218klYWPrhq3NyH14L5a58Qt5+ksZ3Jtqld0"
+expires: Mon, 16 Nov 2026 19:03:58 GMT
+fastly-io-info: ifsz=15143 idim=252x252 ifmt=jpeg ofsz=7956 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010217
+fastly-io-transform-stats: ifsz=15143 ofsz=7956 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: gf8eJQ==
+x-goog-generation: 1794855767998333
+x-goog-hash: crc32c=gf8eJQ==
+x-goog-hash: md5=Ctt45aWDlxC+UsRJPf51Cg==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 15143
+x-guploader-uploadid: AFy3sg0LPH3wdoohXNOlPyxlGgPLNsqMBwD15FbtOd64myvf6X9CeSkPSwkXOook9ePiAZe9mttKzR0
+accept-ranges: bytes
+age: 164572
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.339476,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 7956

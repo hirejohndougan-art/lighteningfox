@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/18/travel/18trav101-seniors-illo/18trav101-seniors-illo-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "FWSMIdXPsXd6DZ/xjdYSvtSU6kTf4T4bAYEIOjAB7bY"
+expires: Wed, 18 Nov 2026 11:02:25 GMT
+fastly-io-info: ifsz=27734 idim=252x252 ifmt=jpeg ofsz=14212 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010230
+fastly-io-transform-stats: ifsz=27734 ofsz=14212 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: qlx1Lg==
+x-goog-generation: 1794996004376437
+x-goog-hash: crc32c=qlx1Lg==
+x-goog-hash: md5=AhJjAMwOFp2hCANwpWzqoA==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 27734
+x-guploader-uploadid: AFy3sg3hqdpPMtdcAs9ZbDZurrtjojTysfcEP13yZqfAaUlfBh9FzwHxM5OJblxKg-9Te5XA2SzGD68
+accept-ranges: bytes
+age: 20664
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.349447,VS0,VE7
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 14212

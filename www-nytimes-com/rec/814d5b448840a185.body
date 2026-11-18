@@ -1,0 +1,35 @@
+import{er as e,nr as t,tr as n}from"./vendor-u8E3U9GY.js";import{a as r,r as i}from"./Button-BSBx-Mbs.js";e();var a=t`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: inherit;
+  z-index: 10;
+  margin-bottom: -6%;
+`,o=t`
+  width: 100%;
+`,s=t`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 12px 3px 12px;
+  border-radius: 100px;
+  border: 1px solid ${i.saleRed};
+  color: ${i.saleRed};
+  text-transform: uppercase;
+  text-align: center;
+  font-family: ${r.franklin}, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 130%; /* 15.6px */
+  letter-spacing: 0.48px;
+  height: 20px;
+`,c=n.span`
+  ${s}
+  ${({noMaxWidth:e})=>!e&&t`
+      max-width: 150px;
+    `}
+`,l=t`
+  background-color: ${i.white};
+`;export{l as a,s as i,o as n,a as r,c as t};
+//# sourceMappingURL=styled-pxbBAQbv.js.map

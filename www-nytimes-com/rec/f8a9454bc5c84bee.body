@@ -1,0 +1,210 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Cn as t,On as n,Tr as r,Vr as i,hr as a,vr as o}from"./vendor-u8E3U9GY.js";import{t as ee}from"./useAppContext-DHMQ7JDl.js";import{t as s}from"./addQueryParam-BPKTmhth.js";import{d as c}from"./date-DuSf_1xq.js";import{s as te}from"./story-DksIFYWC.js";import{n as l,t as u}from"./crops-CHbpLpfh.js";import{n as ne,r as re}from"./collections-B9MWCUNp.js";import{n as ie}from"./utils-BQkInLfa.js";var d=e(i()),f=e(o()),p=[{timezone:`A`,offset:`+0100`},{timezone:`ACDT`,offset:`+1030`},{timezone:`ACST`,offset:`+0930`},{timezone:`ACT`,offset:`-0500`},{timezone:`ACT`,offset:`+0930`},{timezone:`ACWST`,offset:`+0845`},{timezone:`ADT`,offset:`+0300`},{timezone:`ADT`,offset:`-0300`},{timezone:`AEDT`,offset:`+1100`},{timezone:`AEST`,offset:`+1000`},{timezone:`AET`,offset:`+1000`},{timezone:`AFT`,offset:`+0430`},{timezone:`AKDT`,offset:`-0800`},{timezone:`AKST`,offset:`-0900`},{timezone:`ALMT`,offset:`+0600`},{timezone:`AMST`,offset:`-0300`},{timezone:`AMST`,offset:`+0500`},{timezone:`AMT`,offset:`-0400`},{timezone:`AMT`,offset:`+0400`},{timezone:`ANAST`,offset:`+1200`},{timezone:`ANAT`,offset:`+1200`},{timezone:`AQTT`,offset:`+0500`},{timezone:`ART`,offset:`-0300`},{timezone:`AST`,offset:`+0300`},{timezone:`AST`,offset:`-0400`},{timezone:`AT`,offset:`-0400`},{timezone:`AWDT`,offset:`+0900`},{timezone:`AWST`,offset:`+0800`},{timezone:`AZOST`,offset:`Z`},{timezone:`AZOT`,offset:`-0100`},{timezone:`AZST`,offset:`+0500`},{timezone:`AZT`,offset:`+0400`},{timezone:`AoE`,offset:`-1200`},{timezone:`B`,offset:`+0200`},{timezone:`BNT`,offset:`+0800`},{timezone:`BOT`,offset:`-0400`},{timezone:`BRST`,offset:`-0200`},{timezone:`BRT`,offset:`-0300`},{timezone:`BST`,offset:`+0600`},{timezone:`BST`,offset:`+1100`},{timezone:`BST`,offset:`+0100`},{timezone:`BTT`,offset:`+0600`},{timezone:`C`,offset:`+0300`},{timezone:`CAST`,offset:`+1100`},{timezone:`CAT`,offset:`+0200`},{timezone:`CCT`,offset:`+0630`},{timezone:`CDT`,offset:`-0500`},{timezone:`CDT`,offset:`-0400`},{timezone:`CEST`,offset:`+0200`},{timezone:`CET`,offset:`+0100`},{timezone:`CHADT`,offset:`+1345`},{timezone:`CHAST`,offset:`+1245`},{timezone:`CHOST`,offset:`+0900`},{timezone:`CHOT`,offset:`+0800`},{timezone:`CHUT`,offset:`+1000`},{timezone:`CIDST`,offset:`-0400`},{timezone:`CIST`,offset:`-0500`},{timezone:`CKT`,offset:`-1000`},{timezone:`CLST`,offset:`-0300`},{timezone:`CLT`,offset:`-0400`},{timezone:`COT`,offset:`-0500`},{timezone:`CST`,offset:`-0600`},{timezone:`CST`,offset:`+0800`},{timezone:`CST`,offset:`-0500`},{timezone:`CT`,offset:`-0600`},{timezone:`CVT`,offset:`-0100`},{timezone:`CXT`,offset:`+0700`},{timezone:`ChST`,offset:`+1000`},{timezone:`D`,offset:`+0400`},{timezone:`DAVT`,offset:`+0700`},{timezone:`DDUT`,offset:`+1000`},{timezone:`E`,offset:`+0500`},{timezone:`EASST`,offset:`-0500`},{timezone:`EAST`,offset:`-0600`},{timezone:`EAT`,offset:`+0300`},{timezone:`ECT`,offset:`-0500`},{timezone:`EDT`,offset:`-0400`},{timezone:`EEST`,offset:`+0300`},{timezone:`EET`,offset:`+0200`},{timezone:`EGST`,offset:`Z`},{timezone:`EGT`,offset:`-0100`},{timezone:`EST`,offset:`-0500`},{timezone:`ET`,offset:`-0500`},{timezone:`F`,offset:`+0600`},{timezone:`FET`,offset:`+0300`},{timezone:`FJST`,offset:`+1300`},{timezone:`FJT`,offset:`+1200`},{timezone:`FKST`,offset:`-0300`},{timezone:`FKT`,offset:`-0400`},{timezone:`FNT`,offset:`-0200`},{timezone:`G`,offset:`+0700`},{timezone:`GALT`,offset:`-0600`},{timezone:`GAMT`,offset:`-0900`},{timezone:`GET`,offset:`+0400`},{timezone:`GFT`,offset:`-0300`},{timezone:`GILT`,offset:`+1200`},{timezone:`GMT`,offset:`Z`},{timezone:`GST`,offset:`+0400`},{timezone:`GST`,offset:`-0200`},{timezone:`GYT`,offset:`-0400`},{timezone:`H`,offset:`+0800`},{timezone:`HADT`,offset:`-0900`},{timezone:`HAST`,offset:`-1000`},{timezone:`HKT`,offset:`+0800`},{timezone:`HOVST`,offset:`+0800`},{timezone:`HOVT`,offset:`+0700`},{timezone:`I`,offset:`+0900`},{timezone:`ICT`,offset:`+0700`},{timezone:`IDT`,offset:`+0300`},{timezone:`IOT`,offset:`+0600`},{timezone:`IRDT`,offset:`+0430`},{timezone:`IRKST`,offset:`+0900`},{timezone:`IRKT`,offset:`+0800`},{timezone:`IRST`,offset:`+0330`},{timezone:`IST`,offset:`+0530`},{timezone:`IST`,offset:`+0100`},{timezone:`IST`,offset:`+0200`},{timezone:`JST`,offset:`+0900`},{timezone:`K`,offset:`+1000`},{timezone:`KGT`,offset:`+0600`},{timezone:`KOST`,offset:`+1100`},{timezone:`KRAST`,offset:`+0800`},{timezone:`KRAT`,offset:`+0700`},{timezone:`KST`,offset:`+0900`},{timezone:`KUYT`,offset:`+0400`},{timezone:`L`,offset:`+1100`},{timezone:`LHDT`,offset:`+1100`},{timezone:`LHST`,offset:`+1030`},{timezone:`LINT`,offset:`+1400`},{timezone:`M`,offset:`+1200`},{timezone:`MAGST`,offset:`+1200`},{timezone:`MAGT`,offset:`+1100`},{timezone:`MART`,offset:`-0930`},{timezone:`MAWT`,offset:`+0500`},{timezone:`MDT`,offset:`-0600`},{timezone:`MHT`,offset:`+1200`},{timezone:`MMT`,offset:`+0630`},{timezone:`MSD`,offset:`+0400`},{timezone:`MSK`,offset:`+0300`},{timezone:`MST`,offset:`-0700`},{timezone:`MT`,offset:`-0700`},{timezone:`MUT`,offset:`+0400`},{timezone:`MVT`,offset:`+0500`},{timezone:`MYT`,offset:`+0800`},{timezone:`N`,offset:`-0100`},{timezone:`NCT`,offset:`+1100`},{timezone:`NDT`,offset:`-0230`},{timezone:`NFT`,offset:`+1100`},{timezone:`NOVST`,offset:`+0700`},{timezone:`NOVT`,offset:`+0700`},{timezone:`NPT`,offset:`+0545`},{timezone:`NRT`,offset:`+1200`},{timezone:`NST`,offset:`-0330`},{timezone:`NUT`,offset:`-1100`},{timezone:`NZDT`,offset:`+1300`},{timezone:`NZST`,offset:`+1200`},{timezone:`O`,offset:`-0200`},{timezone:`OMSST`,offset:`+0700`},{timezone:`OMST`,offset:`+0600`},{timezone:`ORAT`,offset:`+0500`},{timezone:`P`,offset:`-0300`},{timezone:`PDT`,offset:`-0700`},{timezone:`PET`,offset:`-0500`},{timezone:`PETST`,offset:`+1200`},{timezone:`PETT`,offset:`+1200`},{timezone:`PGT`,offset:`+1000`},{timezone:`PHOT`,offset:`+1300`},{timezone:`PHT`,offset:`+0800`},{timezone:`PKT`,offset:`+0500`},{timezone:`PMDT`,offset:`-0200`},{timezone:`PMST`,offset:`-0300`},{timezone:`PONT`,offset:`+1100`},{timezone:`PST`,offset:`-0800`},{timezone:`PST`,offset:`-0800`},{timezone:`PT`,offset:`-0800`},{timezone:`PWT`,offset:`+0900`},{timezone:`PYST`,offset:`-0300`},{timezone:`PYT`,offset:`-0400`},{timezone:`PYT`,offset:`+0830`},{timezone:`Q`,offset:`-0400`},{timezone:`QYZT`,offset:`+0600`},{timezone:`R`,offset:`-0500`},{timezone:`RET`,offset:`+0400`},{timezone:`ROTT`,offset:`-0300`},{timezone:`S`,offset:`-0600`},{timezone:`SAKT`,offset:`+1100`},{timezone:`SAMT`,offset:`+0400`},{timezone:`SAST`,offset:`+0200`},{timezone:`SBT`,offset:`+1100`},{timezone:`SCT`,offset:`+0400`},{timezone:`SGT`,offset:`+0800`},{timezone:`SRET`,offset:`+1100`},{timezone:`SRT`,offset:`-0300`},{timezone:`SST`,offset:`-1100`},{timezone:`SYOT`,offset:`+0300`},{timezone:`T`,offset:`-0700`},{timezone:`TAHT`,offset:`-1000`},{timezone:`TFT`,offset:`+0500`},{timezone:`TJT`,offset:`+0500`},{timezone:`TKT`,offset:`+1300`},{timezone:`TLT`,offset:`+0900`},{timezone:`TMT`,offset:`+0500`},{timezone:`TOST`,offset:`+1400`},{timezone:`TOT`,offset:`+1300`},{timezone:`TRT`,offset:`+0300`},{timezone:`TVT`,offset:`+1200`},{timezone:`U`,offset:`-0800`},{timezone:`ULAST`,offset:`+0900`},{timezone:`ULAT`,offset:`+0800`},{timezone:`UYST`,offset:`-0200`},{timezone:`UYT`,offset:`-0300`},{timezone:`UZT`,offset:`+0500`},{timezone:`V`,offset:`-0900`},{timezone:`VET`,offset:`-0400`},{timezone:`VLAST`,offset:`+1100`},{timezone:`VLAT`,offset:`+1000`},{timezone:`VOST`,offset:`+0600`},{timezone:`VUT`,offset:`+1100`},{timezone:`W`,offset:`-1000`},{timezone:`WAKT`,offset:`+1200`},{timezone:`WARST`,offset:`-0300`},{timezone:`WAST`,offset:`+0200`},{timezone:`WAT`,offset:`+0100`},{timezone:`WEST`,offset:`+0100`},{timezone:`WET`,offset:`Z`},{timezone:`WFT`,offset:`+1200`},{timezone:`WGST`,offset:`-0200`},{timezone:`WGT`,offset:`-0300`},{timezone:`WIB`,offset:`+0700`},{timezone:`WIT`,offset:`+0900`},{timezone:`WITA`,offset:`+0800`},{timezone:`WST`,offset:`+1300`},{timezone:`WST`,offset:`+0100`},{timezone:`WT`,offset:`Z`},{timezone:`X`,offset:`-1100`},{timezone:`Y`,offset:`-1200`},{timezone:`YAKST`,offset:`+1000`},{timezone:`YAKT`,offset:`+0900`},{timezone:`YAPT`,offset:`+1000`},{timezone:`YEKST`,offset:`+0600`},{timezone:`YEKT`,offset:`+0500`},{timezone:`Z`,offset:`Z`}],m=function(e){var t=p.find(function(t){return t.timezone===e});return t===void 0?`Z`:t.offset};function h(){let{year:e,month:t,day:r}=n();return!(e&&t&&r)}function ae(e={}){let{language:t,url:n}=e;return t?.code&&n?d.createElement(`link`,{key:n,rel:`alternate`,hrefLang:t.code,href:n}):null}var g={nyt:`The New York Times`},oe=e=>{let t=new Date(e),n=new Date-t;return n>=0&&n<2880*60*1e3};function _({asset:e,children:n,skipCanonicalLink:r=!1}){let i=h()&&e?.__typename===`Article`,{socialVariant:o}=ee();if(!e)return d.createElement(a,{titleTemplate:`%s - ${g.nyt}`,prioritizeSeoTags:!0},n);let{sourceId:f,uri:p,eventId:_,summary:v,section:y,subsection:b,timesTags:x,bylines:S,firstPublished:C,lastModified:se,lastMajorModification:w,headline:T,collections:ce,language:E,translations:le,column:D,promotionalImage:O,shouldHavePlayOverlay:k,__typename:A}=e,j=e.url&&e.url!==`null`?e.url:``,M=j,N=``,P=null,F=T.default,I=T.seo?T.seo:T.default;(e.__typename===`Article`||e.__typename===`Interactive`)&&C&&oe(C)&&(F=T.seo?T.seo:T.default),y&&(N=y.name,P=y.displayName),P===`Opinion`&&(I=`${P} | ${I}`,F=`${P} | ${F}`),e.__typename===`Video`&&(F=`Video: ${I}`),D&&D.name&&D.slug&&D.slug===`the-weekly`&&(I=`${D.name} | ${I}`,F=`${D.name} | ${F}`);let L=C&&c(C);if(e.__typename===`Interactive`&&j.includes(`/us/elections/`)&&j.includes(`results-`)&&L){let e=ie(L,I);e&&(I=`${e} ${I}`)}let R=``;b&&(R=b.name);let z=ne(re(ce)),B=null,V=null;L&&(B=`${L.year}${L.month}${L.day}`,V=C.replace(/\.([A-Z]+)$/,(e,t)=>m(t)));let H=null;w&&c(w)&&(H=w.replace(/\.([A-Z]+)$/,(e,t)=>m(t)));let U=S?.[0]?.creators?S[0].creators.reduce((e,t)=>(t.url&&e.push(t.url),e),[]):[],W=le||[],G=W.map(ae),K=E?.code?.split(`-`)?.[0]||`en`,q=E?.code||`en`,ue=q.startsWith(`en`)&&W.length>0&&W.some(e=>e.language?.code?.startsWith(`es`)),J=j.match(/.*smarter-living\/wirecutter\/((\w+-?)+)/),de=new Date(C).getFullYear(),fe=J&&de<2020?`https://www.nytimes.com/wirecutter/blog/${J[1]}/`:j,Y=O?.image?.caption?.text||``,X={url:l},pe={url:u},Z={...O?.socialMediaRendition?.rendition||X},Q={...O?.twitterRendition?.rendition||pe},$=e.__typename===`Video`||k,me=Z.url!==l,he=Q.url!==u;if((o||``).includes(`gift`))Z.url=s(Z.url,{gift:1}),Q.url=s(Q.url,{gift:1,tw:1}),F=`${F} (Gift Article)`,M=s(j,{unlocked_article_code:1});else if((o||``).includes(`robot`)&&x?.some(e=>e?.displayName===`internal-paywall-exempt`))Z.url=s(Z.url,{"free-to-read":1}),Q.url=s(Q.url,{"free-to-read":1,tw:1}),F=`${F} (Free Access)`;else{let t=new Date;t.setFullYear(t.getFullYear()-1);let n=new Date(C);A===`Interactive`&&!j.match(/interactive\/[0-9]{4}\/[0-9]{2}/i)&&(n=new Date(w));let r=O?.socialMediaRendition?.parentPublishDate?new Date(O.socialMediaRendition.parentPublishDate):n;if(t>=r&&e.__typename!==`Video`&&!i){let e=r.getFullYear();F=`${F} (Published ${e})`,Z.url===`https://static01.nyt.com/newsgraphics/images/icons/defaultPromoCrop.png`?Z.url=s(Z.url,{year:e}):Z.url=s(Z.url,{year:e,h:Z.height,w:Z.width,s:O?.socialMediaRendition?.signature?.value,k:O?.socialMediaRendition?.signature?.keyId}),Q.url===`https://static01.nyt.com/newsgraphics/images/icons/defaultCrop.png`?Q.url=s(Q.url,{year:e}):Q.url=s(Q.url,{year:e,h:Q.height,w:Q.width,s:O?.twitterRendition?.signature?.value,k:O?.twitterRendition?.signature?.keyId,tw:1})}}return me&&$&&(Z.url+=Z.url.includes(`?`)?`&play-overlay`:`?play-overlay`),he&&$&&(Q.url+=Q.url.includes(`?`)?`&play-overlay`:`?play-overlay`),d.createElement(t,{render:({staticContext:e})=>(e&&(e.xScoopLastModifiedHeader=se),d.createElement(a,{titleTemplate:`%s - ${g.nyt}`,prioritizeSeoTags:!0},d.createElement(`html`,{lang:K}),d.createElement(`title`,null,I),!i&&d.createElement(`meta`,{property:`article:published_time`,content:V}),d.createElement(`meta`,{property:`article:modified_time`,content:H}),d.createElement(`meta`,{httpEquiv:`Content-Language`,content:K}),G.length>0&&d.createElement(`link`,{rel:`alternate`,hrefLang:q,href:j}),G,!r&&d.createElement(`link`,{rel:`canonical`,href:fe}),d.createElement(`meta`,{name:`robots`,content:`noarchive, max-image-preview:large`}),ue&&d.createElement(`meta`,{name:`googlebot`,content:`notranslate`}),d.createElement(`meta`,{name:`articleid`,content:f}),d.createElement(`meta`,{name:`nyt_uri`,content:p}),d.createElement(`meta`,{name:`pubp_event_id`,content:_}),d.createElement(`meta`,{name:`description`,content:v}),d.createElement(`meta`,{name:`image`,content:Z.url}),d.createElement(`meta`,{name:`byl`,content:S?.[0]?.renderedRepresentation}),d.createElement(`meta`,{name:`news_keywords`,content:x?x.map(e=>e?.vernacular).filter(e=>!!e).join():null}),d.createElement(`meta`,{name:`pdate`,content:B}),j&&d.createElement(`meta`,{property:`twitter:url`,content:j}),d.createElement(`meta`,{property:`twitter:title`,content:F}),d.createElement(`meta`,{property:`twitter:description`,content:v}),d.createElement(`meta`,{property:`twitter:image`,content:Q.url}),d.createElement(`meta`,{property:`twitter:image:alt`,content:Y}),d.createElement(`meta`,{property:`twitter:card`,content:`summary_large_image`}),M&&d.createElement(`meta`,{property:`og:url`,content:M}),d.createElement(`meta`,{property:`og:type`,content:`article`}),d.createElement(`meta`,{property:`og:title`,content:F}),d.createElement(`meta`,{property:`og:image`,content:Z.url}),d.createElement(`meta`,{property:`og:image:alt`,content:Y}),d.createElement(`meta`,{property:`og:description`,content:v}),d.createElement(`meta`,{property:`article:section`,content:P}),U.map(e=>d.createElement(`meta`,{key:e,property:`article:author`,content:e})),x?x.map(e=>e?.displayName&&!e?.isAdvertisingBrandSensitive?d.createElement(`meta`,{key:e.displayName,property:`article:tag`,content:e.displayName}):null):null,d.createElement(`meta`,{property:`article:opinion`,content:te(N).toString()}),d.createElement(`meta`,{property:`article:content_tier`,content:`metered`}),d.createElement(`meta`,{name:`CG`,content:N}),d.createElement(`meta`,{name:`SCG`,content:R}),d.createElement(`meta`,{name:`CN`,content:z.slug}),d.createElement(`meta`,{name:`CT`,content:z.type}),n))})}_.propTypes={asset:f.default.shape(),children:f.default.node,skipCanonicalLink:f.default.bool};var v=r`
+  fragment AssetHelmet_promotionalImage on HasPromotionalProperties {
+    promotionalImage {
+      socialMediaRendition: signableRendition(
+        renditionPriority: ["facebookJumbo", "videoSixteenByNineJumbo1600", "articleLarge"]
+      ) {
+        ...AssetHelmet_signableRendition
+      }
+      twitterRendition: signableRendition(
+        renditionPriority: ["videoSixteenByNine3000", "videoSixteenByNineJumbo1600", "articleLarge"]
+      ) {
+        ...AssetHelmet_signableRendition
+      }
+      image {
+        id
+        credit
+        caption {
+          text
+        }
+      }
+    }
+  }
+
+  fragment AssetHelmet_signableRendition on SignableImageRendition {
+    parentPublishDate
+    parentPublishYear
+    signature {
+      value
+      keyId
+      __typename
+    }
+    rendition {
+      name
+      height
+      width
+      url
+      __typename
+    }
+    __typename
+  }
+`;_.fragments={asset:r`
+    fragment AssetHelmet_asset on HasPromotionalProperties {
+      ... on Linkable {
+        id
+        url
+      }
+      ... on Article {
+        id
+        translations {
+          language {
+            code
+          }
+        }
+        language {
+          code
+          name
+        }
+        rights {
+          category
+        }
+      }
+      ... on Audio {
+        id
+        translations {
+          language {
+            code
+          }
+        }
+        language {
+          code
+          name
+        }
+      }
+      ... on Video {
+        id
+        language {
+          code
+          name
+        }
+      }
+      ... on Interactive {
+        id
+        translations {
+          language {
+            code
+          }
+        }
+        language {
+          code
+          name
+        }
+        rights {
+          category
+        }
+      }
+      ... on Slideshow {
+        id
+        translations {
+          language {
+            code
+          }
+        }
+        language {
+          code
+          name
+        }
+      }
+      ... on CreativeWork {
+        collections @filterEmpty {
+          id
+          slug
+          collectionType
+        }
+        headline {
+          default @stripHtml
+          seo @stripHtml
+        }
+        summary
+        timesTags @filterEmpty {
+          displayName
+          vernacular
+        }
+        section {
+          id
+          displayName
+          name
+        }
+        subsection {
+          id
+          name
+        }
+        bylines {
+          renderedRepresentation
+          creators {
+            ... on Published {
+              url
+            }
+          }
+        }
+      }
+      ... on Published {
+        firstPublished
+        lastModified
+        lastMajorModification
+        sourceId
+        uri
+        eventId
+      }
+      promotionalMedia {
+        ...AssetHelmet_promoImage
+        ... on EmbeddedInteractive {
+          id
+          promotionalMedia {
+            ...AssetHelmet_promoImage
+          }
+        }
+        ... on Video {
+          id
+          promotionalMedia {
+            ...AssetHelmet_promoImage
+            ... on Video {
+              id
+              promotionalMedia {
+                ...AssetHelmet_promoImage
+              }
+            }
+          }
+        }
+        ... on Audio {
+          id
+          promotionalMedia {
+            ...AssetHelmet_promoImage
+          }
+        }
+      }
+      ...AssetHelmet_promotionalImage
+    }
+    ${v}
+    ${r`
+  fragment AssetHelmet_promoImage on Image {
+    id
+    assetCrops: crops(
+      renditionNames: [
+        "thumbStandard"
+        "thumbLarge"
+        "facebookJumbo"
+        "videoSixteenByNine3000"
+        "videoSixteenByNineJumbo1600"
+        "googleFourByThree"
+        "articleLarge"
+        "superJumbo"
+        "mediumSquareAt3X"
+      ]
+    ) {
+      name
+      renditions {
+        url
+        height
+        width
+        name
+      }
+    }
+    credit
+    caption {
+      text
+    }
+  }
+`}
+  `};export{v as n,h as r,_ as t};
+//# sourceMappingURL=AssetHelmet-CoS-ErSE.js.map

@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./subscription-_hBc3Boq.js";var r=e(t()),i=`isFreeMonthUser`,a=`isNotFreeMonthUser`,o=e=>e?n(e)?i:a:null,s=e=>{let t=o(e);(0,r.useEffect)(()=>{let{classList:e}=document.documentElement;if(!(!t||!e.contains(`IOS`)))return e.add(t),()=>e.remove(t)},[t])};export{s as t};
+//# sourceMappingURL=useFreeMonthUserClass-CDQ4O9Mb.js.map

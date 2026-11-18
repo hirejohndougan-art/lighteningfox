@@ -1,0 +1,28 @@
+OPTIONS https://samizdat-graphql.nytimes.com/graphql/v2?operationName=CommunityCommentsSummaries&variables=%7B%22uris%22%3A%5B%22nyt%3A%2F%2Farticle%2F09595444-3eef-5855-92b1-1dabea701867%22%2C%22nyt%3A%2F%2Farticle%2F10c91dea-a058-59f9-97b5-b5f77b29d701%22%2C%22nyt%3A%2F%2Farticle%2F1e23d2e4-b779-5567-8013-2d5a990eaa46%22%2C%22nyt%3A%2F%2Farticle%2F32d02013-01ec-5e96-a8c9-52e4fc9c5494%22%2C%22nyt%3A%2F%2Farticle%2F36fb0544-7e01-55ff-a606-5c8822ebd4ed%22%2C%22nyt%3A%2F%2Farticle%2F51057aff-96a9-5498-ab22-c69bed297b20%22%2C%22nyt%3A%2F%2Farticle%2F61316125-99f9-5bab-a525-a73e08e99301%22%2C%22nyt%3A%2F%2Farticle%2F62fbc868-308a-5a27-8839-fd4da5841409%22%2C%22nyt%3A%2F%2Farticle%2F67a82dfe-6171-5b2d-974e-7455833aa811%22%2C%22nyt%3A%2F%2Farticle%2F6d437150-c54a-5ef9-b2e3-d46943584c09%22%2C%22nyt%3A%2F%2Farticle%2F7f84802c-7b53-5ca6-aac0-572f744af991%22%2C%22nyt%3A%2F%2Farticle%2F9f63761e-df1f-5145-9053-281388a950bf%22%2C%22nyt%3A%2F%2Farticle%2Faaaff6f0-b961-5d62-a159-7d64f7a48d67%22%2C%22nyt%3A%2F%2Farticle%2Fbb20328e-4bc8-5bfe-8e7e-74bf921feae9%22%2C%22nyt%3A%2F%2Farticle%2Fc4da234e-a9f4-537d-8096-fd1e960451b2%22%2C%22nyt%3A%2F%2Farticle%2Fd578efbf-6eb7-5fd4-b16b-7625c9f52a9f%22%2C%22nyt%3A%2F%2Farticle%2Fda9f6baa-f092-54e3-beaf-43d88fd0c579%22%2C%22nyt%3A%2F%2Farticle%2Fea05a296-36cf-5df5-9909-f40db79c00e4%22%5D%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22f2faa9358598b5a3ce8432d70b1641fadd58c5b494bf879f02246890092ab98c%22%7D%7D
+200 OK
+via: 1.1 varnish, 1.1 varnish
+access-control-allow-methods: GET, POST
+access-control-allow-credentials: true
+x-envoy-upstream-service-time: 3
+allow: GET,HEAD,POST
+server: envoy
+accept-ranges: bytes
+access-control-max-age: 300
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+access-control-allow-origin: https://www.nytimes.com
+date: Wed, 18 Nov 2026 16:44:59 GMT
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: a13ab927012256f3
+x-samizdat-query-field-errors: 0
+x-nyt-pass-reason: IGQL
+access-control-allow-headers: content-type,nyt-app-type,nyt-app-version,nyt-token,x-statsig-home-curator-assignments, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-khef600023-IAD, cache-iad-khef600023-IAD, cache-iad-khef600054-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795020300.791214,VS0,VE56
+vary: origin, access-control-request-headers
+timing-allow-origin: *
+x-nyt-edge-cache: MISS
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 0

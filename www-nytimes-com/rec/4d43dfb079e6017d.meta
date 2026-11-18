@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/16/multimedia/16ASKVANESSA-turtleneck-01-bjtp/16ASKVANESSA-turtleneck-01-bjtp-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "/zgi3nKUMaWjsPwc86BI45ajHoEq+G90n9Mk16Jm1mk"
+expires: Mon, 16 Nov 2026 10:57:56 GMT
+fastly-io-info: ifsz=12097 idim=252x252 ifmt=jpeg ofsz=6979 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010229
+fastly-io-transform-stats: ifsz=12097 ofsz=6979 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: F0RgsQ==
+x-goog-generation: 1794823262541679
+x-goog-hash: crc32c=F0RgsQ==
+x-goog-hash: md5=g3w+CZTfwc/glwbIOov2+A==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 12097
+x-guploader-uploadid: AFy3sg2E4gUtwwKAawKcjDr2faxuczXch6u3CKebzsFVpPpRdg7yRgvbfcvfaJDhTeV_gvL6pz4kq0E
+accept-ranges: bytes
+age: 193734
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.340399,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 6979

@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./captureError-DZhg7ppj.js";import{i as r}from"./performance-DGwsy9qo.js";import{t as i}from"./getGeolocation-CdPdymwj.js";var a=e(t());function o(){let e=(0,a.useRef)(null),[t,o]=(0,a.useState)(null);return(0,a.useEffect)(()=>(e.current=i.subscribe(async e=>{await r(),o(e)},e=>n(e,{geolocation:!0})),()=>{e.current.unsubscribe()}),[]),t}export{o as t};
+//# sourceMappingURL=useGeolocation-CewQub-7.js.map

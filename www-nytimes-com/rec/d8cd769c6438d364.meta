@@ -1,0 +1,31 @@
+POST https://www.nytimes.com/svc/onsite-messaging/query
+200 OK
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+server: envoy
+content-type: application/json
+x-nyti-upstream: dvsp
+x-envoy-upstream-service-time: 101
+cache-control: private
+x-envoy-decorator-operation: selection-onsite-messaging.mx.nyti.nyt.net:443/*
+accept-ranges: bytes
+x-origin-time: 2026-11-18 16:42:57 UTC
+date: Wed, 18 Nov 2026 16:42:57 GMT
+x-served-by: cache-iad-kiad7000159-IAD, cache-iad-kiad7000159-IAD, cache-iad-kiad7000159-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795020177.426935,VS0,VE158
+vary: Accept-Encoding, Fastly-SSL
+set-cookie: nyt-gdpr=0; Expires=Wed, 18 Nov 2026 22:42:57 GMT; Path=/; Domain=.nytimes.com
+set-cookie: datadome=0; Domain=.nytimes.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure
+x-gdpr: 0
+permissions-policy: browsing-topics=()
+x-frame-options: DENY
+x-api-version: F-X
+x-nyt-route: onsite-messaging
+content-security-policy: upgrade-insecure-requests; default-src data: 'unsafe-inline' 'unsafe-eval' https: nytresource:; script-src data: 'unsafe-inline' 'unsafe-eval' https: blob: nytresource:; style-src data: 'unsafe-inline' https: nytresource:; img-src data: https: blob: android-webview-video-poster: nytresource:; font-src data: https: nytresource:; connect-src data: https: wss: blob: nytresource:; media-src data: https: blob: nytresource:; object-src https:; child-src https: data: blob: nytresource:; form-action https: nytimes: nytcooking: nytxwd:; report-uri https://csp.nytimes.com/report;
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+access-control-expose-headers: X-Nyt-Mktg-Group
+x-nyt-mktg-group: group1
+x-nyt-edge-cache: MISS
+x-nyt-app-webview: 0
+x-nyt-app-map: webview=false,preloaded=false,service-worker-enabled=false

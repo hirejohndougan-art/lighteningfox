@@ -1,0 +1,52 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Ut as t,Vr as n,ar as r,er as i,nr as a}from"./vendor-u8E3U9GY.js";import{a as o,o as s,r as c}from"./Button-BSBx-Mbs.js";i();var l=e(n(),1),u=({className:e=``,content:n,extremeDangerAllowLinks:r=!1,HtmlElement:i=`div`,dataTestId:a})=>{let o=``;return o=r?t.sanitize(Array.isArray(n)?n.join(` `):n,{ADD_ATTR:[`target`]}):t.sanitize(Array.isArray(n)?n.join(` `):n),e?l.createElement(i,{dangerouslySetInnerHTML:{__html:o},className:e,"data-testid":a}):l.createElement(i,{dangerouslySetInnerHTML:{__html:o},"data-testid":a})},d=a`
+  --fz: 12;
+  -webkit-font-smoothing: antialised;
+  ${a`
+  @media (min-width: ${s.medium}px) {
+    padding: 0 20px;
+  }
+  @media (min-width: ${s.mediumLarge}px) {
+    padding: 0 64px;
+  }
+  @media (min-width: ${s.xLarge}px) {
+    padding: 0px 100px;
+  }
+  @media (min-width: ${s.xxLarge}px) {
+    padding: 0 130px;
+  }
+`}
+  color: ${c.gray30};
+  font-family: ${o.franklin};
+  font-size: calc(var(--fz) * 1px);
+  font-style: normal;
+  font-weight: 400;
+  grid-area: legal;
+  line-height: calc(18 / var(--fz));
+  padding-bottom: 40px;
+
+  @media (min-width: ${s.medium}px) {
+    padding-bottom: 40px;
+    padding-top: 5px;
+    text-align: center;
+  }
+
+  @media (min-width: ${s.mediumLarge}px) {
+    border-top: 1px solid transparent;
+    padding-top: 20px;
+  }
+
+  @media (min-width: ${s.xLarge}px) {
+    max-width: 1440px;
+  }
+
+  a {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+  }
+
+  b {
+    font-weight: 700;
+  }
+`;i();var f=`Your payment method will automatically be charged the stated monthly rate in advance every 4 weeks for a monthly subscription or the stated annual rate in advance once yearly for an annual subscription.`,p=0;function m({subCopy:e=f,children:t,className:n,testId:i,...a}){let o=(0,l.useRef)();o.current||=(p+=1,i?`legal-${i}`:`legal-auto-${p}`);let s=t?n:r(d,n);return l.createElement(`div`,{className:s,"data-testid":o.current,...a},t||l.createElement(u,{HtmlElement:`div`,content:e}))}export{d as n,u as r,m as t};
+//# sourceMappingURL=Legal-Cj1DqsVv.js.map

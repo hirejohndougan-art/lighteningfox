@@ -1,0 +1,20 @@
+POST https://a.et.nytimes.com/track
+200 OK
+access-control-allow-credentials: true
+access-control-allow-headers: Content-Type, x-requested-by, Etjs-Ignore-Session-Info, *
+access-control-allow-methods: GET, PUT, POST, DELETE, OPTIONS
+access-control-allow-origin: https://www.nytimes.com
+set-cookie: nyt-a=sZuQFFwpLxswqYQHcUQg-v; Path=/; Domain=nytimes.com; Expires=Thu, 18 Nov 2027 16:41:07 GMT; Max-Age=31536000; Secure; SameSite=None
+set-cookie: sessionActive=true; Path=/; Domain=et.nytimes.com; Expires=Wed, 18 Nov 2026 17:11:07 GMT; Max-Age=1800; Secure; SameSite=None
+set-cookie: sessionIndex=1|1795020067787|sZuQFFwpLxswqYQHcUQg-v|1795020067787; Path=/; Domain=et.nytimes.com; Expires=Thu, 18 Nov 2027 16:41:07 GMT; Max-Age=31536000; Secure; SameSite=None
+set-cookie: nyt-b-sid=-G9PbofYjFcQJNbUVGuKGfwd; Path=/; Domain=nytimes.com; Expires=Wed, 18 Nov 2026 17:11:07 GMT; Max-Age=1800; Secure; SameSite=None
+set-cookie: et-ppvid=https://www.nytimes.com/=nWeNYuCLAQpwcF3vDn1K_4kR; Path=/; Domain=et.nytimes.com; Expires=Thu, 19 Nov 2026 16:41:07 GMT; Max-Age=86400; Secure; SameSite=None
+x-content-type-options: nosniff
+date: Wed, 18 Nov 2026 16:41:07 GMT
+content-length: 34
+content-type: text/plain; charset=utf-8
+server: Google Frontend
+x-cloud-trace-context: ae9fc4c14f5eda5307350ed507e0d630/13937644355572745335
+traceparent: 00-ae9fc4c14f5eda5307350ed507e0d630-c16c75b253a44477-00
+via: 1.1 google
+alt-svc: h3=":443"; ma=2592000

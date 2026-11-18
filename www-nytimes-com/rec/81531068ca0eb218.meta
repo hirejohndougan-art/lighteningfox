@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2025/10/28/podcasts/the-ezra-klen-show-album-art/the-ezra-klen-show-album-art-thumbLarge.jpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "wXu/IqTvBkV2yz41Kekrh6VoXN6HO7hDd0eFYlLfCJU"
+expires: Wed, 23 Sep 2026 14:37:45 GMT
+fastly-io-info: ifsz=11887 idim=150x150 ifmt=jpeg ofsz=8006 odim=150x150 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010248
+fastly-io-transform-stats: ifsz=11887 ofsz=8006 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: +AP1Xg==
+x-goog-generation: 1771970068519295
+x-goog-hash: crc32c=+AP1Xg==
+x-goog-hash: md5=DQQlEIhcEDAIpSJigdpS0g==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 11887
+x-guploader-uploadid: AP6rU80DuHd9pjc_E44UP3QCs5OqgEqe_sZIck2lc3FaU12njS8cVPnD9JTWPzaIw9NnOSHu
+accept-ranges: bytes
+age: 601472
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.349534,VS0,VE3
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 8006

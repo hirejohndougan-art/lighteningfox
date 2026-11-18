@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2025/11/18/smarter-living/wc-pic-gifts-under-100/wc-pic-gifts-under-100-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "Ei/ldmiHP8DGvPQmgiDFprqmOj9OG42yUG7QzyWWS8k"
+expires: Sun, 15 Nov 2026 02:01:05 GMT
+fastly-io-info: ifsz=15847 idim=252x252 ifmt=jpeg ofsz=10052 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010230
+fastly-io-transform-stats: ifsz=15847 ofsz=10052 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: Pjg50Q==
+x-goog-generation: 1763499419805135
+x-goog-hash: crc32c=Pjg50Q==
+x-goog-hash: md5=cVsTfeYjhQM0aqfAQsOfuw==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 15847
+x-guploader-uploadid: AFy3sg1Ki8CfBmM8GMF9lz6Q0cHVFvZIdAhMGPDuF6_McvuHu8eK4MU0JhyIeNyFQ2yhI1GylU3SEzg
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+age: 20622
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1795020410.338963,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 10052

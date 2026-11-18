@@ -1,0 +1,33 @@
+GET https://www.nytimes.com/vi-assets/static-assets/chunks/LiveBlogByline-BYYi5GSU.js
+200 OK
+x-amz-id-2: jtGw/CKL99YY62A17lNpgPLqVdc6PSx7PzpnKsp7b+Yoi5xw4Umjifn+B+LgmEPfKFgTQNapmAk=
+x-amz-request-id: QF9ZX29CEVN1W5KY
+server: AmazonS3
+last-modified: Fri, 13 Nov 2026 18:25:38 GMT
+etag: "faf2eb1b044cfb73d16f84ba0251a7f7"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: D7rlBLcMe4AvgLazoEsfu8tJbhRXU7fk
+content-type: text/javascript
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=HIT-WAIT,final-url="/vi-assets/static-assets/chunks/LiveBlogByline-BYYi5GSU.js"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=P_U-uph1wnjhFdgwMOFvBL,regi_id,newsTenure=anon_user
+x-nyt-geoip-map: continent=NA,country=US,region=VA,gmt-offset=-500,meridiem=PM,latitude=39.030,longitude=-77.490,city=ashburn,postal-code=20147,area-code=703,metro=511
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=P_U-uph1wnjhFdgwMOFvBL,regi_id,newsTenure=anon_user
+x-nyt-vars: slideshow-compatibility
+x-origin-time: 2026-11-13 18:25:58 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:33 GMT
+age: 425734
+x-served-by: cache-lga-kjfk8660063-LGA, cache-iad-kiad7000159-IAD
+x-cache: HIT, HIT
+x-cache-hits: 13, 10803
+x-timer: S1795020093.003923,VS0,VE2
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

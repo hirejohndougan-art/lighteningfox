@@ -1,0 +1,1706 @@
+import{o as e,r as t}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as n,Zn as r,ar as i,er as a,nr as o,pr as s,tr as c,tt as l,vr as u}from"./vendor-u8E3U9GY.js";import{o as d}from"./MessagingContext-IFd-uli1.js";import{r as f}from"./useMessageSelection-Lnro_bY7.js";import{T as ee,b as p}from"./urls-CWtYYmTD.js";import{c as m,n as h,o as g,t as _}from"./ErrorBoundary-Qtx2jJSn.js";import{a as v,i as y,o as b,r as x,t as S}from"./Button-BSBx-Mbs.js";import{t as C}from"./utils-BVvxEm5R.js";import{t as w}from"./MobileAppCta-DLuQvgv1.js";import{a as T,r as E,t as D,u as te}from"./Strikethrough-pEE2jr7F.js";import{t as ne}from"./lottie-react.esm-6dDfzez5.js";import{n as re,t as ie}from"./useMessageSelectionMessageCap-CJ98XeCG.js";var O=e(n(),1),ae=e(s(),1),oe=t({WelcomeAdLayoutContent:()=>de,ctaButton:()=>Ee,legalMessage:()=>De,modalClass:()=>le,noMarginTop:()=>Oe,oldPriceFont:()=>Te,priceFont:()=>A,welcomeAdButtonContainer:()=>xe,welcomeAdCancel:()=>we,welcomeAdCustomButton:()=>Ce,welcomeAdImageWrap:()=>pe,welcomeAdLayout:()=>ue,welcomeAdLayoutContainer:()=>ge,welcomeAdLayoutContentInner:()=>fe,welcomeAdLayoutDetails:()=>be,welcomeAdLayoutImage:()=>me,welcomeAdLayoutInnerContainer:()=>_e,welcomeAdLayoutLogo:()=>ye,welcomeAdLayoutLogoContainer:()=>ve,welcomeAdLayoutText:()=>he,welcomeAdSpecialOffer:()=>Se});a();var se=800,k=400,ce=475,le=o`
+  outline: none;
+  position: relative;
+  top: 50%;
+  margin: ${-400/2-50}px auto 0;
+  width: ${se}px;
+  height: ${ce}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+
+  ${b.medium} {
+    height: ${k}px;
+  }
+
+  @media (orientation: landscape) {
+    height: ${k}px;
+    margin-top: ${-400/2}px;
+  }
+
+  @media (max-height: ${k}px) {
+    height: ${k-20}px;
+    margin-top: ${-190}px;
+  }
+`,ue=o`
+  padding: 0;
+  box-sizing: border-box;
+  height: ${ce}px;
+  max-height: 730px;
+  max-width: 800px;
+  position: relative;
+  background-color: ${x.icingRose};
+`,de=c.div`
+  height: 100%;
+  justify-content: center;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  background-image: ${e=>`url(${e.theme.assetUrl}/devices.png)`};
+  background-size: 80%;
+  background-repeat: no-repeat;
+  background-position-y: 110%;
+  background-position-x: center;
+
+  @media (min-width: 270px) {
+    background-position-y: 110%;
+  }
+
+  @media (min-width: 360px) {
+    background-position-y: 117%;
+  }
+
+  @media (min-width: 375px) {
+    background-position-y: 120%;
+  }
+
+  @media (min-width: 390px) {
+    background-position-y: 123%;
+  }
+
+  @media (min-width: 412px) {
+    background-position-y: 125%;
+  }
+
+  @media (min-width: 414px) {
+    background-position-y: 127%;
+  }
+
+  @media (min-width: 430px) {
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 440px) {
+    background-size: 75%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 460px) {
+    background-size: 70%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 500px) {
+    background-size: 65%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 540px) {
+    background-size: 60%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 580px) {
+    background-size: 55%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 620px) {
+    background-size: 50%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 700px) {
+    background-size: 45%;
+    background-position-y: 130%;
+  }
+
+  @media (min-width: 820px) {
+    background-size: 40%;
+    background-position-y: 130%;
+  }
+`,fe=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`,pe=o`
+  display: none;
+  align-self: baseline;
+  text-align: left;
+`,me=o`
+  min-width: 154px;
+  padding-top: 6px;
+`,he=o`
+  height: 100%;
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,ge=o`
+  padding: 0px 30px 0px;
+  height: 100%;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 48px;
+`,_e=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  width: 100%;
+  text-align: left;
+`,ve=o`
+  display: block;
+`,ye=o`
+  width: 135px;
+  display: block;
+  margin: 0 auto;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+`,be=o`
+  color: #000000;
+  word-wrap: normal;
+
+  max-width: 263px;
+  margin-top: 32px;
+  margin-bottom: 0px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: nyt-cheltenham;
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 128%;
+  text-align: center;
+`,xe=o`
+  font-size: 12px;
+  margin: 16px 0px 32px;
+  text-align: center;
+  display: block;
+`,Se=o`
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 14.4px;
+  color: #121212;
+  margin: 8px 0 8px 0;
+  display: block;
+`,Ce=o`
+  display: block;
+  width: 94px;
+  background-color: #000000;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 24px;
+  border-radius: 3px;
+  padding: 4px 12px;
+  margin: 6px 0 2px 0;
+  height: 32px;
+  box-sizing: border-box;
+  text-align: center;
+  display: block;
+  margin: 0 auto;
+  text-decoration: none;
+  cursor: pointer;
+  appearance: none;
+  border: none;
+`,we=o`
+  margin-top: 8px;
+  margin-bottom: 32px;
+  font-size: 12px;
+  line-height: 15.6px;
+  font-weight: 500;
+`,Te=o`
+  color: ${x.grayLightContentContentPlaceholder};
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 20px;
+  line-height: 120%;
+
+  @media (min-width: 500px) {
+    font-size: 21px;
+    line-height: 25px;
+  }
+`,A=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 20px;
+  line-height: 120%;
+  text-align: center;
+  margin-top: 8px;
+
+  @media (min-width: 500px) {
+    font-size: 21px;
+    line-height: 25px;
+  }
+`,Ee=o`
+  width: 150px;
+  height: 44px;
+  border-radius: 3px;
+  padding: 10px 16px 10px 16px;
+
+  font-family: ${v.franklin};
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: ${y.semiBold};
+  line-height: 20.8px;
+  color: ${x.white};
+  background-color: ${x.veryDarkGrey};
+
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+
+  cursor: pointer;
+
+  letter-spacing: -0.05px;
+  flex: 0;
+`,De=o`
+  color: ${x.footerGrey};
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 130%; /* 15.6px */
+  margin-bottom: 16px;
+`,Oe=o`
+  margin-top: 0;
+`,j=e(u(),1),ke=e(l(),1);a();var{color:M}=C,Ae=800,N=320,je=425,P={size:`22px`,shadowColor:`#d8d8d8`},Me=o`
+  outline: none;
+  position: relative;
+  top: 50%;
+  margin: ${-320/2-50}px auto 0;
+  width: ${Ae}px;
+  height: ${je}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+
+  ${b.medium} {
+    height: ${N}px;
+  }
+
+  @media (orientation: landscape) {
+    height: ${N}px;
+    margin-top: ${-320/2}px;
+  }
+
+  @media (max-height: ${N}px) {
+    height: ${N-20}px;
+    margin-top: ${-150}px;
+  }
+`,Ne=o`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background-image: linear-gradient(
+    -180deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    ${C.color.white} 100%
+  );
+  z-index: ${C.zIndex.modal};
+`,Pe=o`
+  background-clip: padding-box;
+  background-color: ${M.gray40};
+  border: none;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px ${M.white},
+    0 0 0 2px ${P.shadowColor},
+    -1px 1px 2px 3px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  font-size: 0;
+  height: ${P.size};
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  right: -11px;
+  transition: background-color 0.2s ease-in;
+  top: -11px;
+  vertical-align: middle;
+  width: ${P.size};
+  z-index: ${C.zIndex.modal};
+
+  :hover {
+    background-color: ${M.gray20};
+  }
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${M.white};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 10px;
+    width: 10px;
+  }
+`,Fe=(e,t)=>({...e,...t});function F({children:e,windowTimeout:t,modalClassName:n,overlayClassName:r,closeClassName:i,closeOnOverlayClick:a,onClose:o}){let[s,c]=(0,O.useReducer)(Fe,{assetsLoaded:!1,open:!0,dismissed:!1});(0,O.useEffect)(()=>{if(s.open){let e=document.body.style.overflow;return document.body.style.overflow=`hidden`,()=>{e?document.body.style.overflow=e:document.body.style.removeProperty(`overflow`)}}},[s.open]);let l=()=>{c({dismissed:!0}),c({open:!1})},u=()=>{let e=setInterval(()=>{l(),clearInterval(e)},t)},d=()=>{t&&u()},f=()=>{o(),l()};return O.createElement(ke.default,{id:`welcome-ad`,isOpen:s.open,role:`alert`,ariaHideApp:!1,onAfterOpen:d,onRequestClose:f,className:n||Me,overlayClassName:r||Ne,shouldCloseOnOverlayClick:a},O.createElement(S,{tabIndex:0,component:`button`,testId:`close-modal`,onClick:f,className:i||Pe,title:`Close`,id:`vi_welcome_close`},`Close`),e)}F.propTypes={children:j.default.node,windowTimeout:j.default.number,modalClassName:j.default.string,overlayClassName:j.default.string,closeClassName:j.default.string,closeOnOverlayClick:j.default.bool,onClose:j.default.func},F.defaultProps={windowTimeout:0,modalClassName:``,overlayClassName:``,closeClassName:``,closeOnOverlayClick:!0,onClose:()=>{}},a();var{WelcomeAdLayoutContent:Ie}=oe;function Le({unit:e}){let{assetUrl:t}=r(),n=(0,ae.useTracking)(),{selection:a}=d(),o=ee(),{messageCap:s}=re({unit:`welcomeAd`,level:ie.Audience}),c=o===`/`?`homepage`:`article`,l=f({config:{name:`welcomeAd`}});(0,O.useEffect)(()=>{e.canShow&&s.increment()},[e,s]);let u={event:`moduleInteraction`,eventData:{pagetype:c,trigger:`module`,type:`click`},module:{et_synced:a?.syncedAt??null,name:`welcomeAd`,label:(l?.response)?.campaign(),audience:(l?.response)?.audience(),element:{name:g.Subscribe,label:`Learn more`,url:e.content?.subscriptionURI}}},p={event:`moduleInteraction`,eventData:{pagetype:c,trigger:`module`,type:`click`},module:{et_synced:a?.syncedAt??null,name:`welcomeAd`,label:(l?.response)?.campaign(),audience:(l?.response)?.audience(),element:{name:g.Close,label:`Close`}}},m=()=>{var t;n.trackEvent(u),(t=window==null?void 0:window.open(e.content?.subscriptionURI,`_blank`))==null||t.focus()},h=()=>{n.trackEvent(p)},_=7e3;if(typeof window<`u`){let e=new URLSearchParams((window==null?void 0:window.location)?.search);e.has(`welcome_ad_timeout`)&&(_=Number(e.get(`welcome_ad_timeout`)||_))}return O.createElement(F,{windowTimeout:_,onClose:h,modalClassName:le},O.createElement(`div`,{className:ue},O.createElement(Ie,null,O.createElement(`div`,{className:fe},O.createElement(`div`,{className:pe},O.createElement(`img`,{className:me,src:`${t}/the-new-york-times.svg`,alt:`The New York Times`})),O.createElement(`div`,{className:he},O.createElement(`div`,{className:ge},O.createElement(`div`,{className:_e},O.createElement(`div`,{className:ve},O.createElement(`img`,{className:ye,src:`${t}/the-new-york-times.svg`,alt:`The New York Times`})),O.createElement(`div`,{className:be},`Gain unlimited access to all of The Times.`),O.createElement(`div`,{className:xe},O.createElement(`div`,{className:Se},`WELCOME OFFER`,O.createElement(`br`,null),O.createElement(D,{oldPriceClassname:Te,oldPrice:e.content?.bauPrice,currentPriceClassname:A,currentPrice:`${e.content?.price} ${e.content?.frequencyRow1}`}),e.content?.frequencyRow2&&O.createElement(`div`,{className:i(A,Oe)},e.content?.frequencyRow2)),O.createElement(`div`,{className:De},e.content?.bauPrice,` a week thereafter. Cancel anytime.`),O.createElement(S,{testId:`welcome-ad-cta`,className:Ce,onClick:m},`Learn more`)))))))))}var Re=t({WelcomeAdLayoutContent:()=>He,modalClass:()=>Be,welcomeAdLayout:()=>Ve,welcomeAdLayoutContainer:()=>Ge,welcomeAdLayoutContentInner:()=>Ue,welcomeAdLayoutDetails:()=>Ye,welcomeAdLayoutInnerContainer:()=>Ke,welcomeAdLayoutLogo:()=>Je,welcomeAdLayoutLogoContainer:()=>qe,welcomeAdLayoutText:()=>We});a();var ze=440,Be=o`
+  outline: none;
+  position: relative;
+  top: 20px;
+  margin: 0 auto;
+  color: ${C.color.white};
+  width: 335px;
+  min-height: ${ze}px;
+  height: ${ze}px;
+  @media (min-height: 520px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,Ve=o`
+  padding: 0;
+  box-sizing: border-box;
+  max-width: 800px;
+  position: relative;
+  background-color: ${x.welcomeAdBanditBackground};
+  overflow-y: auto;
+  height: 100%;
+`,He=c.div`
+  height: 540px;
+  justify-content: center;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  @media (min-height: 400px) {
+    height: 100%;
+  }
+`,Ue=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`,We=o`
+  height: 100%;
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,Ge=o`
+  padding: 0px 20px 0px;
+  height: 100%;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 40px;
+`,Ke=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  width: 100%;
+  text-align: left;
+`,qe=o`
+  display: block;
+`,Je=o`
+  width: 135px;
+  display: block;
+  margin: 0 auto;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+`,Ye=o`
+  color: #000000;
+  word-wrap: normal;
+
+  max-width: 263px;
+  margin-top: 24px;
+  margin-bottom: 0px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: nyt-cheltenham;
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 128%;
+  text-align: center;
+`,I;(function(e){e.Version01=`Version01`,e.Version02=`Version02`,e.Version03=`Version03`,e.Version04=`Version04`,e.Version06=`Version06`})(I||={}),a();var Xe=o`
+  font-size: 12px;
+  margin-top: 16px;
+  text-align: center;
+  display: block;
+  max-width: 767px;
+  height: 100%;
+`,Ze=c.div`
+  background-image: ${e=>`url(${e.theme.assetUrl}/devices.png)`};
+  background-size: 250px;
+  background-repeat: no-repeat;
+  background-position-y: -2px;
+  background-position-x: center;
+  height: 90px;
+`,Qe=o`
+  padding-bottom: 8px;
+  text-transform: uppercase;
+  font-weight: ${y.semiBold};
+  font-family: ${v.franklin};
+  line-height: 14.4px;
+  font-size: 12px;
+`,$e=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.footerGrey};
+  font-size: 12px;
+  line-height: 130%;
+  margin-bottom: 16px;
+`,et=o`
+  ${$e}
+  margin-top: 8px;
+  margin-bottom: 24px;
+`,tt=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.whiteDarkContentPrimary};
+  background-color: ${x.black};
+  font-size: 14px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 94px;
+  height: 32px;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  text-decoration: none;
+  text-align: center;
+`;o`
+  width: 150px;
+  height: 44px;
+  font-size: 16px;
+`;var L={salePillContainer:o`
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  `,bottomMargin:o`
+    margin-bottom: 8px;
+  `,pill:o`
+    border-color: ${x.saleRed};
+    color: ${x.saleRed};
+    font-family: ${v.franklin};
+    font-weight: ${y.bold};
+    line-height: 14.3px;
+    font-size: 11px;
+    max-width: unset;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3px 9px 1px 9px;
+  `,welcomeAdButtonBig:o`
+    width: 160px;
+    height: 44px;
+    font-size: 16px;
+  `,welcomeAdButtonWrapper:o`
+    margin-bottom: 45px;
+  `};a();var nt=o`
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 120%;
+  color: #121212;
+  margin: auto;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: block;
+`,rt=o`
+  color: #a3a3a3;
+`;a();function it({offer:e}){return O.createElement(`div`,{className:i(nt)},e.frequencyRow1,` `,O.createElement(`del`,{className:rt,"aria-label":`Normal offer: six months`},e.offerStrike),` `,e.frequencyRow2)}var at=_(it);a();var ot=o`
+  color: ${x.grayLightContentContentPlaceholder};
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 20px;
+  line-height: 120%;
+`,st=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 20px;
+  line-height: 120%;
+  text-align: center;
+  margin-top: 8px;
+`,ct=o`
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 120%;
+  color: #121212;
+  margin: auto;
+  margin-top: 0;
+  margin-bottom: 8px;
+  display: block;
+`,lt=o`
+  margin-top: 0;
+`;a();function ut({offer:e}){return O.createElement(`div`,{className:ct},O.createElement(D,{oldPriceClassname:ot,oldPrice:e.fullPrice,currentPriceClassname:st,currentPrice:`${e.promoPrice} ${e.frequencyRow1}`}),e.frequencyRow2&&O.createElement(`div`,{className:i(st,lt)},e.frequencyRow2))}var dt=_(ut);a();var ft=o`
+  cursor: pointer;
+  appearance: none;
+  border: none;
+  padding: 0;
+`;function R({className:e,children:t,onCtaClick:n}){return O.createElement(S,{testId:`welcome-ad-cta`,className:i(ft,e),onClick:n??void 0},t)}a();function pt({offer:e,isSale:t,onCtaClick:n}){return O.createElement(`div`,{className:Xe},t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:i(L.salePillContainer,L.bottomMargin)},O.createElement(T,{classNamePillSpan:L.pill,text:O.createElement(E,null),noMaxWidth:!0,isInlaid:!1})),O.createElement(at,{offer:e})),!t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:Qe},e.kicker),O.createElement(dt,{offer:e})),O.createElement(`div`,{className:$e},e.billedAsRow1&&O.createElement(`div`,null,e.billedAsRow1),e.billedAsRow2&&O.createElement(`div`,null,e.billedAsRow2)),O.createElement(`div`,{className:i(!e.cancelText&&L.welcomeAdButtonWrapper)},O.createElement(R,{onCtaClick:n??null,className:i(tt,!e.cancelText&&L.welcomeAdButtonBig)},e.buttonText)),e.cancelText&&O.createElement(`div`,{className:et},e.cancelText),O.createElement(Ze,null))}var mt=_(pt);a();var ht=o`
+  font-size: 12px;
+  margin-top: 16px;
+  text-align: center;
+  display: block;
+  max-width: 767px;
+  height: 100%;
+`,gt=c.div`
+  background-image: ${e=>`url(${e.theme.assetUrl}/welcomead_bandit_25Q4_download_device_animation.gif)`};
+  background-size: 176px;
+  background-repeat: no-repeat;
+  background-position-y: 0;
+  background-position-x: center;
+  height: 246px;
+  border: solid 3.6px;
+  border-color: ${x.welcomeAdBanditAnimationBorder};
+  border-bottom: unset;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  width: 176px;
+  max-width: 176px;
+  box-sizing: border-box;
+  margin: auto;
+`,_t=o`
+  text-transform: uppercase;
+  font-family: ${v.franklin};
+  font-size: 11px;
+  letter-spacing: 1.1px;
+  line-height: 125%;
+  font-weight: ${y.extraBold};
+  padding-top: 8px;
+  padding-bottom: 0;
+`,vt=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.footerGrey};
+  font-size: 12px;
+  line-height: 130%;
+  margin-bottom: 16px;
+`,yt=o`
+  ${vt}
+  margin-top: 12px;
+  font-size: 14px;
+  margin-bottom: 24px;
+`,bt=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.whiteDarkContentPrimary};
+  background-color: ${x.black};
+  font-size: 16px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  text-decoration: none;
+  text-align: center;
+  width: 150px;
+  height: 44px;
+`,z={salePillContainer:o`
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  `,bottomMargin:o`
+    margin-bottom: 8px;
+  `,pill:o`
+    border-color: ${x.saleRed};
+    color: ${x.saleRed};
+    font-family: ${v.franklin};
+    font-weight: ${y.bold};
+    font-size: 11px;
+    line-height: 14.3px;
+    max-width: unset;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3px 9px 3px 9px;
+  `};a();var xt=o`
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 120%;
+  color: #121212;
+  margin: auto;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  display: block;
+`,St=o`
+  color: #a3a3a3;
+`;a();function Ct({offer:e}){return e.offerStrike===e.fullPrice?O.createElement(`div`,{className:i(xt)},O.createElement(D,{oldPriceClassname:St,oldPrice:e.fullPrice,currentPrice:e.frequencyRow2??``})):O.createElement(`div`,{className:i(xt)},e.frequencyRow1,` `,O.createElement(`del`,{className:St,"aria-label":`Normal offer: six months`},e.offerStrike),` `,e.frequencyRow2)}var wt=_(Ct);a();var Tt=o`
+  color: ${x.grayLightContentContentPlaceholder};
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 28px;
+  line-height: 120%;
+`,B=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 28px;
+  line-height: 120%;
+  text-align: center;
+  margin-top: 8px;
+`,Et=o`
+  font-weight: 500;
+  font-size: 28px;
+  font-style: normal;
+  line-height: 120%;
+  color: #121212;
+  margin: auto;
+  display: block;
+`,Dt=o`
+  margin-top: 0;
+`;a();function Ot({offer:e}){return e.offerStrike?O.createElement(`div`,{className:i(Et)},O.createElement(D,{oldPriceClassname:i(Tt),oldPrice:e.fullPrice,currentPriceClassname:i(B),currentPrice:e.frequencyRow2??``})):O.createElement(`div`,{className:i(Et)},O.createElement(D,{oldPriceClassname:i(Tt),oldPrice:e.fullPrice,currentPriceClassname:i(B),currentPrice:`${e.promoPrice}${e.frequencyRow1}`}),e.frequencyRow2&&O.createElement(`div`,{className:i(B,Dt)},e.frequencyRow2))}var kt=_(Ot);a();function At({offer:e,isSale:t,onCtaClick:n}){return O.createElement(`div`,{className:ht},t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:i(z.salePillContainer,z.bottomMargin)},O.createElement(T,{classNamePillSpan:z.pill,text:O.createElement(E,null),noMaxWidth:!0,isInlaid:!1})),O.createElement(wt,{offer:e})),!t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:_t},e.kicker),O.createElement(kt,{offer:e})),O.createElement(`div`,{className:vt},e.billedAsRow1&&O.createElement(`div`,null,e.billedAsRow1),e.billedAsRow2&&O.createElement(`div`,null,e.billedAsRow2)),O.createElement(`div`,null,O.createElement(R,{onCtaClick:n??null,className:bt},e.buttonText)),O.createElement(`div`,{className:yt},e.cancelText),O.createElement(gt,null))}var jt=_(At);a();var Mt=o`
+  font-size: 12px;
+  margin-top: 14px;
+  text-align: center;
+  display: block;
+  max-width: 767px;
+  height: 100%;
+`,Nt=o`
+  text-transform: uppercase;
+  font-family: ${v.franklin};
+  font-size: 11px;
+  letter-spacing: 1.1px;
+  line-height: 125%;
+  font-weight: ${y.extraBold};
+`,Pt=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.footerGrey};
+  font-size: 12px;
+  line-height: 130%;
+  margin-bottom: 16px;
+`,Ft=o`
+  ${Pt}
+  font-size: 14px;
+  margin-top: 12px;
+  margin-bottom: 48px;
+`,It=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.whiteDarkContentPrimary};
+  background-color: ${x.black};
+  font-size: 16px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  text-decoration: none;
+  text-align: center;
+  width: 150px;
+  height: 44px;
+`,Lt={salePillContainer:o`
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  `,bottomMargin:o`
+    margin-bottom: 8px;
+  `,pill:o`
+    border-color: ${x.saleRed};
+    color: ${x.saleRed};
+    font-family: ${v.franklin};
+    font-weight: ${y.bold};
+    font-size: 11px;
+    max-width: unset;
+    display: flex;
+    justify-content: center;
+    padding: 4px 9px 2px 9px;
+  `};a();var Rt=o`
+  font-family: ${v.cheltenham};
+  font-weight: ${y.light};
+  font-size: 28px;
+  font-style: normal;
+  line-height: 115%;
+  color: #121212;
+  margin: 12px auto 16px;
+  display: block;
+`,zt=o`
+  white-space: nowrap;
+`,Bt=o`
+  color: #a3a3a3;
+`;a();function Vt({offer:e}){let t=`for ${e.promoPrice}/week`,[n,r]=e.frequencyRow1.split(t),a=r!==void 0,o=e.offerStrike?.includes(` `)?i(Bt,zt):Bt;return O.createElement(`div`,{className:i(Rt)},O.createElement(`div`,null,a?O.createElement(O.Fragment,null,n,O.createElement(`span`,{className:zt},t),r):e.frequencyRow1),O.createElement(`div`,null,O.createElement(`del`,{className:o,"aria-label":`Normal offer: six months`},e.offerStrike),` `,e.frequencyRow2))}var Ht=_(Vt);a();var Ut=o`
+  font-family: ${v.cheltenham};
+  font-weight: ${y.extraLight};
+  font-size: 32px;
+  font-style: normal;
+  line-height: 115%;
+  color: #121212;
+  margin: 12px auto 16px;
+  display: block;
+`,Wt=o`
+  margin-top: 0;
+`,Gt=o`
+  color: #a3a3a3;
+`;a();function Kt({offer:e}){return O.createElement(`div`,{className:i(Ut)},O.createElement(`div`,null,e.frequencyRow1),e.frequencyRow2&&O.createElement(`div`,{className:i(Wt)},e.offerStrike&&O.createElement(O.Fragment,null,`for`,` `,O.createElement(`del`,{className:Gt,"aria-label":`Normal price: ${e.offerStrike}`},e.offerStrike),` `),e.frequencyRow2))}var qt=_(Kt);a();function Jt({offer:e,isSale:t,onCtaClick:n}){return O.createElement(`div`,{className:Mt},t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:i(Lt.salePillContainer,Lt.bottomMargin)},O.createElement(T,{classNamePillSpan:Lt.pill,text:O.createElement(E,null),noMaxWidth:!0,isInlaid:!1})),O.createElement(Ht,{offer:e})),!t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:Nt},e.kicker),O.createElement(qt,{offer:e})),O.createElement(`div`,{className:Pt},e.billedAsRow1&&O.createElement(`div`,null,e.billedAsRow1),e.billedAsRow2&&O.createElement(`div`,null,e.billedAsRow2)),O.createElement(`div`,null,O.createElement(R,{onCtaClick:n??null,className:It},e.buttonText)),O.createElement(`div`,{className:Ft},e.cancelText))}var Yt=_(Jt);a();var Xt=o`
+  font-size: 12px;
+  margin-top: 16px;
+  text-align: center;
+  display: block;
+  max-width: 767px;
+  height: 100%;
+`,Zt=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.footerGrey};
+  font-size: 12px;
+  line-height: 130%;
+  margin-bottom: 16px;
+`,Qt=o`
+  ${Zt}
+  margin-top: 12px;
+  font-size: 14px;
+  margin-bottom: 0;
+`,$t=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.whiteDarkContentPrimary};
+  background-color: ${x.black};
+  font-size: 16px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  text-decoration: none;
+  text-align: center;
+  width: 150px;
+  height: 44px;
+`,en={salePillContainer:o`
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  `,bottomMargin:o`
+    margin-bottom: 8px;
+  `,pill:o`
+    border-color: ${x.saleRed};
+    color: ${x.saleRed};
+    font-family: ${v.franklin};
+    font-weight: ${y.bold};
+    font-size: 11px;
+    max-width: unset;
+    display: flex;
+    justify-content: center;
+    padding: 3px 9px 1px 9px;
+  `};a();function tn({offer:e,isSale:t,onCtaClick:n}){return O.createElement(`div`,{className:Xt},t&&O.createElement(O.Fragment,null,O.createElement(`div`,{className:i(en.salePillContainer,en.bottomMargin)},O.createElement(T,{classNamePillSpan:en.pill,text:O.createElement(E,null),noMaxWidth:!0,isInlaid:!1})),O.createElement(wt,{offer:e})),!t&&O.createElement(kt,{offer:e}),O.createElement(`div`,{className:Zt},e.billedAsRow1&&O.createElement(`div`,null,e.billedAsRow1),e.billedAsRow2&&O.createElement(`div`,null,e.billedAsRow2)),O.createElement(`div`,null,O.createElement(R,{onCtaClick:n??null,className:$t},e.buttonText)),O.createElement(`div`,{className:Qt},e.cancelText))}var nn=_(tn),rn={[I.Version01]:mt,[I.Version02]:jt,[I.Version03]:Yt,[I.Version04]:nn};function an({unit:e,banditVersion:t,onCtaClick:n}){let{isSale:r}=e.content||{},i=e.content?.[`offer${t}`],a=rn[t];return!i||!a?null:O.createElement(a,{offer:i,isSale:r,onCtaClick:n})}var V=_(an),on=`Welcome Offer`,sn=`Cancel anytime.`,cn=`Learn more`,H=`Get started`,ln=e=>({kicker:on,promoPrice:e.totalDueWeeklyShort,monthlyPromoPrice:e.totalDueShort,fullPrice:e.fullPriceWeeklyShortNoCountryAbbreviation,monthlyFullPrice:e.fullPriceShort}),un={buttonText:cn,cancelText:sn},U=(e,t=!1)=>{let n=ln(e);return t===!0?{...n,offerStrike:`six months`,frequencyRow1:`${e.totalDueWeeklyShort}/week for your first`,frequencyRow2:`year.`,billedAsRow1:`Billed as ${e.totalDueShort} every four weeks for your first year,`,billedAsRow2:`then ${e.fullPriceShort} thereafter.`,...un}:{...n,frequencyRow1:`/week`,frequencyRow2:``,billedAsRow1:`Billed as ${e.totalDueShort} every four weeks for your first`,billedAsRow2:`six months, then ${e.fullPriceShort} thereafter.`,...un}},dn=(e,t=!1)=>{let n=U(e,t);return t===!0?{...n,cancelText:void 0}:{...n,frequencyRow1:`a week`,frequencyRow2:`for your first 6 months.`}},fn=(e,t=!1)=>{let n=U(e,t);return t?{...n,offerStrike:`six months`,frequencyRow1:`Enjoy all of The Times for ${e.totalDueWeeklyShort}/week for your first`,buttonText:H}:{...n,frequencyRow1:`Enjoy all of The Times`,frequencyRow2:`for ${e.totalDueWeeklyShort}/week.`,buttonText:H}},pn=e=>({kicker:on,promoPrice:e.totalDueAnnualShort,monthlyPromoPrice:e.totalDueAnnualShort,fullPrice:e.fullPriceAnnualShortNoCountryAbbreviation,monthlyFullPrice:e.fullPriceAnnualShort,offerStrike:e.fullPriceAnnualShortNoCountryAbbreviation,frequencyRow1:`Enjoy all of The Times`,frequencyRow2:`${e.totalDueAnnualShort}/year`,billedAsRow1:`Billed as ${e.totalDueAnnualShort} once for your first year,`,billedAsRow2:`then ${e.fullPriceAnnualShort} thereafter.`,buttonText:H,cancelText:sn}),mn=(e,t)=>({offerVersion01:dn(e,t),offerVersion02:U(e,t),offerVersion03:fn(e,t),offerVersion04:U(e,t),isSale:t}),hn=e=>({isSale:e}),W=({fields:e,isSale:t=!1})=>{let n=e?.offer.allAccessAcquisitionAnnual,r=t?e?.offer.allAccessSaleAcquisitionMonthly:e?.offer.allAccessAcquisitionMonthly;if(!n||!r)return hn(t);let i=pn(n);return{...mn(r,t),offerVersion02:{...t?{...i,frequencyRow2:`${i.promoPrice} for your first year.`}:i,buttonText:cn},offerVersion03:i}},G=({fields:e,isSale:t=!1})=>{let n=t?e?.offer.allAccessSaleAcquisitionMonthly:e.getPresentation({program:`Acquisition`,initiative:`AllAccessMonthly`});return n?mn(n,t):hn(t)},gn=e=>{let t=e.content?.AllAccessPromotionActive;if(t===void 0)return;let n=t===!0;return e.content?.isInternationalAnnualLeading===!0?W({fields:e,isSale:n}):G({fields:e,isSale:n})},_n={name:`WelcomeAdOfferSection`,enableOfferEligibility:!0,onlyTrackWhenVisible:!0,tracking:{eventData:{pagetype:m.Landing}},campaigns:{CONV_WELCOME_AD_BANDIT_258:{audiences:{allAccessAcquisitionMonthly:{component:V,content:e=>G({fields:e})},allAccessSaleAcquisitionMonthly:{component:V,content:e=>G({fields:e,isSale:!0})}}},CONV_INTL_WELCOMEAD_ANNUAL_LEADING:{audiences:{allAccessAcquisitionAnnual:{component:V,content:e=>W({fields:e})},allAccessSaleAcquisitionAnnual:{component:V,content:e=>W({fields:e,isSale:!0})}}}},fallback:null};function vn(e){let{banditVersion:t,onCtaClick:n}=e,{unit:r}=h(_n);return r?.canShow&&r?.component?O.createElement(`div`,{ref:r?.setRef,"data-testid":`onsite-messaging-unit-${_n?.name}`,"data-campaign":r?.campaign,"data-audience":r?.audience},O.createElement(r.component,{unit:r,banditVersion:t,onCtaClick:n})):null}var yn=_(vn);function K({unit:e,banditVersion:t,onCtaClick:n}){let r=e?.content?.offerSection;if(!r)return O.createElement(yn,{banditVersion:t,onCtaClick:n});let i={content:r};return O.createElement(V,{unit:i,banditVersion:t,onCtaClick:n})}a();var bn=o`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: ${C.zIndex.modal};
+`;function q({unit:e,children:t,modalClassName:n,layoutClassName:r,closeClassName:i,clickUrl:a,trackingAction:o,trackingLabel:s,windowTimeout:c=7e3}){let l=(0,ae.useTracking)(),{selection:u}=d(),p=ee(),{messageCap:m}=re({unit:`welcomeAd`,level:ie.Message}),h=p===`/`?`homepage`:`article`,_=f({config:{name:`welcomeAd`}});(0,O.useEffect)(()=>{e.canShow&&m.increment()},[e,m]);let v=(_?.response)?.campaign(),y=(_?.response)?.audience(),b={event:`moduleInteraction`,eventData:{pagetype:h,trigger:`module`,type:`click`},module:{et_synced:u?.syncedAt??null,name:`welcomeAd`,label:v,audience:y,element:{name:g.Close,label:`Close`}}},x=(0,O.useCallback)(()=>{var t;l.trackEvent({event:`moduleInteraction`,eventData:{pagetype:h,trigger:`module`,type:`click`},module:{et_synced:u?.syncedAt??null,name:`welcomeAd`,label:v,audience:y,element:{name:o||g.Subscribe,label:s||`Learn more`,url:a||e.content?.subscriptionURI}}}),(t=window==null?void 0:window.open(a||e.content?.subscriptionURI,`_blank`))==null||t.focus()},[l,h,u?.syncedAt,v,y,o,s,a,e.content?.subscriptionURI]),S=()=>{l.trackEvent(b)},C=c;if(typeof window<`u`){let e=new URLSearchParams((window==null?void 0:window.location)?.search);e.has(`welcome_ad_timeout`)&&(C=Number(e.get(`welcome_ad_timeout`)||C))}let w=!!(a||e.content?.subscriptionURI);return O.createElement(F,{windowTimeout:C,onClose:S,modalClassName:n,closeClassName:i,overlayClassName:bn},O.createElement(`div`,{className:r},t(w?x:null)))}a();var{WelcomeAdLayoutContent:xn}=Re;function Sn({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:Be,layoutClassName:Ve},n=>O.createElement(xn,null,O.createElement(`div`,{className:Ue},O.createElement(`div`,{className:We},O.createElement(`div`,{className:Ge},O.createElement(`div`,{className:Ke},O.createElement(`div`,{className:qe},O.createElement(`img`,{className:Je,src:`${t}/the-new-york-times.svg`,alt:`The New York Times`})),O.createElement(`div`,{className:Ye},`Gain unlimited access to all of The Times.`),O.createElement(K,{unit:e,banditVersion:I.Version01,onCtaClick:n})))))))}var Cn=t({WelcomeAdLayoutContent:()=>kn,closeClass:()=>Dn,modalClass:()=>En,welcomeAdLayout:()=>On,welcomeAdLayoutContainer:()=>Mn,welcomeAdLayoutContentInner:()=>An,welcomeAdLayoutDetails:()=>Pn,welcomeAdLayoutInnerContainer:()=>Nn,welcomeAdLayoutText:()=>jn});a();var wn=335,Tn=500,En=o`
+  outline: none;
+  position: relative;
+  top: 0;
+  margin: 0 auto;
+  width: ${wn}px;
+  min-height: ${Tn}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+  min-width: 335px;
+  overflow-y: auto;
+  height: 100%;
+  @media (min-height: 600px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,Dn=o`
+  background-color: unset;
+  background-clip: padding-box;
+  border: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  transition: background-color 0.2s ease-in;
+  vertical-align: middle;
+  top: 8px;
+  height: 32px;
+  right: 12px;
+  width: 26px;
+  z-index: ${C.zIndex.modal};
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${C.color.black};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 16px;
+    width: 16px;
+  }
+`,On=o`
+  padding: 0;
+  box-sizing: border-box;
+  min-height: ${Tn}px;
+  max-height: 730px;
+  max-width: 800px;
+  position: relative;
+  background-color: ${x.welcomeAdBanditBackground};
+`,kn=c.div`
+  height: 700px;
+  justify-content: center;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  @media (min-height: 400px) {
+    height: 100%;
+  }
+`,An=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`,jn=o`
+  height: 100%;
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,Mn=o`
+  padding: 0px 20px 0px;
+  height: 100%;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 32px;
+`,Nn=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  align-content: center;
+  width: 100%;
+  justify-content: center;
+`,Pn=o`
+  color: #000000;
+  word-wrap: normal;
+  width: 100%;
+  margin-bottom: 0px;
+  font-family: nyt-cheltenham;
+  font-size: 32px;
+  font-weight: 200;
+  line-height: 115%;
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  margin-left: auto;
+  margin-right: auto;
+`,{WelcomeAdLayoutContent:Fn}=Cn;function In({unit:e}){return O.createElement(q,{unit:e,modalClassName:En,layoutClassName:On,closeClassName:Dn},t=>O.createElement(Fn,null,O.createElement(`div`,{className:An},O.createElement(`div`,{className:jn},O.createElement(`div`,{className:Mn},O.createElement(`div`,{className:Nn},O.createElement(`div`,{className:Pn},`Gain unlimited access to all of The Times.`),O.createElement(K,{unit:e,banditVersion:I.Version02,onCtaClick:t})))))))}var Ln=t({WelcomeAdLayoutContent:()=>Hn,closeClass:()=>Bn,lottiePlayer:()=>Yn,modalClass:()=>zn,welcomeAdLayout:()=>Vn,welcomeAdLayoutContainer:()=>Gn,welcomeAdLayoutContentInner:()=>Un,welcomeAdLayoutInnerContainer:()=>Jn,welcomeAdLayoutLogo:()=>qn,welcomeAdLayoutLogoContainer:()=>Kn,welcomeAdLayoutText:()=>Wn});a();var Rn=335,J=400,zn=o`
+  outline: none;
+  position: relative;
+  top: 0;
+  margin: 0 auto;
+  width: ${Rn}px;
+  min-height: ${J}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+  min-width: 335px;
+  overflow-y: auto;
+  height: 100%;
+  @media (min-height: ${J}px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,Bn=o`
+  background-color: unset;
+  background-clip: padding-box;
+  border: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  transition: background-color 0.2s ease-in;
+  vertical-align: middle;
+  top: 8px;
+  height: 32px;
+  right: 12px;
+  width: 26px;
+  z-index: ${C.zIndex.modal};
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${C.color.black};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 16px;
+    width: 16px;
+  }
+`,Vn=o`
+  padding: 0;
+  box-sizing: border-box;
+  min-height: ${J}px;
+  max-height: 730px;
+  max-width: 800px;
+  position: relative;
+  background-color: ${x.welcomeAdBanditBackground};
+`,Hn=c.div`
+  height: 100%;
+  justify-content: center;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+`,Un=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`,Wn=o`
+  height: 100%;
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,Gn=o`
+  padding: 0px 20px 0px;
+  height: 100%;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+`,Kn=o`
+  margin: auto;
+  margin-top: 48px;
+  margin-bottom: 10px;
+  display: block;
+  width: 232px;
+  height: 53px;
+`,qn=o`
+  width: 100%;
+  display: block;
+  margin: 0 auto;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+`,Jn=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  align-content: center;
+  width: 100%;
+  justify-content: center;
+`,Yn=o`
+  width: 100%;
+`;a();var{WelcomeAdLayoutContent:Xn}=Ln;function Zn({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:zn,layoutClassName:Vn,closeClassName:Bn,trackingLabel:`Get started`},n=>O.createElement(Xn,null,O.createElement(`div`,{className:Un},O.createElement(`div`,{className:Wn},O.createElement(`div`,{className:Kn},O.createElement(ne,{className:Yn,loop:!0,autoplay:!0,src:`${t}/welcomead_bandit_25Q4_icons.json`})),O.createElement(`div`,{className:Gn},O.createElement(`div`,{className:Jn},O.createElement(K,{unit:e,banditVersion:I.Version03,onCtaClick:n})))))))}var Qn=t({WelcomeAdLayoutContent:()=>nr,closeClass:()=>er,kicker:()=>lr,modalClass:()=>$n,welcomeAdLayout:()=>tr,welcomeAdLayoutContainer:()=>ar,welcomeAdLayoutContentInner:()=>rr,welcomeAdLayoutDetails:()=>ur,welcomeAdLayoutInnerContainer:()=>cr,welcomeAdLayoutLogo:()=>sr,welcomeAdLayoutLogoContainer:()=>or,welcomeAdLayoutText:()=>ir});a();var $n=o`
+  outline: none;
+  position: relative;
+  top: 48px;
+  width: 100%;
+  height: calc(100vh - 48px);
+  min-width: 335px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: calc(100vh - 48px);
+  overflow-y: auto;
+  color: ${C.color.white};
+  background-color: ${x.welcomeAdBanditBackground};
+  margin: 0 auto;
+  box-sizing: border-box;
+`,er=o`
+  background-color: unset;
+  background-clip: padding-box;
+  border: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  transition: background-color 0.2s ease-in;
+  vertical-align: middle;
+  top: 8px;
+  height: 30px;
+  right: 10px;
+  width: 26px;
+  z-index: ${C.zIndex.modal};
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${C.color.black};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 16px;
+    width: 16px;
+  }
+`,tr=o`
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: ${x.welcomeAdBanditBackground};
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  overflow-y: auto;
+`,nr=c.div`
+  clear: both;
+  width: 100%;
+  max-width: 335px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 100%;
+  @media (min-height: 675px) {
+    justify-content: center;
+  }
+`,rr=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  justify-content: flex-start;
+  align-items: center;
+  padding-bottom: 64px;
+  margin-top: 35px;
+
+  @media (min-height: 675px) {
+    padding-bottom: 0;
+    margin-top: 0;
+  }
+`,ir=o`
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,ar=o`
+  padding: 0px 20px 0px;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+`,or=o`
+  margin-bottom: 20px;
+  display: block;
+`,sr=o`
+  width: 246px;
+  display: block;
+  margin: 0 auto;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+`,cr=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  align-content: center;
+  width: 100%;
+  justify-content: center;
+`,lr=o`
+  text-transform: uppercase;
+  font-family: ${v.franklin};
+  font-size: 11px;
+  letter-spacing: 1.1px;
+  line-height: 125%;
+  font-weight: ${y.extraBold};
+  padding-top: 8px;
+  padding-bottom: 4px;
+  text-align: center;
+`,ur=o`
+  color: #000000;
+  word-wrap: normal;
+  width: 100%;
+  font-family: nyt-cheltenham;
+  font-size: 32px;
+  font-weight: 200;
+  line-height: 115%;
+  text-align: center;
+  margin-top: 8px;
+  margin-left: auto;
+  margin-right: auto;
+`;a();var{WelcomeAdLayoutContent:dr}=Qn;function fr({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:$n,layoutClassName:tr,closeClassName:er},n=>O.createElement(dr,null,O.createElement(`div`,{className:rr},O.createElement(`div`,{className:ir},O.createElement(`div`,{className:or},O.createElement(`img`,{className:sr,src:`${t}/welcomead_bandit_25Q4_download_trio_large.png`,alt:`The New York Times`})),O.createElement(`div`,{className:ar},O.createElement(`div`,{className:cr},O.createElement(`div`,{className:lr},`Welcome To The New York Times`),O.createElement(`div`,{className:ur},`Enjoy unlimited access with our welcome offer.`),O.createElement(K,{unit:e,banditVersion:I.Version04,onCtaClick:n})))))))}var pr=t({WelcomeAdLayoutContent:()=>vr,closeClass:()=>gr,lottiePlayer:()=>Sr,lottiePlayerContainer:()=>xr,modalClass:()=>hr,welcomeAdButton:()=>br,welcomeAdLayout:()=>_r,welcomeAdLayoutDetails:()=>yr});a();var mr=335,Y=432,hr=o`
+  outline: none;
+  position: relative;
+  top: 0;
+  margin: 0 auto;
+  width: ${mr}px;
+  min-height: ${Y}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+  min-width: 335px;
+  overflow-y: auto;
+  height: 100%;
+  @media (min-height: ${Y}px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,gr=o`
+  background-color: unset;
+  background-clip: padding-box;
+  border: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  transition: background-color 0.2s ease-in;
+  vertical-align: middle;
+  top: 8px;
+  height: 32px;
+  right: 12px;
+  width: 26px;
+  z-index: ${C.zIndex.modal};
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${x.whiteDarkContentPrimary};
+    color: ${x.whiteDarkContentPrimary};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 16px;
+    width: 16px;
+  }
+`,_r=o`
+  padding: 0;
+  box-sizing: border-box;
+  min-height: ${Y}px;
+  max-height: 730px;
+  max-width: 800px;
+  position: relative;
+  background-color: ${x.blackDarkBackgroundPrimary};
+  color: ${x.whiteDarkContentPrimary};
+`,vr=c.div`
+  height: 384px;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  align-content: center;
+  align-items: normal;
+  justify-content: normal;
+  width: 100%;
+  padding-top: 48px;
+`,yr=o`
+  word-wrap: normal;
+  font-family: ${v.cheltenham};
+  color: ${x.whiteDarkContentPrimary};
+  font-size: 32px;
+  font-weight: 200;
+  line-height: 115%;
+  text-align: center;
+  padding-left: 20px;
+  padding-right: 20px;
+  margin: 0 auto;
+`,br=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.blackDarkBackgroundPrimary};
+  background-color: ${x.whiteDarkContentPrimary};
+  font-size: 16px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 24px auto 40px;
+  text-decoration: none;
+  text-align: center;
+  width: 157px;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+`,xr=o`
+  margin: auto;
+  width: 178px;
+  box-sizing: border-box;
+`,Sr=o`
+  height: 200px;
+  border: solid 3.6px;
+  border-color: ${x.welcomeAdBanditAnimationBorder};
+  border-bottom: unset;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  width: 178px;
+  box-sizing: border-box;
+`;a();var{WelcomeAdLayoutContent:Cr}=pr;function wr({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:hr,layoutClassName:_r,closeClassName:gr},()=>O.createElement(Cr,null,O.createElement(`div`,{className:yr},`Unlock more for free. Only in the app.`),O.createElement(w,{openInAppParam:`welcome-ad`,isLoggedIn:e.content?.isLoggedIn??!1,trackInteraction:e?.trackInteraction,className:br},`Open in app`),O.createElement(`div`,{className:xr},O.createElement(ne,{className:Sr,loop:!0,autoplay:!0,src:`${t}/welcomead_bandit_25Q4_download.json`}))))}var Tr=t({AAFamily:()=>zr,WelcomeAdLayoutContent:()=>Ar,closeClass:()=>Or,modalClass:()=>Dr,welcomeAdLayout:()=>kr,welcomeAdLayoutContainer:()=>Nr,welcomeAdLayoutContentInner:()=>jr,welcomeAdLayoutDetails:()=>Lr,welcomeAdLayoutDetailsSecondary:()=>Rr,welcomeAdLayoutInnerContainer:()=>Ir,welcomeAdLayoutLogo:()=>Fr,welcomeAdLayoutLogoContainer:()=>Pr,welcomeAdLayoutText:()=>Mr});a();var Er=335,X=577,Dr=o`
+  outline: none;
+  position: relative;
+  top: 0;
+  margin: 0 auto;
+  width: ${Er}px;
+  min-height: ${X}px;
+  color: ${C.color.white};
+  max-width: ${C.breakpoint.mobileFullWidth};
+  min-width: 335px;
+  overflow-y: auto;
+  height: 100%;
+  margin-bottom: 40px;
+  @media (min-height: ${X}px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,Or=o`
+  background-color: unset;
+  background-clip: padding-box;
+  border: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: normal;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  transition: background-color 0.2s ease-in;
+  vertical-align: middle;
+  top: 8px;
+  height: 32px;
+  right: 12px;
+  width: 26px;
+  z-index: ${C.zIndex.modal};
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+
+  ::before,
+  ::after {
+    background-color: ${C.color.black};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 6px;
+    position: absolute;
+    top: 16px;
+    width: 16px;
+  }
+`,kr=o`
+  padding: 0;
+  box-sizing: border-box;
+  height: 650px;
+  position: relative;
+  background-color: ${x.welcomeAdBanditFamilyBackground};
+  @media (min-height: ${X}px) {
+    min-height: ${X}px;
+    height: ${X}px;
+  }
+`,Ar=c.div`
+  height: 100%;
+  justify-content: center;
+  clear: both;
+  display: flex;
+  flex-direction: column;
+  width: 335px;
+  margin: 0 auto;
+`,jr=o`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+`,Mr=o`
+  height: 100%;
+  margin: 0px;
+  font-size: 18px;
+  line-height: 22px;
+  display: block;
+  clear: both;
+  color: #000;
+  font-family:
+    nyt-franklin,
+    Helvetica Neue,
+    Arial,
+    sans-serif;
+  font-weight: 200;
+`,Nr=o`
+  padding: 0px 20px 0px;
+  height: 100%;
+  font-family: nyt-franklin;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+`,Pr=o`
+  margin-top: 20px;
+  margin-bottom: 20px;
+  display: block;
+`,Fr=o`
+  width: 135px;
+  display: block;
+  margin: 0 auto;
+  margin-top: 48px;
+  margin-bottom: 32px;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+`,Ir=o`
+  display: flex;
+  flex-direction: column;
+  align-items: normal;
+  align-content: center;
+  width: 100%;
+  justify-content: center;
+`,Lr=o`
+  color: #000000;
+  word-wrap: normal;
+  width: 100%;
+  font-weight: ${y.light};
+  font-family: ${v.cheltenham};
+  font-size: 32px;
+  line-height: 120%;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+`,Rr=o`
+  color: ${x.footerGrey};
+  word-wrap: normal;
+  width: 100%;
+  font-weight: ${y.medium};
+  font-family: ${v.franklin};
+  font-size: 16px;
+  line-height: 130%;
+  text-align: center;
+  margin-top: 16px;
+  margin-bottom: 32px;
+  margin-left: auto;
+  margin-right: auto;
+`,zr=c.div`
+  width: 100%;
+  height: 62px;
+  background-image: ${e=>`url('${e.theme.assetUrl}/FamilyPlanIcons.svg')`};
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: block;
+  background-color: #dddee5;
+  margin-bottom: 16px;
+`;a();var Br=o`
+  font-size: 12px;
+  margin-top: 16px;
+  text-align: center;
+  display: block;
+  max-width: 767px;
+  height: 100%;
+`;c.div`
+  background-image: ${e=>`url(${e.theme.assetUrl}/welcomead_bandit_25Q4_download_device_animation.gif)`};
+  background-size: 176px;
+  background-repeat: no-repeat;
+  background-position-y: 0;
+  background-position-x: center;
+  height: 246px;
+  border: solid 3.6px;
+  border-color: ${x.welcomeAdBanditAnimationBorder};
+  border-bottom: unset;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  width: 176px;
+  margin: auto;
+`;var Vr=o`
+  text-transform: uppercase;
+  font-family: ${v.franklin};
+  font-size: 12px;
+  letter-spacing: 1.1px;
+  line-height: 120%;
+  font-weight: ${y.semiBold};
+  padding-top: 8px;
+  padding-bottom: 0;
+`,Hr=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.footerGrey};
+  font-size: 12px;
+  line-height: 130%;
+  margin-bottom: 20px;
+`,Ur=o`
+  ${Hr}
+  margin-top: 12px;
+  font-size: 14px;
+  margin-bottom: 48px;
+`,Wr=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  color: ${x.whiteDarkContentPrimary};
+  background-color: ${x.black};
+  font-size: 16px;
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  margin-bottom: 12px;
+  text-decoration: none;
+  text-align: center;
+  width: 112px;
+  height: 44px;
+`;o`
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  `,o`
+    margin-bottom: 8px;
+  `,o`
+    border-color: ${x.saleRed};
+    color: ${x.saleRed};
+    font-family: ${v.franklin};
+    font-weight: ${y.bold};
+    font-size: 11px;
+    max-width: unset;
+    display: flex;
+    justify-content: center;
+    padding: 5px 9px 1px 9px;
+  `,a();var Gr=o`
+  color: ${x.grayLightContentContentPlaceholder};
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 28px;
+  line-height: 120%;
+`,Kr=o`
+  font-family: ${v.franklin};
+  font-weight: ${y.medium};
+  font-size: 28px;
+  line-height: 120%;
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 4px;
+`,qr=o`
+  font-weight: 500;
+  font-size: 28px;
+  font-style: normal;
+  line-height: 120%;
+  color: #121212;
+  margin: auto;
+  display: block;
+`,Jr=o`
+  margin-top: 0;
+`;a();function Yr({offer:e}){return O.createElement(`div`,{className:i(qr)},O.createElement(D,{oldPriceClassname:i(Gr),oldPrice:e.fullPrice,currentPriceClassname:i(Kr),currentPrice:`${e.promoPrice}${e.frequencyRow1}`}),e.frequencyRow2&&O.createElement(`div`,{className:i(Kr,Jr)},e.frequencyRow2))}var Xr=_(Yr);function Zr({offer:e,onCtaClick:t}){return O.createElement(`div`,{className:Br},O.createElement(`div`,{className:Vr},e.kicker),O.createElement(Xr,{offer:e}),O.createElement(`div`,{className:Hr},e.billedAsRow1&&O.createElement(`div`,null,e.billedAsRow1),e.billedAsRow2&&O.createElement(`div`,null,e.billedAsRow2)),O.createElement(`div`,null,O.createElement(R,{onCtaClick:t??null,className:Wr},e.buttonText)),O.createElement(`div`,{className:Ur},e.cancelText))}var Qr=_(Zr);a();var{WelcomeAdLayoutContent:$r}=Tr;function ei({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:Dr,layoutClassName:kr,closeClassName:Or},n=>O.createElement($r,null,O.createElement(`div`,{className:jr},O.createElement(`div`,{className:Mr},O.createElement(`div`,{className:Pr},O.createElement(`img`,{className:Fr,src:`${t}/the-new-york-times.svg`,alt:`The New York Times`})),O.createElement(`div`,{className:Nr},O.createElement(`div`,{className:Ir},O.createElement(`div`,{className:Lr},`Save with a `,O.createElement(`br`,null),` family subscription.`),O.createElement(`div`,{className:Rr},`One rate. Four individual logins.`),O.createElement(zr,null),O.createElement(Qr,{offer:e.content.offer,onCtaClick:n})))))))}a();var ti=335,Z=478,ni=o`
+  outline: none;
+  position: relative;
+  top: 0;
+  margin: 0 auto;
+  width: ${ti}px;
+  min-width: ${ti}px;
+  min-height: ${Z}px;
+  max-width: ${C.breakpoint.mobileFullWidth};
+  height: 100%;
+  overflow-y: auto;
+
+  @media (min-height: ${Z}px) {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    height: auto;
+    overflow-y: visible;
+  }
+`,ri=o`
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  width: 32px;
+  z-index: ${C.zIndex.modal};
+
+  ::before,
+  ::after {
+    background-color: ${x.whiteDarkContentPrimary};
+    content: '';
+    display: block;
+    height: 2px;
+    left: 8px;
+    position: absolute;
+    top: 15px;
+    width: 16px;
+  }
+
+  ::before {
+    transform: rotate(45deg);
+  }
+
+  ::after {
+    transform: rotate(135deg);
+  }
+`,ii=o`
+  background-color: ${x.blackDarkBackgroundPrimary};
+  box-sizing: border-box;
+  border-radius: 3px;
+  color: ${x.whiteDarkContentPrimary};
+  min-height: ${Z}px;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+`,ai=o`
+  height: 48px;
+  width: 100%;
+`,oi=o`
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 0 24px 48px;
+  text-align: center;
+  width: 100%;
+`,si=o`
+  display: block;
+  flex: 0 0 224px;
+  height: 224px;
+  margin: 0 auto;
+  object-fit: cover;
+  width: 224px;
+`,ci=o`
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+`,li=o`
+  color: ${x.whiteDarkContentPrimary};
+  font-family: ${v.cheltenham};
+  font-size: 32px;
+  font-weight: ${y.moreLight};
+  line-height: 115%;
+  margin: 0;
+  width: 100%;
+`,ui=o`
+  align-items: center;
+  background-color: ${x.white};
+  border-radius: 3px;
+  box-sizing: border-box;
+  color: ${x.blackDarkBackgroundPrimary};
+  display: inline-flex;
+  font-family: ${v.franklin};
+  font-size: 16px;
+  font-weight: ${y.semiBold};
+  height: 44px;
+  justify-content: center;
+  line-height: 130%;
+  padding: 0 16px;
+  text-decoration: none;
+  width: 157px;
+`;a();function di({unit:e}){let{assetUrl:t}=r();return O.createElement(q,{unit:e,modalClassName:ni,layoutClassName:ii,closeClassName:ri,windowTimeout:12e3},()=>O.createElement(O.Fragment,null,O.createElement(`div`,{className:ai,"aria-hidden":`true`}),O.createElement(`div`,{className:oi},O.createElement(`img`,{className:si,src:`${t}/welcomead_bandit_26Q3_30_days.gif`,alt:`Preview of The New York Times app`}),O.createElement(`div`,{className:ci},O.createElement(`h2`,{className:li},`Unlock a month`,O.createElement(`br`,null),`of free access.`),O.createElement(w,{openInAppParam:`welcome-ad-free-month`,isLoggedIn:e.content?.isLoggedIn,trackInteraction:e.trackInteraction,className:ui},`Download the app`)))))}var fi=()=>({subscriptionURI:p(`https://www.nytimes.com/subscription/`).withCampaignID({defaultCampaignID:`8RFHK`}).toString()}),Q=e=>({...fi(),offerSection:gn(e)}),$={module:{name:`welcomeAd`,context:`standard`,label:`CONV_WELCOME_AD_BANDIT_258`,element:{name:g.WelcomeAd}}},pi=e=>({kicker:`Introductory offer`,promoPrice:e.totalDueWeeklyShort,monthlyPromoPrice:e.totalDueShort,fullPrice:e.fullPriceWeeklyShortNoCountryAbbreviation,monthlyFullPrice:e.fullPriceShort,frequencyRow1:`/week`,frequencyRow2:``,billedAsRow1:`Billed as ${e.totalDueShort} every four weeks for your first`,billedAsRow2:`six months, then ${e.fullPriceShort} thereafter.`,buttonText:`Learn more`,cancelText:`Cancel anytime.`}),mi={name:`welcomeAd`,onlyTrackWhenVisible:!1,enableOfferEligibility:!0,fallback:null,campaigns:{CONV_WELCOME_AD_BANDIT_OFF:{component:Sn,content:Q,tracking:$},CONV_WELCOME_AD_BANDIT_258:{component:Le,audiences:{version_1:{component:Sn,content:Q,tracking:$},version_2:{component:In,content:Q,tracking:$},version_3:{component:Zn,content:Q,tracking:$},version_4:{component:fr,content:Q,tracking:$},version_5:{component:wr,content:e=>({subscriptionURI:null,isLoggedIn:e.content?.isLoggedIn??!1}),tracking:$},version_6:{component:ei,content:e=>({subscriptionURI:te(),offer:pi(e.offer.allAccessFamilyAcquisitionMonthly)}),tracking:$},version_7:{component:di,content:e=>({subscriptionURI:null,isLoggedIn:e.content?.isLoggedIn??!0}),tracking:$}}},CONV_FREE_MONTH_WELCOME_AD:{audiences:{version_3:{component:Zn,content:Q,tracking:{module:{name:`welcomeAd`,context:`standard`,label:`CONV_FREE_MONTH_WELCOME_AD`,element:{name:g.WelcomeAd}}}}}}}};function hi(){let{unit:e}=h(mi);return e?.canShow&&e?.component?O.createElement(`span`,{"data-testid":`onsite-messaging-unit-${mi?.name}`,"data-campaign":e?.campaign,"data-audience":e?.audience},O.createElement(e.component,{unit:e})):null}hi.propTypes={};var gi=_(hi);export{gi as default};
+//# sourceMappingURL=WelcomeAd-BNcOAeuw.js.map

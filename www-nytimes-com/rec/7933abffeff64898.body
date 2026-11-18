@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./isBrowser-Dkae7dA-.js";var r=e(t()),i=({root:e=null,rootMargin:t,threshold:i=0})=>{let[a,o]=(0,r.useState)({}),[s,c]=(0,r.useState)(null),l=n?(0,r.useRef)(new IntersectionObserver(([e])=>o(e),{root:e,rootMargin:t,threshold:i})):null;return(0,r.useEffect)(()=>{let{current:e}=l;return e.disconnect(),s&&e.observe(s),()=>e.disconnect()},[s,l]),[c,a]};export{i as t};
+//# sourceMappingURL=useIntersect-BzsKAyfF.js.map

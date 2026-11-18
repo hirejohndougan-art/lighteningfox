@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2022/09/28/podcasts/hard-fork-album-art/hard-fork-album-art-thumbLarge-v2.png
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "AOGn9CasMzprFV/a1PcVTzWNXid9f+dr9tqFQpmAYbw"
+expires: Mon, 12 Oct 2026 11:59:51 GMT
+fastly-io-info: ifsz=44176 idim=150x150 ifmt=png ofsz=39775 odim=150x150 ofmt=png
+fastly-io-served-by: img12-us-east4
+fastly-io-transform-stats: ifsz=44176 ofsz=39775 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: kg+eag==
+x-goog-generation: 1666018564088347
+x-goog-hash: crc32c=kg+eag==
+x-goog-hash: md5=Kvdj6PFT9FYy2Bykq5LFdw==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 44176
+x-guploader-uploadid: AP6rU810KjphAiz7-b5AbGmJQ_xuZnR5y6acWV1hKh9e4LkLb5upW6_88hCsz8-soCc0tfFo
+accept-ranges: bytes
+age: 194577
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795020410.349790,VS0,VE4
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 39775

@@ -1,0 +1,2 @@
+import{r as e}from"./useMessageSelection-Lnro_bY7.js";function t(t){let n=e({config:{name:t}});return{name:n?.response?.campaign(),reason:n?.response?.reason(),loading:n?.loading,error:n?.error}}export{t};
+//# sourceMappingURL=useSelectionTargeting-CKS6rSv_.js.map

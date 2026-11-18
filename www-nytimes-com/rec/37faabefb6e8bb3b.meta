@@ -1,0 +1,24 @@
+GET https://pay.google.com/gp/p/js/pay.js
+200 OK
+content-type: application/javascript; charset=utf-8
+expires: Wed, 18 Nov 2026 16:42:25 GMT
+date: Wed, 18 Nov 2026 16:42:25 GMT
+cache-control: private, max-age=600
+p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+strict-transport-security: max-age=31536000
+cross-origin-resource-policy: cross-origin
+permissions-policy: ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-model=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-ua-platform=*, ch-ua-platform-version=*
+cross-origin-opener-policy: same-origin
+accept-ch: Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Model, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version
+content-security-policy: script-src 'report-sample' 'nonce-ZzKcuTWH8JrgLp4RMgdskA' 'unsafe-inline';object-src 'none';base-uri 'self';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport;worker-src 'self'
+content-security-policy: require-trusted-types-for 'script';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport
+reporting-endpoints: default="/gp/p/_/InstantbuyFrontendHttp/web-reports?context=eJzj2sOoxSXF4KYhxbC8VIqh9eY51slAPDfgPGt45nnWkkXnWZuAuAuIZwCxocIlVnsg9rC4zFokcYW1AYg_Vd1gFai-wfpq503WGJE7rEJT77KeS_dme_jKm-1bsS8bS4kv2zWPALY5jwLYTEMC2ZyBWCU0kG02eyhbcmc0G9f6aLa5OjFsnm9j2P52x7JlXI1lq7oWy3aUM46tJiqOzVwsni0ViK94xbNpXY5n226fwMZ9OoHN-mECmxA3x8dV36-zCWy498ZQSTspvzA-M6-4JDGvJKm0Mq0oP68kNS-lOLWoLLUo3sjAyMzQ0NBcz8AovsAAAAQDWpc"
+document-policy: include-js-call-stacks-in-crash-reports
+server: ESF
+x-xss-protection: 0
+x-frame-options: SAMEORIGIN
+x-content-type-options: nosniff
+set-cookie: NID=CucBCAESmQEBM9AglxrFSR-UxBqwVNeVyPocM_LLu1egzj4vZMsLdWfxSvb_yhNuDbNAOGLnVYFzpqh_esrjjRp4dq_jideglnDCV3L3bghP5yy_yIaanhiI67mi8r5S56CcADLMwtIPYC-GmjE-J9ESkGOuCMkD_AxwTJb5gxWrDjZi1nvQ693Lv_WXtvBfvVJg3pCh-8-fq2YaNFeBAhsoATJFAXBKQs_MZxhV_xuRdYMnmw1R8r7cguuFwfggKJGTdpZN-p1_qL8urZ3vQH1wkorLOBVoqElZuUxd-NL6d-Mx0RWri9QN; expires=Thu, 20-May-2027 16:42:25 GMT; path=/; domain=.google.com; HttpOnly
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+accept-ranges: none
+vary: Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site,Accept-Encoding

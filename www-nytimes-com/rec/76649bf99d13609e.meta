@@ -1,0 +1,28 @@
+OPTIONS https://samizdat-graphql.nytimes.com/graphql/v2?operationName=CommunityCommentsSummaries&variables=%7B%22uris%22%3A%5B%22nyt%3A%2F%2Farticle%2F05c0aa63-52a8-5966-8196-199caf46d570%22%2C%22nyt%3A%2F%2Farticle%2F05f8329f-d017-5b31-bce1-0c22afd9b7e8%22%2C%22nyt%3A%2F%2Farticle%2F0e378b35-7b93-5384-b3e9-b22f0a9d56fc%22%2C%22nyt%3A%2F%2Farticle%2F207da366-0515-500b-bcbb-79c8fc94bd47%22%2C%22nyt%3A%2F%2Farticle%2F484f031f-c762-5644-b02b-ad6110404d83%22%2C%22nyt%3A%2F%2Farticle%2F5ffa9781-4545-5043-ad9c-63f7c7cc4125%22%2C%22nyt%3A%2F%2Farticle%2F6a1f22ea-ca48-5209-bba9-c4dc5650727c%22%2C%22nyt%3A%2F%2Farticle%2F988d46ac-8419-5911-ac72-5133152046c7%22%2C%22nyt%3A%2F%2Farticle%2Fb0b1d85b-8a94-5d08-a8e0-089b2301126e%22%2C%22nyt%3A%2F%2Farticle%2Fd51f5ebf-6757-556b-b9bf-feeeb30d34f2%22%2C%22nyt%3A%2F%2Farticle%2Fe1f90ac3-990f-5fb4-92c2-2d987c6507be%22%2C%22nyt%3A%2F%2Farticle%2Fe4c44999-eadb-5334-a828-a99ddf3c54f4%22%2C%22nyt%3A%2F%2Farticle%2Feb24540d-d3cb-581e-b6a6-014b03cb87e7%22%2C%22nyt%3A%2F%2Farticle%2Ff32f5611-6d6b-5424-8f0c-7d3be3aee98b%22%5D%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22f2faa9358598b5a3ce8432d70b1641fadd58c5b494bf879f02246890092ab98c%22%7D%7D
+200 OK
+allow: GET,HEAD,POST
+access-control-allow-origin: https://www.nytimes.com
+access-control-max-age: 300
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+x-envoy-upstream-service-time: 10
+access-control-allow-credentials: true
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+access-control-allow-methods: GET, POST
+server: envoy
+date: Wed, 18 Nov 2026 16:42:57 GMT
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: 9a09e11737971458
+x-samizdat-query-field-errors: 0
+x-nyt-pass-reason: IGQL
+access-control-allow-headers: content-type,nyt-app-type,nyt-app-version,nyt-token,x-statsig-home-curator-assignments, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-khef600037-IAD, cache-iad-khef600037-IAD, cache-iad-khef600054-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795020177.427461,VS0,VE57
+vary: origin, access-control-request-headers
+timing-allow-origin: *
+x-nyt-edge-cache: MISS
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 0

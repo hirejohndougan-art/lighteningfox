@@ -1,0 +1,40 @@
+POST https://samizdat-graphql.nytimes.com/graphql/v2
+200 OK
+x-envoy-upstream-service-time: 33
+access-control-expose-headers: x-nyt-audience-target-flat, x-nyt-continent, x-nyt-country, x-nyt-region, x-nyt-meridiem, x-nyt-gmt-offset, x-nyt-geoip-map
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+via: 1.1 varnish, 1.1 varnish
+tracestate: dd=s:0;p:4493bdd3cf6a8d40
+last-modified: Wed, 18 Nov 2026 16:08:49 GMT
+x-datadog-parent-id: 4941501933571181888
+traceparent: 00-00000000000000006fb6980c8f3bd4e7-4493bdd3cf6a8d40-00
+x-datadog-trace-id: 8049788563681432807
+server: envoy
+x-b3-sampled: 0
+x-b3-spanid: 4493bdd3cf6a8d40
+cache-control: max-age=30
+access-control-allow-origin: https://www.nytimes.com
+x-datadog-sampling-priority: 0
+x-b3-traceid: 0
+content-type: application/json
+access-control-allow-credentials: true
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:45:45 GMT
+age: 388
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: 6fb6980c8f3bd4e7
+x-samizdat-query-field-errors: 0
+x-samizdat-query-sup-code: 
+samizdat-x-instance: aab42533
+samizdat-x-canary: false
+samizdat-x-kubernetes-namespace: v1
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-khef600071-IAD, cache-iad-khef600071-IAD, cache-iad-khef600054-IAD
+x-cache: MISS, HIT
+x-cache-hits: 0, 283
+x-timer: S1795020346.678896,VS0,VE1
+vary: Accept-Encoding,Origin,Samizdat-X-Personalize
+timing-allow-origin: *
+x-nyt-edge-cache: HIT

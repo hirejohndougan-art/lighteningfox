@@ -1,0 +1,35 @@
+GET https://static01.nyt.com/elections-assets/pages/assets/GeneratedText-tFI1I5WV.css
+200 OK
+content-type: text/css
+x-guploader-uploadid: AFy3sg2CDAySmxDktrTQSYvvnsMg3mXJla-If8UqMARfBHW-8uQ1hVpCrNEPc4Fob1Eww_s6JhVcZV5PonPJsA
+cache-control: public, max-age=31536000, stale-while-revalidate=86400, stale-if-error=86400
+expires: Sat, 06 Nov 2027 22:07:57 GMT
+last-modified: Fri, 06 Nov 2026 22:04:14 GMT
+etag: W/"397c2fb6418a3d1e1212f85b9a1c0934"
+x-goog-generation: 1794002653956323
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 733
+x-goog-hash: crc32c=fnjKIA==
+x-goog-hash: md5=OXwvtkGKPR4SEvhbmhwJNA==
+x-amz-checksum-crc32c: fnjKIA==
+x-goog-storage-class: STANDARD
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+lei-timing: fetch=41828,misspass=1769,do_stream=0
+lei-origin: ip=173.194.45.207,port=443,name=F_gcs_origin,status=200,reason=OK,method=GET,path="/elections-assets/pages/assets/GeneratedText-tFI1I5WV.css",host=nyt-elections-prd-elections-assets.storage.googleapis.com,shield=IAD,src_ip=104.156.83.150,alternate_path=0
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:03 GMT
+via: 1.1 varnish
+age: 1017185
+x-served-by: cache-iad-kcgs7200021-IAD
+x-cache: HIT
+x-cache-hits: 2016
+x-timer: S1795020063.081320,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/karnak/karnak-normal-400.b2143e2f1890f4d516078da14aebab03.woff2
+200 OK
+x-guploader-uploadid: ADPycdtHziHz6Na8AQ6Cc5Li3duRduE5L2NkHoMvQ9qL9suiR4lrZdH2prANvvjtDjYmRmC3lPuxtJht5ZEBQGoJmsRu
+cache-control: public,max-age=31536000,immutable
+expires: Wed, 02 Oct 2024 02:05:57 GMT
+last-modified: Tue, 17 Jan 2023 21:42:57 GMT
+etag: "b2143e2f1890f4d516078da14aebab03"
+x-goog-generation: 1673991777104472
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 27004
+content-type: application/octet-stream
+x-goog-hash: crc32c=3pdvdA==
+x-goog-hash: md5=shQ+LxiQ9NUWB42hSuurAw==
+x-goog-storage-class: STANDARD
+server: UploadServer
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:07 GMT
+via: 1.1 varnish
+age: 158507
+x-served-by: cache-iad-khef600021-IAD
+x-cache: HIT
+x-cache-hits: 856
+x-timer: S1795020068.542444,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 27004

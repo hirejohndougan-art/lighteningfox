@@ -1,0 +1,2 @@
+import{s as e}from"./user-vW6Md2Fh.js";var t=()=>{let{userAgent:e=``,platform:t=``,maxTouchPoints:n=0}=window?.navigator||{},r=t===`MacIntel`&&n>1;return(/iPhone|iPad|iPod/i.test(e)||r)&&!window?.MSStream},n=()=>{if(typeof window<`u`){let{userAgent:e=``}=window.navigator||{};if(/Android/i.test(e))return`android`;if(t())return`ios`}return null},r=(t,n)=>t===`US`&&e(n);export{r as n,n as t};
+//# sourceMappingURL=user-BXSUOz5P.js.map

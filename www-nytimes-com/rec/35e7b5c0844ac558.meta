@@ -1,0 +1,36 @@
+GET https://samizdat-graphql.nytimes.com/graphql/v2?operationName=CommunityCommentsSummaries&variables=%7B%22uris%22%3A%5B%22nyt%3A%2F%2Farticle%2F05c0aa63-52a8-5966-8196-199caf46d570%22%2C%22nyt%3A%2F%2Farticle%2F05f8329f-d017-5b31-bce1-0c22afd9b7e8%22%2C%22nyt%3A%2F%2Farticle%2F0e378b35-7b93-5384-b3e9-b22f0a9d56fc%22%2C%22nyt%3A%2F%2Farticle%2F207da366-0515-500b-bcbb-79c8fc94bd47%22%2C%22nyt%3A%2F%2Farticle%2F484f031f-c762-5644-b02b-ad6110404d83%22%2C%22nyt%3A%2F%2Farticle%2F5ffa9781-4545-5043-ad9c-63f7c7cc4125%22%2C%22nyt%3A%2F%2Farticle%2F6a1f22ea-ca48-5209-bba9-c4dc5650727c%22%2C%22nyt%3A%2F%2Farticle%2F988d46ac-8419-5911-ac72-5133152046c7%22%2C%22nyt%3A%2F%2Farticle%2Fb0b1d85b-8a94-5d08-a8e0-089b2301126e%22%2C%22nyt%3A%2F%2Farticle%2Fd51f5ebf-6757-556b-b9bf-feeeb30d34f2%22%2C%22nyt%3A%2F%2Farticle%2Fe1f90ac3-990f-5fb4-92c2-2d987c6507be%22%2C%22nyt%3A%2F%2Farticle%2Fe4c44999-eadb-5334-a828-a99ddf3c54f4%22%2C%22nyt%3A%2F%2Farticle%2Feb24540d-d3cb-581e-b6a6-014b03cb87e7%22%2C%22nyt%3A%2F%2Farticle%2Ff32f5611-6d6b-5424-8f0c-7d3be3aee98b%22%5D%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22f2faa9358598b5a3ce8432d70b1641fadd58c5b494bf879f02246890092ab98c%22%7D%7D
+200 OK
+via: 1.1 varnish, 1.1 varnish, 1.1 varnish
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+server: envoy
+access-control-allow-origin: https://www.nytimes.com
+x-datadog-trace-id: 2832723734759638211
+x-envoy-upstream-service-time: 51
+x-b3-sampled: 0
+content-type: application/json
+cache-control: no-store
+tracestate: dd=s:0;p:15d90ad7e0eb604d
+x-datadog-parent-id: 1574301467050467405
+access-control-allow-credentials: true
+x-b3-spanid: 15d90ad7e0eb604d
+access-control-expose-headers: x-nyt-audience-target-flat, x-nyt-continent, x-nyt-country, x-nyt-region, x-nyt-meridiem, x-nyt-gmt-offset, x-nyt-geoip-map
+traceparent: 00-0000000000000000274fdb3a752a84c3-15d90ad7e0eb604d-00
+x-datadog-sampling-priority: 0
+samizdat-x-fastly-op-id: project-vi.v2.CommunityCommentsSummaries
+samizdat-x-fastly-unique-id: 8f5c26e2d6f77ea6
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:42:57 GMT
+age: 860
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: 8f5c26e2d6f77ea6
+x-samizdat-query-field-errors: 0
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-lga-kjfk8660066-LGA, cache-lga-kjfk8660066-LGA, cache-lga-kjfk8660066-LGA, cache-iad-khef600054-IAD
+x-cache: MISS, HIT, HIT
+x-cache-hits: 0, 51, 17
+x-timer: S1795020177.486476,VS0,VE1
+vary: Accept-Encoding,Origin
+timing-allow-origin: *
+x-nyt-edge-cache: HIT-HIT

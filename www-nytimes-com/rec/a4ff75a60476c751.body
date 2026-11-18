@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,in as n}from"./vendor-u8E3U9GY.js";import{t as r}from"./utils-QJ9TcYQ0.js";var i=e(t()),a=e(n()),o=({className:e,stroke:t=r.color.black,strokeWidth:n=`1`,ariaHidden:o})=>i.createElement(`svg`,{className:(0,a.default)(e),viewBox:`0 0 12 12`,stroke:t,strokeWidth:n,strokeLinecap:`square`,style:{opacity:1},"aria-hidden":o},i.createElement(`line`,{x1:`11`,y1:`1`,x2:`1`,y2:`11`}),i.createElement(`line`,{x1:`1`,y1:`1`,x2:`11`,y2:`11`}));export{o as t};
+//# sourceMappingURL=Close-BJN24IZ6.js.map

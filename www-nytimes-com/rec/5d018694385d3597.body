@@ -1,0 +1,2 @@
+var e=e=>{let{sectionContent:t,subsectionContent:n,adSensitivity:r,taxonomyException:i}=e,a=t;return i?a=i:n!=null&&(a=`${a}/${n}`),r===`TRAGEDY`&&(a=`tragedy`),typeof a==`string`&&(a=a.replace(/-/g,``),a=a.replace(/'/g,``),a=a.replace(/\/$/,``)),`/29390238/nyt/${a}`};export{e as t};
+//# sourceMappingURL=getAdUnitPath-BnrlNxI0.js.map

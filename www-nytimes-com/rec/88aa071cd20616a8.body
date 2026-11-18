@@ -1,0 +1,2 @@
+import{b8 as n,aE as d}from"./preload-helper-BIDBWX1N.js";function s(t,a,i){var e=d(t,a);e&&e.set&&(t[a]=i,n(()=>{t[a]=null}))}export{s as b};
+//# sourceMappingURL=props-ZMs2E_9s.js.map

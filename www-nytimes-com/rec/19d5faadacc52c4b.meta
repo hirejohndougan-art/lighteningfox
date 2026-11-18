@@ -1,0 +1,38 @@
+GET https://static01.nyt.com/images/2022/11/08/podcasts/pablo-torre-album-art/03the-athletic-podcast-thumbLarge.png
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "Hy9SbSoRh9CpAJdLMyJByVves/CKmcax7gDVrelaAng"
+expires: Sat, 07 Nov 2026 18:13:26 GMT
+fastly-io-info: ifsz=56161 idim=150x150 ifmt=png ofsz=49105 odim=150x150 ofmt=png
+fastly-io-served-by: vpop-kiad7010250
+fastly-io-transform-stats: ifsz=56161 ofsz=49105 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+lei-origin: ip=34.144.171.27,port=443,name=F_gcs_origin,status=200,reason=OK,method=GET,path="/2022/11/08/podcasts/pablo-torre-album-art/03the-athletic-podcast-thumbLarge.png",host=cms-gke-prd-publish-images-storage.storage.googleapis.com,shield=IAD,src_ip=104.156.83.131,alternate_path=0
+lei-timing: fetch=154941,misspass=151,do_stream=0
+server: UploadServer
+x-amz-checksum-crc32c: BdXN2w==
+x-goog-generation: 1791235164066889
+x-goog-hash: crc32c=BdXN2w==
+x-goog-hash: md5=YT6isxg1GuoO/tKwQzuLGg==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 56161
+x-guploader-uploadid: AFy3sg1HqVr8EvmLGLwbej4b2F6kGpiwXG7q6cNo9veC8IdGiIt2U0GVu3GUyi1W_2-NbbM4GSenxgq5rKpLOQ
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:46:50 GMT
+via: 1.1 varnish
+age: 340327
+x-served-by: cache-iad-kcgs7200047-IAD
+x-cache: HIT
+x-cache-hits: 4
+x-timer: S1795020410.350164,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 49105

@@ -1,0 +1,2 @@
+var e={name:`saleUrgencyGames`,onlyTrackWhenVisible:!1,fallback:null,campaigns:{CONV_GAMES_SALE_EVERGREEN_245:{audiences:{sale_period_1_phase_1:{},sale_period_1_phase_2:{},sale_period_1_phase_3:{},sale_period_1_phase_4:{},sale_period_1_phase_5:{},sale_period_1_phase_6:{},sale_period_1_phase_7:{}}}}};export{e as t};
+//# sourceMappingURL=config-CJXKpwfx.js.map

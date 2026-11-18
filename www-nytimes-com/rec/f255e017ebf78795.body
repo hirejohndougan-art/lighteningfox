@@ -1,0 +1,24 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i}from"./vendor-u8E3U9GY.js";import{o as a}from"./MessagingContext-IFd-uli1.js";import{C as o}from"./urls-CWtYYmTD.js";import{t as s}from"./color-BkLae2o_.js";import{o as c,t as l,u}from"./ErrorBoundary-Qtx2jJSn.js";import{a as d,t as f}from"./Button-BSBx-Mbs.js";r();var p=e(t(),1),m=p.forwardRef(({redirectUri:e},t)=>{let{authHost:n}=a();return p.createElement(`form`,{ref:t,style:{display:`none`},method:`post`,action:`${n}/oauth/authorize`,"data-testid":`MagicLinkForm`},p.createElement(`input`,{value:`web.fwk.vi`,name:`client_id`,type:`hidden`}),p.createElement(`input`,{value:e,name:`redirect_uri`,type:`hidden`}),p.createElement(`input`,{value:`code`,name:`response_type`,type:`hidden`}),p.createElement(`input`,{value:`no-state`,name:`state`,type:`hidden`}),p.createElement(`input`,{value:`default`,name:`scope`,type:`hidden`}))});m.displayName=`MagicLinkForm`;var h=i`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 16px;
+  background-color: ${s.content.primary};
+  font-family: ${d.franklin};
+  font-style: normal;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 130%;
+  text-align: center;
+  color: ${s.background.secondary};
+  text-decoration: none;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: #333;
+  }
+`;r();function g(e){return typeof e==`string`?e:``}var _=p.forwardRef(({deepLinkUrl:e,oneLinkUrl:t,openInAppParam:r,children:i,label:a,isLoggedIn:s,variant:l,className:d,handleClick:_,trackInteraction:v},y)=>{let b=p.useRef(null),[x,S]=(0,p.useState)(!1),C=u({module:{name:`app_download_button`,context:``,label:r,region:``,element:{url:``}}});(0,p.useEffect)(()=>{C.trackImpression()},[]);let w=``;if(typeof window<`u`&&(window==null?void 0:window.location)!==void 0){let t=e||window.location.href,n=new URL(t);n.searchParams.delete(`open-in-app`),n.searchParams.append(`open-in-app`,r),w=n.toString()}let T=o(w,t),E=async e=>{if(!x){S(!0);try{let t={...e,type:`ob_click`},n={name:c.AppDownload,label:a||g(i)||void 0,url:T};v&&v(t,{extraProps:{module:{element:n}}}),C.trackInteraction(t,{eventData:{type:`ob_click`},module:{element:n}}),_&&await _(),s&&b.current?b.current.submit():window.location.href=T}finally{S(!1)}}};return p.createElement(p.Fragment,null,p.createElement(f,{ref:y,component:`a`,href:T,onClick:e=>{e.preventDefault(),E(e)},className:n({[h]:l===`primary`},d),disabled:x,testId:`magic-link-button`},i),p.createElement(m,{ref:b,redirectUri:T}))});_.displayName=`MobileAppCta`;var v=l(_);export{m as n,v as t};
+//# sourceMappingURL=MobileAppCta-DLuQvgv1.js.map

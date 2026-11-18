@@ -1,0 +1,2 @@
+import{an as o,ar as v,as as y,at as f,au as l,av as m,aw as p,ax as i,br as T,ao as A}from"./preload-helper-BIDBWX1N.js";import{B as R}from"./if-fEu18akH.js";function x(d,_,s){var t;o&&(t=A,v());var r=new R(d);y(()=>{var a=_()??null;if(o){var h=l(t),u=h===T,c=a!==null;if(u!==c){var e=m();p(e),r.anchor=e,i(!1),r.ensure(a,a&&(n=>s(n,a))),i(!0);return}}r.ensure(a,a&&(n=>s(n,a)))},f)}export{x as c};
+//# sourceMappingURL=svelte-component-Cu5PZYjE.js.map

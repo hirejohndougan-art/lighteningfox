@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/06/11/sports/WC-TA-soccer-connections/WC-TA-soccer-connections-thumbLarge.png
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/png
+etag: "lmtd/GbUDrTu/87ojnULx+qPABBrwAW8yhfGwYnsF+c"
+expires: Wed, 23 Sep 2026 14:37:43 GMT
+fastly-io-info: ifsz=9629 idim=150x150 ifmt=png ofsz=9869 odim=150x150 ofmt=png
+fastly-io-served-by: img16-us-east4
+fastly-io-transform-stats: ifsz=9629 ofsz=9869 ofmt=png
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: TnUaDw==
+x-goog-generation: 1781193451220910
+x-goog-hash: crc32c=TnUaDw==
+x-goog-hash: md5=6JHcADQRRkznFqxRcvoDpQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 9629
+x-guploader-uploadid: AP6rU83YtrrZO92TQAVrNrd-eLNyGuXnfXoNPRfW-CkOS_TMI8iZxxQEXw1Q26V1vCtH_1sG
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:07 GMT
+via: 1.1 varnish
+age: 377214
+x-served-by: cache-iad-kcgs7200021-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795020068.526226,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 9869

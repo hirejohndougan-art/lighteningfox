@@ -1,0 +1,35 @@
+GET https://static.nytimes.com/email-images/NYT-Newsletters-TheEvening-Icon.jpg
+200 OK
+cache-control: public, max-age=3600
+content-type: image/jpeg
+etag: "VYl973Y5KU+d0YG2jF4GALP4Ei6rYqaHAvuIuVBJVxs"
+expires: Wed, 18 Nov 2026 13:13:12 GMT
+fastly-io-info: ifsz=79730 idim=501x501 ifmt=jpeg ofsz=20795 odim=501x501 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010216
+fastly-io-transform-stats: ifsz=79730 ofsz=20795 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 0gDelw==
+x-goog-generation: 1682952443126693
+x-goog-hash: crc32c=0gDelw==
+x-goog-hash: md5=rdPUDGkQ7ttoZnsCrHLB4Q==
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 79730
+x-guploader-uploadid: AFy3sg1Ppqz4df_u2kr1WBzqhPvfRbOhY3udEh8vdiW2FJppOmv6U3cS0hHzrNHA7MmZ93UXqKUj2XQ
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:46:58 GMT
+via: 1.1 varnish
+age: 2025
+x-served-by: cache-iad-khef600095-IAD
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1795020419.509692,VS0,VE0
+vary: Accept
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 20795

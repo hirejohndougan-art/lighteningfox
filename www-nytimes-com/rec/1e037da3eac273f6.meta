@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/18/multimedia/18dc-jeffries-tfpq/18dc-jeffries-tfpq-verticalTwoByThree735.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "jz8Nc0mvGvhDGMesn/1nZXnNssBDom234k6ffzht03Q"
+expires: Wed, 18 Nov 2026 15:48:12 GMT
+fastly-io-info: ifsz=89544 idim=735x1102 ifmt=jpeg ofsz=46037 odim=735x1102 ofmt=jpeg
+fastly-io-served-by: img08-us-east4
+fastly-io-transform-stats: ifsz=89544 ofsz=46037 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 44lZug==
+x-goog-generation: 1795016397945055
+x-goog-hash: crc32c=44lZug==
+x-goog-hash: md5=56G6afEot7pzQOADrlkOYw==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 89544
+x-guploader-uploadid: AFy3sg31udCVFWRxgOOKs_Wvwocnr8pDuX4AjyNsTUY4Z0jRCRKONIozspFQKr4WJqnewxFKiLUgMEo
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:06 GMT
+via: 1.1 varnish
+age: 3174
+x-served-by: cache-iad-kcgs7200021-IAD
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1795020066.029008,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 46037

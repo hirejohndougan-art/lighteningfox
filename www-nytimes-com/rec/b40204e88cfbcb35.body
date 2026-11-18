@@ -1,0 +1,108 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{En as t,Sr as n,Tr as r,Vr as i,ar as a,er as o,pr as s,yr as c}from"./vendor-u8E3U9GY.js";import{t as l}from"./useIsInWebview-DpFf3zJE.js";import{n as u}from"./useIsBrowser-eFsz8TJM.js";import{n as d}from"./Intl-CxwjnRtz.js";import{t as f}from"./useSpanish-CVRZvu1F.js";import{M as p,N as m,P as h,c as g,d as _,j as v,w as y}from"./utils-D1XpKghR.js";import{a as b,c as x,i as S,l as C,n as w,o as T,r as E,s as D,t as O,u as k}from"./SpeechBubbleIcon-DVj3ew6r.js";var A=e(i());o();var j=({buttonClass:e,onClick:t,commentCount:n})=>{let r=f(),i;if(n===0)i=r?h.esAddAComment:h.addAComment;else{let e=r?n:n.toLocaleString(`en-US`),t=r?n===1?`comentario`:`comentarios`:n===1?`comment`:`comments`;i=r?`Leer ${e} ${t}`:`Read ${e} ${t}`}let o=d(i);return A.createElement(`button`,{type:`button`,className:a(w,e),onClick:t,"aria-label":o,"data-testid":`comment-button-${$.BIGBOTTOM}`,id:`comment-button-${$.BIGBOTTOM}`},i)},M=()=>A.createElement(`svg`,{xmlns:`http://www.w3.org/2000/svg`,viewBox:`0 0 24 24`,"data-testid":`reporter-reply-fallback-image`,className:T},A.createElement(`path`,{d:`M18.9046 14.1307C18.323 15.6675 17.2509 16.8555 15.7141 17.4844V14.1307L17.5535 12.477L15.7141 10.8469V8.54175C17.3904 8.42475 18.5548 7.19063 18.5548 5.6775C18.5548 3.69863 16.6693 3 15.5971 3C15.3643 3 15.1078 3 14.7354 3.09337V3.18675C14.8749 3.18675 15.0841 3.16312 15.1539 3.16312C15.8986 3.16312 16.4578 3.513 16.4578 4.188C16.4578 4.69987 16.0381 5.21287 15.2934 5.21287C13.454 5.21287 11.2884 3.72225 8.93601 3.72225C6.84014 3.72225 5.39676 5.28263 5.39676 6.8655C5.39676 8.42588 6.30464 8.93775 7.25976 9.28763L7.28339 9.19425C6.98189 9.0075 6.77264 8.68237 6.77264 8.16937C6.77264 7.47075 7.42514 6.88913 8.23964 6.88913C10.2185 6.88913 13.409 8.54288 15.389 8.54288H15.5746V10.8716L13.7353 12.477L15.5746 14.1307V17.5305C14.8063 17.8095 14.0143 17.9265 13.1998 17.9265C10.1263 17.9265 8.16989 16.0635 8.16989 12.9664C8.16989 12.2216 8.26326 11.4994 8.47251 10.8007L10.0093 10.1258V16.9714L13.13 15.5977V8.589L8.54226 10.6376C9.00801 9.28762 9.96314 8.30888 11.1039 7.74975L11.0803 7.68C8.00676 8.355 5.02551 10.6838 5.02551 14.1769C5.02664 18.2055 8.42639 21 12.3841 21C16.5759 21 18.9508 18.2055 18.9744 14.1307H18.9046Z`}));o();var N={comment:`comment`,comments:`comments`,noComments:`There are no comments`},P=({asset:e,buttonClass:t,commentCount:n,commentCountFormatted:r,handleOpenPanel:i,onClick:o,position:s,unreadReporterReplies:c,viewCommentsInNewWindow:l})=>{let[u,f]=(0,A.useState)(!1),[p,m]=(0,A.useState)(``),[h,g]=(0,A.useState)(!1),_=(0,A.useMemo)(()=>e.curatedAssetComments?.reporterReplies||[],[e]),v=_.length>2,w=c&&v;(0,A.useEffect)(()=>{if(v){let e=_.reduceRight((e,t)=>t.author.isAssetAuthor?t:e,null);e&&m(e.author.avatarUrl)}},[v,_]);let j=A.createElement(`div`,{className:v?S:E},v&&(p&&!h?A.createElement(`img`,{alt:`reporter headshot`,"aria-hidden":!0,className:T,onError:({currentTarget:e})=>{e.onerror=null,g(!0)},"data-testid":`comment-button-reporter-reply-headshot`,src:p}):A.createElement(M,null)),A.createElement(O,null),A.createElement(`span`,{className:w?k:C},r),w&&A.createElement(`div`,{"data-testid":`comment-button-blue-dot`,className:a(b)})),P=N.noComments;n>0&&(P=`Read ${n} ${n===1?N.comment:N.comments}`);let F=d(P);return l&&e.url?A.createElement(`a`,{href:`${e.url}#commentsContainer`,target:`_blank`,rel:`noreferrer`,"aria-label":F,className:a({commentStyleClass:n===0},D,x,t),"data-testid":`${y}-new-window`},j):A.createElement(`button`,{type:`button`,className:a(D,t),onClick:o||(()=>{u||(f(!0),i())}),onFocus:()=>{u&&f(!1)},"aria-label":F,"aria-haspopup":`dialog`,"aria-expanded":u,"aria-controls":`comments-panel`,"data-testid":`${y}${s?`-${s}`:``}`,id:`${y}${s?`-${s}`:``}`},j)},F=`comments`,ee=function(e){return e.AUTOOPEN=`autoopen`,e.AUTOOPEN_HOME=`autoopen-home`,e.AUTOOPEN_PERMALINK=`autoopen-permalink`,e.AUTOOPEN_EMAIL_LINK=`autoopen-email-link`,e.HEADER=`header`,e.FOOTER=`footer`,e.C_COLUMN=`ccol`,e.FOOTER_BOTTOM_BAR=`footer-bottom-bar`,e.FOOTER_COMMENTS=`footer-comments`,e.INLINE_COMMENTS=`inline-comments`,e.INSTORYMASTHEAD=`masthead`,e}({}),te=e=>{switch(e){case $.HEADER:return`header`;case $.INSTORYMASTHEAD:return`masthead`;case $.FOOTER:return`footer`;case $.BIGBOTTOM:return`footer-bottom-bar`;case $.C_COLUMN:return`ccol`;default:return null}},I=e=>({eventData:{trigger:`module`},module:{name:F,context:e?m[e]?.trackingContext:``}}),L=()=>({event:`moduleInteraction`,eventData:{type:`click`}}),R=(e,t)=>({...L(),module:{region:e,element:{name:t||`open`}}}),ne=()=>({...L(),module:{element:{name:`close`}}}),z=`watch-feed`,re=e=>({...L(),module:{name:F,context:z,element:{name:`open`,uri:e}}}),ie=e=>({...L(),module:{name:F,context:z,element:{name:`close`,uri:e}}}),ae=e=>({...L(),module:{element:{name:`user-flagged`,label:e}}}),B=(e,t)=>{let n=``;n=e===p.SINGLE_COMMENT?`back-to-all-comments`:t===p.SINGLE_COMMENT?`timestamp`:`tab`;let r={name:n,label:m[t]?.label||``};return{...L(),module:{element:r}}},V=e=>({...L(),module:{element:{name:`submit-new`,label:e}}}),H=e=>({...L(),module:{element:{name:`submit-reply`,label:e}}}),U=e=>({...L(),module:{element:{name:`user-recommend`,label:e}}}),W=e=>({...L(),module:{element:{name:`user-unrecommend`,label:e}}}),G=e=>({...L(),module:{element:{name:`read-more`,label:e}}}),K=e=>({...L(),module:{element:{name:`sort`,label:v[e]}}}),q=()=>({...L(),module:{element:{name:`profile-edit`,label:h.edit}}}),oe=e=>({...L(),module:{element:{name:`faq`,label:e}}}),se=(e,t)=>({...L(),module:{name:`comments`,context:t?m[t]?.trackingContext:``,label:e?`checked`:`unchecked`,element:{name:`comments gate`}}}),ce=(e,t)=>({...L(),module:{name:`comments`,context:t?m[t]?.trackingContext:``,label:e,element:{name:`comments gate`}}}),le=(e,t)=>({...L(),module:{name:`comments`,context:t?m[t]?.trackingContext:``,label:`open link`,region:e,element:{name:`comments gate`}}}),ue=e=>({event:`impression`,module:{name:`comments`,context:e?m[e]?.trackingContext:``,region:`view agreement`,label:`comments gate`}}),de=()=>({...I(),...L(),module:{name:`share-tools`,region:`comments`,element:{name:`share-permalink`}}}),fe=(e,t)=>({event:`moduleInteraction`,eventData:{type:`click`,trigger:`module`},module:{context:t,name:`comments`,element:{label:e?`level-${e}`:null,name:`expand-text`}}}),J=r`
+  fragment SummaryFragment on CommunityCommentsSummary {
+    id
+    totalCount
+  }
+`,pe=r`
+ query communityCommentsSummaryQuery(
+    $uri: String!
+    $input: CommunityCommentPagingInput!
+  ) {
+    communityComments(uri:$uri, input: $input) {
+      summary {
+        id
+        assetID
+        anyWork {
+          ...on Article {
+            headline {
+              default
+            }
+          }
+          ...on Interactive {
+            headline {
+              default
+            }
+          }
+          ...on LegacyCollection {
+            headline {
+              default
+            }
+          }
+          ...on Video {
+            headline {
+              default
+            }
+          }
+        }
+        commentsOpen
+        defaultView
+        prompt
+        totalReadersPicks
+        totalReporterReplies
+        totalTimesPicks
+        uri
+        ...SummaryFragment
+      }
+    }
+  }
+  ${J}
+`,{useTracking:Y}=e(s()),X=r`
+  query unReadReporterRepliesLocalQuery {
+    unreadReporterReplies @client
+  }
+`,Z=`reporterReplySignalData`,me=({asset:e,buttonClass:r,onClick:i=void 0,position:a,viewCommentsInNewWindow:o})=>{let{data:s}=c({fragment:J,fragmentName:`SummaryFragment`,from:`CommunityCommentsSummary:${e.uri}`}),d=t(),f=u(),p=l(),{trackEvent:m}=Y(I),{client:h,data:v}=n(X,{fetchPolicy:`cache-only`,ssr:!1}),b=(0,A.useCallback)(e=>{h.writeQuery({query:X,data:{unreadReporterReplies:e}})},[h]),x=(0,A.useCallback)(()=>{let e;try{e=localStorage.getItem(Z)}catch(e){console.error(`Comments - CommentButton - getting localStorage`,e)}return e?JSON.parse(e):{pageSeenAndTimestamp:{}}},[]),{curatedAssetComments:S,sourceId:C}=e,{reporterReplies:w}=S||{},T=()=>{if(!C)return;let e=x(),t=w?w[w.length-1]:null,n=t?t.createdAt:null,r={...e,pageSeenAndTimestamp:{...e.pageSeenAndTimestamp,[C]:n}};try{localStorage.setItem(Z,JSON.stringify(r))}catch(e){console.error(`Comments - CommentButton - setting localStorage`,e)}};(0,A.useEffect)(()=>{if(!f||!w||!C)return;let e=x().pageSeenAndTimestamp[C],t=w[w.length-1]?.createdAt;(!e||t!==e)&&b(!0)},[f,w,x,b,C]);let E=[T,b.bind(void 0,!1)],D=(e=`open`)=>{g({history:d,location:window?.location||{hash:``}}),requestAnimationFrame(()=>{setTimeout(()=>{let t=te(a);m(R(t,e)),f&&(window.NYT_SPEECHBUBBLE=`${y}-${a}`),E.forEach(e=>e())},0)})},O=i?e=>{i&&(E.forEach(e=>e()),i()),D(e)}:void 0,k=e.communityCommentsSummary?.totalCount,M=s?.totalCount||k||0,N=_(M);return!p&&a===$.BIGBOTTOM?A.createElement(j,{buttonClass:r,onClick:()=>{let e=`big-blue-button`;return O?O(e):D(e)},commentCount:M}):a===$.BIGBOTTOM?null:A.createElement(P,{asset:e,buttonClass:r,commentCount:M,commentCountFormatted:N,handleOpenPanel:D,onClick:O,position:a,unreadReporterReplies:v?.unreadReporterReplies||!1,viewCommentsInNewWindow:o})};function Q({asset:e,buttonClass:t,onClick:n,position:r,viewCommentsInNewWindow:i}){return e.communityCommentsSummary?.commentsEnabled?A.createElement(me,{asset:e,buttonClass:t,onClick:n,position:r,viewCommentsInNewWindow:i}):null}Q.fragments={article:r`
+    fragment CommentButton_article on Article {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        totalCount
+        uri
+      }
+      curatedAssetComments {
+        id
+        reporterReplies {
+          author {
+            avatarUrl
+            isAssetAuthor
+          }
+          createdAt
+        }
+      }
+      requestToCommentEnabled
+      sourceId
+      uri
+      url
+    }
+  `,articleLive:r`
+    fragment CommentButton_articleLive on Article {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        totalCount
+        uri
+      }
+    }
+  `,interactive:r`
+    fragment CommentButton_interactive on Interactive {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        totalCount
+        uri
+      }
+    }
+  `,legacyCollection:r`
+    fragment CommentButton_legacyCollection on LegacyCollection {
+      id
+      communityCommentsSummary {
+        id
+        commentsEnabled
+        totalCount
+        uri
+      }
+    }
+  `};var $={HEADER:`header`,FOOTER:`footer`,INSTORYMASTHEAD:`inStoryMasthead`,C_COLUMN:`ccol`,BIGBOTTOM:`bigBottom`},he=Q;export{W as C,H as S,re as T,U as _,ce as a,K as b,fe as c,se as d,ue as f,de as g,R as h,ee as i,oe as l,G as m,he as n,ne as o,le as p,pe as r,q as s,$ as t,ae as u,I as v,ie as w,V as x,B as y};
+//# sourceMappingURL=CommentButton-DyY3Hlst.js.map

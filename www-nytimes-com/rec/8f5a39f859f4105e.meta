@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/cheltenham/cheltenham-normal-500.e6711d3a9af4e8cc6c129ba9940c081e.woff2
+200 OK
+cache-control: public,max-age=31536000,immutable
+expires: Tue, 15 Jul 2025 14:04:54 GMT
+last-modified: Mon, 15 Jul 2024 13:56:29 GMT
+etag: "e6711d3a9af4e8cc6c129ba9940c081e"
+x-goog-generation: 1721051789404376
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 22324
+content-type: application/octet-stream
+x-goog-hash: crc32c=fIPUJg==
+x-goog-hash: md5=5nEdOpr06MxsEpuplAwIHg==
+x-goog-storage-class: STANDARD
+x-guploader-uploadid: ACJd0NrZsGKOXGiZT_12axfjLFy8ckqU2u0eqp24H1JZfk2IxZ8gqyK7Uj18iK3R1dlrUJwBmWzHwoTfnA
+server: UploadServer
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:07 GMT
+via: 1.1 varnish
+age: 158954
+x-served-by: cache-iad-khef600021-IAD
+x-cache: HIT
+x-cache-hits: 2371
+x-timer: S1795020068.543800,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 22324

@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./tokens-CCadfGKJ.js";var r=e(t()),i=n.contentPrimary,a=({className:e,fill:t=i,direction:n=`down`,ariaHidden:a})=>{let o;return n===`up`&&(o={transform:`rotate(180deg)`}),r.createElement(`svg`,{"aria-hidden":a,className:e,viewBox:`0 0 13 8`,style:o},r.createElement(`polygon`,{fill:t,points:`6.5,8 0,1.4 1.4,0 6.5,5.2 11.6,0 13,1.4`}))};export{a as t};
+//# sourceMappingURL=Caret-BBpHxF9N.js.map

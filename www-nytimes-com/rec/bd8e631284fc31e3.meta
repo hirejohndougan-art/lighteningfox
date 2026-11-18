@@ -1,0 +1,35 @@
+GET https://www.nytimes.com/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css
+200 OK
+x-amz-id-2: wo8hyJOcJERfrT83Mj1sU36sT1jHgCOZbhMCV5Wv73U67uatrlluG5FFdFIrR6sr9RyLpOtflog=
+x-amz-request-id: 2S64DKHKMX86KJBH
+server: AmazonS3
+last-modified: Tue, 03 Nov 2026 21:47:54 GMT
+etag: "d9a6e77102b8649419259ee66efbfe1d"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: 7MU24CJV_IiZj9v9eAs1O7Juii7fkec3
+content-type: text/css
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=MISS,final-url="/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=HLu7xYiwswCfZmhgMGHSIZKV,regi_id=189424703,newsTenure=regi_user
+x-nyt-geoip-map: continent=NA,country=US,region=VA,gmt-offset=-500,meridiem=PM,latitude=36.850,longitude=-76.290,city=norfolk,postal-code=23510,area-code=757,metro=544
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=HLu7xYiwswCfZmhgMGHSIZKV,regi_id=189424703,newsTenure=regi_user
+x-nyt-vars: slideshow-compatibility
+lei-timing: fetch=142584,misspass=241,do_stream=0
+lei-origin: shield=LGA,src_ip=167.82.132.26,alternate_path=0,ip=167.82.132.26,port=443,name=shield_ssl_cache_lga_kjfk8660026_LGA,status=200,reason=OK,method=GET,path="/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css",host=www.nytimes.com
+x-origin-time: 2026-11-03 21:48:40 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 16:41:07 GMT
+age: 1277548
+x-served-by: cache-lga-kjfk8660026-LGA, cache-iad-kiad7000159-IAD
+x-cache: MISS, HIT
+x-cache-hits: 0, 20471
+x-timer: S1795020068.859127,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: MISS-HIT
