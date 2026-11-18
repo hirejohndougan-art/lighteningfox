@@ -19,6 +19,8 @@ mod imp {
     // Classic BPF opcodes (linux/filter.h).
     const BPF_LD_W_ABS: u16 = 0x20;
     const BPF_JEQ_K: u16 = 0x15;
+    // Only the x86-64 filter needs it (refusing the x32 ABI).
+    #[cfg(target_arch = "x86_64")]
     const BPF_JGE_K: u16 = 0x35;
     const BPF_JSET_K: u16 = 0x45;
     const BPF_RET_K: u16 = 0x06;
@@ -39,6 +41,8 @@ mod imp {
 
     /// System calls refused everywhere.
     fn denied_always() -> Vec<libc::c_long> {
+        // Extended below on x86-64 only.
+        #[cfg_attr(not(target_arch = "x86_64"), allow(unused_mut))]
         let mut v = vec![
             libc::SYS_ptrace,
             libc::SYS_process_vm_readv,

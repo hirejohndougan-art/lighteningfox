@@ -35,6 +35,14 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
+/// How long the browser waits for an extension's background script (`secs`), or 30 seconds in
+/// tests: a test machine running every test at once, with every function compiled first
+/// (`BOA_JIT=always` in CI), can take longer than a user's browser ever should, and the tests
+/// check answers, not the time limit.
+pub(crate) const fn wait_limit(secs: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(if cfg!(test) { 30 } else { secs })
+}
+
 /// The JavaScript side of the API, shared by content scripts and backgrounds.
 pub const API_JS: &str = include_str!("api.js");
 

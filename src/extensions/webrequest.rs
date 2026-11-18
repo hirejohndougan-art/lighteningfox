@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{LazyLock, Mutex};
-use std::time::Duration;
 
 struct Listener {
     ext: String,
@@ -124,7 +123,7 @@ pub fn check(method: &str, url: &str, headers: &[(String, String)]) -> Decision 
         if let Ok(mut w) = WAITING.lock() {
             w.insert(id, tx);
         }
-        let answer = if super::background::deliver_event(&ext, &event) { rx.recv_timeout(Duration::from_secs(2)).ok() } else { None };
+        let answer = if super::background::deliver_event(&ext, &event) { rx.recv_timeout(super::wait_limit(2)).ok() } else { None };
         if let Ok(mut w) = WAITING.lock() {
             w.remove(&id);
         }

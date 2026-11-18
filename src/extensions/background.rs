@@ -57,7 +57,7 @@ pub fn send_message(e: &Extension, msg: Value, url: &str) -> Value {
         sender["tab"] = tab;
     }
     let event = json!({ "type": "message", "id": id, "msg": msg, "sender": sender });
-    let answer = if deliver_event(&e.id, &event) { rx.recv_timeout(Duration::from_secs(5)).ok().flatten() } else { None };
+    let answer = if deliver_event(&e.id, &event) { rx.recv_timeout(super::wait_limit(5)).ok().flatten() } else { None };
     if let Ok(mut r) = REPLIES.lock() {
         r.remove(&id);
     }
@@ -180,7 +180,7 @@ pub fn start(e: &'static Extension) {
         }
     });
     if spawned.is_ok() {
-        let _ = ready_rx.recv_timeout(Duration::from_secs(2));
+        let _ = ready_rx.recv_timeout(super::wait_limit(2));
     } else if let Ok(mut r) = RUNNING.lock() {
         r.remove(&e.id);
     }
