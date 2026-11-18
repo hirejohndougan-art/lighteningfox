@@ -857,6 +857,14 @@
     if (!target) return true;
     return target.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
   };
+  // A form being sent: its submit event names the button that sent it (event.submitter).
+  g.__dispatchSubmit = function (id, by) {
+    const target = wrap(id);
+    if (!target) return true;
+    const e = new Event("submit", { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "submitter", { value: by >= 0 ? wrap(by) : null, enumerable: true });
+    return target.dispatchEvent(e);
+  };
   g.__loaded = function () {
     __readyState = "interactive";
     document.dispatchEvent(new Event("DOMContentLoaded", { bubbles: true }));

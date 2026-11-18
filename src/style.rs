@@ -491,6 +491,9 @@ pub struct Style {
     /// (`width` itself is then auto).
     pub width_kw: u8,
     pub height: Len,
+    /// `height: fit-content` (and min-/max-content): as tall as the content even between a set
+    /// top and bottom (a dialog or popover centered by auto margins).
+    pub height_fit: bool,
     /// `content` as written (for ::before, ::after and ::marker boxes).
     pub content: Option<Rc<str>>,
     /// `counter-reset`, `counter-set` and `counter-increment` as written.
@@ -515,6 +518,8 @@ pub struct Pseudos {
     pub after: Option<Rc<Style>>,
     pub marker: Option<Rc<Style>>,
     pub placeholder: Option<Rc<Style>>,
+    /// ::backdrop, behind an element in the top layer (dialog.rs).
+    pub backdrop: Option<Rc<Style>>,
 }
 
 /// Which pseudo-element a selector ends in: 0 ::before, 1 ::after, 2 ::marker, 3 ::placeholder.
@@ -524,6 +529,7 @@ pub fn pseudo_kind(name: &str) -> Option<usize> {
         "::after" => Some(1),
         "::marker" => Some(2),
         "::placeholder" | "::-webkit-input-placeholder" | "::-moz-placeholder" | "-ms-input-placeholder" | "::-ms-input-placeholder" => Some(3),
+        "::backdrop" => Some(4),
         _ => None,
     }
 }
@@ -603,6 +609,7 @@ impl Default for Style {
             border_color_set: false,
             width: Len::Auto,
             max_width: Len::Auto,
+            height_fit: false,
             width_kw: 0,
             height: Len::Auto,
             content: None,
@@ -683,6 +690,11 @@ colgroup, col { display: none; }
 th { text-align: center; }
 li { display: list-item; }
 head, script, style, title, meta, link, noscript, template, base, datalist, dialog { display: none; }
+dialog[open] { display: block; position: absolute; left: 0; right: 0; width: fit-content; height: fit-content; margin: auto; border: 3px solid; padding: 1em; background-color: white; color: black; }
+dialog:modal { position: fixed; top: 0; bottom: 0; max-width: calc(100% - 6px - 2em); max-height: calc(100% - 6px - 2em); overflow: auto; z-index: 2147483647; }
+[popover] { position: fixed; left: 0; right: 0; top: 0; bottom: 0; width: fit-content; height: fit-content; margin: auto; border: 3px solid; padding: 0.25em; overflow: auto; color: black; background-color: white; }
+[popover]:not(:popover-open) { display: none; }
+:popover-open { z-index: 2147483647; }
 [hidden] { display: none; }
 slot { display: contents; }
 body { margin: 8px; }
@@ -741,7 +753,7 @@ struct Matched<'a> {
 pub(crate) struct Matches<'a> {
     all: Vec<Matched<'a>>,
     /// ::before, ::after, ::marker, ::placeholder.
-    pseudo: [Vec<Matched<'a>>; 4],
+    pseudo: [Vec<Matched<'a>>; 5],
     order: usize,
 }
 
@@ -809,7 +821,7 @@ impl<'a> MatchCx<'a> {
             }
         };
         let container_ok = |c: &str| styles.map(|st| crate::cascade::matches(dom, st, id, c));
-        let mut pmatched: [Vec<Matched<'a>>; 4] = Default::default();
+        let mut pmatched: [Vec<Matched<'a>>; 5] = Default::default();
         for (origin, sheet) in std::iter::once(self.ua).chain(page).enumerate() {
             let origin = if origin == 0 { 0 } else { 1 };
             for pr in self.pseudo_index.get(&(sheet as *const Stylesheet as usize)).map(|v| v.as_slice()).unwrap_or(&[]) {
@@ -1267,7 +1279,8 @@ pub fn compute(dom: &Dom, sheets: &[Stylesheet]) -> Vec<Rc<Style>> {
                     0 => &mut ps.before,
                     1 => &mut ps.after,
                     2 => &mut ps.marker,
-                    _ => &mut ps.placeholder,
+                    3 => &mut ps.placeholder,
+                    _ => &mut ps.backdrop,
                 };
                 *slot = Some(Rc::new(p));
             }
@@ -1603,6 +1616,10 @@ fn compound_matches(dom: &Dom, id: NodeId, c: &Compound) -> bool {
             "optional" => matches!(dom.tag(id), Some("input" | "select" | "textarea")) && dom.attr(id, "required").is_none(),
             "disabled" => dom.attr(id, "disabled").is_some(),
             "enabled" => matches!(tag, "input" | "button" | "select" | "textarea") && dom.attr(id, "disabled").is_none(),
+            // The top layer (dialog.rs).
+            "modal" => crate::dialog::is(dom, id, crate::dialog::MODAL),
+            "popover-open" => crate::dialog::is(dom, id, crate::dialog::POPOVER),
+            "open" => matches!(tag, "dialog" | "details") && dom.attr(id, "open").is_some(),
             "required" => dom.attr(id, "required").is_some(),
             "hover" => {
                 // The hovered element and all its ancestors are :hover.
@@ -3130,8 +3147,12 @@ pub fn apply(st: &mut Style, parent: &Style, name: &str, value: &str) {
             }
         }
         "height" => {
-            if let Some(l) = parse_len(&lower, fs) {
-                st.height = l
+            if matches!(lower.as_str(), "fit-content" | "max-content" | "min-content" | "-moz-fit-content" | "-webkit-fit-content") {
+                st.height = Len::Auto;
+                st.height_fit = true;
+            } else if let Some(l) = parse_len(&lower, fs) {
+                st.height = l;
+                st.height_fit = false;
             }
         }
         "border" => {

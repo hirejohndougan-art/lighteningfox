@@ -63,7 +63,10 @@ impl Pointer {
                 continue;
             }
             self.down[i] = d;
-            let Some(n) = node else { continue };
+            // Over nothing in particular, the events go to the root element (as in other
+            // browsers: a click on empty space closes popovers and menus that listen for it).
+            let root = || crate::js::with_dom(|dom| dom.nodes[crate::dom::Dom::ROOT].children.iter().copied().find(|&c| dom.tag(c).is_some()));
+            let Some(n) = node.or_else(root) else { continue };
             let init = format!("{{button:{i},clientX:{x},clientY:{y},{m}}}");
             let ok = js.user_event(n as i64, if d { "mousedown" } else { "mouseup" }, &init);
             cancelled |= d && !ok;

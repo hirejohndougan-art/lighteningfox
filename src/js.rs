@@ -1324,6 +1324,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("devconsole.js", include_str!("devconsole.js")),
     ("winhandlers.js", include_str!("winhandlers.js")),
     ("perftiming.js", include_str!("perftiming.js")),
+    ("dialog.js", include_str!("dialog.js")),
     ("perfentries.js", include_str!("perfentries.js")),
 ];
 
@@ -1487,7 +1488,7 @@ impl Js {
             ("__geomGen", 0, n_geom_gen),
             ("__elScrollGen", 0, n_el_scroll_gen),
         ];
-        for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES).chain(crate::qname::script::NATIVES) {
+        for (name, len, f) in natives.iter().chain(crate::validation::script::NATIVES).chain(crate::dialog::script::NATIVES).chain(crate::qname::script::NATIVES) {
             ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f))
                 .expect("register native");
         }
@@ -2003,6 +2004,12 @@ impl Js {
     /// Fire an event (input, change, submit, focus…) at a node. Returns false if cancelled.
     pub fn dispatch(&mut self, node: NodeId, kind: &str) -> bool {
         self.eval(&format!("__dispatch({node}, '{kind}')"), kind).map_or(true, |v| v.to_boolean())
+    }
+
+    /// Fire submit at a form, naming the button that sent it. False if the page cancelled it.
+    pub fn dispatch_submit(&mut self, form: NodeId, submitter: Option<NodeId>) -> bool {
+        let by = submitter.map_or(-1, |s| s as i64);
+        self.eval(&format!("__dispatchSubmit({form}, {by})"), "submit").map_or(true, |v| v.to_boolean())
     }
 
     /// Run a snippet of the browser's own JavaScript (calls into the prelude) and return

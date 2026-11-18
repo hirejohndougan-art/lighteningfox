@@ -321,6 +321,56 @@ fn flex_align_content_spreads_wrapped_lines() {
 }
 
 #[test]
+fn dialogs_and_popovers() {
+    let _serial = serial();
+    let mut page = open("tests/sites/dialog-popover.html");
+    let settle = |page: &mut crate::Page| {
+        if let Some(j) = page.js.as_mut() {
+            j.settle(std::time::Duration::from_millis(100));
+        }
+    };
+    // A modal dialog: in the top layer, centered, the page behind it inert.
+    let r = eval(&mut page, r#"(() => {
+        d.addEventListener('close', () => window.closed = (window.closed || '') + '[' + d.returnValue + ']');
+        d.showModal();
+        const r = d.getBoundingClientRect();
+        outside.click();
+        return [d.open, d.matches(':modal'), Math.abs(r.left + r.width / 2 - innerWidth / 2) < 2, Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2, window.outsideClicks || 0].join(',');
+    })()"#);
+    assert_eq!(r.trim_matches('"'), "true,true,true,true,0");
+    // Esc cancels it; close events come after.
+    eval(&mut page, "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))");
+    settle(&mut page);
+    assert_eq!(eval(&mut page, "[d.open, d.matches(':modal'), window.closed].join(',')").trim_matches('"'), "false,false,[]");
+    // close(value) sets returnValue; <form method=dialog> closes with the button's value.
+    eval(&mut page, "d.showModal(); d.close('kept')");
+    settle(&mut page);
+    eval(&mut page, "d.showModal(); const e = new Event('submit', {bubbles: true, cancelable: true}); Object.defineProperty(e, 'submitter', {value: yes}); d.querySelector('form').dispatchEvent(e)");
+    settle(&mut page);
+    assert_eq!(eval(&mut page, "[d.open, window.closed, outside.click(), window.outsideClicks].join(',')").trim_matches('"'), "false,[][kept][yes],,1");
+    // showModal on an open modal is fine; on a dialog opened with show() it's an error.
+    assert_eq!(eval(&mut page, "d.show(); let e2 = ''; try { d.showModal() } catch (x) { e2 = x.name } d.close(); e2").trim_matches('"'), "InvalidStateError");
+    // Popovers: a popovertarget button toggles one; a press outside closes it (light dismiss);
+    // a manual one stays; Esc closes the top auto popover.
+    let r = eval(&mut page, r#"(() => {
+        const out = [];
+        pop.addEventListener('toggle', (e) => window.toggles = (window.toggles || '') + e.newState + ';');
+        menu.click(); out.push(pop.matches(':popover-open'), getComputedStyle(pop).display);
+        menu.click(); out.push(pop.matches(':popover-open'));
+        pop.showPopover(); manual.showPopover();
+        outside.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+        out.push(pop.matches(':popover-open'), manual.matches(':popover-open'), getComputedStyle(manual).display);
+        manual.hidePopover();
+        pop.togglePopover(); document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+        out.push(pop.matches(':popover-open'), pop.popover, manual.popover, menu.popoverTargetElement === pop);
+        return out.join(',');
+    })()"#);
+    assert_eq!(r.trim_matches('"'), "true,block,false,false,true,block,false,auto,manual,true");
+    settle(&mut page);
+    assert!(eval(&mut page, "window.toggles").contains("open;closed"), "toggle events");
+}
+
+#[test]
 fn tree_walker_and_node_iterator() {
     let _serial = serial();
     let _page = open("tests/sites/tree-walker.html");

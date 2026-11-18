@@ -1568,10 +1568,13 @@ impl<'a> Ctx<'a> {
                     self.fit_between.insert(id);
                 }
             }
-            if st.height == Len::Auto && top != Len::Auto && bottom != Len::Auto {
+            if st.height == Len::Auto && !st.height_fit && top != Len::Auto && bottom != Len::Auto {
                 let e = self.forced.entry(id).or_insert((None, None));
                 e.1 = Some((cb.h - vert(top) - vert(bottom)).max(0.0));
             }
+            // height: fit-content between a set top and bottom with auto margins: centered
+            // there (a modal dialog, a popover).
+            let center_v = st.height == Len::Auto && st.height_fit && top != Len::Auto && bottom != Len::Auto && st.margin[0] == Len::Auto && st.margin[2] == Len::Auto;
             self.cb_heights.push(Some(cb.h));
             let d = match self.forced.get(&id).copied() {
                 Some((Some(fw), fh)) => self.layout_at(id, fw, fh),
@@ -1589,10 +1592,20 @@ impl<'a> Ctx<'a> {
             let y = match (top, bottom) {
                 (Len::Auto, Len::Auto) => sy,
                 (Len::Auto, b) => cb.y + cb.h - vert(b) - d.h,
+                (t, b) if center_v => cb.y + vert(t) + ((cb.h - vert(t) - vert(b) - d.h) / 2.0).max(0.0),
                 (t, _) => cb.y + vert(t),
             };
             let (l0, h0) = (self.links.len(), self.hits.len());
             let i0 = self.items.len();
+            // A modal dialog's ::backdrop covers the window behind it (dialog.rs).
+            if crate::dialog::is(self.dom, id, crate::dialog::MODAL) {
+                let pseudo = self.styles[id].pseudo.as_ref().and_then(|p| p.backdrop.clone());
+                let color = pseudo.map(|b| if b.bg.color.a > 0 { b.bg.color } else { b.background }).unwrap_or(crate::style::Color { r: 0, g: 0, b: 0, a: 26 });
+                let (vw, vh) = crate::css::viewport();
+                self.items.push(Item::FixedPush);
+                self.items.push(Item::Rect { x: 0.0, y: 0.0, w: vw, h: vh, color });
+                self.items.push(Item::FixedPop);
+            }
             if fixed {
                 self.items.push(Item::FixedPush);
             }

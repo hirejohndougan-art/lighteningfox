@@ -75,6 +75,8 @@ pub struct Dom {
     pub render_scope: std::collections::HashMap<NodeId, NodeId>,
     /// Form state kept outside attributes: custom validity messages, typed-in fields, picked files.
     pub form_state: crate::validation::FormState,
+    /// The top layer (dialog.rs): (element, kind) in the order they were opened, last on top.
+    pub top_layer: Vec<(NodeId, u8)>,
 }
 
 impl Dom {

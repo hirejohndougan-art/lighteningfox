@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- <dialog> and popovers (P3): modal dialogs over a ::backdrop with the page inert behind them,
+     form method=dialog, Esc, popovertarget buttons and light dismiss. -->
+<html><head><title>dialog and popover</title>
+<style>body { margin: 0; height: 700px } #d::backdrop { background: rgba(0, 0, 80, 0.5) }</style></head>
+<body>
+<button id="outside" onclick="window.outsideClicks = (window.outsideClicks || 0) + 1">Outside</button>
+<dialog id="d"><form method="dialog"><p>Sure?</p><button id="yes" value="yes">Yes</button></form></dialog>
+<button id="menu" popovertarget="pop">Menu</button>
+<div id="pop" popover>Popover menu</div>
+<div id="manual" popover="manual">Manual</div>
+<script>/* driven from tests */</script>
+</body></html>

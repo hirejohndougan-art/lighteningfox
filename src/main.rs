@@ -16,6 +16,7 @@ macro_rules! log {
 }
 
 mod a11y_remote;
+mod dialog;
 mod shm;
 mod clicks;
 mod mcp;
@@ -1945,7 +1946,7 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
             return None;
         }
     }
-    if fire_event && !fire(page, form, "submit") {
+    if fire_event && !page.js.as_mut().is_none_or(|js| js.dispatch_submit(form, submitter)) {
         return None;
     }
     let sub = js::with_dom(|d| forms::submission(d, form, submitter, &page.url));

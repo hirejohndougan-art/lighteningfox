@@ -154,6 +154,10 @@ pub fn signature(dom: &Dom, id: NodeId, f: &Features, st: &States) -> u64 {
         }
     }
     mix(&mut h, st.hover.contains(&id) as u64 | (st.active.contains(&id) as u64) << 1 | (st.focus_within.contains(&id) as u64) << 2 | ((st.focus == Some(id)) as u64) << 3);
+    // In the top layer (:modal, :popover-open; dialog.rs).
+    if let Some(&(_, k)) = dom.top_layer.iter().find(|&&(n, _)| n == id) {
+        mix(&mut h, 0x70_0000 | k as u64);
+    }
     if f.siblings {
         // Position among the element siblings and what they are.
         let parent = dom.nodes[id].parent.unwrap_or(0);
