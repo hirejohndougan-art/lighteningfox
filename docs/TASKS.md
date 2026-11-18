@@ -625,6 +625,26 @@ mode (a flag or environment variable that `tools/wpt.py` sets for script tests) 
 plays in real time and the run ends when the test harness reports, with the usual timeout. Then
 report the new numbers for `media-source` and `html/semantics/embedded-content/media-elements`.
 
+### X30. CI green after J4: ARM64 build, a slow-machine test limit
+**Status:** claimed by chat-wasm-1 2026-11-18 16:45
+**After:** J4
+**Checklist:** none
+**Files:** `src/sandbox.rs`, `src/extensions/`
+Found by J4's first CI run (added at John's request): the new linux-arm64 job fails to build
+(`-D warnings`: `sandbox.rs` has a constant and a `mut` unused on ARM64), and
+`extensions::flow_tests::web_request_blocking` fails on macOS with `BOA_JIT=always` (its time
+limit is too short when every function is compiled first).
+
+### X31. DOM: "create+append 2000 nodes" 30 ms → 1,700 ms
+**Status:** claimed by chat-wasm-1 2026-11-18 16:45
+**After:** —
+**Checklist:** none
+**Files:** to be found (DOM, `src/js*.rs`)
+`tools/perf_check.py` (CI's speed regression check) shows the `tests/bench.html` benchmark
+"DOM: create+append 2000 nodes" at about 1,700 ms against a 30 ms baseline, with the JIT on or
+off. Find the change that slowed it and fix it in the engine; the rest of the speed check must
+stay within its limits.
+
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
