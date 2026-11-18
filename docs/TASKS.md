@@ -994,7 +994,7 @@ CSP `wasm-unsafe-eval` rule, WebAssembly in Web Workers, and in site processes w
 is on. `postMessage` of a `WebAssembly.Module` to a worker.
 
 ### P1d. WebAssembly: conformance and real apps
-**Status:** free
+**Status:** claimed by chat-wasm-1 2026-11-18 07:35
 **After:** P1b, P1c
 **Checklist:** §9 "WebAssembly"
 **Files:** `tools/` (a spec-test runner), whatever the fixes need
