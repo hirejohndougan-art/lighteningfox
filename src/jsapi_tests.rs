@@ -1289,3 +1289,50 @@ fn webgl2_compressed_texture_rules() {
     );
     assert_eq!(r.trim_matches('"'), "true,0,true,true,true,0,true");
 }
+
+
+/// Drawing while sampling a texture level that is also the render target is
+/// INVALID_OPERATION; a mutable texture's attached level must be in [base, q]; immutable
+/// textures clamp TEXTURE_BASE_LEVEL.
+#[test]
+fn webgl2_feedback_loops_and_level_rules() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+            const p = gl.createProgram();
+            gl.attachShader(p, sh(gl.VERTEX_SHADER, "#version 300 es\nvoid main(){ gl_Position = vec4(0, 0, 0, 1); gl_PointSize = 1.0; }"));
+            gl.attachShader(p, sh(gl.FRAGMENT_SHADER, "#version 300 es\nprecision mediump float; uniform sampler2D t; out vec4 c; void main(){ c = texture(t, vec2(0)); }"));
+            gl.linkProgram(p);
+            gl.useProgram(p);
+            const t = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, t);
+            gl.texStorage2D(gl.TEXTURE_2D, 2, gl.RGBA8, 2, 2);
+            const fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            // Sampling only level 1 (base 5 clamps to 1) while drawing into level 0 is fine.
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_BASE_LEVEL, 5);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(gl.getError());
+            const m = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, m);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texImage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 0);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, m, 1);
+            out.push(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_INCOMPLETE_ATTACHMENT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 1);
+            out.push(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE);
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "true,0,true,true");
+}

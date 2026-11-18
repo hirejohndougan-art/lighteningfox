@@ -365,6 +365,8 @@
       default: x = {};
     }
     this.__exts.set(real, x);
+    // The context keeps every enabled extension's name (webgl.rs Gl::exts).
+    __glEnableExt(this.__cid, real);
     return x;
   };
 

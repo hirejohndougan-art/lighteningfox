@@ -315,6 +315,8 @@ pub struct Gl {
     s3tc: bool,
     /// The ETC1, ETC2/EAC and RGTC compressed-texture extensions enabled.
     etc_families: Vec<crate::webgl_etc::Family>,
+    /// Names of the extensions the page has enabled.
+    exts: Vec<String>,
 }
 
 fn fb_fmt(alpha: bool) -> Fmt {
@@ -392,6 +394,7 @@ impl Gl {
             seed,
             s3tc: false,
             etc_families: Vec::new(),
+            exts: Vec::new(),
         };
         gl.alloc_default();
         gl
@@ -601,6 +604,22 @@ impl Gl {
             any = true;
             None
         };
+        // WebGL 2: a level of a mutable texture must be in [base, q], and other than the
+        // base only if the texture is mipmap complete (OpenGL ES 3.0 §4.4.4).
+        if self.v2 {
+            for a in f.color.iter().flatten().chain(f.depth.iter()).chain(f.stencil.iter()) {
+                let Att::Tex { id, level, .. } = a else { continue };
+                let Some(t) = self.texture(*id) else { continue };
+                if t.immutable {
+                    continue;
+                }
+                let (base, q) = (t.eff_base(), t.max_level());
+                let mip = tex::TexParams { min: e::NEAREST_MIPMAP_NEAREST, mag: e::NEAREST, ..t.p };
+                if (*level as usize) < base || (*level as usize) > q || (*level as usize != base && !t.complete(&mip, true)) {
+                    return FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+                }
+            }
+        }
         for a in f.color.iter().flatten() {
             if let Some(s) = check(self.att_image(a), 0) {
                 return s;
@@ -1140,6 +1159,9 @@ impl Gl {
         let Some(l) = prog.linked.as_ref() else { return self.error(INVALID_OPERATION) };
         let attribs_needed: Vec<(u32, Ty, u32)> = l.attribs.iter().map(|a| (a.2, a.1.clone(), a.3)).collect();
         let missing_out = self.missing_outputs(&l.outs);
+        if self.feedback_loop() {
+            return self.error(INVALID_OPERATION);
+        }
         if self.v2 && (!self.samplers_match_textures() || !self.attrib_types_match(&attribs_needed) || missing_out) {
             return self.error(INVALID_OPERATION);
         }
@@ -1345,6 +1367,53 @@ impl Gl {
     /// samplers take float, normalized or (comparison off) depth textures; integer samplers
     /// the matching integer textures; shadow samplers depth textures with comparison on (the
     /// bound sampler object's setting wins over the texture's).
+    /// A texture level the program may sample is also attached to the draw framebuffer.
+    fn feedback_loop(&self) -> bool {
+        // An incomplete framebuffer reports INVALID_FRAMEBUFFER_OPERATION instead.
+        if self.draw_fbo == 0 || self.fbo_status(self.draw_fbo) != FRAMEBUFFER_COMPLETE {
+            return false;
+        }
+        let Some(f) = self.fbo(self.draw_fbo) else { return false };
+        let atts: Vec<(u32, u32)> = f.color.iter().flatten().chain(f.depth.iter()).chain(f.stencil.iter()).filter_map(|a| if let Att::Tex { id, level, .. } = a { Some((*id, *level)) } else { None }).collect();
+        if atts.is_empty() {
+            return false;
+        }
+        let Some(l) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()) else { return false };
+        for un in &l.uniforms {
+            let Ty::Sampler(s) = &un.ty else { continue };
+            let Some(&(stage, slot)) = un.slots.first() else { continue };
+            let mem = if stage == 0 { &l.vs_mem } else { &l.fs_mem };
+            let k = match s.dim {
+                Dim::D2 => 0,
+                Dim::D3 => 1,
+                Dim::Cube => 2,
+                Dim::D2Array => 3,
+            };
+            for el in 0..un.count as usize {
+                let Some(unit) = mem.get(slot as usize + el).map(|m| m[0].to_bits() as usize).filter(|&u| u < MAX_UNITS) else { continue };
+                let id = self.units[unit][k];
+                if !atts.iter().any(|a| a.0 == id) {
+                    continue;
+                }
+                let Some(t) = self.texture(id) else { continue };
+                let p = match self.objs.get(&self.samplers[unit]) {
+                    Some(Obj::Sampler(sp)) if self.samplers[unit] != 0 => sp.clone(),
+                    _ => t.p.clone(),
+                };
+                // Incomplete textures sample nothing.
+                if !t.complete(&p, self.v2) {
+                    continue;
+                }
+                let base = t.eff_base();
+                let top = if matches!(p.min, e::NEAREST | e::LINEAR) { base } else { t.max_level() };
+                if atts.iter().any(|&(i, lv)| i == id && (base..=top).contains(&(lv as usize))) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     fn samplers_match_textures(&self) -> bool {
         let Some(l) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()) else { return true };
         for un in &l.uniforms {
@@ -2923,13 +2992,18 @@ fn n_generate_mipmap(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<
         let Some(slot) = gl.tex_slot(target) else { return gl.error(INVALID_ENUM) };
         let id = gl.units[gl.active][slot];
         let v2 = gl.v2;
+        // 32-bit float needs EXT_color_buffer_float and OES_texture_float_linear.
+        let float_ok = ["EXT_color_buffer_float", "OES_texture_float_linear"].iter().all(|n| gl.exts.iter().any(|x| x == n));
         let Some(t) = gl.texture_mut(id) else { return gl.error(INVALID_OPERATION) };
         let Some(b) = t.base_image() else { return gl.error(INVALID_OPERATION) };
         if !v2 && (!b.w.is_power_of_two() || !b.h.is_power_of_two()) {
             return gl.error(INVALID_OPERATION);
         }
         let compressed = tex::compressed_format(b.fmt.internal).is_some() || crate::webgl_etc::format(b.fmt.internal).is_some();
-        if b.fmt.depth || b.fmt.is_integer() || compressed {
+        // The base level must be color-renderable and filterable (OpenGL ES 3.0 §3.8.11).
+        let sized = b.fmt.internal != b.fmt.layout;
+        let renderable = !(v2 && sized && !b.fmt.color_renderable(true)) && (!matches!(b.fmt.num, Num::Float) || float_ok);
+        if b.fmt.depth || b.fmt.is_integer() || compressed || !renderable || b.w == 0 || b.h == 0 {
             return gl.error(INVALID_OPERATION);
         }
         if !t.generate_mipmap() {
@@ -4944,7 +5018,12 @@ fn n_enable_ext(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
             _ => None,
         };
         if let Some(f) = fam {
-            gl.etc_families.push(f);
+            if !gl.etc_families.contains(&f) {
+                gl.etc_families.push(f);
+            }
+        }
+        if !gl.exts.contains(&name) {
+            gl.exts.push(name.clone());
         }
     });
     undef()

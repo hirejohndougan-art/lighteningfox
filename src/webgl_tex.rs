@@ -734,7 +734,23 @@ impl Texture {
         f[level] = Some(img);
     }
     pub fn base_image(&self) -> Option<&Image> {
-        self.level(0, self.p.base as usize)
+        self.level(0, self.eff_base())
+    }
+    /// TEXTURE_BASE_LEVEL as used (OpenGL ES 3.0.6 §3.8.10: clamped for immutable textures).
+    pub fn eff_base(&self) -> usize {
+        if self.immutable {
+            (self.p.base as usize).min(self.immutable_levels.saturating_sub(1) as usize)
+        } else {
+            self.p.base as usize
+        }
+    }
+    /// TEXTURE_MAX_LEVEL as used (clamped to [base, levels - 1] for immutable textures).
+    pub fn eff_max(&self) -> usize {
+        if self.immutable {
+            (self.p.max as usize).max(self.eff_base()).min(self.immutable_levels.saturating_sub(1) as usize)
+        } else {
+            self.p.max as usize
+        }
     }
     /// The last mipmap level (`q`) of a full chain from base.
     pub fn max_level(&self) -> usize {
@@ -743,13 +759,12 @@ impl Texture {
         if self.target == e::TEXTURE_3D {
             size = size.max(b.d);
         }
-        let mut q = self.p.base as usize;
+        let mut q = self.eff_base();
         while size > 1 {
             size /= 2;
             q += 1;
         }
-        let q = if self.immutable { q.min(self.immutable_levels.saturating_sub(1) as usize) } else { q };
-        q.min(self.p.max as usize)
+        q.min(self.eff_max())
     }
     /// Is the texture complete for sampling with its parameters (or a sampler's)?
     pub fn complete(&self, p: &TexParams, webgl2: bool) -> bool {
@@ -758,8 +773,9 @@ impl Texture {
             return false;
         }
         let nf = if self.target == e::TEXTURE_CUBE_MAP { 6 } else { 1 };
+        let base = self.eff_base();
         for f in 0..nf {
-            let Some(i) = self.level(f, p.base as usize) else { return false };
+            let Some(i) = self.level(f, base) else { return false };
             if i.w != b.w || i.h != b.h || i.fmt != b.fmt || (nf == 6 && i.w != i.h) {
                 return false;
             }
@@ -775,10 +791,13 @@ impl Texture {
             }
         }
         if mip {
+            if base > self.eff_max() {
+                return false;
+            }
             let q = self.max_level();
             for f in 0..nf {
                 let (mut w, mut h, mut d) = (b.w, b.h, b.d);
-                for lv in p.base as usize..=q {
+                for lv in base..=q {
                     let Some(i) = self.level(f, lv) else { return false };
                     if i.w != w || i.h != h || i.fmt != b.fmt || (self.target == e::TEXTURE_3D && i.d != d) {
                         return false;
@@ -799,7 +818,7 @@ impl Texture {
         if nf == 0 {
             return false;
         }
-        let base = self.p.base as usize;
+        let base = self.eff_base();
         let q = self.max_level_unclamped();
         for f in 0..nf {
             let Some(mut prev) = self.level(f, base).cloned() else { return false };
@@ -840,15 +859,12 @@ impl Texture {
         if self.target == e::TEXTURE_3D {
             size = size.max(b.d);
         }
-        let mut q = self.p.base as usize;
+        let mut q = self.eff_base();
         while size > 1 {
             size /= 2;
             q += 1;
         }
-        if self.immutable {
-            q = q.min(self.immutable_levels.saturating_sub(1) as usize);
-        }
-        q.min(self.p.max as usize)
+        q.min(self.eff_max())
     }
 }
 

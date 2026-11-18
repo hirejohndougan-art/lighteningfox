@@ -726,7 +726,10 @@ impl Pipeline<'_> {
 
     fn point(&mut self, t: &mut Band, v: &[f32]) {
         let (x, y, z, w) = (v[0], v[1], v[2], v[3]);
-        if w <= 0.0 || z < -w || z > w || x < -w || x > w || y < -w || y > w {
+        // Only depth clips a point: a wide point whose center is just outside the viewport
+        // still draws the part inside (the pixel bounds below cut it).
+        let _ = (x, y);
+        if w <= 0.0 || z < -w || z > w {
             return;
         }
         let win = self.to_window(v);
