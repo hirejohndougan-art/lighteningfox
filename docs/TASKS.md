@@ -421,7 +421,7 @@ current position; `QuotaExceededError` isn't an interface of its own (WPT
 `mediasource-appendbuffer-quota-exceeded` checks `ex.constructor`). Run WPT `media-source` before
 and after.
 ### X27. align-content for multi-line flex containers
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 22:15
 **After:** —
 **Checklist:** none
 **Files:** the flex-wrap part of `src/layout.rs` (`flex_children`), `src/grid_align.rs` (reuse `row_offsets`)
