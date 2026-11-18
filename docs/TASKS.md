@@ -421,7 +421,9 @@ current position; `QuotaExceededError` isn't an interface of its own (WPT
 `mediasource-appendbuffer-quota-exceeded` checks `ex.constructor`). Run WPT `media-source` before
 and after.
 ### X27. align-content for multi-line flex containers
-**Status:** claimed by chat-opus-t12 2026-11-17 22:15
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** a wrapping flex container with a set height places its lines with `align-content` (center, end, space-between/around/evenly via `grid_align::row_offsets`); normal/stretch share the extra height among the lines and auto-height items stretch into it. Lines are measured first, then placed. Test: `tests/sites/flex-align-content.html` (`flex_align_content_spreads_wrapped_lines`). WPT `align-content-*` reference tests 4/26 → 23/26; the 62 flex-wrap reference tests 18 → 20, none lost (the full css-flexbox run was cut off by a workspace restart, so only those two subsets were compared).
+**Left undone:** column-direction wrapping containers (lines side by side) don't use align-content yet; the 13 align-content script tests fail before and after (their harness).
 **After:** —
 **Checklist:** none
 **Files:** the flex-wrap part of `src/layout.rs` (`flex_children`), `src/grid_align.rs` (reuse `row_offsets`)
