@@ -62,6 +62,9 @@ pub enum Update {
     /// The text on the page and where it's drawn (page coordinates), for find in page and
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
+    /// A right click the page didn't cancel (a top-level page in a site process): the link and
+    /// the image under the mouse (absolute addresses), for the window's menu.
+    ContextMenu { link: Option<String>, image: Option<String> },
     /// A <select> was clicked (a top-level page in a site process): the window shows its list
     /// of options under the box at (x, y, w) (frame pixels, after scrolling) and answers with
     /// Event::SelectChoose.
@@ -248,6 +251,11 @@ impl Update {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
             }
+            Update::ContextMenu { link, image } => {
+                put(&mut m, b"menu");
+                put(&mut m, link.as_deref().unwrap_or("").as_bytes());
+                put(&mut m, image.as_deref().unwrap_or("").as_bytes());
+            }
             Update::Select { id, x, y, w, options } => {
                 put(&mut m, b"select");
                 put(&mut m, &f32s(&[*id as f32, *x, *y, *w, options.len() as f32]));
@@ -300,6 +308,11 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"menu" => {
+                let some = |b: Vec<u8>| Some(String::from_utf8_lossy(&b).to_string()).filter(|s| !s.is_empty());
+                let link = some(get(r)?);
+                Update::ContextMenu { link, image: some(get(r)?) }
+            }
             b"select" => {
                 let [id, x, y, w, n] = read_f32s(&get(r)?)[..] else { return Err(std::io::Error::other("bad select")) };
                 if !(0.0..=10_000.0).contains(&n) || id < 0.0 {
@@ -362,6 +375,7 @@ struct Host {
     shown: bool,
     /// The left button as last reported.
     last_down: bool,
+    last_right: bool,
     /// Updates produced away from an input handler (a top-level page's navigations).
     outbox: Vec<Update>,
     /// The title last reported (top-level pages).
@@ -767,10 +781,31 @@ impl Host {
                 if down[0] && !was && !cancelled {
                     self.click(x, y, out);
                 }
+                // A right press: contextmenu for the page, then (top-level, not cancelled) the
+                // window's menu for what's under the mouse.
+                let right = down[2] && !self.last_right;
+                self.last_right = down[2];
+                if right {
+                    let shown = match (node, self.page.js.as_mut()) {
+                        (Some(n), Some(js)) => crate::clicks::contextmenu(js, n, x, y),
+                        _ => true,
+                    };
+                    if shown && self.job.top_level {
+                        let url = &self.page.url;
+                        let link = self.lay.link_at(x, y, self.scroll).map(|h| net::resolve(url, h)).filter(|u| !u.starts_with("javascript:"));
+                        let py = y + self.scroll;
+                        let image = self.lay.items.iter().rev().find_map(|it| match it {
+                            crate::paint::Item::Image { x: ix, y: iy, w, h, src, .. } if x >= *ix && x < ix + w && py >= *iy && py < iy + h && !src.starts_with("iframe:") => Some(net::resolve(url, src)),
+                            _ => None,
+                        });
+                        out(Update::ContextMenu { link, image });
+                    }
+                }
             }
             Event::Leave => {
                 // A button released outside the frame never reached it.
                 self.last_down = false;
+                self.last_right = false;
                 if let Some(js) = self.page.js.as_mut() {
                     self.pointer.left(js);
                 }
@@ -842,6 +877,7 @@ pub(crate) fn run_host(job: FrameJob, events: Receiver<Event>, mut out: impl FnM
         registered,
         shown: true,
         last_down: false,
+        last_right: false,
         outbox: Vec::new(),
         title: String::new(),
         sent_runs: Vec::new(),
@@ -1036,6 +1072,8 @@ pub struct Pumped {
     pub post: Option<(String, forms::PostBody)>,
     /// A top-level page's new title.
     pub title: Option<String>,
+    /// A top-level page in a site process asked for the right-click menu: (link, image).
+    pub context: Option<(Option<String>, Option<String>)>,
     /// A top-level page in a site process opened a <select>: its id, where to show the list
     /// (window page coordinates: x, top, width) and the options.
     pub select: Option<(u32, f32, f32, f32, Vec<String>)>,
@@ -1084,6 +1122,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 Update::History(op) if f.top_level => out.history.push(op),
                 Update::Select { id, x, y, w, options } if f.top_level => out.select = Some((id, x, y, w, options)),
                 Update::Select { .. } => {}
+                Update::ContextMenu { link, image } if f.top_level => out.context = Some((link, image)),
+                Update::ContextMenu { .. } => {}
                 Update::History(_) => {}
             }
         }
@@ -1684,6 +1724,8 @@ mod tests {
         }
         let b = Update::Select { id: 7, x: 1.0, y: 20.0, w: 120.0, options: vec!["Apple".into(), "Bänana".into()] }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Select { id: 7, options, .. } if options == ["Apple", "Bänana"]));
+        let b = Update::ContextMenu { link: Some("https://a.com/l".into()), image: None }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::ContextMenu { link: Some(l), image: None } if l == "https://a.com/l"));
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];
         let b = Update::Text(runs.clone()).encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Text(r) if r == runs));

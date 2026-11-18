@@ -2421,6 +2421,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A page in a site process: its title, its forms, and its size follows the window.
         frames::fit(page.doc, &lay);
+        // Its right-click menu, at the mouse.
+        if let Some(hit) = fr.context {
+            let (mx, my) = window.get_mouse_pos(MouseMode::Clamp).unwrap_or((0.0, 0.0));
+            ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, my - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, Some(hit)));
+            dl_panel = None;
+            dirty = true;
+        }
         // A <select> it opened: the list, under the box.
         if let Some((id, x, y, w, labels)) = fr.select {
             if let Some((x0, y0)) = frames::site_origin(page.doc, &lay) {
@@ -2703,7 +2710,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         if frame_focus.is_none() {
             frame_focus = frames::site_frame(page.doc);
         }
-        if let (Some(k), false, false) = (&frame_focus, finding, editing) {
+        // An open menu or list keeps the keyboard (Esc closes it, arrows move in it).
+        let window_popup = ctx_menu.is_some() || dropdown.is_some();
+        if let (Some(k), false, false, false) = (&frame_focus, finding, editing, window_popup) {
             let mut text: String = chars.drain(..).collect();
             if presses.iter().any(|p| p.ctrl && p.key == Key::V) {
                 if let Some(t) = clipboard.as_mut().and_then(|c| c.get_text().ok()) {
@@ -3084,7 +3093,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             .and_then(|f| js::with_dom(|d| keynav::element_rect(&lay, d, f)))
                             .map(|(r, fixed)| keynav::center_on_screen(r, fixed, bar_h() as f32, scroll))
                             .unwrap_or((40.0, bar_h() as f32 + 40.0));
-                        let mut m = context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), at.0, at.1, at.1 - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32);
+                        let mut m = context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), at.0, at.1, at.1 - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, None);
                         m.hover = uikeys::menu_step(&m.actionable(), None, 1);
                         ctx_menu = Some(m);
                         dirty = true;
@@ -3300,7 +3309,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 sel_press = None;
             }
             // Right click: the context menu for what's under the mouse.
-            let page_menu = right && !was_right && my >= bar_h() as f32 && {
+            // (A page in a site process asks for the menu itself, after its contextmenu event.)
+            let page_menu = right && !was_right && my >= bar_h() as f32 && !frames::frame_at(page.doc, &lay, mx, view_y + scroll).is_some_and(|f| frames::site_frame(page.doc).as_ref() == Some(&f.0)) && {
                 // The page's scripts see contextmenu first and may show their own menu instead.
                 let z = page.zoom();
                 match (lay.hit_at(mx, view_y, scroll), page.js.as_mut()) {
@@ -3309,7 +3319,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             };
             if page_menu {
-                ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, view_y, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32));
+                ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, view_y, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, None));
                 dl_panel = None;
                 dirty = true;
             }
@@ -4579,11 +4589,17 @@ enum DlAct {
 /// The right-click menu: link and image items when the mouse is on one, Copy when text is
 /// selected, then page items.
 #[allow(clippy::too_many_arguments)]
-fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fonts: &Fonts, sel: Option<chrome::Selection>, mx: f32, my: f32, view_y: f32, scroll: f32, can_back: bool, can_forward: bool, win_w: f32, win_h: f32) -> chrome::Menu<Ctx> {
+/// `remote`: the link and image under the mouse, from the page's site process (else they're
+/// looked up in `lay`).
+#[allow(clippy::too_many_arguments)]
+fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fonts: &Fonts, sel: Option<chrome::Selection>, mx: f32, my: f32, view_y: f32, scroll: f32, can_back: bool, can_forward: bool, win_w: f32, win_h: f32, remote: Option<(Option<String>, Option<String>)>) -> chrome::Menu<Ctx> {
     use chrome::MenuRow as R;
     let mut rows: Vec<R<Ctx>> = Vec::new();
-    if let Some(href) = lay.link_at(mx, view_y, scroll) {
-        let url = net::resolve(&page.url, href);
+    let link = match &remote {
+        Some((l, _)) => l.clone(),
+        None => lay.link_at(mx, view_y, scroll).map(|h| net::resolve(&page.url, h)),
+    };
+    if let Some(url) = link {
         if !url.starts_with("javascript:") {
             rows.push(R::item(&i18n::t("menu-open-link-new-tab"), Ctx::OpenNewTab(url.clone())));
             rows.push(R::item(&i18n::t("menu-copy-link"), Ctx::Copy(url)));
@@ -4591,10 +4607,13 @@ fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fon
         }
     }
     let y = view_y + scroll;
-    let image = lay.items.iter().rev().find_map(|it| match it {
-        paint::Item::Image { x, y: iy, w, h, src, .. } if mx >= *x && mx < x + w && y >= *iy && y < iy + h && !src.starts_with("iframe:") => Some(src.clone()),
-        _ => None,
-    });
+    let image = match remote {
+        Some((_, i)) => i,
+        None => lay.items.iter().rev().find_map(|it| match it {
+            paint::Item::Image { x, y: iy, w, h, src, .. } if mx >= *x && mx < x + w && y >= *iy && y < iy + h && !src.starts_with("iframe:") => Some(src.clone()),
+            _ => None,
+        }),
+    };
     if let Some(src) = image {
         let url = net::resolve(&page.url, &src);
         rows.push(R::item(&i18n::t("menu-open-image-new-tab"), Ctx::OpenNewTab(url.clone())));
