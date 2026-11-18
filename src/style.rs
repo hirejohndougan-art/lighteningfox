@@ -899,6 +899,14 @@ fn shadow_sheets(dom: &Dom) -> HashMap<NodeId, (Stylesheet, Stylesheet)> {
             }
         }
     }
+    // Adopted constructed sheets come after the shadow root's own <style> elements.
+    for (root, css) in crate::livesheets::adopted_shadow() {
+        if dom.shadow_hosts.contains_key(&root) {
+            let t = texts.entry(root).or_default();
+            t.push_str(&css);
+            t.push('\n');
+        }
+    }
     texts
         .into_iter()
         .map(|(root, css)| {

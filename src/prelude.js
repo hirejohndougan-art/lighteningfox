@@ -1613,7 +1613,6 @@
   g.HTMLUnknownElement = class HTMLUnknownElement extends HTMLElement {
     static [Symbol.hasInstance](x) { return isHtml(x) && !KNOWN_HTML.has(x.localName) && !/^[a-z][^A-Z]*-/.test(x.localName); }
   };
-  g.ShadowRoot = class ShadowRoot extends DocumentFragment {};
   g.HTMLDocument = Document;
   g.NodeList = Array;
   g.HTMLCollection = Array;

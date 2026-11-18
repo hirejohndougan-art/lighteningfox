@@ -558,6 +558,26 @@ fn n_set_sheet_rules(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<
     Ok(JsValue::undefined())
 }
 
+/// `__setAdopted(css)`: the rules of the adopted constructed stylesheets (cssom.js).
+fn n_set_adopted(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let css = arg_str(a, 0, ctx)?;
+    crate::livesheets::set_adopted(&css);
+    // Nothing in the tree changed, but the page needs styling again.
+    with_dom_mut(|_| ());
+    Ok(JsValue::undefined())
+}
+
+/// `__setAdoptedShadow(rootId, css)`: a shadow root's adopted sheets (cssom.js).
+fn n_set_adopted_shadow(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let css = arg_str(a, 1, ctx)?;
+    if let Some(id) = valid(id) {
+        crate::livesheets::set_adopted_shadow(id, &css);
+        with_dom_mut(|_| ());
+    }
+    Ok(JsValue::undefined())
+}
+
 fn n_remove_attr(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = arg_id(a, 0, ctx)?;
     let name = arg_str(a, 1, ctx)?;
@@ -1465,6 +1485,8 @@ impl Js {
             ("__getAttr", 2, n_get_attr),
             ("__setAttr", 3, n_set_attr),
             ("__setSheetRules", 3, n_set_sheet_rules),
+            ("__setAdopted", 1, n_set_adopted),
+            ("__setAdoptedShadow", 2, n_set_adopted_shadow),
             ("__removeAttr", 2, n_remove_attr),
             ("__attrNames", 1, n_attr_names),
             ("__getHTML", 2, n_get_html),

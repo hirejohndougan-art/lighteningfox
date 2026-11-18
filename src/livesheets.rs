@@ -19,11 +19,40 @@ thread_local! {
     /// CSS text a page's scripts gave a `<style>` element through its CSSOM sheet, with a hash
     /// of the element's text it was based on.
     static CSSOM: RefCell<HashMap<NodeId, (u64, String)>> = RefCell::new(HashMap::new());
+    /// The rules of the constructed sheets in `document.adoptedStyleSheets` (and shadow
+    /// roots'), which come after the document's own sheets.
+    static ADOPTED: RefCell<String> = const { RefCell::new(String::new()) };
+    /// The same for each shadow root (by its id), styling only its own tree.
+    static ADOPTED_SHADOW: RefCell<HashMap<NodeId, String>> = RefCell::new(HashMap::new());
 }
 
 /// A new page: forget the last one's CSSOM rules.
 pub fn reset() {
     CSSOM.with(|m| m.borrow_mut().clear());
+    ADOPTED.with(|a| a.borrow_mut().clear());
+    ADOPTED_SHADOW.with(|a| a.borrow_mut().clear());
+}
+
+/// A shadow root's adopted sheets' CSS text (cssom.js); empty removes them.
+pub fn set_adopted_shadow(root: NodeId, css: &str) {
+    ADOPTED_SHADOW.with(|a| {
+        let mut a = a.borrow_mut();
+        if css.is_empty() {
+            a.remove(&root);
+        } else {
+            a.insert(root, css.to_string());
+        }
+    });
+}
+
+/// Every shadow root's adopted CSS (style.rs adds it to the root's own sheets).
+pub fn adopted_shadow() -> Vec<(NodeId, String)> {
+    ADOPTED_SHADOW.with(|a| a.borrow().iter().map(|(k, v)| (*k, v.clone())).collect())
+}
+
+/// The CSS text of every adopted constructed stylesheet, in order (cssom.js).
+pub fn set_adopted(css: &str) {
+    ADOPTED.with(|a| *a.borrow_mut() = css.to_string());
 }
 
 /// A `<style>` element's rules as the page's scripts last left them (sheet.insertRule…).
@@ -45,6 +74,8 @@ fn hash(s: &str) -> u64 {
 #[derive(Clone, PartialEq)]
 enum Source {
     Inline { text: String, nonce: Option<String> },
+    /// Adopted constructed stylesheets: made by script, so not an inline style CSP checks.
+    Adopted { text: String },
     External { url: String, media: String, nonce: Option<String> },
 }
 
@@ -97,6 +128,15 @@ impl Live {
                         let mut sheet = css::parse(text);
                         css::absolutize_urls(&mut sheet, &page);
                         css::load_imports(&mut sheet, &page, &|u| crate::net::fetch_sub_nonce(u, &page, crate::security::Dest::Style, None).ok().map(|(_, t)| t), 0);
+                        sheet
+                    });
+                    out.push(sheet.clone());
+                }
+                Source::Adopted { text } => {
+                    let key = hash(text);
+                    let sheet = self.inline_cache.entry(key).or_insert_with(|| {
+                        let mut sheet = css::parse(text);
+                        css::absolutize_urls(&mut sheet, &page);
                         sheet
                     });
                     out.push(sheet.clone());
@@ -169,6 +209,10 @@ fn sources(dom: &Dom, base: &str) -> Vec<Source> {
         }
         stack.extend(dom.nodes[id].children.iter().rev().copied());
     }
+    let adopted = ADOPTED.with(|a| a.borrow().clone());
+    if !adopted.is_empty() {
+        out.push(Source::Adopted { text: adopted });
+    }
     out
 }
 
@@ -182,6 +226,10 @@ fn signature(srcs: &[Source]) -> u64 {
         match s {
             Source::Inline { text, .. } => {
                 mix("i");
+                mix(text);
+            }
+            Source::Adopted { text } => {
+                mix("a");
                 mix(text);
             }
             Source::External { url, media, .. } => {

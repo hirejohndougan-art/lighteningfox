@@ -1,7 +1,7 @@
 // Constructable stylesheets: `new CSSStyleSheet()`, replace()/replaceSync(), cssRules,
-// insertRule()/deleteRule(). Libraries such as Lit test `x instanceof CSSStyleSheet` while
-// loading. Sheets aren't adopted into documents yet (no adoptedStyleSheets), so Lit and
-// others fall back to <style> elements, which are drawn.
+// insertRule()/deleteRule(), and adoptedStyleSheets on the document and shadow roots (NYT's
+// video player: `document.adoptedStyleSheets.includes(…)`). Adopted sheets are drawn after
+// the document's own; like shadow-root <style> elements, a shadow root's aren't scoped to it.
 (function () {
   "use strict";
   const g = globalThis;
@@ -84,9 +84,60 @@
     if (id === undefined) return;
     g.__setSheetRules(id, o.text, sheet.__rules.map((r) => r.cssText).join("\n"));
   };
+  // adoptedStyleSheets: one array per document or shadow root. Changing an array (assigning,
+  // push, splice…) or a sheet in one hands every adopted sheet's rules to the renderer.
+  const adopters = new Map(); // owner -> proxied array
+  const adoptedText = (list) => {
+    const parts = [];
+    {
+      for (const sheet of list) {
+        if (!(sheet instanceof CSSStyleSheet) || sheet.disabled) continue;
+        const css = sheet.__rules.map((r) => r.cssText).join("\n");
+        const media = sheet.media && sheet.media.mediaText;
+        parts.push(media ? `@media ${media} {\n${css}\n}` : css);
+      }
+    }
+    return parts.join("\n");
+  };
+  let adoptQueued = false;
+  const syncAdopted = () => {
+    if (adoptQueued || typeof g.__setAdopted !== "function") return;
+    adoptQueued = true;
+    // Once per task: a library pushing many sheets restyles once.
+    queueMicrotask(() => {
+      adoptQueued = false;
+      for (const [owner, list] of adopters) {
+        if (owner === g.document) g.__setAdopted(adoptedText(list));
+        else if (typeof g.__setAdoptedShadow === "function" && owner.__id !== undefined) g.__setAdoptedShadow(owner.__id, adoptedText(list));
+      }
+    });
+  };
+  const isAdopted = (sheet) => { for (const list of adopters.values()) if (list.includes(sheet)) return true; return false; };
+  const observed = (owner, items) => {
+    for (const s of items) if (!(s instanceof CSSStyleSheet)) throw new TypeError("Failed to set 'adoptedStyleSheets': not a CSSStyleSheet.");
+    const target = Array.from(items);
+    const list = new Proxy(target, {
+      set(t, k, v) {
+        if (/^\d+$/.test(String(k)) && !(v instanceof CSSStyleSheet)) throw new TypeError("Failed to set an indexed property on 'adoptedStyleSheets': not a CSSStyleSheet.");
+        t[k] = v; syncAdopted(); return true;
+      },
+      deleteProperty(t, k) { delete t[k]; syncAdopted(); return true; },
+    });
+    adopters.set(owner, list);
+    syncAdopted();
+    return list;
+  };
+  const adoptedProp = {
+    get() { return adopters.get(this) || observed(this, []); },
+    set(v) { if (v == null || typeof v[Symbol.iterator] !== "function") throw new TypeError("Failed to set 'adoptedStyleSheets': not a sequence."); observed(this, v); },
+    configurable: true,
+  };
+  if (g.document && !("adoptedStyleSheets" in g.document)) Object.defineProperty(g.document, "adoptedStyleSheets", adoptedProp);
+  if (g.ShadowRoot && !("adoptedStyleSheets" in g.ShadowRoot.prototype)) Object.defineProperty(g.ShadowRoot.prototype, "adoptedStyleSheets", adoptedProp);
+
   for (const m of ["insertRule", "deleteRule", "replaceSync"]) {
     const plain = CSSStyleSheet.prototype[m];
-    CSSStyleSheet.prototype[m] = function (...a) { const r = plain.apply(this, a); sync(this); return r; };
+    CSSStyleSheet.prototype[m] = function (...a) { const r = plain.apply(this, a); sync(this); if (isAdopted(this)) syncAdopted(); return r; };
   }
   const sheetOf = (el) => {
     const tag = (el.localName || "").toLowerCase();

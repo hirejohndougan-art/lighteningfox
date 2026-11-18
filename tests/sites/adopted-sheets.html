@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- NYT (2026-11): its video player checks document.adoptedStyleSheets.includes(sheet) and
+     pushes constructed sheets there; adoptedStyleSheets was missing, which threw. Document
+     and shadow-root adopted sheets are drawn, each in its own scope, and follow later edits.
+     `shadowRoot instanceof ShadowRoot` was false too. -->
+<body><div class=a>A</div><div id=host></div><p id=out></p>
+<script>
+const r=[];
+const s=new CSSStyleSheet(); s.replaceSync(".a{color:rgb(1,2,3)}");
+r.push(Array.isArray(document.adoptedStyleSheets)+":"+document.adoptedStyleSheets.length);
+document.adoptedStyleSheets.push(s);
+r.push(document.adoptedStyleSheets.includes(s));
+const sr=document.getElementById('host').attachShadow({mode:'open'}); sr.innerHTML='<b class=b>B</b>';
+const s2=new CSSStyleSheet(); s2.replaceSync(".b{color:rgb(4,5,6)}"); sr.adoptedStyleSheets=[s2];
+r.push(sr instanceof ShadowRoot);
+try{document.adoptedStyleSheets=[{}]}catch(e){r.push(e instanceof TypeError)}
+setTimeout(()=>{r.push(getComputedStyle(document.querySelector('.a')).color, getComputedStyle(sr.querySelector('.b')).color);
+ s.insertRule(".a{color:rgb(7,8,9)}",1);
+ setTimeout(()=>{r.push(getComputedStyle(document.querySelector('.a')).color);document.getElementById('out').textContent=r.join("|")},0)},0);
+</script>

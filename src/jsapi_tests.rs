@@ -1419,3 +1419,15 @@ fn computed_style_follows_running_animations() {
     std::thread::sleep(std::time::Duration::from_millis(300));
     assert_eq!(op(&mut page), "\"1\"");
 }
+
+/// NYT: document.adoptedStyleSheets and ShadowRoot.adoptedStyleSheets: drawn in their own
+/// scope, kept up to date when a sheet changes; `instanceof ShadowRoot` works.
+#[test]
+fn adopted_style_sheets_apply() {
+    let _serial = serial();
+    let mut page = open("tests/sites/adopted-sheets.html");
+    if let Some(j) = page.js.as_mut() {
+        j.settle(std::time::Duration::from_secs(1));
+    }
+    assert_eq!(text_of("out"), "true:0|true|true|true|rgb(1, 2, 3)|rgb(4, 5, 6)|rgb(7, 8, 9)");
+}
