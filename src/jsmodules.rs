@@ -52,9 +52,18 @@ impl Loader {
         if let Some(m) = self.cache.borrow().get(url) {
             return Ok(m.clone());
         }
-        let (_, body) = net::fetch_sub(url, page, crate::security::Dest::Script)
-            .map_err(|e| JsNativeError::typ().with_message(format!("couldn't load module {url}: {e}")))?;
-        let module = if json { Module::parse_json(JsString::from(body.as_str()), ctx)? } else { self.parse(&body, url, ctx)? };
+        let (_, body) =
+            net::fetch_module(url, page).map_err(|e| JsNativeError::typ().with_message(format!("couldn't load module {url}: {e}")))?;
+        let module = match body {
+            // A `.wasm` ES module: a small JavaScript module stands in for it (wasm/esm.rs).
+            net::ModuleBody::Wasm(bytes) if !json => {
+                let src = crate::wasm::esm::wrapper(ctx, bytes)?;
+                self.parse(&src, url, ctx)?
+            }
+            net::ModuleBody::Wasm(_) => return Err(JsNativeError::typ().with_message(format!("module {url} is WebAssembly, not JSON")).into()),
+            net::ModuleBody::Text(body) if json => Module::parse_json(JsString::from(body.as_str()), ctx)?,
+            net::ModuleBody::Text(body) => self.parse(&body, url, ctx)?,
+        };
         self.cache.borrow_mut().insert(url.to_string(), module.clone());
         Ok(module)
     }

@@ -22,6 +22,22 @@ pub fn fetch_sub_bytes(url: &str, page: &str, dest: crate::security::Dest) -> Re
     load_sub(url, page, dest, None).map(|r| (r.url, r.body))
 }
 
+/// A module script's body: text, or WebAssembly bytes when it was served as
+/// `application/wasm` (a `.wasm` ES module).
+pub enum ModuleBody {
+    Text(String),
+    Wasm(Vec<u8>),
+}
+
+/// Fetch an ES module the way `fetch_sub` fetches scripts, keeping a WebAssembly body as bytes.
+pub fn fetch_module(url: &str, page: &str) -> Result<(String, ModuleBody), String> {
+    let r = load_sub(url, page, crate::security::Dest::Script, None)?;
+    let ct = r.header("content-type");
+    let is_wasm = ct.is_some_and(|t| t.split(';').next().unwrap_or("").trim().eq_ignore_ascii_case("application/wasm"));
+    let body = if is_wasm { ModuleBody::Wasm(r.body) } else { ModuleBody::Text(decode_text(&r.body, ct)) };
+    Ok((r.url, body))
+}
+
 /// Load a piece of a page, after the page's Content Security Policy and the content
 /// blockers have had their say.
 fn load_sub(url: &str, page: &str, dest: crate::security::Dest, nonce: Option<&str>) -> Result<Response, String> {
@@ -476,6 +492,7 @@ fn guess_type(path: &str) -> &'static str {
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "webp" => "image/webp",
+        "wasm" => "application/wasm",
         _ => "application/octet-stream",
     }
 }

@@ -14,13 +14,20 @@
 //! outermost call came from is reached through `CONTEXTS`.
 
 mod values;
+// Streaming, `.wasm` ES modules, CSP and postMessage (task P1c).
+mod csp;
+pub(crate) mod esm;
+mod share;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod loading_tests;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use boa_engine::error::RuntimeLimitError;
 use boa_engine::object::builtins::{AlignedVec, JsArray, JsArrayBuffer, JsUint8Array};
@@ -73,6 +80,8 @@ impl wasmi::errors::HostError for Thrown {}
 /// A compiled module and what the JS API needs to know about it.
 struct Compiled {
     module: Module,
+    /// The module's bytes, for sending it to another page or worker (`share.rs`).
+    bytes: Arc<[u8]>,
     /// Name, kind and index of each export, in the module's order.
     exports: Vec<(String, u8, u32)>,
 }
@@ -231,12 +240,17 @@ pub fn install(ctx: &mut Context) {
         ("__wasmExports", 1, n_exports),
         ("__wasmCustomSections", 2, n_custom_sections),
         ("__wasmInstantiate", 2, n_instantiate),
+        ("__wasmShareNative", 1, share::n_share),
+        ("__wasmAdoptNative", 1, share::n_adopt),
     ];
     for (name, len, f) in natives {
         let _ = ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f));
     }
     if let Err(e) = ctx.eval_cached(include_str!("../wasm.js").as_bytes()) {
         log!("[ironswift] wasm.js failed: {e}");
+    }
+    if let Err(e) = ctx.eval_cached(include_str!("../wasm_loading.js").as_bytes()) {
+        log!("[ironswift] wasm_loading.js failed: {e}");
     }
 }
 
@@ -255,9 +269,17 @@ fn n_validate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     Ok(Module::validate(&st.engine, &bytes).is_ok().into())
 }
 
-/// __wasmCompile(bytes) -> module id; throws a CompileError.
+/// __wasmCompile(bytes) -> module id; throws a CompileError (also when the page's CSP
+/// doesn't allow WebAssembly, `csp.rs`).
 fn n_compile(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let bytes = bytes_arg(a, ctx)?;
+    let st = state(ctx);
+    csp::check(ctx, &st)?;
+    Ok(compile_bytes(ctx, Arc::from(bytes))?.into())
+}
+
+/// Compile a module into this page's tables and return its id; throws a CompileError.
+fn compile_bytes(ctx: &mut Context, bytes: Arc<[u8]>) -> JsResult<usize> {
     let st = state(ctx);
     let module = match Module::new(&st.engine, &bytes) {
         Ok(m) => m,
@@ -265,8 +287,8 @@ fn n_compile(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     };
     let exports = values::exports_in_order(&bytes);
     let mut t = st.tables.borrow_mut();
-    t.modules.push(Compiled { module, exports });
-    Ok((t.modules.len() - 1).into())
+    t.modules.push(Compiled { module, bytes, exports });
+    Ok(t.modules.len() - 1)
 }
 
 fn kind_name(ty: &ExternType) -> &'static str {

@@ -1,8 +1,8 @@
 // The WebAssembly JavaScript API (task P1a): WebAssembly.Module, Instance, validate,
 // compile, instantiate and the CompileError / LinkError / RuntimeError classes, on the
 // natives in src/wasm/mod.rs (wasmi underneath).
-// Still to come: Memory, Table, Global (P1b); compileStreaming / instantiateStreaming,
-// .wasm ES modules and CSP wasm-unsafe-eval (P1c).
+// Still to come: Memory, Table, Global (P1b). compileStreaming / instantiateStreaming and
+// the glue for postMessage and .wasm ES modules are in wasm_loading.js (P1c).
 (() => {
   const compileNative = __wasmCompile, validateNative = __wasmValidate, importsNative = __wasmImports,
     exportsNative = __wasmExports, customNative = __wasmCustomSections, instantiateNative = __wasmInstantiate;
@@ -146,4 +146,16 @@
   }
   Object.defineProperty(WebAssembly, Symbol.toStringTag, { value: "WebAssembly", configurable: true });
   Object.defineProperty(globalThis, "WebAssembly", { value: WebAssembly, writable: true, configurable: true, enumerable: false });
+
+  // For wasm_loading.js (P1c: postMessage and .wasm ES modules): module objects to ids and back.
+  const hooks = {
+    __wasmModuleId: (m) => (typeof m === "object" && m !== null ? moduleIds.get(m) : undefined),
+    __wasmModuleFromId: (id) => {
+      const m = Object.create(Module.prototype);
+      moduleIds.set(m, id);
+      return m;
+    },
+  };
+  for (const [name, value] of Object.entries(hooks))
+    Object.defineProperty(globalThis, name, { value, writable: true, configurable: true, enumerable: false });
 })();

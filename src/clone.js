@@ -82,6 +82,8 @@
       if (v instanceof Number) return { $: "w", i, t: "n", v: enc(v.valueOf()) };
       if (v instanceof String) return { $: "w", i, t: "s", v: enc(v.valueOf()) };
       if (typeof BigInt === "function" && Object.prototype.toString.call(v) === "[object BigInt]") return { $: "w", i, t: "bi", v: v.valueOf().toString() };
+      // A WebAssembly.Module goes as a token for its bytes (src/wasm/share.rs).
+      if (typeof g.__wasmShare === "function" && g.WebAssembly && v instanceof g.WebAssembly.Module) return { $: "wasm", i, k: g.__wasmShare(v) };
       if (typeof v.__clone === "function") return { $: "x", i, k: v.constructor.name, v: enc(v.__clone()) };
       const out = { $: "o", i, v: {} };
       for (const k of Object.keys(v)) out.v[k] = enc(v[k]);
@@ -130,6 +132,7 @@
           const inner = dec(n.v);
           return (made[n.i] = C && typeof C.__unclone === "function" ? C.__unclone(inner) : inner);
         }
+        case "wasm": return (made[n.i] = g.__wasmAdopt(n.k));
         case "o": { const o = {}; made[n.i] = o; for (const k of Object.keys(n.v)) o[k] = dec(n.v[k]); return o; }
       }
       return undefined;
