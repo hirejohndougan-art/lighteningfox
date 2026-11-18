@@ -37,6 +37,9 @@ pub enum Event {
     Resize { w: u32, h: u32 },
     /// Scroll the page to this y (find in page jumping to a match).
     ScrollTo(f32),
+    /// The window asks the page something: "devtools" (a snapshot for the developer tools) or
+    /// "run" (console code in `arg`). Answered with Update::Answer.
+    Ask { what: String, arg: String },
     /// An option was picked in the window's list for the <select> `id` (see Update::Select).
     SelectChoose { id: u32, index: u32 },
     /// Back or Forward moved within the page's own history entries (a top-level page in a site
@@ -62,6 +65,8 @@ pub enum Update {
     /// The text on the page and where it's drawn (page coordinates), for find in page and
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
+    /// The answer to Event::Ask.
+    Answer { what: String, data: String },
     /// A right click the page didn't cancel (a top-level page in a site process): the link and
     /// the image under the mouse (absolute addresses), for the window's menu.
     ContextMenu { link: Option<String>, image: Option<String> },
@@ -153,6 +158,11 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::Ask { what, arg } => {
+                put(&mut m, b"ask");
+                put(&mut m, what.as_bytes());
+                put(&mut m, arg.as_bytes());
+            }
             Event::SelectChoose { id, index } => {
                 put(&mut m, b"choose");
                 put(&mut m, &f32s(&[*id as f32, *index as f32]));
@@ -210,6 +220,10 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"ask" => {
+                let what = String::from_utf8_lossy(&get(r)?).to_string();
+                Event::Ask { what, arg: String::from_utf8_lossy(&get(r)?).to_string() }
+            }
             b"choose" => match read_f32s(&get(r)?)[..] {
                 [id, index] if id >= 0.0 && index >= 0.0 => Event::SelectChoose { id: id as u32, index: index as u32 },
                 _ => return Err(std::io::Error::other("bad choice")),
@@ -250,6 +264,11 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::Answer { what, data } => {
+                put(&mut m, b"answer");
+                put(&mut m, what.as_bytes());
+                put(&mut m, data.as_bytes());
             }
             Update::ContextMenu { link, image } => {
                 put(&mut m, b"menu");
@@ -308,6 +327,10 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"answer" => {
+                let what = String::from_utf8_lossy(&get(r)?).to_string();
+                Update::Answer { what, data: String::from_utf8_lossy(&get(r)?).to_string() }
+            }
             b"menu" => {
                 let some = |b: Vec<u8>| Some(String::from_utf8_lossy(&b).to_string()).filter(|s| !s.is_empty());
                 let link = some(get(r)?);
@@ -820,6 +843,27 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::Ask { what, arg } => {
+                let data = match what.as_str() {
+                    "devtools" => {
+                        let (scripts, errors) = self.page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
+                        let p = &self.page;
+                        js::with_dom(|d| crate::devtools::capture(d, &p.url, &p.title, p.loaded_at, scripts, errors));
+                        crate::devtools::snapshot()
+                    }
+                    "run" => match self.page.js.as_mut().map(|j| j.run(&arg)) {
+                        Some(Ok(v)) => format!("ok:{v}"),
+                        Some(Err(e)) => format!("err:{e}"),
+                        None => "err:this page doesn't run scripts".into(),
+                    },
+                    _ => String::new(),
+                };
+                if what == "run" && js::take_dirty() {
+                    self.page.restyle();
+                    self.relayout();
+                }
+                out(Update::Answer { what, data });
+            }
             Event::SelectChoose { id, index } => {
                 let c = id as NodeId;
                 let opt = js::with_dom(|d| (c < d.nodes.len() && matches!(forms::control(d, c), Some(forms::Control::Select))).then(|| forms::options(d, c).get(index as usize).copied()).flatten());
@@ -998,6 +1042,8 @@ struct Live {
     /// The page's text (a top-level page in a site process) and how often it changed.
     runs: Vec<crate::chrome::TextRun>,
     runs_version: u64,
+    /// Updates that came in while the window waited for an answer (site_ask), still to pump.
+    held: Vec<Update>,
 }
 
 impl Drop for Live {
@@ -1043,7 +1089,7 @@ pub fn start(job: FrameJob, key: &str, owner: &str, deadline: Instant) -> Option
             .ok()?;
         Sink::Thread(etx)
     };
-    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level, runs: Vec::new(), runs_version: 0 };
+    let mut live = Live { key: key.to_string(), owner: owner.to_string(), doc: None, born: Instant::now(), seen: Instant::now(), w, h, sink, updates: urx, scroll: 0.0, max: 0.0, inner: false, sandbox, top_level, runs: Vec::new(), runs_version: 0, held: Vec::new() };
     let first = loop {
         match live.updates.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
             Ok(Update::Picture { img, scroll, max, inner }) => {
@@ -1102,7 +1148,12 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
         }
         f.seen = now;
         let mut latest = None;
+        let held: Vec<Update> = std::mem::take(&mut f.held);
+        let mut fresh = Vec::new();
         while let Ok(u) = f.updates.try_recv() {
+            fresh.push(u);
+        }
+        for u in held.into_iter().chain(fresh) {
             match u {
                 Update::Picture { img, scroll, max, inner } => {
                     (f.scroll, f.max, f.inner) = (scroll, max, inner);
@@ -1124,6 +1175,8 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                 Update::Select { .. } => {}
                 Update::ContextMenu { link, image } if f.top_level => out.context = Some((link, image)),
                 Update::ContextMenu { .. } => {}
+                // Too late: whoever asked stopped waiting.
+                Update::Answer { .. } => {}
                 Update::History(_) => {}
             }
         }
@@ -1200,6 +1253,32 @@ pub fn site_runs(doc: u64, lay: &layout::Layout) -> Option<Vec<crate::chrome::Te
 pub fn site_origin(doc: u64, lay: &layout::Layout) -> Option<(f32, f32)> {
     let live = LIVE.lock().ok()?;
     site_box(&live, doc, lay).map(|(_, x, y)| (x, y))
+}
+
+/// Ask the site-process page of `doc` (shown or in a background tab) something and wait for the
+/// answer (Event::Ask): None if it isn't in a site process or doesn't answer in time.
+pub fn site_ask(doc: u64, what: &str, arg: &str, wait: Duration) -> Option<String> {
+    {
+        let live = LIVE.lock().ok()?;
+        let f = live.iter().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))?;
+        let Sink::Site(id) = f.sink else { return None };
+        crate::process::event(id, &Event::Ask { what: what.to_string(), arg: arg.to_string() });
+    }
+    let end = Instant::now() + wait;
+    while Instant::now() < end {
+        {
+            let mut live = LIVE.lock().ok()?;
+            let f = live.iter_mut().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))?;
+            while let Ok(u) = f.updates.try_recv() {
+                match u {
+                    Update::Answer { what: w, data } if w == what => return Some(data),
+                    other => f.held.push(other),
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    None
 }
 
 /// Pass a picked <select> option to the site-process page shown for `doc`.
@@ -1704,6 +1783,7 @@ mod tests {
             Event::Blur,
             Event::ScrollTo(120.0),
             Event::SelectChoose { id: 42, index: 3 },
+            Event::Ask { what: "run".into(), arg: "1 + 1".into() },
             Event::HistoryMoved { url: "https://a.com/x#y".into(), state: "{\"n\":1}".into(), popstate: true },
         ];
         for e in evs {
@@ -1724,6 +1804,8 @@ mod tests {
         }
         let b = Update::Select { id: 7, x: 1.0, y: 20.0, w: 120.0, options: vec!["Apple".into(), "Bänana".into()] }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Select { id: 7, options, .. } if options == ["Apple", "Bänana"]));
+        let b = Update::Answer { what: "run".into(), data: "ok:2".into() }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Answer { what, data } if what == "run" && data == "ok:2"));
         let b = Update::ContextMenu { link: Some("https://a.com/l".into()), image: None }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::ContextMenu { link: Some(l), image: None } if l == "https://a.com/l"));
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];
@@ -1780,6 +1862,7 @@ mod tests {
             top_level,
             runs: Vec::new(),
             runs_version: 0,
+            held: Vec::new(),
         };
         let locked = security::Sandbox { scripts: true, same_origin: false, forms: false, popups: false, top_navigation: false, modals: false };
         assert!(!may_navigate_top(&live(Some(locked.clone()), false)), "a sandboxed frame can't move the tab");

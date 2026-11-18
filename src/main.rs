@@ -3989,8 +3989,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                 }
                 Ctx::Inspect => {
-                    let (scripts, errors) = page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
-                    js::with_dom(|d| devtools::capture(d, &page.url, &page.title, page.loaded_at, scripts, errors));
+                    // A page in a site process takes its own snapshot (its document, console and
+                    // requests are there).
+                    if let Some(s) = frames::site_ask(page.doc, "devtools", "", std::time::Duration::from_secs(5)) {
+                        devtools::set_snapshot(s);
+                    } else {
+                        let (scripts, errors) = page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
+                        js::with_dom(|d| devtools::capture(d, &page.url, &page.title, page.loaded_at, scripts, errors));
+                    }
                     devtools::set_inspected(page.doc);
                     tab_cmd = Some(TabCmd::Open("about:devtools".into(), false));
                 }
@@ -4070,7 +4076,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             Some(Go::To(t)) => devtools::run_request(t),
             _ => None,
         } {
-            let r = if page.doc == devtools::inspected() {
+            let site = frames::site_ask(devtools::inspected(), "run", &code, std::time::Duration::from_secs(10)).map(|a| match a.strip_prefix("ok:") {
+                Some(v) => Ok(v.to_string()),
+                None => Err(a.strip_prefix("err:").unwrap_or(&a).to_string()),
+            });
+            let r = if let Some(r) = site {
+                r
+            } else if page.doc == devtools::inspected() {
                 page.js.as_mut().map_or(Err("this page doesn't run scripts".to_string()), |j| j.run(&code))
             } else {
                 run_in_background_tab(&mut tabs, devtools::inspected(), &code)

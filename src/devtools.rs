@@ -75,6 +75,18 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+/// The snapshot taken last (to hand it from a site process to the window).
+pub fn snapshot() -> String {
+    SNAPSHOT.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
+/// Use a snapshot taken elsewhere (by the page's site process).
+pub fn set_snapshot(s: String) {
+    if let Ok(mut g) = SNAPSHOT.lock() {
+        *g = s;
+    }
+}
+
 /// The page shown at about:devtools.
 pub fn page() -> String {
     let s = SNAPSHOT.lock().map(|s| s.clone()).unwrap_or_default();
