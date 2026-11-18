@@ -1,0 +1,13 @@
+[package]
+name = "wast2wpt"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Turn WebAssembly spec tests (.wast) into testharness.js pages that run through the JS API"
+publish = false
+
+# Its own workspace: built on its own, not part of the browser.
+[workspace]
+
+[dependencies]
+wast = "263"
