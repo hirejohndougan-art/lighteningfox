@@ -378,7 +378,9 @@ parse untrusted files: no network, no writing, read-only system files). Sound is
 browser. Check with `tools/site_process_check.py media.html` and `cargo test --release media`.
 
 ### X24. Permission prompts from site processes
-**Status:** claimed by chat-opus-t12 2026-11-17 21:30
+**Status:** done (chat-opus-t12 2026-11-17)
+**Done:** a top-level site-process page's request goes to the window (`Update::Permission`), checked against the shown page's origin; already-decided sites are answered at once, otherwise the usual prompt shows for that tab and the answer goes back (`Event::PermDone`). Every site process is told each decision and each about:settings reset (`process::tell_permission`, `permissions::learned`/`forgotten`). A frame's requests are refused at once. Tested in the real window (prompt, Allow, `Notification.permission` then "granted") and `frames::tests::site_process_pages_ask_the_window_for_permissions`.
+**Left undone:** a request from a site-process page in a background tab waits until you switch to it (as before for local pages, the prompt belongs to the tab shown).
 **After:** —
 **Checklist:** none
 **Files:** `src/js.rs` (`n_perm_request`), `src/process.rs`, `src/frames.rs`, the prompt part of `src/main.rs`, `src/permissions.rs`
