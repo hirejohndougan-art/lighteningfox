@@ -35,7 +35,8 @@ const MATH: &str = r#"(module
 fn namespace_and_validate() {
     let mut js = page(MATH);
     assert_eq!(run(&mut js, "typeof WebAssembly + ' ' + Object.prototype.toString.call(WebAssembly)"), "object [object WebAssembly]");
-    assert_eq!(run(&mut js, "Object.keys(WebAssembly).length"), "0");
+    // WebIDL: the namespace's operations are enumerable, its interfaces aren't.
+    assert_eq!(run(&mut js, "Object.keys(WebAssembly).sort().join()"), "compile,compileStreaming,instantiate,instantiateStreaming,validate");
     assert_eq!(run(&mut js, "WebAssembly.validate(bytes) + ' ' + WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 9, 9]))"), "true false");
     assert_eq!(run(&mut js, "WebAssembly.validate(bytes.buffer)"), "true");
     assert_eq!(run(&mut js, "try { WebAssembly.validate(42) } catch (e) { e.constructor.name }"), "TypeError");

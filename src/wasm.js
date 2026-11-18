@@ -66,13 +66,24 @@
     return d;
   }
 
+  // A descriptor's size members, read once each in WebIDL's (alphabetical) order and
+  // converted as they're read: initial, maximum, minimum (initial's newer name).
+  function sizes(d, what) {
+    const read = (key) => {
+      const v = d[key];
+      return v === undefined ? undefined : enforceRange(v, what + " " + key);
+    };
+    const initial = read("initial"), maximum = read("maximum"), minimum = read("minimum");
+    if (initial !== undefined && minimum !== undefined) throw new TypeError(what + ": give 'initial' or 'minimum', not both");
+    const min = initial !== undefined ? initial : minimum;
+    if (min === undefined) throw new TypeError(what + ": descriptor needs 'initial'");
+    return [min, maximum === undefined ? -1 : maximum];
+  }
+
   class Memory {
     constructor(descriptor) {
       const d = descriptorOf(descriptor, "WebAssembly.Memory");
-      const initialRaw = d.initial !== undefined ? d.initial : d.minimum;
-      if (initialRaw === undefined) throw new TypeError("WebAssembly.Memory: descriptor needs 'initial'");
-      const initial = enforceRange(initialRaw, "WebAssembly.Memory initial");
-      const maximum = d.maximum === undefined ? -1 : enforceRange(d.maximum, "WebAssembly.Memory maximum");
+      const [initial, maximum] = sizes(d, "WebAssembly.Memory");
       if (d.shared) {
         if (maximum < 0) throw new TypeError("WebAssembly.Memory: shared memory needs a maximum");
         throw new TypeError("WebAssembly.Memory: shared memory is not supported");
@@ -91,16 +102,13 @@
   }
 
   class Table {
-    constructor(descriptor, value) {
+    constructor(descriptor, ...value) {
       const d = descriptorOf(descriptor, "WebAssembly.Table");
       const element = String(d.element);
       if (element !== "anyfunc" && element !== "funcref" && element !== "externref")
         throw new TypeError("WebAssembly.Table: descriptor 'element' must be \"anyfunc\" or \"externref\"");
-      const initialRaw = d.initial !== undefined ? d.initial : d.minimum;
-      if (initialRaw === undefined) throw new TypeError("WebAssembly.Table: descriptor needs 'initial'");
-      const initial = enforceRange(initialRaw, "WebAssembly.Table initial");
-      const maximum = d.maximum === undefined ? -1 : enforceRange(d.maximum, "WebAssembly.Table maximum");
-      const slot = __wasmTableNew(element, initial, maximum, value);
+      const [initial, maximum] = sizes(d, "WebAssembly.Table");
+      const slot = value.length ? __wasmTableNew(element, initial, maximum, value[0]) : __wasmTableNew(element, initial, maximum);
       slotOf.set(this, { kind: "table", slot });
       objectFor.table.set(slot, this);
     }
@@ -128,13 +136,13 @@
   class Global {
     constructor(descriptor, ...v) {
       const d = descriptorOf(descriptor, "WebAssembly.Global");
+      // WebIDL reads dictionary members in alphabetical order.
       const mutable = !!d.mutable;
       const type = String(d.value);
       if (!VALUE_TYPES.includes(type)) throw new TypeError("WebAssembly.Global: descriptor 'value' must be a WebAssembly value type");
       if (type === "v128") throw new TypeError("WebAssembly.Global: v128 globals can't be made from JavaScript");
-      let value = v.length ? v[0] : undefined;
-      // A missing value is the type's default.
-      if (value === undefined) value = type === "i64" ? 0n : type === "anyfunc" || type === "funcref" ? null : type === "externref" ? undefined : 0;
+      // A missing or undefined value is the type's default.
+      const value = v[0] !== undefined ? v[0] : type === "i64" ? 0n : type === "anyfunc" || type === "funcref" ? null : type === "externref" ? undefined : 0;
       const slot = __wasmGlobalNew(type, mutable, value);
       slotOf.set(this, { kind: "global", slot });
       objectFor.global.set(slot, this);
@@ -188,6 +196,11 @@
   // Read the import object the way the spec does (in the module's import order), then
   // instantiate; the exports object is frozen with a null prototype.
   function instantiateModule(id, importObject) {
+    return finishInstance(id, readImports(id, importObject));
+  }
+
+  // The spec's "read the imports" (done at once even when instantiating asynchronously).
+  function readImports(id, importObject) {
     const wanted = importsNative(id);
     if (importObject !== undefined && (importObject === null || (typeof importObject !== "object" && typeof importObject !== "function")))
       throw new TypeError("WebAssembly.Instance: imports argument must be an object");
@@ -207,6 +220,10 @@
       values.push(v);
       slots.push(s && s.kind === kind ? s.slot : -1);
     }
+    return [values, slots];
+  }
+
+  function finishInstance(id, [values, slots]) {
     const list = instantiateNative(id, values, slots);
     const exports = Object.create(null);
     for (let i = 0; i < list.length; i += 3) {
@@ -217,8 +234,8 @@
   }
 
   class Instance {
-    constructor(module, importObject) {
-      instanceExports.set(this, instantiateModule(idOf(module, "WebAssembly.Instance"), importObject));
+    constructor(module, ...rest) {
+      instanceExports.set(this, instantiateModule(idOf(module, "WebAssembly.Instance"), rest[0]));
     }
     get exports() {
       const e = instanceExports.get(this);
@@ -255,9 +272,21 @@
       }
       return later(() => new Module(copy));
     },
-    instantiate(source, importObject) {
-      if (typeof source === "object" && source !== null && moduleIds.has(source))
-        return later(() => new Instance(source, importObject));
+    instantiate(source, ...rest) {
+      const importObject = rest[0];
+      if (typeof source === "object" && source !== null && moduleIds.has(source)) {
+        let read;
+        try {
+          read = readImports(moduleIds.get(source), importObject);
+        } catch (e) {
+          return Promise.reject(e);
+        }
+        return later(() => {
+          const instance = Object.create(Instance.prototype);
+          instanceExports.set(instance, finishInstance(moduleIds.get(source), read));
+          return instance;
+        });
+      }
       let copy;
       try {
         copy = bytesOf(source).slice();
@@ -275,9 +304,12 @@
     LinkError,
     RuntimeError,
   };
+  // WebIDL: the namespace's operations are enumerable, its interfaces aren't; so are the
+  // interfaces' static operations.
   for (const key of Object.keys(WebAssembly)) {
-    Object.defineProperty(WebAssembly, key, { enumerable: false });
+    Object.defineProperty(WebAssembly, key, { enumerable: /^[a-z]/.test(key) });
   }
+  for (const key of ["exports", "imports", "customSections"]) Object.defineProperty(Module, key, { enumerable: true });
   Object.defineProperty(WebAssembly, Symbol.toStringTag, { value: "WebAssembly", configurable: true });
   Object.defineProperty(globalThis, "WebAssembly", { value: WebAssembly, writable: true, configurable: true, enumerable: false });
 

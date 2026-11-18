@@ -41,11 +41,13 @@ fn run(js: &mut Js, code: &str) -> String {
 #[test]
 fn compile_and_instantiate_streaming() {
     let mut js = page_with("https://wasm.example/", None, SEVEN);
-    run(&mut js, "var out = []; var wasmResponse = () => new Response(bytes, { headers: { 'Content-Type': 'application/wasm; charset=x' } });");
+    run(&mut js, "var out = []; var wasmResponse = () => new Response(bytes, { headers: { 'Content-Type': 'APPLICATION/wasm' } });");
     run(&mut js, "WebAssembly.compileStreaming(wasmResponse()).then(m => out.push('module:' + (m instanceof WebAssembly.Module)))");
     run(&mut js, "WebAssembly.instantiateStreaming(Promise.resolve(wasmResponse())).then(r => out.push('seven:' + r.instance.exports.seven()))");
     // Wrong type, not ok, opaque, already read, not a Response.
     run(&mut js, "WebAssembly.compileStreaming(new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream' } })).catch(e => out.push('mime:' + e.name))");
+    // The type must be exactly application/wasm: no parameters (WPT wasm/webapi/contenttype).
+    run(&mut js, "WebAssembly.compileStreaming(new Response(bytes, { headers: { 'Content-Type': 'application/wasm;charset=UTF-8' } })).catch(e => out.push('params:' + e.name))");
     run(&mut js, "WebAssembly.compileStreaming(new Response(bytes, { status: 404, headers: { 'Content-Type': 'application/wasm' } })).catch(e => out.push('status:' + e.name))");
     run(&mut js, "WebAssembly.compileStreaming(new Response(bytes, { type: 'opaque', headers: { 'Content-Type': 'application/wasm' } })).catch(e => out.push('opaque:' + e.name))");
     run(&mut js, "var used = wasmResponse(); used.arrayBuffer().then(() => WebAssembly.compileStreaming(used)).catch(e => out.push('used:' + e.name))");
@@ -53,8 +55,8 @@ fn compile_and_instantiate_streaming() {
     // Bad module bytes are a CompileError.
     run(&mut js, "WebAssembly.compileStreaming(new Response(new Uint8Array([0, 97, 115, 109, 9]), { headers: { 'Content-Type': 'application/wasm' } })).catch(e => out.push('bad:' + e.name))");
     let r = run(&mut js, "out.sort().join()");
-    assert_eq!(r, "bad:CompileError,bytes:TypeError,mime:TypeError,module:true,opaque:TypeError,seven:7,status:TypeError,used:TypeError");
-    assert_eq!(run(&mut js, "WebAssembly.compileStreaming.length + ' ' + WebAssembly.instantiateStreaming.name + ' ' + Object.keys(WebAssembly).length"), "1 instantiateStreaming 0");
+    assert_eq!(r, "bad:CompileError,bytes:TypeError,mime:TypeError,module:true,opaque:TypeError,params:TypeError,seven:7,status:TypeError,used:TypeError");
+    assert_eq!(run(&mut js, "WebAssembly.compileStreaming.length + WebAssembly.instantiateStreaming.length + ' ' + WebAssembly.instantiateStreaming.name + ' ' + Object.keys(WebAssembly).length"), "2 instantiateStreaming 5");
 }
 
 #[test]

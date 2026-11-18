@@ -193,15 +193,15 @@ fn n_memory_grow(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         }
         mem.grow(&mut *s, delta).ok()
     });
+    let Some(old) = r else {
+        return Err(range("WebAssembly.Memory.grow(): Maximum memory size exceeded"));
+    };
     // The old buffer is detached even if nothing moved (the spec always refreshes it).
-    let old = st.tables.borrow_mut().slots.memories[slot].buffer.take();
-    if let Some((buf, _, _)) = old {
+    let stale = st.tables.borrow_mut().slots.memories[slot].buffer.take();
+    if let Some((buf, _, _)) = stale {
         let _ = buf.detach(&detach_key());
     }
-    match r {
-        Some(old) => Ok(JsValue::from(old as f64)),
-        None => Err(range("WebAssembly.Memory.grow(): Maximum memory size exceeded")),
-    }
+    Ok(JsValue::from(old as f64))
 }
 
 fn ref_type(name: &str) -> Option<RefType> {
@@ -258,7 +258,7 @@ fn n_table_new(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         return Err(range("WebAssembly.Table: maximum is smaller than initial"));
     }
     let st = state(ctx);
-    let init = element(ctx, &st, e, a.get(3).filter(|v| !v.is_undefined()))?;
+    let init = element(ctx, &st, e, a.get(3).filter(|_| a.len() > 3))?;
     let ty = TableType::new(e, initial as u32, maximum.map(|m| m as u32));
     let table = with_store(&st, |s| Table::new(&mut *s, ty, init)).map_err(|e| range(&format!("WebAssembly.Table: {e}")))?;
     Ok(table_slot(&st, table).into())

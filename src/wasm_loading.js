@@ -16,7 +16,8 @@
     return Promise.resolve(source).then((r) => {
       if (typeof g.Response !== "function" || !(r instanceof g.Response))
         throw new TypeError(`WebAssembly.${what}(): Argument 0 must be provided and must be a Response`);
-      const type = (r.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      // Exactly application/wasm (any case): no parameters, not even an empty one.
+      const type = (r.headers.get("content-type") || "").trim().toLowerCase();
       if (type !== "application/wasm")
         throw new TypeError(`WebAssembly.${what}(): Incorrect response MIME type. Expected 'application/wasm'.`);
       if (r.type !== "basic" && r.type !== "cors" && r.type !== "default")
@@ -31,12 +32,14 @@
     compileStreaming(source) {
       return responseBytes("compileStreaming", source).then((bytes) => compile.call(WA, bytes));
     },
-    instantiateStreaming(source, importObject) {
+    instantiateStreaming(source, ...rest) {
+      const importObject = rest[0];
       return responseBytes("instantiateStreaming", source).then((bytes) => instantiate.call(WA, bytes, importObject));
     },
   };
+  // Namespace operations are enumerable (WebIDL).
   for (const [name, value] of Object.entries(added))
-    Object.defineProperty(WA, name, { value, writable: true, configurable: true, enumerable: false });
+    Object.defineProperty(WA, name, { value, writable: true, configurable: true, enumerable: true });
 
   const hidden = {
     // postMessage: a token for the module (its bytes wait in share.rs), and a module from one.

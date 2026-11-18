@@ -95,6 +95,95 @@ fn leb(bytes: &[u8], pos: &mut usize) -> Option<u32> {
     }
 }
 
+fn skip_leb(bytes: &[u8], pos: &mut usize) -> Option<()> {
+    for _ in 0..10 {
+        let b = *bytes.get(*pos)?;
+        *pos += 1;
+        if b & 0x80 == 0 {
+            return Some(());
+        }
+    }
+    None
+}
+
+fn name(bytes: &[u8], pos: &mut usize) -> Option<String> {
+    let len = leb(bytes, pos)? as usize;
+    let s = bytes.get(*pos..*pos + len)?;
+    *pos += len;
+    Some(String::from_utf8_lossy(s).into_owned())
+}
+
+/// Skip a value or reference type (one byte, or a GC reference type with its heap type).
+fn skip_val_type(bytes: &[u8], pos: &mut usize) -> Option<()> {
+    let b = *bytes.get(*pos)?;
+    *pos += 1;
+    if b == 0x63 || b == 0x64 {
+        skip_leb(bytes, pos)?;
+    }
+    Some(())
+}
+
+/// Skip limits: a flags byte, the minimum and, if flagged, the maximum.
+fn skip_limits(bytes: &[u8], pos: &mut usize) -> Option<()> {
+    let flags = *bytes.get(*pos)?;
+    *pos += 1;
+    skip_leb(bytes, pos)?;
+    if flags & 1 != 0 {
+        skip_leb(bytes, pos)?;
+    }
+    Some(())
+}
+
+/// A module's imports in the module's order (wasmi lists functions first, then tables,
+/// memories and globals): module name, name and kind (0 function, 1 table, 2 memory,
+/// 3 global, 4 tag). Only called on bytes that compiled.
+pub(super) fn imports_in_order(bytes: &[u8]) -> Vec<(String, String, u8)> {
+    let mut out = Vec::new();
+    let mut pos = 8;
+    while pos < bytes.len() {
+        let id = bytes[pos];
+        pos += 1;
+        let Some(size) = leb(bytes, &mut pos) else { break };
+        let end = pos.saturating_add(size as usize).min(bytes.len());
+        if id == 2 {
+            let mut p = pos;
+            let count = leb(bytes, &mut p).unwrap_or(0);
+            for _ in 0..count {
+                let item = (|| {
+                    let module = name(bytes, &mut p)?;
+                    let field = name(bytes, &mut p)?;
+                    let kind = *bytes.get(p)?;
+                    p += 1;
+                    match kind {
+                        0 => skip_leb(bytes, &mut p)?,
+                        1 => {
+                            skip_val_type(bytes, &mut p)?;
+                            skip_limits(bytes, &mut p)?;
+                        }
+                        2 => skip_limits(bytes, &mut p)?,
+                        3 => {
+                            skip_val_type(bytes, &mut p)?;
+                            p += 1;
+                        }
+                        _ => {
+                            p += 1;
+                            skip_leb(bytes, &mut p)?;
+                        }
+                    }
+                    Some((module, field, kind))
+                })();
+                match item {
+                    Some(i) => out.push(i),
+                    None => break,
+                }
+            }
+            break;
+        }
+        pos = end;
+    }
+    out
+}
+
 /// A module's exports in the module's order (wasmi lists them in its own): name, kind (0
 /// function, 1 table, 2 memory, 3 global) and index (an exported function's `name` is its
 /// index). Only called on bytes that compiled, so a short read just ends the list.

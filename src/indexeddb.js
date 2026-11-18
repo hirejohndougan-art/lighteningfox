@@ -47,6 +47,9 @@
       if (v instanceof Error) return { $: "e", n: v.name, m: v.message };
       if (v instanceof Boolean || v instanceof Number || v instanceof String) return { $: "w", v: encode(v.valueOf(), seen) };
       if (typeof Node === "function" && v instanceof Node) throw err("DataCloneError", "A page element can't be stored.");
+      // WebAssembly objects can't be stored (a Module only goes to workers, with postMessage).
+      if (g.WebAssembly && ["Module", "Instance", "Memory", "Table", "Global"].some((n) => typeof g.WebAssembly[n] === "function" && v instanceof g.WebAssembly[n]))
+        throw err("DataCloneError", "A WebAssembly object can't be stored.");
       const o = {};
       for (const k of Object.keys(v)) o[k] = encode(v[k], seen);
       return { $: "o", v: o };

@@ -84,6 +84,9 @@
       if (typeof BigInt === "function" && Object.prototype.toString.call(v) === "[object BigInt]") return { $: "w", i, t: "bi", v: v.valueOf().toString() };
       // A WebAssembly.Module goes as a token for its bytes (src/wasm/share.rs).
       if (typeof g.__wasmShare === "function" && g.WebAssembly && v instanceof g.WebAssembly.Module) return { $: "wasm", i, k: g.__wasmShare(v) };
+      // Other WebAssembly objects can't be copied (a shared Memory could, but there are none).
+      const wasmKind = g.WebAssembly && ["Instance", "Memory", "Table", "Global"].find((n) => typeof g.WebAssembly[n] === "function" && v instanceof g.WebAssembly[n]);
+      if (wasmKind) throw cloneError("A WebAssembly." + wasmKind);
       if (typeof v.__clone === "function") return { $: "x", i, k: v.constructor.name, v: enc(v.__clone()) };
       const out = { $: "o", i, v: {} };
       for (const k of Object.keys(v)) out.v[k] = enc(v[k]);

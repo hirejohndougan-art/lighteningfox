@@ -26,6 +26,8 @@ mod tests;
 mod loading_tests;
 #[cfg(test)]
 mod objects_tests;
+#[cfg(test)]
+mod conformance_tests;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -87,6 +89,8 @@ struct Compiled {
     bytes: Arc<[u8]>,
     /// Name, kind and index of each export, in the module's order.
     exports: Vec<(String, u8, u32)>,
+    /// Module name, name and kind of each import, in the module's order.
+    imports: Vec<(String, String, u8)>,
 }
 
 /// Everything but the store; borrowed only briefly, never across a call into wasm or script.
@@ -293,27 +297,24 @@ fn compile_bytes(ctx: &mut Context, bytes: Arc<[u8]>) -> JsResult<usize> {
         Err(e) => return Err(throw(ctx, &st, Kind::Compile, &e.to_string())),
     };
     let exports = values::exports_in_order(&bytes);
+    let imports = values::imports_in_order(&bytes);
     let mut t = st.tables.borrow_mut();
-    t.modules.push(Compiled { module, bytes, exports });
+    t.modules.push(Compiled { module, bytes, exports, imports });
     Ok(t.modules.len() - 1)
 }
 
-fn kind_name(ty: &ExternType) -> &'static str {
-    match ty {
-        ExternType::Func(_) => "function",
-        ExternType::Table(_) => "table",
-        ExternType::Memory(_) => "memory",
-        ExternType::Global(_) => "global",
-    }
-}
 
 /// __wasmImports(id) -> [[module, name, kind], …] in the module's order.
 fn n_imports(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = index_arg(a, 0, ctx)?;
     let st = state(ctx);
-    let module = module_of(&st, id)?;
-    let list: Vec<[String; 3]> =
-        module.imports().map(|i| [i.module().to_string(), i.name().to_string(), kind_name(i.ty()).to_string()]).collect();
+    module_of(&st, id)?;
+    const KINDS: [&str; 5] = ["function", "table", "memory", "global", "tag"];
+    let list: Vec<[String; 3]> = st.tables.borrow().modules[id]
+        .imports
+        .iter()
+        .map(|(m, n, k)| [m.clone(), n.clone(), KINDS.get(*k as usize).copied().unwrap_or("tag").to_string()])
+        .collect();
     let out = JsArray::new(ctx)?;
     for [m, n, k] in list {
         let entry = JsArray::from_iter([m, n, k].map(|s| JsValue::from(JsString::from(s))), ctx);
@@ -378,10 +379,18 @@ fn n_instantiate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     let module = module_of(&st, id)?;
     let given = array_items(a.get(1), ctx)?;
     let slots = array_items(a.get(2), ctx)?;
+    // Script gave the values in the module's order; wasmi wants functions, tables, memories,
+    // then globals (each in the module's order).
+    let order: Vec<usize> = {
+        let t = st.tables.borrow();
+        let kinds: Vec<u8> = t.modules[id].imports.iter().map(|i| i.2).collect();
+        (0..4u8).flat_map(|k| kinds.iter().enumerate().filter(move |(_, kind)| **kind == k).map(|(i, _)| i)).collect()
+    };
     let wanted: Vec<(String, String, ExternType)> =
         module.imports().map(|i| (i.module().to_string(), i.name().to_string(), i.ty().clone())).collect();
     let mut externs = Vec::with_capacity(wanted.len());
-    for (i, (m, n, ty)) in wanted.into_iter().enumerate() {
+    for (w, (m, n, ty)) in wanted.into_iter().enumerate() {
+        let i = order.get(w).copied().unwrap_or(w);
         let v = given.get(i).cloned().unwrap_or_default();
         let what = format!("import {m:?} {n:?}");
         let slot = slots.get(i).and_then(JsValue::as_number).filter(|n| *n >= 0.0);
