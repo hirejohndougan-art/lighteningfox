@@ -132,6 +132,36 @@ impl JsArrayBuffer {
         Ok(Self { inner: obj })
     }
 
+    /// Ironswift change: an array buffer over bytes the embedder owns (a WebAssembly memory's
+    /// `buffer`). Script reads and writes those bytes directly; it can't transfer or resize the
+    /// buffer, only the embedder can detach it (with `detach_key`).
+    ///
+    /// # Safety
+    ///
+    /// `len` bytes at `ptr` must stay valid, and not move, until the buffer is detached with
+    /// `detach_key`, which must not be `undefined`.
+    pub unsafe fn from_external(
+        ptr: *mut u8,
+        len: usize,
+        detach_key: JsValue,
+        context: &mut Context,
+    ) -> JsResult<Self> {
+        if detach_key.is_undefined() {
+            return Err(JsNativeError::typ()
+                .with_message("an external ArrayBuffer needs a detach key")
+                .into());
+        }
+        let prototype = context
+            .intrinsics()
+            .constructors()
+            .array_buffer()
+            .prototype();
+        // SAFETY: passed on to the caller.
+        let data = unsafe { ArrayBuffer::from_external(ptr, len, detach_key) };
+        let obj = JsObject::new(context.root_shape(), prototype, data);
+        Ok(Self { inner: obj })
+    }
+
     /// Set a maximum length for the underlying array buffer.
     #[inline]
     #[must_use]

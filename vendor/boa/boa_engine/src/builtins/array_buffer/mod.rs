@@ -10,6 +10,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
+pub(crate) mod block;
 pub(crate) mod shared;
 pub(crate) mod utils;
 
@@ -36,6 +37,7 @@ use crate::{
 };
 use boa_gc::{Finalize, GcRef, GcRefMut, Trace};
 
+use self::block::Block;
 use self::utils::{SliceRef, SliceRefMut};
 
 use super::{
@@ -202,7 +204,7 @@ impl BufferObject {
 pub struct ArrayBuffer {
     /// The `[[ArrayBufferData]]` internal slot.
     #[unsafe_ignore_trace]
-    data: Option<AlignedVec<u8>>,
+    data: Option<Block>,
 
     /// The `[[ArrayBufferMaxByteLength]]` internal slot.
     max_byte_len: Option<u64>,
@@ -214,14 +216,28 @@ pub struct ArrayBuffer {
 impl ArrayBuffer {
     pub(crate) fn from_data(data: AlignedVec<u8>, detach_key: JsValue) -> Self {
         Self {
-            data: Some(data),
+            data: Some(Block::Owned(data)),
+            max_byte_len: None,
+            detach_key,
+        }
+    }
+
+    /// Ironswift change: a buffer over `len` bytes at `ptr` that the embedder owns.
+    ///
+    /// # Safety
+    ///
+    /// The bytes must stay valid (and not be moved) until the buffer is detached with
+    /// `detach_key`, which must not be `undefined` (so script can't transfer the buffer).
+    pub(crate) unsafe fn from_external(ptr: *mut u8, len: usize, detach_key: JsValue) -> Self {
+        Self {
+            data: Some(Block::External { ptr, len }),
             max_byte_len: None,
             detach_key,
         }
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.data.as_ref().map_or(0, AlignedVec::len)
+        self.data.as_ref().map_or(0, |b| b.len())
     }
 
     pub(crate) fn bytes(&self) -> Option<&[u8]> {
@@ -233,7 +249,10 @@ impl ArrayBuffer {
     }
 
     pub(crate) fn vec_mut(&mut self) -> Option<&mut AlignedVec<u8>> {
-        self.data.as_mut()
+        match self.data.as_mut()? {
+            Block::Owned(v) => Some(v),
+            Block::External { .. } => None,
+        }
     }
 
     /// Sets the maximum byte length of the buffer, returning the previous value if present.
@@ -306,7 +325,8 @@ impl ArrayBuffer {
                 .into());
         }
 
-        Ok(self.data.take())
+        // External bytes stay with their owner.
+        Ok(self.data.take().and_then(Block::into_owned))
     }
 
     /// `IsDetachedBuffer ( arrayBuffer )`
@@ -788,7 +808,7 @@ impl ArrayBuffer {
         };
 
         // 5. If IsDetachedBuffer(arrayBuffer) is true, throw a TypeError exception.
-        let Some(mut bytes) = buf.borrow_mut().data_mut().data.take() else {
+        let Some(bytes) = buf.borrow_mut().data_mut().data.take() else {
             return Err(JsNativeError::typ()
                 .with_message("cannot transfer a detached buffer")
                 .into());
@@ -806,12 +826,16 @@ impl ArrayBuffer {
             .filter(|_| !TO_FIXED_LENGTH);
 
         // 8. If arrayBuffer.[[ArrayBufferDetachKey]] is not undefined, throw a TypeError exception.
-        if !buf.borrow().data().detach_key.is_undefined() {
-            buf.borrow_mut().data_mut().data = Some(bytes);
-            return Err(JsNativeError::typ()
-                .with_message("cannot transfer a buffer with a detach key")
-                .into());
-        }
+        //    (External bytes always have a detach key.)
+        let mut bytes = match bytes {
+            Block::Owned(v) if buf.borrow().data().detach_key.is_undefined() => v,
+            other => {
+                buf.borrow_mut().data_mut().data = Some(other);
+                return Err(JsNativeError::typ()
+                    .with_message("cannot transfer a buffer with a detach key")
+                    .into());
+            }
+        };
 
         // Effectively, the next steps only create a new object for the same vec, so we can skip all
         // those steps and just make a single check + trigger the realloc.
@@ -827,7 +851,7 @@ impl ArrayBuffer {
         // 16. Return newBuffer.
         if let Some(new_max_len) = new_max_len {
             if new_len > new_max_len {
-                buf.borrow_mut().data_mut().data = Some(bytes);
+                buf.borrow_mut().data_mut().data = Some(Block::Owned(bytes));
                 return Err(JsNativeError::range()
                     .with_message("`length` cannot be bigger than `maxByteLength`")
                     .into());
@@ -851,7 +875,7 @@ impl ArrayBuffer {
             context.root_shape(),
             prototype,
             ArrayBuffer {
-                data: Some(bytes),
+                data: Some(Block::Owned(bytes)),
                 max_byte_len: new_max_len,
                 detach_key: JsValue::undefined(),
             },
@@ -904,7 +928,7 @@ impl ArrayBuffer {
             Self {
                 // 6. Set obj.[[ArrayBufferData]] to block.
                 // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
-                data: Some(block),
+                data: Some(Block::Owned(block)),
                 // 8. If allocatingResizableBuffer is true, then
                 //    c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
                 max_byte_len,

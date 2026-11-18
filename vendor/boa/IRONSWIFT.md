@@ -158,3 +158,12 @@ Plan and rules: `docs/JIT.md`. Tests: in the Boa workspace above, also add the `
 the five optional `cranelift-*` dependencies (0.137.2) to `core/engine/Cargo.toml`, then
 `cargo test --release -p boa_engine --features jit --lib jit::`. Boa's 1,116 engine tests pass
 with `BOA_JIT=always`, and without the feature.
+
+### boa_engine: ArrayBuffers over embedder-owned bytes
+
+`builtins/array_buffer/block.rs` (new) and `builtins/array_buffer/mod.rs`: an `ArrayBuffer`'s
+bytes are a `Block`, either owned (as before) or external (a pointer and length the embedder
+owns). `JsArrayBuffer::from_external` (`object/builtins/jsarraybuffer.rs`) makes one; it must
+have a detach key, so script can't transfer it and `resize` refuses it (it's fixed-length), and
+detaching it drops the pointer without freeing anything. Ironswift uses it for
+`WebAssembly.Memory.prototype.buffer`, so typed arrays see the module's memory itself (task P1b).
