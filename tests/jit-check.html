@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>JIT check</title>
+<!-- Run with BOA_JIT=always (CI does, on every platform): every function below is compiled on
+     first use. The page shows "JIT check: ok" only if each part gives the interpreter's answer. -->
+<p id="out">JIT check: not run</p>
+<script>
+const results = [];
+function check(name, got, want) { if (got !== want) results.push(name + ": got " + got + ", want " + want); }
+
+// Numbers, locals, branches and loops.
+function sum(n) { let s = 0; for (let i = 0; i < n; i++) { s += i % 7 === 0 ? i * 2 : i; } return s; }
+check("loop", sum(10000), 57137142);
+function floats(n) { let x = 0.5; for (let i = 1; i <= n; i++) x = x * 1.0001 + 1 / i; return Math.round(x * 1e6); }
+check("floats", floats(1000), 8717460);
+check("int32 overflow", (function () { let a = 2147483647; return a + 1; })(), 2147483648);
+
+// Property reads and writes.
+function points(n) { const o = { x: 0, y: 0 }; for (let i = 0; i < n; i++) { o.x += i; o.y = o.x - i; } return o.x + o.y; }
+check("properties", points(1000), 998001);
+const arr = []; for (let i = 0; i < 100; i++) arr.push(i * i);
+check("arrays", arr.reduce((a, b) => a + b, 0), 328350);
+
+// Calls in both directions, recursion and closures.
+function fib(n) { return n < 2 ? n : fib(n - 1) + fib(n - 2); }
+check("recursion", fib(20), 6765);
+function counter() { let c = 0; return () => ++c; }
+const next = counter(); for (let i = 0; i < 50; i++) next();
+check("closures", next(), 51);
+check("callbacks", [1, 2, 3].map(x => x * 3).join(), "3,6,9");
+
+// Exceptions thrown and caught across compiled frames.
+function thrower(i) { if (i === 3) throw new Error("three"); return i; }
+function catcher() { let s = ""; for (let i = 0; i < 5; i++) { try { s += thrower(i); } catch (e) { s += e.message; } finally { s += "."; } } return s; }
+check("exceptions", catcher(), "0.1.2.three.4.");
+
+// Strings and types the compiled code hands back to the interpreter.
+function mixed(v) { return v + 1; }
+check("mixed types", [mixed(1), mixed("1"), mixed(null), String(mixed(undefined))].join(), "2,11,1,NaN");
+
+document.getElementById("out").textContent = results.length ? "JIT check: FAILED " + results.join("; ") : "JIT check: ok";
+</script>

@@ -24,6 +24,14 @@ jobs:
         run: cargo build --release
       - name: Unit, parser and screenshot tests
         run: cargo test --release
+      - name: The same tests with every function compiled by the JIT
+        # The JIT is on by default but only compiles busy functions; BOA_JIT=always compiles
+        # each one on first use, so every script in the tests runs as machine code.
+        env:
+          BOA_JIT: always
+        run: |
+          ./target/release/ironswift --a11y tests/jit-check.html | grep "JIT check: ok"
+          cargo test --release
       - name: Speed regression check
         # Benchmarks and page render times against tools/perf-baseline.json, and the time to
         # the first window frame (under xvfb). CI machines are slower than the baseline's, so
@@ -51,6 +59,29 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release --no-default-features
+
+  linux-arm64:
+    # The JIT emits ARM64 code here (Cranelift's aarch64 back end, with BTI where the CPU has it).
+    runs-on: ubuntu-24.04-arm
+    env:
+      RUSTFLAGS: "--cfg reqwest_unstable -D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libxkbcommon-dev libwayland-dev libx11-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: The JIT on ARM64
+        env:
+          BOA_JIT: always
+        run: |
+          ./target/release/ironswift --a11y tests/jit-check.html | grep "JIT check: ok"
+          ./target/release/ironswift --png jit-check.png tests/js-demo.html
+          cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
 
   windows-and-macos:
     # The browser must build on Windows and macOS too, and draw a page there (headless, with
@@ -85,6 +116,13 @@ jobs:
         run: powershell -ExecutionPolicy Bypass -File tools/windows_smoke.ps1
       - name: Unit tests that don't depend on Linux fonts
         run: cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
+      - name: The JIT on this platform
+        shell: bash
+        env:
+          BOA_JIT: always
+        run: |
+          ./target/release/ironswift --a11y tests/jit-check.html | grep "JIT check: ok"
+          cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
       - name: Keep the pictures
         if: always()
         uses: actions/upload-artifact@v4
