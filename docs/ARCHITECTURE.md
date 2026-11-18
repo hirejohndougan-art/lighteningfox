@@ -56,6 +56,38 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
 - Scripts that ask where things are (`getBoundingClientRect`, `offsetWidth`) get a fresh layout
   through `geometry.rs`.
 
+## WebAssembly (`wasm/`, `wasm.js`)
+
+The `WebAssembly` global is built in `wasm.js` on a few natives in `wasm/mod.rs`, which run
+modules with the **wasmi** interpreter. Each page's script engine has one wasmi store holding
+all its instances (so instances can import each other's functions); nothing in it is freed
+before the page goes away. Calls nest freely (script → wasm → script import → wasm): while an
+import runs, its wasm `Caller` stands in for the store. Exceptions thrown by imports come out
+of wasm unchanged; traps become `WebAssembly.RuntimeError`, a stack overflow a `RangeError`.
+Runaway modules are stopped by wasmi fuel (`wasm::FUEL`, about 20 seconds of work per call
+from script), with the same uncatchable error as Boa's loop limit.
+
+**Why wasmi and not wasmtime** (measured 2026-11-18 on a 2-core x86-64 VM, release builds,
+compressing 8 MB of text with zstd 1.5 compiled by Emscripten (`@bokuweb/zstd-wasm`, 246 KB of
+wasm), level 3):
+
+| | wasmi 2.0 | wasmtime 50 (Cranelift) |
+|---|---|---|
+| Compile the module | 2 ms (validated; functions translated on first call) | 300 ms |
+| Instantiate | 0.07 ms | 0.08 ms |
+| Compress 8 MB | 450 ms (470 ms with fuel metering on) | 72 ms |
+| Decompress | 115 ms | 14 ms |
+| Added to a stripped binary | +2.5 MB | +11.3 MB |
+| Peak memory (whole run) | 46 MB | 52 MB |
+
+wasmtime runs 6–8 times faster, but compiles everything up front: about 1.2 ms per KB of
+wasm here, so a 10–30 MB app (Figma, Unity games) would wait 10–40 s before its first call,
+where wasmi starts at once. wasmi also needs no executable memory (nothing for the sandbox
+or a JIT security review to allow), adds a quarter of the size, builds faster, and its fuel
+gives an exact runaway limit; wasmtime would need epoch interruption from another thread.
+The runtime is only used inside `wasm/`, so moving hot modules to a compiler later (wasmtime,
+or Cranelift once the JIT tasks bring it in) stays a local change.
+
 ## Security (`security.rs`, `blocklist.rs`, `sandbox.rs`, `permissions.rs`)
 
 - **Every page has a policy** (`security::PagePolicy`): its CSP (headers and `<meta>`),
