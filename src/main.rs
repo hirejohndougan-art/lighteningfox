@@ -138,6 +138,7 @@ mod style;
 mod boxtree;
 mod relayout;
 mod clip_rect;
+mod webfont_pick;
 mod svg_inline;
 mod svg_hit;
 mod svg_foreign;
@@ -680,11 +681,20 @@ fn decode_font(bytes: Vec<u8>) -> Option<Vec<u8>> {
 fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url: &str) -> Vec<WebFont> {
     let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut seen: std::collections::HashSet<*const str> = std::collections::HashSet::new();
+    // Each family, weight and style the page's text asks for, in document order.
+    let mut wants: Vec<webfont_pick::Want> = Vec::new();
+    let mut seen_want: std::collections::HashSet<(*const str, u16, bool)> = std::collections::HashSet::new();
     for st in styles {
         if let Some(f) = &st.family {
             if seen.insert(Rc::as_ptr(f)) {
                 for name in f.split(',') {
                     used.insert(name.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_string());
+                }
+            }
+            if seen_want.insert((Rc::as_ptr(f), st.weight, st.italic)) {
+                for name in f.split(',') {
+                    let name = name.trim().trim_matches(|c| c == '"' || c == '\'').trim().to_ascii_lowercase();
+                    wants.push((name, st.weight, st.italic));
                 }
             }
         }
@@ -694,6 +704,8 @@ fn fetch_fonts(sheets: &[css::Stylesheet], styles: &[Rc<style::Style>], page_url
     // subsets: latin, latin-ext, cyrillic…): faces aren't chosen per character yet, so for each
     // family, weight and style the subset with basic Latin is used and the others are skipped.
     let faces: Vec<&css::FontFace> = sheets.iter().flat_map(|s| &s.font_faces).filter(|f| used.contains(&f.family)).collect();
+    // The faces the text needs first, so the cap below doesn't leave them out (webfont_pick.rs).
+    let faces = webfont_pick::prioritize(&faces, &wants);
     let has_latin = |f: &css::FontFace| faces.iter().any(|g| g.family == f.family && g.weight == f.weight && g.italic == f.italic && g.covers('a'));
     let wanted: Vec<(&css::FontFace, String)> = faces
         .iter()
