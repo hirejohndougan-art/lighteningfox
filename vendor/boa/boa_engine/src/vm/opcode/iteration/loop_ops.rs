@@ -39,7 +39,7 @@ impl IncrementLoopIteration {
         #[cfg(feature = "jit")]
         if frame.code_block.jit.note_loop_iteration() {
             let code = frame.code_block.clone();
-            crate::jit::tier_up(&code);
+            crate::jit::tier_up(&code, context);
         }
         // A loop header in a compiled function: go on in machine code.
         #[cfg(feature = "jit")]

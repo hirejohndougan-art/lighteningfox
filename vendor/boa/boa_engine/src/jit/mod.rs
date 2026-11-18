@@ -28,9 +28,10 @@ pub(crate) use counters::JitCounters;
 pub use counters::TierState;
 pub use mode::{JitMode, mode, set_mode};
 pub use support::Rejection;
-pub(crate) use runtime::{enter, enter_after_return, enter_at_call};
+pub(crate) use runtime::{ContextJit, enter, enter_after_return, enter_at_call};
 
 use crate::vm::CodeBlock;
+use boa_gc::Gc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A function tiers up after this many calls (`BOA_JIT=on`, the default when the feature is
@@ -72,7 +73,7 @@ pub fn stats() -> JitStats {
 /// compiler can take it.
 #[cold]
 #[inline(never)]
-pub(crate) fn tier_up(code: &CodeBlock) {
+pub(crate) fn tier_up(code: &Gc<CodeBlock>, context: &crate::Context) {
     if code.jit.state() != TierState::Interpreted || mode() == JitMode::Off {
         return;
     }
@@ -81,7 +82,7 @@ pub(crate) fn tier_up(code: &CodeBlock) {
         Ok(()) => {
             ELIGIBLE.fetch_add(1, Ordering::Relaxed);
             code.jit.set_state(TierState::Eligible);
-            runtime::compile(code);
+            runtime::compile(code, context);
         }
         Err(rejection) => {
             REJECTED.fetch_add(1, Ordering::Relaxed);

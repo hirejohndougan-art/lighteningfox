@@ -154,3 +154,18 @@ fn native_loops_never_enter_their_callers_code() {
         assert_eq!(context.eval(Source::from_bytes("for (let i = 0; i < 3; i++) 'ab'.repeat(2); 'x'.repeat(3)")).unwrap().display().to_string(), "\"xxx\"");
     });
 }
+
+#[test]
+fn machine_code_goes_with_its_context() {
+    // test262 makes a context per test and a browser one per page: the code a context compiled
+    // is freed with it, and the code block can compile again in the next context.
+    with_mode(JitMode::Always, || {
+        let mut first = Context::default();
+        let code = code_of(&mut first, "function f(o) { return o.a + 1; } f");
+        assert_eq!(first.eval(Source::from_bytes("f({ a: 1 })")).unwrap(), JsValue::new(2));
+        assert_eq!(code.jit.state(), TierState::Compiled);
+        drop(first);
+        assert_eq!(code.jit.state(), TierState::Interpreted);
+        assert!(code.jit.code().is_none());
+    });
+}

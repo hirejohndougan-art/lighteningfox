@@ -14,12 +14,39 @@ use super::{JitMode, TierState, mode};
 use crate::vm::completion_record::{CompletionRecord, JitStep};
 use crate::vm::opcode::OPCODE_JIT_STEPS;
 use crate::{Context, JsError, JsNativeError, JsResult, vm::CodeBlock, vm::Opcode};
+use boa_gc::Gc;
 use std::cell::{Cell, RefCell};
 use std::ops::ControlFlow;
 
+/// A context's machine code: its Cranelift module and the code blocks compiled into it. When
+/// the context goes, so does the code (test262 makes a context per test; a browser one per
+/// page), and those code blocks go back to the interpreter, ready to tier up again in another
+/// context (scripts compiled once can be shared between pages).
+#[derive(Default)]
+pub(crate) struct ContextJit {
+    backend: RefCell<Option<JitBackend>>,
+    compiled: RefCell<Vec<Gc<CodeBlock>>>,
+}
+
+impl std::fmt::Debug for ContextJit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContextJit").field("compiled", &self.compiled.borrow().len()).finish()
+    }
+}
+
+impl Drop for ContextJit {
+    fn drop(&mut self) {
+        for code in self.compiled.get_mut().drain(..) {
+            code.jit.set_code(None);
+            if code.jit.state() == TierState::Compiled {
+                code.jit.set_state(TierState::Interpreted);
+            }
+        }
+        // The backend (and its executable memory) goes after no code block points into it.
+    }
+}
+
 thread_local! {
-    /// The Cranelift module for this thread's code (a `Context` stays on its thread).
-    static BACKEND: RefCell<Option<JitBackend>> = const { RefCell::new(None) };
     /// The error a compiled function's [`EXIT_ERROR`] stands for.
     static THROWN: RefCell<Option<JsError>> = const { RefCell::new(None) };
     /// While a step runs a `Call` for compiled code: the frame count then. The callee it
@@ -31,19 +58,21 @@ thread_local! {
 /// using its compiled code.
 const BAILOUT_GRACE: u32 = 64;
 
-/// Compiles an eligible code block; on failure it stays interpreted for good.
-pub(crate) fn compile(code: &CodeBlock) {
-    let result = BACKEND.with(|b| {
-        let mut b = b.borrow_mut();
+/// Compiles an eligible code block into `context`'s module; on failure it stays interpreted
+/// for good.
+pub(crate) fn compile(code: &Gc<CodeBlock>, context: &Context) {
+    let result = (|| {
+        let mut b = context.jit.backend.borrow_mut();
         if b.is_none() {
             *b = Some(JitBackend::new()?);
         }
         compiler::compile(b.as_mut().expect("set above"), code)
-    });
+    })();
     match result {
         Ok(f) => {
             code.jit.set_code(Some(f));
             code.jit.set_state(TierState::Compiled);
+            context.jit.compiled.borrow_mut().push(code.clone());
         }
         Err(e) => {
             if std::env::var_os("BOA_JIT_LOG").is_some() {

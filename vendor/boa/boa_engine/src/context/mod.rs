@@ -131,6 +131,11 @@ pub struct Context {
     parser_identifier: u32,
 
     data: HostDefined<dyn Any>,
+
+    /// Ironswift change: this context's machine code (baseline JIT). It lives as long as the
+    /// context, so a page's compiled code goes when the page does (docs/JIT.md).
+    #[cfg(feature = "jit")]
+    pub(crate) jit: crate::jit::ContextJit,
 }
 
 impl std::fmt::Debug for Context {
@@ -1271,6 +1276,8 @@ impl ContextBuilder {
             parser_identifier: 0,
             can_block: self.can_block,
             data: HostDefined::default(),
+            #[cfg(feature = "jit")]
+            jit: crate::jit::ContextJit::default(),
         };
 
         builtins::set_default_global_bindings(&mut context)?;

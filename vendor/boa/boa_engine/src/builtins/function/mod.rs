@@ -1015,7 +1015,7 @@ pub(crate) fn function_call(
     // Ironswift change: count calls for the baseline JIT (docs/JIT.md).
     #[cfg(feature = "jit")]
     if code.jit.note_call() {
-        crate::jit::tier_up(&code);
+        crate::jit::tier_up(&code, context);
     }
 
     let env_fp = environments.len() as u32;
@@ -1135,7 +1135,7 @@ fn function_construct(
     // Ironswift change: count calls for the baseline JIT (docs/JIT.md).
     #[cfg(feature = "jit")]
     if code.jit.note_call() {
-        crate::jit::tier_up(&code);
+        crate::jit::tier_up(&code, context);
     }
 
     let env_fp = environments.len() as u32;

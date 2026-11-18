@@ -20,7 +20,7 @@ pub enum TierState {
 
 /// Counters kept in every [`CodeBlock`](crate::vm::CodeBlock). Two `Cell<u32>` bumps per call
 /// or loop iteration, and only with the `jit` feature.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub(crate) struct JitCounters {
     calls: Cell<u32>,
     loop_iterations: Cell<u32>,
@@ -28,6 +28,14 @@ pub(crate) struct JitCounters {
     code: Cell<Option<JitFn>>,
     entries: Cell<u32>,
     bailouts: Cell<u32>,
+}
+
+/// A copied code block starts over: its machine code belongs to the context that compiled the
+/// original, which drops it with that context (`runtime::ContextJit`).
+impl Clone for JitCounters {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 impl std::fmt::Debug for JitCounters {
@@ -59,10 +67,12 @@ impl JitCounters {
         iterations >= mode::loop_threshold() && self.state.get() == TierState::Interpreted
     }
 
+    #[cfg(test)]
     pub(crate) fn calls(&self) -> u32 {
         self.calls.get()
     }
 
+    #[cfg(test)]
     pub(crate) fn loop_iterations(&self) -> u32 {
         self.loop_iterations.get()
     }
