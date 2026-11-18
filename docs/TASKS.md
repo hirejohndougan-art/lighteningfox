@@ -955,7 +955,9 @@ after each one.
 **Checklist:** §9 "WebAssembly" (moved from §19 to the standard browser on 2026-11-18); ticked when P1d is done
 
 ### P1a. WebAssembly: pick the runtime and run modules
-**Status:** claimed by chat-wasm-1 2026-11-18 05:20
+**Status:** done
+**Result:** wasmi 2.0 (interpreter) chosen over wasmtime 50 after measuring zstd (Emscripten, 246 KB) compressing 8 MB: wasmtime runs 6–8× faster but compiles up front (300 ms here, ~1.2 ms/KB, so 10–40 s for big apps), adds 11.3 MB to the binary (wasmi 2.5 MB) and needs executable memory; numbers and reasons in `docs/ARCHITECTURE.md` "WebAssembly". `src/wasm/` + `src/wasm.js`: `Module` (with `imports`/`exports`/`customSections`), `Instance`, `validate`, `compile`, `instantiate` (bytes or Module), `CompileError`/`LinkError`/`RuntimeError`; function imports/exports both ways with i32, i64↔BigInt, f32, f64, externref, funcref and multi-value; JS exceptions pass through wasm unchanged; traps → RuntimeError, wasm stack overflow → RangeError; runaway modules stopped by wasmi fuel (`wasm::FUEL`, ~20 s per call from script) with Boa's uncatchable loop-limit error. SIMD and memory64 are enabled in wasmi but v128 can't cross to JS (TypeError, as in the spec). One wasmi store per page: nothing in it is freed until the page goes. 14 tests in `src/wasm/tests.rs`.
+**Left undone:** `Memory`/`Table`/`Global` objects, and memory/table/mutable-global imports and exports (LinkError for now; exports of them are left out of `instance.exports`) are P1b. Streaming, `.wasm` modules, CSP `wasm-unsafe-eval`, workers and site processes are P1c (the global already exists in workers, untested there). `compile`/`instantiate` compile on the page's thread in a later job, not in the background. Exported functions reached only through a funcref (not an export) get their store slot as `name`, not their function index.
 **After:** —
 **Checklist:** none (P1d closes §9 "WebAssembly")
 **Files:** new `src/wasm/`, `src/js.rs` (the `WebAssembly` global), a new `src/wasm.js` if glue is easier in JS
