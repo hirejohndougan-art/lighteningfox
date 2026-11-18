@@ -839,3 +839,53 @@ fn webgl2_queries_and_fences() {
     );
     assert_eq!(r.trim_matches('"'), "false,true,true,16,false,1,true,true,true,true,0");
 }
+
+/// WebGL 2 transform feedback (O4): a program's chosen outputs land in the bound buffer, a
+/// primitives-written query counts them, and misuse is reported.
+#[test]
+fn webgl2_transform_feedback_captures() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+            const p = gl.createProgram();
+            gl.attachShader(p, sh(gl.VERTEX_SHADER, "#version 300 es\nin float a; out float twice; void main(){ twice = a * 2.0; gl_Position = vec4(a, 0, 0, 1); }"));
+            gl.attachShader(p, sh(gl.FRAGMENT_SHADER, "#version 300 es\nprecision mediump float; out vec4 c; void main(){ c = vec4(1); }"));
+            gl.transformFeedbackVaryings(p, ["twice"], gl.INTERLEAVED_ATTRIBS);
+            gl.linkProgram(p);
+            gl.useProgram(p);
+            const vb = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1, 2, 3]), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 1, gl.FLOAT, false, 0, 0);
+            const tb = gl.createBuffer();
+            gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER, tb);
+            gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER, 12, gl.STATIC_READ);
+            const tf = gl.createTransformFeedback();
+            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, tf);
+            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, tb);
+            const q = gl.createQuery();
+            gl.enable(gl.RASTERIZER_DISCARD);
+            gl.beginQuery(gl.TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, q);
+            gl.beginTransformFeedback(gl.POINTS);
+            gl.drawArrays(gl.LINES, 0, 2);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.drawArrays(gl.POINTS, 0, 3);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.endTransformFeedback();
+            gl.endQuery(gl.TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+            const got = new Float32Array(3);
+            gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER, 0, got);
+            out.push(Array.from(got).join(" "), q.__result, gl.getTransformFeedbackVarying(p, 0).name, gl.getError());
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "true,true,2 4 6,3,twice,0");
+}

@@ -12,6 +12,7 @@ use crate::glsl::{Base, Dim, Ty};
 use crate::glsl_gen::{compile, read_std140, Compiled, Stage};
 use crate::glsl_vm::Lanes;
 use crate::webgl_raster::{g, Attr, AttrSrc, Pipeline, RState, StencilFace, Target};
+use crate::webgl_tf::{Tf, TfVar};
 use crate::webgl_tex::{self as tex, e, Fmt, Image, Num, Sampler, TexParams, Texture, Unpack, UnitView};
 use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsDataView, JsFloat32Array, JsInt32Array, JsTypedArray, JsUint32Array};
 use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction, Source};
@@ -128,6 +129,9 @@ struct Linked {
     out_names: Vec<(String, u32)>,
     blocks: Vec<LBlock>,
     block_binding: Vec<u32>,
+    /// Transform feedback outputs and buffer mode.
+    tf: Vec<TfVar>,
+    tf_mode: u32,
 }
 
 struct Program {
@@ -138,6 +142,9 @@ struct Program {
     bound_attribs: HashMap<String, u32>,
     deleted: bool,
     validate: bool,
+    /// transformFeedbackVaryings: names and buffer mode, used by the next link.
+    tf_names: Vec<String>,
+    tf_mode: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -214,6 +221,7 @@ enum Obj {
     Sampler(TexParams),
     Query,
     Sync,
+    Tf(Tf),
 }
 
 #[derive(Clone, Copy)]
@@ -259,6 +267,11 @@ pub struct Gl {
     generic: [([f32; 4], u8); MAX_ATTRIBS],
     /// Samples that passed the fragment tests, over the context's life (occlusion queries).
     samples_passed: u64,
+    /// The default transform feedback object, the bound one's id (0: the default), and the
+    /// primitives written over the context's life (TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN).
+    tf0: Tf,
+    tf_bound: u32,
+    tf_prims: u64,
     // State.
     clear_color: [f32; 4],
     clear_depth: f32,
@@ -332,6 +345,9 @@ impl Gl {
             rbo: 0,
             generic: [([0.0, 0.0, 0.0, 1.0], 0); MAX_ATTRIBS],
             samples_passed: 0,
+            tf0: Tf::default(),
+            tf_bound: 0,
+            tf_prims: 0,
             clear_color: [0.0; 4],
             clear_depth: 1.0,
             clear_stencil: 0,
@@ -878,8 +894,8 @@ impl Gl {
 
     fn link(&mut self, pid: u32) {
         let v2 = self.v2;
-        let (shaders, bound) = match self.program_ref(pid) {
-            Some(p) => (p.shaders.clone(), p.bound_attribs.clone()),
+        let (shaders, bound, tf_names, tf_mode) = match self.program_ref(pid) {
+            Some(p) => (p.shaders.clone(), p.bound_attribs.clone(), p.tf_names.clone(), p.tf_mode),
             None => return,
         };
         let mut vs = None;
@@ -1035,7 +1051,8 @@ impl Gl {
                 }
             }
             let nb = blocks.len();
-            Ok(Linked { vs_mem: vs.mem.clone(), fs_mem: fs.mem.clone(), vs, fs, uniforms, attribs, vary, outs, out_names, blocks, block_binding: vec![0; nb] })
+            let tf = crate::webgl_tf::resolve(&tf_names, tf_mode, &vs.outputs)?;
+            Ok(Linked { vs_mem: vs.mem.clone(), fs_mem: fs.mem.clone(), vs, fs, uniforms, attribs, vary, outs, out_names, blocks, block_binding: vec![0; nb], tf, tf_mode })
         })();
         if let Some(p) = self.program_mut(pid) {
             match result {
@@ -1067,6 +1084,27 @@ impl Gl {
         let attribs_needed: Vec<(u32, Ty, u32)> = l.attribs.iter().map(|a| (a.2, a.1.clone(), a.3)).collect();
         if self.v2 && (!self.samplers_match_textures() || !self.attrib_types_match(&attribs_needed)) {
             return self.error(INVALID_OPERATION);
+        }
+        if self.v2 && (self.tf_conflict(&attribs_needed, index.is_some()) || (self.tf_capturing() && self.tf().bind.iter().any(|b| self.double_bound(b.0)))) {
+            return self.error(INVALID_OPERATION);
+        }
+        if self.tf_capturing() {
+            // Transform feedback: arrays only (OpenGL ES 3.0), in the begun primitive mode, with
+            // room in the buffers for everything captured.
+            let t = self.tf().clone();
+            if index.is_some() || crate::webgl_tf::base_mode(mode) != t.mode {
+                return self.error(INVALID_OPERATION);
+            }
+            let Some(vars) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()).map(|l| (l.tf.clone(), l.tf_mode)) else { return };
+            let verts = crate::webgl_tf::order(mode, count as usize).len() as u64 * instances.max(1) as u64;
+            let need: Vec<u64> = if vars.1 == crate::webgl_tf::SEPARATE_ATTRIBS {
+                vars.0.iter().map(|v| verts * v.comps as u64 * 4).collect()
+            } else {
+                vec![verts * vars.0.iter().map(|v| v.comps as u64).sum::<u64>() * 4]
+            };
+            if need.iter().enumerate().any(|(k, &n)| n > self.tf_room(k)) {
+                return self.error(INVALID_OPERATION);
+            }
         }
         if count == 0 || instances == 0 {
             return;
@@ -1108,6 +1146,116 @@ impl Gl {
             }
         };
         self.draw_ids(mode, &ids, instances as u32, &attribs_needed);
+    }
+
+    /// Write captured vertex outputs (vertex by vertex, each the program's transform feedback
+    /// varyings in order) into the bound transform feedback buffers.
+    fn tf_write(&mut self, mode: u32, captured: &[f32]) {
+        let Some((vars, tf_mode)) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()).map(|l| (l.tf.clone(), l.tf_mode)) else { return };
+        let per: usize = vars.iter().map(|v| v.comps as usize).sum();
+        if per == 0 {
+            return;
+        }
+        let verts = captured.len() / per;
+        let separate = tf_mode == crate::webgl_tf::SEPARATE_ATTRIBS;
+        for v in 0..verts {
+            let mut at = v * per;
+            for (k, var) in vars.iter().enumerate() {
+                let n = var.comps as usize;
+                let bp = if separate { k } else { 0 };
+                let (buf, off, _) = self.tf().bind[bp];
+                let pos = off as u64 + self.tf().written[bp];
+                if let Some(b) = self.buf_mut(buf) {
+                    for c in 0..n {
+                        let o = pos as usize + c * 4;
+                        if let Some(dst) = b.data.get_mut(o..o + 4) {
+                            dst.copy_from_slice(&captured[at + c].to_bits().to_le_bytes());
+                        }
+                    }
+                }
+                self.tf_mut().written[bp] += n as u64 * 4;
+                at += n;
+            }
+        }
+        self.tf_prims += (verts / crate::webgl_tf::per_primitive(crate::webgl_tf::base_mode(mode))) as u64;
+    }
+
+    /// The bound transform feedback object.
+    fn tf(&self) -> &Tf {
+        match self.objs.get(&self.tf_bound) {
+            Some(Obj::Tf(t)) if self.tf_bound != 0 => t,
+            _ => &self.tf0,
+        }
+    }
+
+    fn tf_mut(&mut self) -> &mut Tf {
+        let id = self.tf_bound;
+        if id != 0 && matches!(self.objs.get(&id), Some(Obj::Tf(_))) {
+            match self.objs.get_mut(&id) {
+                Some(Obj::Tf(t)) => t,
+                _ => unreachable!(),
+            }
+        } else {
+            &mut self.tf0
+        }
+    }
+
+    /// WebGL: is this buffer bound in a transform feedback object that has begun (active,
+    /// paused or not, bound or not)? Such a buffer can't be read, written or drawn from.
+    fn in_active_tf(&self, buf: u32) -> bool {
+        buf != 0
+            && std::iter::once(&self.tf0)
+                .chain(self.objs.values().filter_map(|o| if let Obj::Tf(t) = o { Some(t) } else { None }))
+                .any(|t| t.active && t.bind.iter().any(|b| b.0 == buf))
+    }
+
+    /// WebGL: a buffer at a transform feedback binding point the program writes (in the bound
+    /// transform feedback object, begun or not) can't also feed the draw — a vertex input, a
+    /// uniform block or the indices.
+    fn tf_conflict(&self, needed: &[(u32, Ty, u32)], indexed: bool) -> bool {
+        let Some(l) = self.program_ref(self.program).and_then(|p| p.linked.as_ref()) else { return false };
+        if l.tf.is_empty() {
+            return false;
+        }
+        let used = if l.tf_mode == crate::webgl_tf::SEPARATE_ATTRIBS { l.tf.len() } else { 1 };
+        let tf: Vec<u32> = self.tf().bind[..used.min(crate::webgl_tf::MAX_SEPARATE)].iter().map(|b| b.0).filter(|&b| b != 0).collect();
+        if tf.is_empty() {
+            return false;
+        }
+        let vao = self.vao_ref();
+        let attrib = needed.iter().any(|(loc, _, _)| vao.attribs.get(*loc as usize).is_some_and(|a| a.enabled && tf.contains(&a.buffer)));
+        let uniform = l.block_binding.iter().any(|&bp| self.ubo_bind.get(bp as usize).is_some_and(|b| tf.contains(&b.0)));
+        attrib || uniform || (indexed && tf.contains(&vao.ebo))
+    }
+
+    /// WebGL: a buffer at a binding point of the bound transform feedback object that is also
+    /// bound anywhere else (but the generic TRANSFORM_FEEDBACK_BUFFER slot) is "double bound":
+    /// it can't be written, read or copied, nor drawn with while capturing.
+    fn double_bound(&self, buf: u32) -> bool {
+        if buf == 0 || !self.tf().bind.iter().any(|b| b.0 == buf) {
+            return false;
+        }
+        let vao = self.vao_ref();
+        self.array_buffer == buf
+            || self.bound.iter().any(|(t, v)| *t != TRANSFORM_FEEDBACK_BUFFER && *v == buf)
+            || vao.ebo == buf
+            || vao.attribs.iter().any(|a| a.buffer == buf)
+            || self.ubo_bind.iter().any(|b| b.0 == buf)
+    }
+
+    /// Transform feedback capturing right now (begun and not paused).
+    fn tf_capturing(&self) -> bool {
+        let t = self.tf();
+        t.active && !t.paused
+    }
+
+    /// Bytes still free at a transform feedback binding point.
+    fn tf_room(&self, k: usize) -> u64 {
+        let t = self.tf();
+        let (buf, off, size) = t.bind[k];
+        let len = self.buf(buf).map_or(0, |b| b.data.len() as u64);
+        let end = if size == 0 { len } else { (off as u64 + size as u64).min(len) };
+        end.saturating_sub(off as u64 + t.written[k])
     }
 
     /// WebGL 2: each vertex input's base type (float, int, uint) must match what feeds it — the
@@ -1300,6 +1448,8 @@ impl Gl {
             let outs: Vec<Option<u32>> = (0..target.color.len()).map(|i| l.outs.get(i).copied().flatten()).collect();
             let mut pipe = Pipeline {
                 passed: 0,
+                capture: if gl.tf_capturing() { l.tf.iter().map(|v| (v.slot, v.comps)).collect() } else { Vec::new() },
+                captured: Vec::new(),
                 vs_code: &l.vs.code,
                 vs_mem,
                 fs_code: &l.fs.code,
@@ -1320,9 +1470,13 @@ impl Gl {
                 st: &st,
             };
             pipe.draw(&mut target, mode, ids, instances);
-            pipe.passed
+            (pipe.passed, std::mem::take(&mut pipe.captured))
         };
+        let (passed, captured) = passed;
         self.samples_passed += passed;
+        if !captured.is_empty() {
+            self.tf_write(mode, &captured);
+        }
         self.put_target(target, restore, dep, sten, false);
         self.dirty = true;
     }
@@ -1677,6 +1831,12 @@ pub fn install(ctx: &mut Context) {
         ("__glGetParameter", 2, n_get_parameter),
         ("__glReadPixels", 9, n_read_pixels),
         ("__glSamplesPassed", 1, n_samples_passed),
+        ("__glTfBind", 3, n_tf_bind),
+        ("__glTfState", 3, n_tf_state),
+        ("__glTfVaryings", 4, n_tf_varyings),
+        ("__glTfVarying", 3, n_tf_varying),
+        ("__glGetIndexed", 3, n_get_indexed),
+        ("__glTfPrimitives", 1, n_tf_primitives),
         ("__glBindFramebuffer", 3, n_bind_framebuffer),
         ("__glFramebufferTexture", 7, n_framebuffer_texture),
         ("__glFramebufferRenderbuffer", 4, n_framebuffer_renderbuffer),
@@ -1778,10 +1938,11 @@ fn n_gen(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
                 }
                 Obj::Shader(Shader { ty: sty, src: String::new(), compiled: None, log: String::new(), deleted: false })
             }
-            5 => Obj::Program(Program { shaders: Vec::new(), linked: None, link_ok: false, log: String::new(), bound_attribs: HashMap::new(), deleted: false, validate: false }),
+            5 => Obj::Program(Program { shaders: Vec::new(), linked: None, link_ok: false, log: String::new(), bound_attribs: HashMap::new(), deleted: false, validate: false, tf_names: Vec::new(), tf_mode: crate::webgl_tf::INTERLEAVED_ATTRIBS }),
             6 => Obj::Vao(Vao::default()),
             7 => Obj::Sampler(TexParams::default()),
             8 => Obj::Query,
+            10 => Obj::Tf(Tf::default()),
             _ => Obj::Sync,
         };
         gl.new_id(o)
@@ -1793,6 +1954,28 @@ fn n_gen(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
 fn n_del(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let obj = u(a, 2, ctx);
     with_gl(a, ctx, |gl| {
+        let Some(o) = gl.objs.get(&obj) else { return };
+        if let Obj::Tf(t) = o {
+            if t.active {
+                return gl.error(INVALID_OPERATION);
+            }
+            if gl.tf_bound == obj {
+                gl.tf_bound = 0;
+            }
+        }
+        if matches!(o, Obj::Buffer(_)) {
+            // Deleting unbinds it from the bound transform feedback object only; another one
+            // that holds it keeps the buffer alive.
+            gl.tf_mut().bind.iter_mut().filter(|b| b.0 == obj).for_each(|b| *b = (0, 0, 0));
+            let held = std::iter::once(&gl.tf0).chain(gl.objs.values().filter_map(|o| if let Obj::Tf(t) = o { Some(t) } else { None })).any(|t| t.bind.iter().any(|b| b.0 == obj));
+            if held {
+                gl.bound.retain(|_, v| *v != obj);
+                if gl.array_buffer == obj {
+                    gl.array_buffer = 0;
+                }
+                return;
+            }
+        }
         let Some(o) = gl.objs.get(&obj) else { return };
         match o {
             Obj::Buffer(_) => {
@@ -1909,6 +2092,7 @@ fn n_is(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
         Some(Obj::Sampler(_)) => kind == 7,
         Some(Obj::Query) => kind == 8,
         Some(Obj::Sync) => kind == 9,
+        Some(Obj::Tf(_)) => kind == 10,
         None => false,
     })
     .unwrap_or(false);
@@ -1959,6 +2143,15 @@ fn n_bind_buffer_range(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResul
             }
             gl.ubo_bind[index as usize] = (obj, off, size);
         }
+        if target == TRANSFORM_FEEDBACK_BUFFER {
+            if index as usize >= crate::webgl_tf::MAX_SEPARATE || off % 4 != 0 || size % 4 != 0 {
+                return gl.error(INVALID_VALUE);
+            }
+            if gl.tf().active {
+                return gl.error(INVALID_OPERATION);
+            }
+            gl.tf_mut().bind[index as usize] = (obj, off, size);
+        }
         if let Some(b) = gl.buf_mut(obj) {
             if b.kind == 1 {
                 return gl.error(INVALID_OPERATION);
@@ -1988,6 +2181,9 @@ fn n_buffer_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     with_gl(a, ctx, |gl| {
         let Some(data) = data else { return gl.error(INVALID_VALUE) };
         let Some(id) = gl.buffer_target(target) else { return gl.error(INVALID_ENUM) };
+        if gl.in_active_tf(id) || gl.double_bound(id) {
+            return gl.error(INVALID_OPERATION);
+        }
         if !matches!(usage, 0x88E0 | 0x88E4 | 0x88E8 | 0x88E1 | 0x88E2 | 0x88E5 | 0x88E6 | 0x88E9 | 0x88EA) {
             return gl.error(INVALID_ENUM);
         }
@@ -2018,6 +2214,9 @@ fn n_buffer_sub_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<
             return gl.error(INVALID_VALUE);
         }
         let Some(id) = gl.buffer_target(target) else { return gl.error(INVALID_ENUM) };
+        if gl.in_active_tf(id) || gl.double_bound(id) {
+            return gl.error(INVALID_OPERATION);
+        }
         let Some(b) = gl.buf_mut(id) else { return gl.error(INVALID_OPERATION) };
         let start = src_off.min(data.len());
         let end = if len > 0 { start + len } else { data.len() };
@@ -2038,6 +2237,9 @@ fn n_copy_buffer_sub_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRe
     let (rt, wt, ro, wo, size) = (u(a, 1, ctx), u(a, 2, ctx), u(a, 3, ctx) as usize, u(a, 4, ctx) as usize, u(a, 5, ctx) as usize);
     with_gl(a, ctx, |gl| {
         let (Some(r), Some(w)) = (gl.buffer_target(rt), gl.buffer_target(wt)) else { return gl.error(INVALID_ENUM) };
+        if gl.in_active_tf(r) || gl.in_active_tf(w) || gl.double_bound(r) || gl.double_bound(w) {
+            return gl.error(INVALID_OPERATION);
+        }
         let Some(src) = gl.buf(r).map(|b| b.data.clone()) else { return gl.error(INVALID_OPERATION) };
         if ro + size > src.len() {
             return gl.error(INVALID_VALUE);
@@ -2061,6 +2263,10 @@ fn n_get_buffer_sub_data(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRes
             gl.error(INVALID_ENUM);
             return None;
         };
+        if gl.in_active_tf(id) || gl.double_bound(id) {
+            gl.error(INVALID_OPERATION);
+            return None;
+        }
         let data = gl.buf(id).map(|b| b.data.clone())?;
         let n = if len == 0 { total.saturating_sub(doff) } else { len };
         if so + n > data.len() || doff + n > total {
@@ -2679,6 +2885,10 @@ fn n_link_program(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsV
         if gl.program_ref(p).is_none() {
             return gl.error(INVALID_OPERATION);
         }
+        // A program transform feedback is capturing from can't be relinked.
+        if gl.tf().active && gl.tf().program == p {
+            return gl.error(INVALID_OPERATION);
+        }
         gl.link(p);
     });
     undef()
@@ -2688,6 +2898,9 @@ fn n_use_program(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     let p = u(a, 1, ctx);
     with_gl(a, ctx, |gl| {
         if p != 0 && !gl.program_ref(p).is_some_and(|x| x.link_ok) {
+            return gl.error(INVALID_OPERATION);
+        }
+        if gl.tf_capturing() {
             return gl.error(INVALID_OPERATION);
         }
         let old = gl.program;
@@ -2727,8 +2940,8 @@ fn n_get_program_param(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResul
             0x8B86 => JsValue::from(l.map_or(0, |l| l.uniforms.len() as u32)),
             0x8B89 => JsValue::from(l.map_or(0, |l| l.attribs.len() as u32)),
             0x8A36 if gl.v2 => JsValue::from(l.map_or(0, |l| l.blocks.len() as u32)),
-            0x8C7F if gl.v2 => JsValue::from(0x8C8C),
-            0x8C83 if gl.v2 => JsValue::from(0),
+            0x8C7F if gl.v2 => JsValue::from(pr.linked.as_ref().map_or(crate::webgl_tf::INTERLEAVED_ATTRIBS, |l| l.tf_mode)),
+            0x8C83 if gl.v2 => JsValue::from(pr.linked.as_ref().map_or(0, |l| l.tf.len() as u32)),
             _ => {
                 gl.error(INVALID_ENUM);
                 JsValue::null()
@@ -3720,7 +3933,7 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
             0x88EF if v2 => n(gl.bound.get(&PIXEL_UNPACK_BUFFER).copied().unwrap_or(0)),
             0x8C8F if v2 => n(gl.bound.get(&TRANSFORM_FEEDBACK_BUFFER).copied().unwrap_or(0)),
             0x8919 if v2 => n(gl.samplers[gl.active]),
-            0x8E25 if v2 => n(0),
+            0x8E25 if v2 => n(gl.tf_bound),
             // WebGL 2 limits and state.
             0x8824 => n(if v2 { 8 } else { 4 }),
             0x8CDF => n(if v2 { 8 } else { 4 }),
@@ -3759,14 +3972,16 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
             0x8A30 if v2 => n(16384),
             0x8A31 | 0x8A33 if v2 => n(1024 + 12 * 4096),
             0x8A34 if v2 => n(256),
-            0x8C8A | 0x8C8B | 0x8C80 if v2 => n(4),
+            0x8C8A if v2 => n(crate::webgl_tf::MAX_INTERLEAVED_COMPONENTS),
+            0x8C8B if v2 => n(crate::webgl_tf::MAX_SEPARATE as u32),
+            0x8C80 if v2 => n(crate::webgl_tf::MAX_SEPARATE_COMPONENTS),
             0x9247 if v2 => n(0),
             // EXT_texture_filter_anisotropic
             0x84FF => n(16),
             // Capabilities, as isEnabled reports them.
             CULL_FACE | BLEND | DITHER | STENCIL_TEST | DEPTH_TEST | SCISSOR_TEST | POLYGON_OFFSET_FILL | SAMPLE_ALPHA_TO_COVERAGE | SAMPLE_COVERAGE => P::B(gl.cap(pname)),
-            // Transform feedback is never active or paused (not implemented yet).
-            0x8E23 | 0x8E24 if v2 => P::B(false),
+            0x8E23 if v2 => P::B(gl.tf().paused),
+            0x8E24 if v2 => P::B(gl.tf().active),
             _ => {
                 gl.error(INVALID_ENUM);
                 P::Null
@@ -3783,6 +3998,160 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
         Some(P::Bs(v)) => jarr(v.into_iter().map(JsValue::from), ctx),
         _ => JsValue::null(),
     })
+}
+
+/// __glTfBind(cid, target, id): bindTransformFeedback.
+fn n_tf_bind(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (target, id) = (u(a, 1, ctx), u(a, 2, ctx));
+    with_gl(a, ctx, |gl| {
+        if target != 0x8E22 {
+            return gl.error(INVALID_ENUM);
+        }
+        if gl.tf_capturing() || (id != 0 && !matches!(gl.objs.get(&id), Some(Obj::Tf(_)))) {
+            return gl.error(INVALID_OPERATION);
+        }
+        gl.tf_bound = id;
+    });
+    undef()
+}
+
+/// __glTfState(cid, op, mode): op 0 begin (mode), 1 end, 2 pause, 3 resume.
+fn n_tf_state(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (op, mode) = (u(a, 1, ctx), u(a, 2, ctx));
+    with_gl(a, ctx, |gl| {
+        let program = gl.program;
+        let t = gl.tf().clone();
+        match op {
+            0 => {
+                if !matches!(mode, 0 | 1 | 4) {
+                    return gl.error(INVALID_ENUM);
+                }
+                if t.active {
+                    return gl.error(INVALID_OPERATION);
+                }
+                let Some((n, sep)) = gl.program_ref(program).and_then(|p| p.linked.as_ref()).map(|l| (l.tf.len(), l.tf_mode == crate::webgl_tf::SEPARATE_ATTRIBS)) else {
+                    return gl.error(INVALID_OPERATION);
+                };
+                if n == 0 {
+                    return gl.error(INVALID_OPERATION);
+                }
+                // Every binding point the program writes needs a buffer, and (WebGL) no buffer
+                // may be bound at two of them.
+                let used = if sep { n } else { 1 };
+                let all: Vec<u32> = t.bind.iter().map(|b| b.0).filter(|&b| b != 0).collect();
+                if t.bind[..used].iter().any(|b| b.0 == 0) || (1..all.len()).any(|i| all[..i].contains(&all[i])) {
+                    return gl.error(INVALID_OPERATION);
+                }
+                let tf = gl.tf_mut();
+                tf.active = true;
+                tf.paused = false;
+                tf.mode = mode;
+                tf.program = program;
+                tf.written = [0; crate::webgl_tf::MAX_SEPARATE];
+            }
+            1 => {
+                if !t.active {
+                    return gl.error(INVALID_OPERATION);
+                }
+                let tf = gl.tf_mut();
+                tf.active = false;
+                tf.paused = false;
+            }
+            2 => {
+                if !t.active || t.paused {
+                    return gl.error(INVALID_OPERATION);
+                }
+                gl.tf_mut().paused = true;
+            }
+            _ => {
+                if !t.active || !t.paused || t.program != program {
+                    return gl.error(INVALID_OPERATION);
+                }
+                gl.tf_mut().paused = false;
+            }
+        }
+    });
+    undef()
+}
+
+/// __glTfVaryings(cid, program, [names], bufferMode): transformFeedbackVaryings.
+fn n_tf_varyings(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (prog, mode) = (u(a, 1, ctx), u(a, 3, ctx));
+    let mut names = Vec::new();
+    if let Some(arr) = a.get(2).and_then(|x| x.as_object()).and_then(|o| JsArray::from_object(o.clone()).ok()) {
+        for i in 0..arr.length(ctx)? {
+            names.push(arr.get(i, ctx)?.to_string(ctx)?.to_std_string_escaped());
+        }
+    }
+    with_gl(a, ctx, |gl| {
+        if mode != crate::webgl_tf::INTERLEAVED_ATTRIBS && mode != crate::webgl_tf::SEPARATE_ATTRIBS {
+            return gl.error(INVALID_ENUM);
+        }
+        if mode == crate::webgl_tf::SEPARATE_ATTRIBS && names.len() > crate::webgl_tf::MAX_SEPARATE {
+            return gl.error(INVALID_VALUE);
+        }
+        let Some(p) = gl.program_mut(prog) else { return gl.error(INVALID_OPERATION) };
+        p.tf_names = names;
+        p.tf_mode = mode;
+    });
+    undef()
+}
+
+/// __glTfVarying(cid, program, index): [name, size, type] of a linked program's captured
+/// output, or null.
+fn n_tf_varying(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (prog, i) = (u(a, 1, ctx), u(a, 2, ctx) as usize);
+    let info = with_gl(a, ctx, |gl| {
+        let Some(p) = gl.program_ref(prog) else {
+            gl.error(INVALID_OPERATION);
+            return None;
+        };
+        let Some(v) = p.linked.as_ref().and_then(|l| l.tf.get(i)) else {
+            gl.error(INVALID_VALUE);
+            return None;
+        };
+        let (ty, size) = match &v.ty {
+            Ty::Array(el, n) => (gl_type(el), *n),
+            t => (gl_type(t), 1),
+        };
+        Some((v.name.clone(), size, ty))
+    })
+    .flatten();
+    Ok(match info {
+        Some((n, size, ty)) => jarr([JsValue::from(js_string!(n)), JsValue::from(size), JsValue::from(ty)], ctx),
+        None => JsValue::null(),
+    })
+}
+
+/// __glGetIndexed(cid, target, index): [buffer, start, size] for TRANSFORM_FEEDBACK_BUFFER
+/// or UNIFORM_BUFFER binding points (getIndexedParameter), or null after an error.
+fn n_get_indexed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (target, i) = (u(a, 1, ctx), u(a, 2, ctx) as usize);
+    let r = with_gl(a, ctx, |gl| {
+        let b = match target {
+            0x8C8F | 0x8C84 | 0x8C85 => gl.tf().bind.get(i).copied(),
+            0x8A28 | 0x8A29 | 0x8A2A => gl.ubo_bind.get(i).copied(),
+            _ => {
+                gl.error(INVALID_ENUM);
+                return None;
+            }
+        };
+        if b.is_none() {
+            gl.error(INVALID_VALUE);
+        }
+        b
+    })
+    .flatten();
+    Ok(match r {
+        Some((b, off, size)) => jarr([JsValue::from(b), JsValue::from(off), JsValue::from(size)], ctx),
+        None => JsValue::null(),
+    })
+}
+
+/// __glTfPrimitives(cid): primitives transform feedback has written so far.
+fn n_tf_primitives(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let n = with_gl(a, ctx, |gl| gl.tf_prims).unwrap_or(0);
+    Ok(JsValue::from(n as f64))
 }
 
 /// __glSamplesPassed(cid): samples that passed the fragment tests so far (occlusion queries
@@ -4384,7 +4753,7 @@ mod tests {
         };
         let v = mk(gl, VERTEX_SHADER, vs);
         let f = mk(gl, FRAGMENT_SHADER, fs);
-        let p = gl.new_id(Obj::Program(Program { shaders: vec![v, f], linked: None, link_ok: false, log: String::new(), bound_attribs: HashMap::new(), deleted: false, validate: false }));
+        let p = gl.new_id(Obj::Program(Program { shaders: vec![v, f], linked: None, link_ok: false, log: String::new(), bound_attribs: HashMap::new(), deleted: false, validate: false, tf_names: Vec::new(), tf_mode: crate::webgl_tf::INTERLEAVED_ATTRIBS }));
         gl.link(p);
         assert!(gl.program_ref(p).unwrap().link_ok, "{}", gl.program_ref(p).unwrap().log);
         gl.program = p;

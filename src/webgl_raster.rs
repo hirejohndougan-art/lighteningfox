@@ -161,6 +161,10 @@ fn bands(t: &mut Target, n: usize) -> Vec<Band<'_>> {
 pub struct Pipeline<'a> {
     /// Samples that passed the scissor, stencil and depth tests (occlusion queries).
     pub passed: u64,
+    /// Vertex outputs to capture for transform feedback: (output slot, or None for
+    /// gl_Position; components), and what was captured, vertex by vertex in primitive order.
+    pub capture: Vec<(Option<u32>, u32)>,
+    pub captured: Vec<f32>,
     pub vs_code: &'a [Op],
     pub vs_mem: Vec<Lanes>,
     pub fs_code: &'a [Op],
@@ -187,6 +191,9 @@ pub struct Pipeline<'a> {
 struct Shaded {
     stride: usize,
     data: Vec<f32>,
+    /// Transform feedback outputs per vertex (`cap_stride` floats each).
+    cap: Vec<f32>,
+    cap_stride: usize,
 }
 
 fn read_attr(src: &AttrSrc, vertex: u32, instance: u32) -> [f32; 4] {
@@ -309,6 +316,8 @@ impl Pipeline<'_> {
         let nv = self.nvary();
         let stride = 5 + nv;
         let mut data = vec![0.0f32; ids.len() * stride];
+        let cap_stride: usize = self.capture.iter().map(|c| c.1 as usize).sum();
+        let mut cap = vec![0.0f32; ids.len() * cap_stride];
         if let Some(s) = self.instance_id {
             self.vs_mem[s as usize] = [f32::from_bits(instance); 4];
         }
@@ -350,14 +359,22 @@ impl Pipeline<'_> {
                         at += 1;
                     }
                 }
+                let mut at = (chunk_i * 4 + l) * cap_stride;
+                for &(slot, n) in &self.capture {
+                    let base = slot.unwrap_or(self.pos) as usize;
+                    for k in 0..n as usize {
+                        cap[at] = self.vs_mem[base + k][l];
+                        at += 1;
+                    }
+                }
             }
         }
-        Shaded { stride, data }
+        Shaded { stride, data, cap, cap_stride }
     }
 
     /// Draw `count` vertices (by id) `instances` times.
     pub fn draw(&mut self, t: &mut Target, mode: u32, ids: &[u32], instances: u32) {
-        if self.st.discard_raster || ids.is_empty() {
+        if ids.is_empty() || (self.st.discard_raster && self.capture.is_empty()) {
             return;
         }
         // Shade each distinct vertex once per instance.
@@ -374,8 +391,16 @@ impl Pipeline<'_> {
         // Threads for big draws: each shades its own band of rows.
         let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
         let big = threads > 1 && (t.w as u64 * t.h as u64) >= 160 * 160;
+        let order = if self.capture.is_empty() { Vec::new() } else { crate::webgl_tf::order(mode, at.len()) };
         for inst in 0..instances.max(1) {
             let sh = self.shade_vertices(&uniq, inst);
+            for &k in &order {
+                let v = at[k] * sh.cap_stride;
+                self.captured.extend_from_slice(&sh.cap[v..v + sh.cap_stride]);
+            }
+            if self.st.discard_raster {
+                continue;
+            }
             if big && self.covers_much(&sh, &at, mode, t) {
                 let mut parts = bands(t, threads);
                 let mut forks: Vec<Pipeline> = (0..parts.len()).map(|_| self.fork()).collect();
@@ -397,6 +422,8 @@ impl Pipeline<'_> {
     fn fork(&self) -> Pipeline<'_> {
         Pipeline {
             passed: 0,
+            capture: Vec::new(),
+            captured: Vec::new(),
             vs_code: self.vs_code,
             vs_mem: Vec::new(),
             fs_code: self.fs_code,

@@ -150,7 +150,7 @@
   const WebGLVertexArrayObject = make("WebGLVertexArrayObject"), WebGLSampler = make("WebGLSampler"), WebGLQuery = make("WebGLQuery");
   const WebGLSync = make("WebGLSync"), WebGLTransformFeedback = make("WebGLTransformFeedback");
   const WebGLVertexArrayObjectOES = make("WebGLVertexArrayObjectOES");
-  const classOf = [WebGLBuffer, WebGLTexture, WebGLFramebuffer, WebGLRenderbuffer, WebGLShader, WebGLProgram, WebGLVertexArrayObject, WebGLSampler, WebGLQuery, WebGLSync];
+  const classOf = [WebGLBuffer, WebGLTexture, WebGLFramebuffer, WebGLRenderbuffer, WebGLShader, WebGLProgram, WebGLVertexArrayObject, WebGLSampler, WebGLQuery, WebGLSync, WebGLTransformFeedback];
   class WebGLUniformLocation {}
   class WebGLActiveInfo {
     constructor(size, type, name) { this.size = size; this.type = type; this.name = name; }
@@ -562,7 +562,13 @@
   };
   P.bindBufferBase = function (t, i, b) { const id = this.__id(b, WebGLBuffer); if (id >= 0) __glBindBufferRange(this.__cid, t, i, id, 0, 0); };
   P.bindBufferRange = function (t, i, b, off, size) { const id = this.__id(b, WebGLBuffer); if (id >= 0) __glBindBufferRange(this.__cid, t, i, id, off, size); };
-  P.getIndexedParameter = function (t, i) { return null; };
+  // TRANSFORM_FEEDBACK_BUFFER_BINDING/START/SIZE and UNIFORM_BUFFER_BINDING/START/SIZE.
+  P.getIndexedParameter = function (t, i) {
+    const r = __glGetIndexed(this.__cid, t, i);
+    if (!r) return null;
+    if (t === 0x8C8F || t === 0x8A28) return this.__obj(r[0]);
+    return r[t === 0x8C84 || t === 0x8A29 ? 1 : 2];
+  };
   P.copyBufferSubData = function (rt, wt, ro, wo, size) { __glCopyBufferSubData(this.__cid, rt, wt, ro, wo, size); };
   P.getBufferSubData = function (t, off, dst, dstOffset, length) {
     const es = dst.BYTES_PER_ELEMENT || 1;
@@ -706,7 +712,7 @@
     if (a[slot] || a.occlusion === q || a.tf === q) return this.__err(0x502);
     if (q.__target !== undefined && q.__target !== t) return this.__err(0x502);
     q.__target = t;
-    q.__start = slot === "occlusion" ? __glSamplesPassed(this.__cid) : 0;
+    q.__start = slot === "occlusion" ? __glSamplesPassed(this.__cid) : __glTfPrimitives(this.__cid);
     q.__result = undefined;
     a[slot] = q;
   };
@@ -717,8 +723,7 @@
     const q = a[slot];
     if (!q || q.__target !== t) return this.__err(0x502);
     a[slot] = null;
-    // Transform feedback primitives: none are captured yet.
-    q.__result = slot === "occlusion" ? (__glSamplesPassed(this.__cid) > q.__start ? 1 : 0) : 0;
+    q.__result = slot === "occlusion" ? (__glSamplesPassed(this.__cid) > q.__start ? 1 : 0) : __glTfPrimitives(this.__cid) - q.__start;
     afterTask(q, "__pending");
   };
   P.getQuery = function (t, p) {
@@ -768,12 +773,34 @@
     }
     return this.__err(0x500), null;
   };
-  P.createTransformFeedback = function () { const o = new WebGLTransformFeedback(); o.__deleted = false; return o; };
-  P.deleteTransformFeedback = function () {};
-  P.isTransformFeedback = function (t) { return t instanceof WebGLTransformFeedback; };
-  P.bindTransformFeedback = P.beginTransformFeedback = P.endTransformFeedback = P.pauseTransformFeedback = P.resumeTransformFeedback = function () {};
-  P.transformFeedbackVaryings = function () {};
-  P.getTransformFeedbackVarying = function () { return null; };
+  // Transform feedback (state and capture in webgl.rs / webgl_tf.rs).
+  P.createTransformFeedback = function () { return this.__new(10); };
+  P.deleteTransformFeedback = function (t) {
+    if (t instanceof WebGLTransformFeedback && t.__ctx === this && !t.__deleted && this.getParameter(0x8E25) === t && this.getParameter(0x8E24)) return this.__err(0x502);
+    this.__del(t, WebGLTransformFeedback);
+  };
+  P.isTransformFeedback = function (t) { return t instanceof WebGLTransformFeedback && t.__ctx === this && !t.__deleted && !!t.__used; };
+  P.bindTransformFeedback = function (target, t) {
+    const id = this.__id(t, WebGLTransformFeedback);
+    if (id < 0) return;
+    __glTfBind(this.__cid, target, id);
+    if (t && __glGetParameter(this.__cid, 0x8E25) === id) t.__used = true;
+  };
+  P.beginTransformFeedback = function (mode) { __glTfState(this.__cid, 0, mode); };
+  P.endTransformFeedback = function () { __glTfState(this.__cid, 1, 0); };
+  P.pauseTransformFeedback = function () { __glTfState(this.__cid, 2, 0); };
+  P.resumeTransformFeedback = function () { __glTfState(this.__cid, 3, 0); };
+  P.transformFeedbackVaryings = function (p, names, mode) {
+    const id = this.__id(p, WebGLProgram);
+    if (id <= 0) return id === 0 ? this.__err(0x501) : undefined;
+    __glTfVaryings(this.__cid, id, Array.from(names, String), mode);
+  };
+  P.getTransformFeedbackVarying = function (p, i) {
+    const id = this.__id(p, WebGLProgram);
+    if (id <= 0) return null;
+    const r = __glTfVarying(this.__cid, id, i);
+    return r ? new WebGLActiveInfo(r[1], r[2], r[0]) : null;
+  };
 
   // ---- the two context classes
   function WebGLRenderingContext() { throw new TypeError("Illegal constructor"); }
