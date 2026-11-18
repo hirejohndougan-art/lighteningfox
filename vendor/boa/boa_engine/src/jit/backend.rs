@@ -15,7 +15,8 @@ use std::fmt;
 /// One Cranelift JIT module: an instruction-set target plus the executable memory its
 /// functions live in. One per thread (a `Context` never moves between threads).
 pub struct JitBackend {
-    module: JITModule,
+    /// Taken in `drop`, which frees its memory (`cranelift-jit` otherwise never does).
+    module: std::mem::ManuallyDrop<JITModule>,
     builder_context: FunctionBuilderContext,
     functions: usize,
 }
@@ -52,7 +53,7 @@ impl JitBackend {
             .map_err(|e| e.to_string())?;
         let module = JITModule::new(JITBuilder::with_isa(isa, default_libcall_names()));
         Ok(Self {
-            module,
+            module: std::mem::ManuallyDrop::new(module),
             builder_context: FunctionBuilderContext::new(),
             functions: 0,
         })
@@ -113,8 +114,20 @@ impl JitBackend {
     }
 
     /// How many functions this backend has compiled.
+    ///
+    /// (Dropping the backend frees every function it compiled: the owner, `ContextJit`, first
+    /// takes them away from their code blocks.)
     #[must_use]
     pub fn function_count(&self) -> usize {
         self.functions
+    }
+}
+
+impl Drop for JitBackend {
+    fn drop(&mut self) {
+        // SAFETY: `module` is not used again. Its functions are freed: whoever handed them out
+        // has stopped using them (`ContextJit` clears every code block it compiled before its
+        // backend drops; tests drop the backend after their last call).
+        unsafe { std::mem::ManuallyDrop::take(&mut self.module).free_memory() };
     }
 }

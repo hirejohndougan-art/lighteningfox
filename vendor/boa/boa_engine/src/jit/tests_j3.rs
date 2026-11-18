@@ -169,3 +169,15 @@ fn machine_code_goes_with_its_context() {
         assert!(code.jit.code().is_none());
     });
 }
+
+#[test]
+fn very_large_functions_stay_interpreted() {
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        let body: String = (0..6000).map(|i| format!("s += o.k{} * {i};", i % 7)).collect();
+        let code = code_of(&mut context, &format!("function big(o) {{ let s = 0; {body} return s; }} big"));
+        let r = context.eval(Source::from_bytes("big({ k0: 1, k1: 1, k2: 1, k3: 1, k4: 1, k5: 1, k6: 1 })")).unwrap();
+        assert_eq!(r, JsValue::new((0..6000).sum::<i32>()));
+        assert!(matches!(code.jit.state(), TierState::Rejected(r) if r.reason == "function too large"), "{:?}", code.jit.state());
+    });
+}

@@ -92,8 +92,16 @@ pub(crate) const fn is_supported(opcode: Opcode) -> bool {
     )
 }
 
+/// Code blocks with more bytecode than this stay interpreted. Cranelift's time and memory grow
+/// faster than the function (one block per instruction, all reachable from the dispatch
+/// switch); test262's generated scripts of hundreds of kilobytes made it use gigabytes.
+pub(crate) const MAX_BYTECODE: usize = 32 * 1024;
+
 /// Checks a code block against the first compiler's limits.
 pub(crate) fn scan(code: &CodeBlock) -> Result<(), Rejection> {
+    if code.bytecode.bytes.len() > MAX_BYTECODE {
+        return Err(Rejection::kind("function too large"));
+    }
     if code.is_generator() || code.is_async() || code.is_async_generator() {
         return Err(Rejection::kind("generator or async function"));
     }
