@@ -958,7 +958,7 @@ the existing notification prompt, and installing a site as an app from its web a
 own window and desktop entry). Partition by site like storage. Run WPT `service-workers/`.
 
 ### P3. `<dialog>` and popovers
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-18 00:25
 **After:** —
 **Checklist:** §19 "Dialog and popover"
 **Files:** `src/dom_classes.rs`, `src/prelude.js`, `src/layout.rs`, `src/paint.rs`
