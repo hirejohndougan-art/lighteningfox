@@ -880,16 +880,12 @@ impl Pipeline<'_> {
     }
 }
 
-pub fn write_color(img: &mut Image, i: usize, src: [f32; 4], st: &RState) {
-    let fmt = img.fmt;
-    write_px(&mut img.px[i], &fmt, src, st, 0);
-}
-
 pub fn write_px(px: &mut [f32; 4], fmt: &crate::webgl_tex::Fmt, src: [f32; 4], st: &RState, buf: usize) {
     let dst = *px;
     let int = fmt.is_integer();
     let b = st.bufs.get(buf).copied().unwrap_or_default();
-    let mut v = if b.blend && !int { blend(src, dst, st, &b, matches!(fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
+    // Blending happens in linear space (sRGB destinations are decoded first).
+    let mut v = if b.blend && !int { blend(src, crate::webgl_tex::to_linear(fmt, dst), st, &b, matches!(fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
     if !int {
         v = store(fmt, v);
     }

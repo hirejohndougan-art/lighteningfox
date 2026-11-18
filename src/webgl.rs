@@ -11,6 +11,8 @@ use crate::dom::NodeId;
 use crate::glsl::{Base, Dim, Ty};
 use crate::glsl_gen::{compile, read_std140, Compiled, Stage};
 use crate::glsl_vm::Lanes;
+#[path = "webgl_blit.rs"]
+mod blit;
 use crate::webgl_raster::{g, Attr, AttrSrc, BufState, Pipeline, RState, StencilFace, Target, MAX_DRAW_BUFFERS};
 use crate::webgl_tf::{Tf, TfVar};
 use crate::webgl_tex::{self as tex, e, Fmt, Image, Num, Sampler, TexParams, Texture, Unpack, UnitView};
@@ -2610,7 +2612,8 @@ fn n_copy_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<J
         let Some((id, face)) = gl.image_target(target) else { return };
         let Some((px, src_fmt)) = gl.read_rect(x, y, w, h) else { return };
         let v2 = gl.v2;
-        let px: Vec<[f32; 4]> = px.into_iter().map(|p| p.unwrap_or([0.0; 4])).collect();
+        // Copies read linear color (sRGB sources decode; tex::store encodes for sRGB targets).
+        let px: Vec<[f32; 4]> = px.into_iter().map(|p| p.map_or([0.0; 4], |p| if src_fmt.is_integer() { p } else { tex::to_linear(&src_fmt, p) })).collect();
         if sub {
             let Some(t) = gl.texture_mut(id) else { return };
             let Some(Some(img)) = t.faces.get_mut(face).and_then(|f| f.get_mut(level as usize)) else { return gl.error(INVALID_OPERATION) };
@@ -4695,53 +4698,10 @@ fn n_read_buffer(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
 
 /// __glBlitFramebuffer(cid, sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, mask, filter)
 fn n_blit_framebuffer(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
-    let r: Vec<i32> = (1..9).map(|i| int(a, i, ctx)).collect();
+    // 64-bit so widths of the largest 32-bit rectangles don't overflow.
+    let r: [i64; 8] = std::array::from_fn(|i| int(a, i + 1, ctx) as i64);
     let (mask, filter) = (u(a, 9, ctx), u(a, 10, ctx));
-    with_gl(a, ctx, |gl| {
-        if mask & COLOR_BUFFER_BIT == 0 {
-            // Depth/stencil blits aren't needed by pages in practice; accept them as no-ops.
-            return;
-        }
-        let (sw, sh) = (r[2] - r[0], r[3] - r[1]);
-        let (dw, dh) = (r[6] - r[4], r[7] - r[5]);
-        if sw == 0 || sh == 0 || dw == 0 || dh == 0 {
-            return;
-        }
-        let (sx, sy) = (r[0].min(r[2]), r[1].min(r[3]));
-        let Some((src, _)) = gl.read_rect(sx, sy, sw.abs(), sh.abs()) else { return };
-        let Some((mut t, restore, d, s)) = gl.take_target(false) else { return };
-        // Blits don't blend.
-        let st = RState { bufs: gl.bufs.map(|b| BufState { blend: false, ..b }), scissor: gl.cap(SCISSOR_TEST).then_some(gl.scissor), ..gl.rstate() };
-        let (dx0, dy0) = (r[4].min(r[6]), r[5].min(r[7]));
-        let (fx, fy) = (sw < 0, sh < 0);
-        let (gx, gy) = (dw < 0, dh < 0);
-        let bounds = clip_rect(&st, t.w, t.h);
-        for img in t.color.iter_mut().flatten() {
-            for y in 0..dh.abs() {
-                for x in 0..dw.abs() {
-                    let (px, py) = (dx0 + x, dy0 + y);
-                    if px < bounds[0] || py < bounds[1] || px >= bounds[2] || py >= bounds[3] {
-                        continue;
-                    }
-                    let mut u0 = ((x as f32 + 0.5) * sw.abs() as f32 / dw.abs() as f32) as i32;
-                    let mut v0 = ((y as f32 + 0.5) * sh.abs() as f32 / dh.abs() as f32) as i32;
-                    if fx != gx {
-                        u0 = sw.abs() - 1 - u0;
-                    }
-                    if fy != gy {
-                        v0 = sh.abs() - 1 - v0;
-                    }
-                    let _ = filter;
-                    if let Some(Some(p)) = src.get((v0 * sw.abs() + u0) as usize) {
-                        let i = (py as u32 * img.w + px as u32) as usize;
-                        crate::webgl_raster::write_color(img, i, *p, &st);
-                    }
-                }
-            }
-        }
-        gl.put_target(t, restore, d, s, false);
-        gl.dirty = true;
-    });
+    with_gl(a, ctx, |gl| gl.blit(r, mask, filter));
     undef()
 }
 

@@ -153,6 +153,10 @@ impl Fmt {
     pub fn is_integer(&self) -> bool {
         matches!(self.num, Num::Int | Num::Uint)
     }
+    /// Stored sRGB-encoded: sampling decodes it, rendering and clears encode into it.
+    pub fn is_srgb(&self) -> bool {
+        matches!(self.internal, e::SRGB8 | e::SRGB8_ALPHA8 | e::SRGB_EXT | e::SRGB_ALPHA_EXT | 0x8C4C..=0x8C4F | 0x9275 | 0x9277 | 0x9279 | 0x93D0..=0x93DD)
+    }
     pub fn color_renderable(&self, webgl2: bool) -> bool {
         if self.depth || self.stencil {
             return false;
@@ -440,8 +444,31 @@ mod half {
     }
 }
 
-/// Quantize a value written by rendering (or a clear) into this format.
+/// sRGB-encoded 8-bit value → linear, by table (stored sRGB values are always 8-bit steps).
+pub fn srgb_to_linear(x: f32) -> f32 {
+    static T: std::sync::OnceLock<[f32; 256]> = std::sync::OnceLock::new();
+    let t = T.get_or_init(|| {
+        std::array::from_fn(|i| {
+            let c = i as f64 / 255.0;
+            (if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }) as f32
+        })
+    });
+    t[(x.clamp(0.0, 1.0) * 255.0).round() as usize]
+}
+
+pub fn linear_to_srgb(l: f32) -> f32 {
+    let l = l.clamp(0.0, 1.0) as f64;
+    (if l <= 0.0031308 { l * 12.92 } else { 1.055 * l.powf(1.0 / 2.4) - 0.055 }) as f32
+}
+
+/// A stored value as linear color (sRGB formats decode red, green and blue).
+pub fn to_linear(f: &Fmt, v: [f32; 4]) -> [f32; 4] {
+    if f.is_srgb() { [srgb_to_linear(v[0]), srgb_to_linear(v[1]), srgb_to_linear(v[2]), v[3]] } else { v }
+}
+
+/// Quantize a value written by rendering (or a clear) into this format (encoding sRGB).
 pub fn store(f: &Fmt, v: [f32; 4]) -> [f32; 4] {
+    let v = if f.is_srgb() { [linear_to_srgb(v[0]), linear_to_srgb(v[1]), linear_to_srgb(v[2]), v[3]] } else { v };
     let q = |x: f32, bits: u8| -> f32 {
         if bits == 0 {
             return x.clamp(0.0, 1.0);
@@ -789,7 +816,7 @@ impl Texture {
                             for sz in zs {
                                 for sy in [y * 2, (y * 2 + 1).min(prev.h - 1)] {
                                     for sx in [x * 2, (x * 2 + 1).min(prev.w - 1)] {
-                                        let t = prev.px[((sz * prev.h + sy) * prev.w + sx) as usize];
+                                        let t = to_linear(&prev.fmt, prev.px[((sz * prev.h + sy) * prev.w + sx) as usize]);
                                         for c in 0..4 {
                                             acc[c] += t[c];
                                         }
@@ -839,7 +866,7 @@ fn wrap(i: i32, size: i32, mode: u32) -> i32 {
 }
 
 fn texel(img: &Image, x: i32, y: i32, z: i32) -> [f32; 4] {
-    img.px[((z as usize * img.h as usize) + y as usize) * img.w as usize + x as usize]
+    to_linear(&img.fmt, img.px[((z as usize * img.h as usize) + y as usize) * img.w as usize + x as usize])
 }
 
 fn compare(func: u32, r: f32, d: f32) -> f32 {

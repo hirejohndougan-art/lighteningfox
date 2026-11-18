@@ -958,3 +958,45 @@ fn webgl2_draw_buffers_indexed() {
     );
     assert_eq!(r.trim_matches('"'), "true,255 0 255 0,true false true false,true,true,true,0");
 }
+
+/// sRGB framebuffers encode clears and decode on blits to linear targets; blitFramebuffer
+/// checks its rectangle sizes.
+#[test]
+fn webgl2_srgb_clear_and_blit() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const target = (fmt) => {
+                const t = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, t);
+                gl.texImage2D(gl.TEXTURE_2D, 0, fmt, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                const fb = gl.createFramebuffer();
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+                return fb;
+            };
+            const px = new Uint8Array(4);
+            const s = target(gl.SRGB8_ALPHA8);
+            gl.clearColor(0.5, 0.5, 0.5, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            out.push(px[0]);
+            const l = target(gl.RGBA8);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, s);
+            gl.blitFramebuffer(0, 0, 2, 2, 0, 0, 2, 2, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, l);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            out.push(px[0], gl.getError());
+            gl.blitFramebuffer(-1, 0, 0x7fffffff, 2, 0, 0, 2, 2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+            out.push(gl.getError() === gl.INVALID_VALUE);
+            gl.blitFramebuffer(0, 0, 2, 2, 0, 0, 2, 2, gl.DEPTH_BUFFER_BIT, gl.LINEAR);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "188,128,0,true,true");
+}
