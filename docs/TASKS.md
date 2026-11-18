@@ -669,6 +669,17 @@ interpreter or native setters would remove.
 off. Find the change that slowed it and fix it in the engine; the rest of the speed check must
 stay within its limits.
 
+### X32. WebGL2 pixel tests intermittently off by one
+**Status:** claimed by chat-wasm-1 2026-11-18 17:45
+**After:** —
+**Checklist:** none
+**Files:** `src/webgl*.rs` (to be found)
+Added at John's request. `jsapi_tests::webgl2_pixel_buffers_and_layers` (and in CI once
+`webgl2_multisample_renderbuffers`) read back a byte one off (130 as 131, 140 as 139, 255 as
+254), only in a full parallel test run: Windows and Linux CI, and locally once with
+`BOA_JIT=always`. Alone the tests pass. Find the source of the nondeterminism and fix it in
+the engine.
+
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
