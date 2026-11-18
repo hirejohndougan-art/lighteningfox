@@ -88,7 +88,7 @@ highly generic and procedural cosmetic filters (`#?#`, `:has-text`, `:upward`, `
 the uBlock filter lists and Peter Lowe's list.
 
 ### AB2. The last two uBlock Origin filter features
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 21:30
 **After:** AB1
 **Checklist:** none (follow-up to AB1)
 **Files:** `src/scriptlets.js`, `src/blocklist.rs`, `src/main.rs` (`prepare`, response headers)
@@ -378,7 +378,7 @@ parse untrusted files: no network, no writing, read-only system files). Sound is
 browser. Check with `tools/site_process_check.py media.html` and `cargo test --release media`.
 
 ### X24. Permission prompts from site processes
-**Status:** free
+**Status:** claimed by chat-opus-t12 2026-11-17 21:30
 **After:** —
 **Checklist:** none
 **Files:** `src/js.rs` (`n_perm_request`), `src/process.rs`, `src/frames.rs`, the prompt part of `src/main.rs`, `src/permissions.rs`
