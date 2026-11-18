@@ -201,7 +201,14 @@ impl ApplicationHandler for State {
         if self.window.is_some() {
             return;
         }
-        let Some(attrs) = self.attrs.take() else { return };
+        let Some(mut attrs) = self.attrs.take() else { return };
+        // Never open bigger than the screen (a 1024×768 laptop or remote desktop): at most 90%
+        // of the main monitor, keeping the asked-for size when it fits.
+        if let (Some(m), Some(winit::dpi::Size::Physical(want))) = (el.primary_monitor(), attrs.inner_size) {
+            let screen = m.size();
+            let fit = |want: u32, have: u32| if have > 0 { want.min(have * 9 / 10) } else { want };
+            attrs.inner_size = Some(winit::dpi::Size::Physical(winit::dpi::PhysicalSize::new(fit(want.width, screen.width), fit(want.height, screen.height))));
+        }
         match el.create_window(attrs) {
             Ok(w) => {
                 w.set_ime_allowed(true);
