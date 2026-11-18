@@ -18,10 +18,24 @@ are a baseline to measure progress against, not a finish line: each fix should m
 | **Floats** (WPT `css/CSS2/floats`) | Float layout | 19 of 78 reference pages; 19 of 51 script subtests |
 | **WebGL 2** (Khronos `conformance2`, without `textures/`; 18 November) | WebGL 2 API, GLSL ES 3.00, rendering | 173 of 258 pages fully pass; 23,898 of 24,375 checks (98.0%) |
 | **WebGL 2 textures** (Khronos `conformance2/textures`; 18 November) | Uploads from arrays, images, canvases, video, ImageBitmap; formats | 861 of 926 pages fully pass |
+| **WebAssembly JS API** (WPT `wasm/jsapi`, standard parts; 18 November) | `Module`, `Instance`, `Memory`, `Table`, `Global`, `validate`/`compile`/`instantiate`, errors | 887 of 929 subtests (95.5%): constructor 347/347, instance 142/142, table 91/95, global 132/145, module 46/49, memory 52/72, top level 77/79 |
+| **WebAssembly Web API** (WPT `wasm/webapi`; 18 November) | `compileStreaming`/`instantiateStreaming`, MIME and CORS checks, `Response` bodies | 248 of 273 subtests (90.8%) |
+| **WebAssembly spec tests** (WebAssembly/spec `test/core`, through the JS API with `tools/wasm_spec.py`; 18 November) | The core language: instructions, validation, linking, traps | 17,087 of 17,680 steps (96.6%); proposal folders: bulk-memory 7,482/7,485, memory64 8,655/8,659, multi-memory 911/912, simd 1,403/1,403 and relaxed-simd 8/8 (both mostly skipped: v128 can't cross to script), exceptions 18/92, gc 80/769 |
 
 Reference tests pass only when the test page and its reference page render to *identical*
 pixels at 800×600. Official WPT allows small pixel differences on some tests, so these numbers
 are slightly stricter than wpt.fyi's.
+
+WebAssembly runs on wasmi, which has no function references, GC, exception handling or
+threads: every remaining spec-test failure in `test/core` is a module using function
+references or GC types (`br_table`, `return_call*`, `call_ref`, `ref_*`, `type-*`, typed
+tables), and they also account for `exceptions`/`gc` and WPT's `jsapi/exception`, `gc`,
+`tag`, `jspi` and `js-string`. WPT's own copy of the spec suite (`wasm/core`) checks results
+with wrapper modules that need GC, so it isn't the measure here (19.3% for that reason). Other
+known gaps: shared memory (`memory/*shared*`), `toResizableBuffer`/`toFixedLengthBuffer`, the
+tentative type reflection (`*.type()`, `WebAssembly.Function`), the tentative `.wasm` ES module
+integration (`esm-integration`, 9 of 61), `ReadableStream` bodies and the tests that need WPT's
+own server (`?pipe=` headers, a second origin for CORS).
 
 What the numbers point to, in order of payoff:
 
@@ -41,6 +55,10 @@ cargo run --release -- --conformance-tokenizer /path/to/html5lib-tests/tokenizer
 # DOM and CSS: script tests and reference tests from a WPT checkout (needs python3 with Pillow)
 python3 tools/wpt.py /path/to/wpt dom/nodes shadow-dom IndexedDB css/selectors css/CSS2/floats css/css-flexbox
 
+# WebAssembly: the JS and Web API tests, then the spec tests (.wast) through the JS API
+python3 tools/wpt.py /path/to/wpt wasm/jsapi wasm/jsapi/constructor wasm/jsapi/global wasm/jsapi/instance wasm/jsapi/memory wasm/jsapi/module wasm/jsapi/table wasm/webapi
+python3 tools/wasm_spec.py /path/to/wpt /path/to/spec/test/core   # git clone --depth 1 https://github.com/WebAssembly/spec
+
 # JavaScript: Test262 against our Boa version (downloads ~400 MB into ./conformance)
 sh tools/test262.sh
 ```
@@ -49,7 +67,7 @@ A WPT checkout of just the needed folders:
 
 ```sh
 git clone --depth 1 --filter=blob:none --sparse https://github.com/web-platform-tests/wpt
-cd wpt && git sparse-checkout set resources common fonts IndexedDB html/syntax/parsing dom/nodes shadow-dom css/css-flexbox css/CSS2/floats css/selectors
+cd wpt && git sparse-checkout set resources common fonts interfaces wasm IndexedDB html/syntax/parsing dom/nodes shadow-dom css/css-flexbox css/CSS2/floats css/selectors
 ```
 
 WebGL: the Khronos suite from a sparse checkout of

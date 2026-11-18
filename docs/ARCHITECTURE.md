@@ -67,7 +67,10 @@ of wasm unchanged; traps become `WebAssembly.RuntimeError`, a stack overflow a `
 `WebAssembly.Memory`, `Table` and `Global` (`wasm/objects.rs`) are slots in that store; a
 memory's `buffer` is an `ArrayBuffer` over the wasm memory itself (Boa's external buffers, see
 `vendor/boa/IRONSWIFT.md`), detached whenever control comes back to script after the memory
-grew. Runaway modules are stopped by wasmi fuel (`wasm::FUEL`, about 20 seconds of work per call
+grew. wasmi has no threads, function references, GC or exception handling; modules that use atomic
+instructions without a shared memory (Emscripten emits them even single-threaded, e.g.
+ffmpeg.wasm) have them rewritten to plain loads and stores first (`wasm/atomics.rs`). Runaway
+modules are stopped by wasmi fuel (`wasm::FUEL`, about 20 seconds of work per call
 from script), with the same uncatchable error as Boa's loop limit.
 
 Loading (`wasm_loading.js`, `wasm/share.rs`, `wasm/esm.rs`, `wasm/csp.rs`):
