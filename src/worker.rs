@@ -319,6 +319,15 @@ mod tests {
     }
 
     #[test]
+    fn top_level_let_and_const() {
+        // The syntax check before running must not leave the names declared.
+        let epoch = 800_005;
+        start_with(epoch, "const a = 2; let b = 3; class C {} postMessage('sum ' + (a + b));");
+        let ev = wait(epoch, "\"message\"");
+        assert!(ev.iter().any(|e| e.contains("sum 5")), "{ev:?}");
+    }
+
+    #[test]
     fn worker_scope_has_no_document() {
         let epoch = 800_002;
         start_with(epoch, "postMessage([typeof document, typeof window, typeof self, typeof importScripts, typeof fetch, self === globalThis, typeof WorkerGlobalScope, name].join(','));");

@@ -1375,7 +1375,13 @@ impl Js {
 
     /// Why a script doesn't parse, if it doesn't.
     pub(crate) fn syntax_error(&mut self, code: &str) -> Option<String> {
-        boa_engine::Script::parse(Source::from_bytes(code.as_bytes()), None, &mut self.ctx).err().map(|e| e.to_string())
+        // Parsing declares the script's top-level `let`/`const`/`class` names in the realm's
+        // scope. Undo that, or running the same script afterwards fails as a redeclaration.
+        let scope = self.ctx.realm().scope().clone();
+        let before = scope.snapshot();
+        let error = boa_engine::Script::parse(Source::from_bytes(code.as_bytes()), None, &mut self.ctx).err().map(|e| e.to_string());
+        scope.restore(&before);
+        error
     }
 
     /// Milliseconds until the next timer is due (-1 if none).
