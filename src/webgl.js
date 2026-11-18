@@ -322,7 +322,20 @@
         for (let i = 0; i < 16; i++) { x["COLOR_ATTACHMENT" + i + "_WEBGL"] = 0x8ce0 + i; x["DRAW_BUFFER" + i + "_WEBGL"] = 0x8825 + i; }
         break;
       case "OES_draw_buffers_indexed":
-        x = { enableiOES() {}, disableiOES() {}, blendEquationiOES() {}, blendEquationSeparateiOES() {}, blendFunciOES() {}, blendFuncSeparateiOES() {}, colorMaskiOES() {} };
+        {
+          // Blending and color masks per draw buffer (webgl.rs __glBufState).
+          const c = this.__cid, n = (v) => Number(v);
+          __glEnableExt(c, real);
+          x = {
+            enableiOES(cap, i) { __glBufState(c, 0, n(i), cap, 1, 0, 0); },
+            disableiOES(cap, i) { __glBufState(c, 0, n(i), cap, 0, 0, 0); },
+            blendEquationiOES(i, m) { __glBufState(c, 1, n(i), m, m, 0, 0); },
+            blendEquationSeparateiOES(i, rgb, a) { __glBufState(c, 1, n(i), rgb, a, 0, 0); },
+            blendFunciOES(i, s, d) { __glBufState(c, 2, n(i), s, d, s, d); },
+            blendFuncSeparateiOES(i, sr, dr, sa, da) { __glBufState(c, 2, n(i), sr, dr, sa, da); },
+            colorMaskiOES(i, r, g, b, a) { __glBufState(c, 3, n(i), r ? 1 : 0, g ? 1 : 0, b ? 1 : 0, a ? 1 : 0); },
+          };
+        }
         break;
       default: x = {};
     }
@@ -441,8 +454,8 @@
   P.deleteSampler = function (s) { this.__del(s, WebGLSampler); };
   P.isSampler = function (s) { return this.__is(s, WebGLSampler, 7); };
   P.bindSampler = function (unit, s) { const id = this.__id(s, WebGLSampler); if (id >= 0) __glBindSampler(this.__cid, unit, id); };
-  P.samplerParameteri = P.samplerParameterf = function (s, p, v) { const id = this.__id(s, WebGLSampler); if (id > 0) __glSamplerParam(this.__cid, id, p, v); };
-  P.getSamplerParameter = function (s, p) { const id = this.__id(s, WebGLSampler); return id > 0 ? __glGetSamplerParam(this.__cid, id, p) : null; };
+  P.samplerParameteri = P.samplerParameterf = function (s, p, v) { if (s === null || s === undefined) throw new TypeError("expected a WebGLSampler"); const id = this.__id(s, WebGLSampler); if (id > 0) __glSamplerParam(this.__cid, id, p, v); };
+  P.getSamplerParameter = function (s, p) { if (s === null || s === undefined) throw new TypeError("expected a WebGLSampler"); const id = this.__id(s, WebGLSampler); return id > 0 ? __glGetSamplerParam(this.__cid, id, p) : null; };
 
   // ---- shaders and programs
   P.createShader = function (type) { return this.__new(4, type); };
@@ -566,6 +579,10 @@
   P.getIndexedParameter = function (t, i) {
     const r = __glGetIndexed(this.__cid, t, i);
     if (!r) return null;
+    // Per-draw-buffer state (OES_draw_buffers_indexed).
+    if (t === 0x0BE2) return r[0] !== 0;
+    if (t === 0x0C23) return [0, 1, 2, 3].map((k) => (r[0] & (1 << k)) !== 0);
+    if (t === 0x8009 || t === 0x883D || t === 0x80C9 || t === 0x80C8 || t === 0x80CB || t === 0x80CA) return r[0];
     if (t === 0x8C8F || t === 0x8A28) return this.__obj(r[0]);
     return r[t === 0x8C84 || t === 0x8A29 ? 1 : 2];
   };
@@ -751,6 +768,7 @@
   P.deleteSync = function (s) { this.__del(s, WebGLSync); };
   P.isSync = function (s) { return this.__is(s, WebGLSync, 9); };
   P.clientWaitSync = function (s, flags, timeout) {
+    if (s === null || s === undefined) throw new TypeError("not a WebGLSync");
     if (this.__id(s, WebGLSync) <= 0) return 0x911D; // WAIT_FAILED
     if (s === null || s === undefined) return this.__err(0x501), 0x911D;
     if ((flags & ~1) !== 0) return this.__err(0x501), 0x911D;
@@ -758,11 +776,13 @@
     return s.__unsignaled ? 0x911B : 0x911A; // TIMEOUT_EXPIRED : ALREADY_SIGNALED
   };
   P.waitSync = function (s, flags, timeout) {
+    if (s === null || s === undefined) throw new TypeError("not a WebGLSync");
     if (this.__id(s, WebGLSync) <= 0) return;
     if (s === null || s === undefined) return this.__err(0x501);
     if (flags !== 0 || timeout !== -1) return this.__err(0x501);
   };
   P.getSyncParameter = function (s, p) {
+    if (s === null || s === undefined) throw new TypeError("not a WebGLSync");
     if (this.__id(s, WebGLSync) <= 0) return null;
     if (s === null || s === undefined) return this.__err(0x502), null;
     switch (p) {
@@ -791,6 +811,7 @@
   P.pauseTransformFeedback = function () { __glTfState(this.__cid, 2, 0); };
   P.resumeTransformFeedback = function () { __glTfState(this.__cid, 3, 0); };
   P.transformFeedbackVaryings = function (p, names, mode) {
+    if (p === null || p === undefined) throw new TypeError("expected a WebGLProgram");
     const id = this.__id(p, WebGLProgram);
     if (id <= 0) return id === 0 ? this.__err(0x501) : undefined;
     __glTfVaryings(this.__cid, id, Array.from(names, String), mode);

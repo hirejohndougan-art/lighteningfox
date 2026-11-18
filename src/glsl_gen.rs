@@ -381,6 +381,8 @@ impl Gen {
                 }
             }
         }
+        // WebGL 2 (ESSL 3.00) has 8 draw buffers; WebGL 1's EXT_draw_buffers has 4.
+        let max_draw = if unit.version == 100 { 4 } else { 8 };
         let consts: &[(&str, i32)] = &[
             ("gl_MaxVertexAttribs", 16),
             ("gl_MaxVertexUniformVectors", 256),
@@ -389,7 +391,7 @@ impl Gen {
             ("gl_MaxCombinedTextureImageUnits", 32),
             ("gl_MaxTextureImageUnits", 16),
             ("gl_MaxFragmentUniformVectors", 256),
-            ("gl_MaxDrawBuffers", 4),
+            ("gl_MaxDrawBuffers", max_draw),
             ("gl_MaxVertexOutputVectors", 16),
             ("gl_MaxFragmentInputVectors", 15),
             ("gl_MinProgramTexelOffset", -8),

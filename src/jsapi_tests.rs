@@ -889,3 +889,53 @@ fn webgl2_transform_feedback_captures() {
     );
     assert_eq!(r.trim_matches('"'), "true,true,2 4 6,3,twice,0");
 }
+
+/// OES_draw_buffers_indexed: per-buffer blend and color mask; a WebGL 2 draw into an
+/// active draw buffer the shader doesn't write is INVALID_OPERATION unless it's masked off.
+#[test]
+fn webgl2_draw_buffers_indexed() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            out.push(gl.getIndexedParameter(gl.COLOR_WRITEMASK, 0) === null && gl.getError() === gl.INVALID_ENUM);
+            const ext = gl.getExtension("OES_draw_buffers_indexed");
+            const fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            for (const i of [0, 1]) {
+                const t = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, t);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0);
+            }
+            gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+            ext.colorMaskiOES(1, true, false, true, false);
+            gl.clearColor(1, 1, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            const px = new Uint8Array(4);
+            gl.readBuffer(gl.COLOR_ATTACHMENT1);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            out.push(Array.from(px).join(" "), gl.getIndexedParameter(gl.COLOR_WRITEMASK, 1).join(" "));
+            ext.blendFunciOES(1, gl.CONSTANT_COLOR, gl.CONSTANT_ALPHA);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            ext.enableiOES(gl.BLEND, 8);
+            out.push(gl.getError() === gl.INVALID_VALUE);
+            const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+            const p = gl.createProgram();
+            gl.attachShader(p, sh(gl.VERTEX_SHADER, "#version 300 es\nvoid main(){ gl_Position = vec4(0, 0, 0, 1); gl_PointSize = 1.0; }"));
+            gl.attachShader(p, sh(gl.FRAGMENT_SHADER, "#version 300 es\nprecision mediump float; out vec4 c; void main(){ c = vec4(1); }"));
+            gl.linkProgram(p);
+            gl.useProgram(p);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            ext.colorMaskiOES(1, false, false, false, false);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(gl.getError());
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "true,255 0 255 0,true false true false,true,true,true,0");
+}

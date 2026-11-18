@@ -11,7 +11,7 @@ use crate::dom::NodeId;
 use crate::glsl::{Base, Dim, Ty};
 use crate::glsl_gen::{compile, read_std140, Compiled, Stage};
 use crate::glsl_vm::Lanes;
-use crate::webgl_raster::{g, Attr, AttrSrc, Pipeline, RState, StencilFace, Target};
+use crate::webgl_raster::{g, Attr, AttrSrc, BufState, Pipeline, RState, StencilFace, Target, MAX_DRAW_BUFFERS};
 use crate::webgl_tf::{Tf, TfVar};
 use crate::webgl_tex::{self as tex, e, Fmt, Image, Num, Sampler, TexParams, Texture, Unpack, UnitView};
 use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsDataView, JsFloat32Array, JsInt32Array, JsTypedArray, JsUint32Array};
@@ -272,6 +272,11 @@ pub struct Gl {
     tf0: Tf,
     tf_bound: u32,
     tf_prims: u64,
+    /// Each draw buffer's blending and color mask (OES_draw_buffers_indexed); the
+    /// whole-context calls set them all.
+    bufs: [BufState; MAX_DRAW_BUFFERS],
+    /// OES_draw_buffers_indexed has been enabled (its indexed queries answer).
+    draw_buffers_indexed: bool,
     // State.
     clear_color: [f32; 4],
     clear_depth: f32,
@@ -348,6 +353,8 @@ impl Gl {
             tf0: Tf::default(),
             tf_bound: 0,
             tf_prims: 0,
+            bufs: [BufState::default(); MAX_DRAW_BUFFERS],
+            draw_buffers_indexed: false,
             clear_color: [0.0; 4],
             clear_depth: 1.0,
             clear_stencil: 0,
@@ -561,7 +568,8 @@ impl Gl {
             }
             match size {
                 None => size = Some((img.w, img.h)),
-                Some(s) if s != (img.w, img.h) && !self.v2 => return Some(FRAMEBUFFER_INCOMPLETE_DIMENSIONS),
+                // WebGL 2 keeps WebGL 1's rule here (unlike OpenGL ES 3.0).
+                Some(s) if s != (img.w, img.h) => return Some(FRAMEBUFFER_INCOMPLETE_DIMENSIONS),
                 _ => {}
             }
             any = true;
@@ -592,6 +600,20 @@ impl Gl {
             return FRAMEBUFFER_UNSUPPORTED;
         }
         FRAMEBUFFER_COMPLETE
+    }
+
+    /// WebGL 2: an active draw buffer that isn't fully masked off must have a fragment output.
+    fn missing_outputs(&self, outs: &[Option<u32>]) -> bool {
+        if !self.v2 || self.cap(RASTERIZER_DISCARD) {
+            return false;
+        }
+        let active: Vec<bool> = if self.draw_fbo == 0 {
+            vec![self.fb_draw_buffer == BACK]
+        } else {
+            let Some(f) = self.fbo(self.draw_fbo) else { return false };
+            (0..MAX_COLOR_ATTACHMENTS).map(|i| f.draw_buffers.get(i).is_some_and(|&b| b != 0) && f.color[i].is_some()).collect()
+        };
+        active.iter().enumerate().any(|(i, &on)| on && self.bufs.get(i).is_some_and(|b| b.mask.iter().any(|&m| m)) && outs.get(i).copied().flatten().is_none())
     }
 
     /// Move the draw (or read) framebuffer's images out for rendering.
@@ -754,14 +776,11 @@ impl Gl {
             depth_func: self.depth_func,
             depth_mask: self.depth_mask,
             stencil: stencil_on.then_some(self.stencil),
-            blend: self.cap(BLEND),
-            blend_eq: self.blend_eq,
-            blend_src: self.blend_src,
-            blend_dst: self.blend_dst,
             blend_color: self.blend_color,
             color_mask: self.color_mask,
             poly_offset: self.cap(POLYGON_OFFSET_FILL).then_some(self.poly_offset),
             discard_raster: self.cap(RASTERIZER_DISCARD),
+            bufs: self.bufs,
         }
     }
 
@@ -780,15 +799,17 @@ impl Gl {
         let [x0, y0, x1, y1] = clip_rect(&st, t.w, t.h);
         if mask & COLOR_BUFFER_BIT != 0 {
             let cc = self.clear_color;
-            for img in t.color.iter_mut().flatten() {
+            for (bi, img) in t.color.iter_mut().enumerate() {
+                let Some(img) = img else { continue };
                 if img.fmt.is_integer() {
                     continue;
                 }
                 let v = tex::store(&img.fmt, cc);
+                let mask = st.bufs.get(bi).map_or(st.color_mask, |b| b.mask);
                 fill_rect(img, [x0, y0, x1, y1], |dst| {
                     let mut o = *dst;
                     for c in 0..4 {
-                        if st.color_mask[c] {
+                        if mask[c] {
                             o[c] = v[c];
                         }
                     }
@@ -837,10 +858,11 @@ impl Gl {
                     } else {
                         let v = [vals[0], vals[1], vals[2], vals[3]];
                         let v = if int { tex::expand(&img.fmt, v) } else { tex::store(&img.fmt, v) };
+                        let mask = st.bufs.get(index.max(0) as usize).map_or(st.color_mask, |b| b.mask);
                         fill_rect(img, r, |dst| {
                             let mut o = *dst;
                             for c in 0..4 {
-                                if st.color_mask[c] {
+                                if mask[c] {
                                     o[c] = v[c];
                                 }
                             }
@@ -1005,7 +1027,9 @@ impl Gl {
             let mut outs = vec![None; MAX_COLOR_ATTACHMENTS];
             let mut out_names = Vec::new();
             if let Some(s) = fs.b.frag_color {
-                for o in outs.iter_mut() {
+                // WebGL 1 (EXT_draw_buffers) sends gl_FragColor to every draw buffer; OpenGL ES 3.0
+                // writes it to color number zero only.
+                for o in outs.iter_mut().take(if v2 { 1 } else { MAX_COLOR_ATTACHMENTS }) {
                     *o = Some(s);
                 }
             } else if let Some((s, n)) = fs.b.frag_data {
@@ -1082,7 +1106,8 @@ impl Gl {
         let Some(prog) = self.program_ref(self.program) else { return self.error(INVALID_OPERATION) };
         let Some(l) = prog.linked.as_ref() else { return self.error(INVALID_OPERATION) };
         let attribs_needed: Vec<(u32, Ty, u32)> = l.attribs.iter().map(|a| (a.2, a.1.clone(), a.3)).collect();
-        if self.v2 && (!self.samplers_match_textures() || !self.attrib_types_match(&attribs_needed)) {
+        let missing_out = self.missing_outputs(&l.outs);
+        if self.v2 && (!self.samplers_match_textures() || !self.attrib_types_match(&attribs_needed) || missing_out) {
             return self.error(INVALID_OPERATION);
         }
         if self.v2 && (self.tf_conflict(&attribs_needed, index.is_some()) || (self.tf_capturing() && self.tf().bind.iter().any(|b| self.double_bound(b.0)))) {
@@ -1837,6 +1862,7 @@ pub fn install(ctx: &mut Context) {
         ("__glTfVarying", 3, n_tf_varying),
         ("__glGetIndexed", 3, n_get_indexed),
         ("__glTfPrimitives", 1, n_tf_primitives),
+        ("__glBufState", 7, n_buf_state),
         ("__glBindFramebuffer", 3, n_bind_framebuffer),
         ("__glFramebufferTexture", 7, n_framebuffer_texture),
         ("__glFramebufferRenderbuffer", 4, n_framebuffer_renderbuffer),
@@ -3577,6 +3603,9 @@ fn n_enable(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
             return gl.error(INVALID_ENUM);
         }
         gl.caps.insert(cap, on);
+        if cap == BLEND {
+            gl.bufs.iter_mut().for_each(|b| b.blend = on);
+        }
     });
     undef()
 }
@@ -3626,6 +3655,7 @@ fn n_state(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
                     return gl.error(INVALID_ENUM);
                 }
                 gl.blend_eq = [ui[0], ui[1]];
+                gl.bufs.iter_mut().for_each(|b| b.eq = [ui[0], ui[1]]);
             }
             // blendFuncSeparate(srcRGB, dstRGB, srcA, dstA)
             5 => {
@@ -3639,8 +3669,16 @@ fn n_state(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
                 }
                 gl.blend_src = [ui[0], ui[2]];
                 gl.blend_dst = [ui[1], ui[3]];
+                gl.bufs.iter_mut().for_each(|b| {
+                    b.src = [ui[0], ui[2]];
+                    b.dst = [ui[1], ui[3]];
+                });
             }
-            6 => gl.color_mask = [v[0] != 0.0, v[1] != 0.0, v[2] != 0.0, v[3] != 0.0],
+            6 => {
+                gl.color_mask = [v[0] != 0.0, v[1] != 0.0, v[2] != 0.0, v[3] != 0.0];
+                let m = gl.color_mask;
+                gl.bufs.iter_mut().for_each(|b| b.mask = m);
+            }
             7 => {
                 if !matches!(ui[0], g::FRONT | g::BACK | g::FRONT_AND_BACK) {
                     return gl.error(INVALID_ENUM);
@@ -4128,6 +4166,28 @@ fn n_tf_varying(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
 fn n_get_indexed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let (target, i) = (u(a, 1, ctx), u(a, 2, ctx) as usize);
     let r = with_gl(a, ctx, |gl| {
+        if matches!(target, 0x0BE2 | 0x8009 | 0x883D | 0x80C9 | 0x80C8 | 0x80CB | 0x80CA | 0x0C23) {
+            if !gl.draw_buffers_indexed {
+                gl.error(INVALID_ENUM);
+                return None;
+            }
+            let Some(b) = gl.bufs.get(i).copied() else {
+                gl.error(INVALID_VALUE);
+                return None;
+            };
+            // Packed as (value, 0, 0); COLOR_WRITEMASK as a bitmask.
+            let val = match target {
+                0x0BE2 => b.blend as u32,
+                0x8009 => b.eq[0],
+                0x883D => b.eq[1],
+                0x80C9 => b.src[0],
+                0x80C8 => b.dst[0],
+                0x80CB => b.src[1],
+                0x80CA => b.dst[1],
+                _ => b.mask.iter().enumerate().map(|(k, &m)| (m as u32) << k).sum(),
+            };
+            return Some((val, 0, 0));
+        }
         let b = match target {
             0x8C8F | 0x8C84 | 0x8C85 => gl.tf().bind.get(i).copied(),
             0x8A28 | 0x8A29 | 0x8A2A => gl.ubo_bind.get(i).copied(),
@@ -4146,6 +4206,57 @@ fn n_get_indexed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         Some((b, off, size)) => jarr([JsValue::from(b), JsValue::from(off), JsValue::from(size)], ctx),
         None => JsValue::null(),
     })
+}
+
+/// __glBufState(cid, op, buf, a, b, c, d): OES_draw_buffers_indexed — op 0 enable/disable
+/// BLEND (a), 1 blendEquationSeparate (a, b), 2 blendFuncSeparate (a, b, c, d), 3 colorMask.
+fn n_buf_state(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (op, buf) = (u(a, 1, ctx), num(a, 2, ctx));
+    let v = [num(a, 3, ctx), num(a, 4, ctx), num(a, 5, ctx), num(a, 6, ctx)];
+    let ui = v.map(|x| if x.is_finite() { x as i64 as u32 } else { 0 });
+    with_gl(a, ctx, |gl| {
+        if !(0.0..MAX_DRAW_BUFFERS as f64).contains(&buf) {
+            return gl.error(INVALID_VALUE);
+        }
+        let i = buf as usize;
+        match op {
+            0 => {
+                if ui[0] != BLEND {
+                    return gl.error(INVALID_ENUM);
+                }
+                gl.bufs[i].blend = v[1] != 0.0;
+                if i == 0 || gl.bufs.iter().all(|b| b.blend == gl.bufs[i].blend) {
+                    gl.caps.insert(BLEND, gl.bufs[0].blend);
+                }
+            }
+            1 => {
+                let ok = |m: u32| matches!(m, g::FUNC_ADD | g::FUNC_SUBTRACT | g::FUNC_REVERSE_SUBTRACT | g::MIN | g::MAX);
+                if !ok(ui[0]) || !ok(ui[1]) {
+                    return gl.error(INVALID_ENUM);
+                }
+                gl.bufs[i].eq = [ui[0], ui[1]];
+            }
+            2 => {
+                if !ui.iter().all(|f| valid_blend_factor(*f)) {
+                    return gl.error(INVALID_ENUM);
+                }
+                // The WebGL extension keeps WebGL 1's rule against mixing constant color and alpha.
+                let cc = |f: u32| f == g::CONSTANT_COLOR || f == g::ONE_MINUS_CONSTANT_COLOR;
+                let ca = |f: u32| f == g::CONSTANT_ALPHA || f == g::ONE_MINUS_CONSTANT_ALPHA;
+                if (cc(ui[0]) && ca(ui[1])) || (ca(ui[0]) && cc(ui[1])) {
+                    return gl.error(INVALID_OPERATION);
+                }
+                gl.bufs[i].src = [ui[0], ui[2]];
+                gl.bufs[i].dst = [ui[1], ui[3]];
+            }
+            _ => gl.bufs[i].mask = [v[0] != 0.0, v[1] != 0.0, v[2] != 0.0, v[3] != 0.0],
+        }
+        if i == 0 {
+            let b = gl.bufs[0];
+            (gl.blend_eq, gl.blend_src, gl.blend_dst, gl.color_mask) = (b.eq, b.src, b.dst, b.mask);
+        }
+    });
+    undef()
 }
 
 /// __glTfPrimitives(cid): primitives transform feedback has written so far.
@@ -4599,7 +4710,8 @@ fn n_blit_framebuffer(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         let (sx, sy) = (r[0].min(r[2]), r[1].min(r[3]));
         let Some((src, _)) = gl.read_rect(sx, sy, sw.abs(), sh.abs()) else { return };
         let Some((mut t, restore, d, s)) = gl.take_target(false) else { return };
-        let st = RState { blend: false, scissor: gl.cap(SCISSOR_TEST).then_some(gl.scissor), ..gl.rstate() };
+        // Blits don't blend.
+        let st = RState { bufs: gl.bufs.map(|b| BufState { blend: false, ..b }), scissor: gl.cap(SCISSOR_TEST).then_some(gl.scissor), ..gl.rstate() };
         let (dx0, dy0) = (r[4].min(r[6]), r[5].min(r[7]));
         let (fx, fy) = (sw < 0, sh < 0);
         let (gx, gy) = (dw < 0, dh < 0);
@@ -4680,6 +4792,9 @@ fn n_enable_ext(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
     with_gl(a, ctx, |gl| {
         if name.starts_with("WEBGL_compressed_texture_s3tc") {
             gl.s3tc = true;
+        }
+        if name == "OES_draw_buffers_indexed" {
+            gl.draw_buffers_indexed = true;
         }
     });
     undef()

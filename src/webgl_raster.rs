@@ -80,14 +80,31 @@ pub struct RState {
     pub stencil: Option<[StencilFace; 2]>,
     /// Stencil write masks apply even with the test off (they don't, but keeping them here
     /// lets clear() use them).
-    pub blend: bool,
-    pub blend_eq: [u32; 2],
-    pub blend_src: [u32; 2],
-    pub blend_dst: [u32; 2],
     pub blend_color: [f32; 4],
     pub color_mask: [bool; 4],
     pub poly_offset: Option<(f32, f32)>,
     pub discard_raster: bool,
+    /// Blending and color mask for each draw buffer (OES_draw_buffers_indexed; the fields
+    /// above are draw buffer 0's).
+    pub bufs: [BufState; MAX_DRAW_BUFFERS],
+}
+
+pub const MAX_DRAW_BUFFERS: usize = 8;
+
+/// One draw buffer's blending and color mask.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct BufState {
+    pub blend: bool,
+    pub eq: [u32; 2],
+    pub src: [u32; 2],
+    pub dst: [u32; 2],
+    pub mask: [bool; 4],
+}
+
+impl Default for BufState {
+    fn default() -> Self {
+        BufState { blend: false, eq: [g::FUNC_ADD; 2], src: [g::ONE; 2], dst: [g::ZERO; 2], mask: [true; 4] }
+    }
 }
 
 pub enum AttrSrc<'a> {
@@ -857,7 +874,7 @@ impl Pipeline<'_> {
                 let (Some((px, fmt)), Some(Some(slot))) = (img.as_mut(), self.outs.get(bi)) else { continue };
                 let s = *slot as usize;
                 let src = [self.fs_mem[s][l], self.fs_mem[s + 1][l], self.fs_mem[s + 2][l], self.fs_mem[s + 3][l]];
-                write_px(&mut px[i], fmt, src, self.st);
+                write_px(&mut px[i], fmt, src, self.st, bi);
             }
         }
     }
@@ -865,18 +882,19 @@ impl Pipeline<'_> {
 
 pub fn write_color(img: &mut Image, i: usize, src: [f32; 4], st: &RState) {
     let fmt = img.fmt;
-    write_px(&mut img.px[i], &fmt, src, st);
+    write_px(&mut img.px[i], &fmt, src, st, 0);
 }
 
-pub fn write_px(px: &mut [f32; 4], fmt: &crate::webgl_tex::Fmt, src: [f32; 4], st: &RState) {
+pub fn write_px(px: &mut [f32; 4], fmt: &crate::webgl_tex::Fmt, src: [f32; 4], st: &RState, buf: usize) {
     let dst = *px;
     let int = fmt.is_integer();
-    let mut v = if st.blend && !int { blend(src, dst, st, matches!(fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
+    let b = st.bufs.get(buf).copied().unwrap_or_default();
+    let mut v = if b.blend && !int { blend(src, dst, st, &b, matches!(fmt.num, Num::Unorm(_) | Num::Snorm)) } else { src };
     if !int {
         v = store(fmt, v);
     }
     for c in 0..4 {
-        if !st.color_mask[c] {
+        if !b.mask[c] {
             v[c] = dst[c];
         }
     }
@@ -884,12 +902,12 @@ pub fn write_px(px: &mut [f32; 4], fmt: &crate::webgl_tex::Fmt, src: [f32; 4], s
     *px = if int { crate::webgl_tex::expand(fmt, v) } else { v };
 }
 
-fn blend(s: [f32; 4], d: [f32; 4], st: &RState, clamp: bool) -> [f32; 4] {
+fn blend(s: [f32; 4], d: [f32; 4], st: &RState, b: &BufState, clamp: bool) -> [f32; 4] {
     let (s, cc) = if clamp { (s.map(|x| x.clamp(0.0, 1.0)), st.blend_color.map(|x| x.clamp(0.0, 1.0))) } else { (s, st.blend_color) };
     let mut out = [0.0; 4];
     for c in 0..4 {
         let a = c == 3;
-        let (eq, sf, df) = if a { (st.blend_eq[1], st.blend_src[1], st.blend_dst[1]) } else { (st.blend_eq[0], st.blend_src[0], st.blend_dst[0]) };
+        let (eq, sf, df) = if a { (b.eq[1], b.src[1], b.dst[1]) } else { (b.eq[0], b.src[0], b.dst[0]) };
         let fs = factor(sf, s, d, cc, c);
         let fd = factor(df, s, d, cc, c);
         out[c] = match eq {
