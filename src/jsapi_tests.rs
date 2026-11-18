@@ -1045,3 +1045,44 @@ fn webgl2_multisample_renderbuffers() {
     );
     assert_eq!(r.trim_matches('"'), "4,0,4,4,true,true,true,0 255 0 255,0");
 }
+
+/// Pixel buffers: readPixels into PIXEL_PACK_BUFFER, texImage from PIXEL_UNPACK_BUFFER, the
+/// "bound or not" rules; reading a layer of a 3D texture through framebufferTextureLayer.
+#[test]
+fn webgl2_pixel_buffers_and_layers() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const t = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_3D, t);
+            const up = gl.createBuffer();
+            gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, up);
+            const data = new Uint8Array(2 * 1 * 2 * 4);
+            for (let i = 0; i < data.length; i++) data[i] = i * 10;
+            gl.bufferData(gl.PIXEL_UNPACK_BUFFER, data, gl.STATIC_DRAW);
+            gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, 2, 1, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA8, 2, 1, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+            out.push(gl.getError());
+            gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+            const fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, t, 0, 1);
+            const pack = gl.createBuffer();
+            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pack);
+            gl.bufferData(gl.PIXEL_PACK_BUFFER, 8, gl.STREAM_READ);
+            gl.readPixels(0, 0, 2, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(8));
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.readPixels(0, 0, 2, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+            const got = new Uint8Array(8);
+            gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, got);
+            out.push(got.join(" "), gl.getError());
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "true,0,true,80 90 100 110 120 130 140 150,0");
+}

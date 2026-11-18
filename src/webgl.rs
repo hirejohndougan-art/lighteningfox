@@ -446,6 +446,14 @@ impl Gl {
         }
     }
 
+    /// The buffer bound to PIXEL_PACK_BUFFER or PIXEL_UNPACK_BUFFER (WebGL 2), 0 for none.
+    fn pixel_buffer(&self, target: u32) -> u32 {
+        if !self.v2 {
+            return 0;
+        }
+        self.bound.get(&target).copied().unwrap_or(0)
+    }
+
     fn buf(&self, id: u32) -> Option<&Buffer> {
         match self.objs.get(&id) {
             Some(Obj::Buffer(b)) => Some(b),
@@ -1534,6 +1542,8 @@ impl Gl {
     fn read_rect(&mut self, x: i32, y: i32, w: i32, h: i32) -> Option<(Vec<Option<[f32; 4]>>, Fmt)> {
         self.before_draw();
         let fid = self.read_fbo;
+        // For a layer of a 3D or array texture, where that layer starts.
+        let mut base = 0usize;
         let (img, fw, fh) = if fid == 0 {
             if self.fb_read_buffer == 0 {
                 self.error(INVALID_OPERATION);
@@ -1560,6 +1570,9 @@ impl Gl {
                 return None;
             }
             let img = self.att_image(&a)?;
+            if let Att::Tex { layer, .. } = a {
+                base = (img.w * img.h) as usize * layer.min(img.d.max(1) - 1) as usize;
+            }
             (img, img.w, img.h)
         };
         let mut out = Vec::with_capacity((w.max(0) * h.max(0)) as usize);
@@ -1569,7 +1582,7 @@ impl Gl {
                 if px < 0 || py < 0 || px >= fw as i32 || py >= fh as i32 {
                     out.push(None);
                 } else {
-                    out.push(Some(img.px[(py as u32 * img.w + px as u32) as usize]));
+                    out.push(Some(img.px[base + (py as u32 * img.w + px as u32) as usize]));
                 }
             }
         }
@@ -2405,6 +2418,8 @@ fn n_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
     let has_data = a.get(10).is_some_and(|v| v.is_object());
     let src_off = u(a, 11, ctx) as usize;
     let sub = u(a, 12, ctx);
+    // PBO form: the pixels come from PIXEL_UNPACK_BUFFER at byte offset src_off.
+    let pbo = boolean(a, 14);
     let offs = if sub == 1 {
         a.get(13).and_then(|v| v.as_object()).and_then(|o| JsArray::from_object(o.clone()).ok()).map(|arr| (0..3).map(|i| arr.get(i, ctx).ok().and_then(|v| v.to_number(ctx).ok()).unwrap_or(0.0) as i32).collect::<Vec<i32>>())
     } else {
@@ -2421,9 +2436,24 @@ fn n_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         if sub != 1 && !size_ok(target, level, w, h, if sub == 2 { d } else { 1 }) {
             return gl.error(INVALID_VALUE);
         }
+        let unpack_buf = gl.pixel_buffer(PIXEL_UNPACK_BUFFER);
+        if (unpack_buf != 0) != pbo || (pbo && gl.double_bound(unpack_buf)) {
+            return gl.error(INVALID_OPERATION);
+        }
         let Some((id, face)) = gl.image_target(target) else { return };
         let mut unpack = Unpack { ..gl.unpack };
-        let bytes: Option<Vec<u8>> = if has_data {
+        let bytes: Option<Vec<u8>> = if pbo {
+            let es = match ty {
+                e::UNSIGNED_SHORT | e::SHORT | e::HALF_FLOAT | 0x8363 | 0x8033 | 0x8034 => 2,
+                e::UNSIGNED_INT | e::INT | e::FLOAT | 0x8368 | 0x8C3B | 0x8C3E => 4,
+                _ => 1,
+            };
+            let data = gl.buf(unpack_buf).map(|b| b.data.clone()).unwrap_or_default();
+            if src_off % es != 0 || src_off > data.len() {
+                return gl.error(INVALID_OPERATION);
+            }
+            Some(data[src_off..].to_vec())
+        } else if has_data {
             let Some(b) = data.as_ref() else { return gl.error(INVALID_VALUE) };
             let es = match ty {
                 e::UNSIGNED_SHORT | e::SHORT | e::HALF_FLOAT | e::HALF_FLOAT_OES | 0x8363 | 0x8033 | 0x8034 => 2,
@@ -2434,6 +2464,20 @@ fn n_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValu
         } else {
             None
         };
+        // WebGL 2: skipped pixels plus the width must fit in a row, and for 3D uploads skipped
+        // rows plus the height in an image (only when data is uploaded).
+        if v2 && bytes.is_some() && w > 0 && h > 0 {
+            let row = if unpack.row_length > 0 { unpack.row_length } else { w as usize };
+            let is3d = matches!(target, 0x806F | 0x8C1A);
+            let image = if unpack.image_height > 0 { unpack.image_height } else { h as usize };
+            if unpack.skip_pixels + w as usize > row || (is3d && unpack.skip_rows + h as usize > image) {
+                return gl.error(INVALID_OPERATION);
+            }
+            // Flipping and premultiplying don't apply to 3D uploads or buffer uploads.
+            if (is3d || pbo) && (unpack.flip_y || unpack.premultiply) {
+                return gl.error(INVALID_OPERATION);
+            }
+        }
         if sub == 1 {
             let o = offs.unwrap_or(vec![0, 0, 0]);
             let Some(t) = gl.texture(id) else { return };
@@ -2530,6 +2574,10 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         }
     };
     with_gl(a, ctx, |gl| {
+        // DOM sources can't be used while a PIXEL_UNPACK_BUFFER is bound.
+        if gl.pixel_buffer(PIXEL_UNPACK_BUFFER) != 0 {
+            return gl.error(INVALID_OPERATION);
+        }
         // An image that hasn't loaded uploads nothing (and isn't an error).
         let Some((w, h, rgba)) = src else { return };
         if !valid_pixel_type(ty, gl.v2) {
@@ -4304,14 +4352,24 @@ fn n_samples_passed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<J
 fn n_read_pixels(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let (x, y, w, h) = (int(a, 1, ctx), int(a, 2, ctx), int(a, 3, ctx), int(a, 4, ctx));
     let (format, ty) = (u(a, 5, ctx), u(a, 6, ctx));
-    let doff = u(a, 8, ctx) as usize;
-    let existing = view_bytes(a.get(7), ctx);
+    let doff = num(a, 8, ctx);
+    // PBO form: readPixels(…, offset) writes into the PIXEL_PACK_BUFFER.
+    let pbo = boolean(a, 9);
+    let existing = if pbo { None } else { view_bytes(a.get(7), ctx) };
+    let mut pack = 0;
     let bytes = with_gl(a, ctx, |gl| -> Option<Vec<u8>> {
-        if w < 0 || h < 0 {
+        pack = gl.pixel_buffer(PIXEL_PACK_BUFFER);
+        if (pack != 0) != pbo || (pbo && gl.double_bound(pack)) {
+            gl.error(INVALID_OPERATION);
+            return None;
+        }
+        if w < 0 || h < 0 || doff < 0.0 {
             gl.error(INVALID_VALUE);
             return None;
         }
-        let Some(mut dst) = existing else {
+        let doff = doff as usize;
+        let dst = if pbo { gl.buf(pack).map(|b| b.data.clone()) } else { existing };
+        let Some(mut dst) = dst else {
             gl.error(INVALID_VALUE);
             return None;
         };
@@ -4327,8 +4385,10 @@ fn n_read_pixels(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
             (e::RGB, e::UNSIGNED_BYTE) | (e::ALPHA, e::UNSIGNED_BYTE) => false,
             _ => false,
         };
-        let known = matches!(format, e::RGBA | e::RGB | e::ALPHA | e::RGBA_INTEGER | e::RED | e::RG | e::LUMINANCE | e::LUMINANCE_ALPHA);
-        if !known {
+        let known = matches!(format, e::RGBA | e::RGB | e::ALPHA) || gl.v2 && matches!(format, e::RGBA_INTEGER | e::RED | e::RG | 0x8D94 | 0x8228 | 0x8D98);
+        let known_ty = matches!(ty, e::UNSIGNED_BYTE | e::FLOAT | 0x8363 | 0x8033 | 0x8034 | e::HALF_FLOAT_OES)
+            || gl.v2 && matches!(ty, e::BYTE | e::UNSIGNED_SHORT | e::SHORT | e::UNSIGNED_INT | e::INT | e::HALF_FLOAT | 0x8368 | 0x8C3B | 0x8C3E);
+        if !known || !known_ty {
             gl.error(INVALID_ENUM);
             return None;
         }
@@ -4338,7 +4398,8 @@ fn n_read_pixels(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         }
         let bpp = if ty == e::UNSIGNED_BYTE { 4 } else { 16 };
         // A row length shorter than the skipped pixels plus the width can't hold a row.
-        if gl.pack_row_length > 0 && gl.pack_skip_pixels + w as usize > gl.pack_row_length {
+        let row_len = if gl.pack_row_length > 0 { gl.pack_row_length } else { w as usize };
+        if gl.v2 && w > 0 && gl.pack_skip_pixels + w as usize > row_len {
             gl.error(INVALID_OPERATION);
             return None;
         }
@@ -4375,6 +4436,12 @@ fn n_read_pixels(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
                     }
                 }
             }
+        }
+        if pbo {
+            if let Some(b) = gl.buf_mut(pack) {
+                b.data = dst;
+            }
+            return None;
         }
         Some(dst)
     })

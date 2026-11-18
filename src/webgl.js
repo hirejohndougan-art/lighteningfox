@@ -386,8 +386,8 @@
     throw new TypeError("texImage: unsupported image source");
   }
   P.__texSource = function (target, level, internal, format, type, src, sub, offs, is3d) {
-    const s = sourceOf(src);
-    if (!s) return;
+    // Sources that upload nothing (a video) still get the context's checks.
+    const s = sourceOf(src) || [9, "", null, 0, 0];
     __glTexImageSource(this.__cid, target, level, internal, format, type, s[0], s[1], s[2], s[3], s[4], !!sub, offs || [0, 0, 0], !!is3d);
   };
   P.texImage2D = function (target, level, internal, a, b, c, d, e, f, srcOffset) {
@@ -396,24 +396,25 @@
       return this.__texSource(target, level, internal, d, e, f);
     }
     // (target, level, internal, w, h, border, format, type, pixels | null, srcOffset)
-    if (typeof f === "number") return this.__err(0x502); // pixel unpack buffers aren't supported
+    // A number is a byte offset into the bound PIXEL_UNPACK_BUFFER.
+    if (typeof f === "number") return __glTexImage(this.__cid, target, level, internal, a, b, 1, c, d, e, null, f, 0, null, true);
     __glTexImage(this.__cid, target, level, internal, a, b, 1, c, d, e, f || null, srcOffset || 0, 0);
   };
   P.texSubImage2D = function (target, level, x, y, a, b, c, d, e, srcOffset) {
     if (arguments.length <= 7) return this.__texSource(target, level, 0, a, b, c, true, [x, y, 0]);
     if (e && typeof e === "object" && !isView(e)) return this.__texSource(target, level, 0, c, d, e, true, [x, y, 0]);
     if (e === null || e === undefined) throw new TypeError("texSubImage2D: no pixels");
-    if (typeof e === "number") return this.__err(0x502);
+    if (typeof e === "number") return __glTexImage(this.__cid, target, level, 0, a, b, 1, 0, c, d, null, e, 1, [x, y, 0], true);
     __glTexImage(this.__cid, target, level, 0, a, b, 1, 0, c, d, e, srcOffset || 0, 1, [x, y, 0]);
   };
   P.texImage3D = function (target, level, internal, w, h, depth, border, format, type, src, srcOffset) {
     if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, internal, format, type, src, false, null, true);
-    if (typeof src === "number") return this.__err(0x502);
+    if (typeof src === "number") return __glTexImage(this.__cid, target, level, internal, w, h, depth, border, format, type, null, src, 2, null, true);
     __glTexImage(this.__cid, target, level, internal, w, h, depth, border, format, type, src || null, srcOffset || 0, 2);
   };
   P.texSubImage3D = function (target, level, x, y, z, w, h, depth, format, type, src, srcOffset) {
     if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, 0, format, type, src, true, [x, y, z], true);
-    if (typeof src === "number") return this.__err(0x502);
+    if (typeof src === "number") return __glTexImage(this.__cid, target, level, 0, w, h, depth, 0, format, type, null, src, 1, [x, y, z], true);
     __glTexImage(this.__cid, target, level, 0, w, h, depth, 0, format, type, src, srcOffset || 0, 1, [x, y, z]);
   };
   P.texStorage2D = function (t, levels, internal, w, h) { __glTexStorage(this.__cid, t, levels, internal, w, h, 1); };
@@ -668,7 +669,8 @@
     return r;
   };
   P.readPixels = function (x, y, w, h, format, type, dst, dstOffset) {
-    if (typeof dst === "number") return this.__err(0x502);
+    // A number is a byte offset into the bound PIXEL_PACK_BUFFER.
+    if (typeof dst === "number") return __glReadPixels(this.__cid, x, y, w, h, format, type, null, dst, true);
     if (!isView(dst)) throw new TypeError("readPixels: pixels must be an ArrayBufferView");
     const ok = (type === 0x1401 && dst instanceof Uint8Array) || (type === 0x1406 && dst instanceof Float32Array) ||
       (type === 0x1404 && dst instanceof Int32Array) || (type === 0x1405 && dst instanceof Uint32Array) ||
