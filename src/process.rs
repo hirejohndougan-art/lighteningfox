@@ -31,7 +31,7 @@
 //! Past that, a new site joins the process with the fewest pages (`allow <site>`), which may
 //! then hold pages, cookies and storage of all its sites, as in Firefox's shared pool.
 //!
-//! On with `IRONSWIFT_SITE_PROCESS=1` (or the "Site isolation" setting).
+//! On by default (the "Site isolation" setting); `IRONSWIFT_SITE_PROCESS=0` / `=1` overrides it.
 
 use crate::frames::{get, put, Event, Update};
 use crate::{cookies, forms, net, sandbox, FrameJob, FrameSrc};

@@ -69,7 +69,7 @@ impl Default for Settings {
             send_gpc: true,
             show_bookmarks_bar: true,
             use_gpu: true,
-            site_processes: false,
+            site_processes: true,
             proxy_mode: "system".into(),
             proxy_url: String::new(),
             clear_on_exit: false,
@@ -143,7 +143,9 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "send_gpc" => s.send_gpc = on(v),
         "show_bookmarks_bar" => s.show_bookmarks_bar = on(v),
         "use_gpu" => s.use_gpu = on(v),
-        "site_processes" => s.site_processes = on(v),
+        // Saved under a new name since site processes became the default: the old key was
+        // written as off by every profile that never chose.
+        "site_isolation" => s.site_processes = on(v),
         "proxy_mode" if matches!(v, "system" | "none" | "manual") => s.proxy_mode = v.to_string(),
         "proxy_url" => s.proxy_url = v.trim().replace(['\t', '\n'], ""),
         "clear_on_exit" => s.clear_on_exit = on(v),
@@ -242,7 +244,7 @@ fn save(s: &Settings) {
         s.cookies_session.join(" ")
     ));
     body.push_str(&format!("language\t{}\nhigh_contrast\t{}\n", s.language, b(s.high_contrast)));
-    body.push_str(&format!("site_processes\t{}\n", b(s.site_processes)));
+    body.push_str(&format!("site_isolation\t{}\n", b(s.site_processes)));
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
         let _ = std::fs::rename(&tmp, &p);
@@ -444,7 +446,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <div class="row field"><label>@@settings-sleep@@</label><input type="number" name="sleep_minutes" value="{sleep}" min="0" max="1440"></div>
 <p class="hint" style="margin-left:0">@@settings-sleep-hint@@</p>
 <div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> @@settings-gpu@@</label><p class="hint">@@settings-gpu-hint@@</p></div>
-<div class="row"><label><input type="checkbox" name="site_processes" value="1"{site_proc}> @@settings-site-processes@@</label><p class="hint">@@settings-site-processes-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="site_isolation" value="1"{site_proc}> @@settings-site-processes@@</label><p class="hint">@@settings-site-processes-hint@@</p></div>
 </section>
 <section><h2>@@settings-privacy@@</h2>
 <div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> @@settings-tpc@@</label><p class="hint">@@settings-tpc-hint@@</p></div>

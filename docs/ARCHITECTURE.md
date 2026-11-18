@@ -79,7 +79,7 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
   `ironswift --frame-renderer`, talking over stdin/stdout (`isolated` in `main.rs`) and
   locked down by `sandbox::protect_frame_renderer`. The browser itself calls
   `sandbox::protect_browser` once its window is open.
-- **Site processes** (`process.rs`, the `site_processes` setting, off by default for now):
+- **Site processes** (`process.rs`, the "Site isolation" setting, on by default; `site_isolation` in settings.tsv):
   each top-level site's pages run in their own `ironswift --site-renderer` process, locked
   down by `sandbox::protect_site_renderer` (no programs, no network, no writing; the browser
   makes requests, opens WebSockets (`ws_relay.rs`) and keeps cookies for it). It reads the
@@ -88,8 +88,11 @@ of them in JavaScript: `document`, `Element` and its subclasses, events with bub
   the browser; the pool is capped by the machine's memory (`process::limit`). With
   `IRONSWIFT_SITE_PROCESS=1`, `--png` of an http(s) page takes the picture from a site
   process (`site_snapshot.rs`), and `tools/site_process_check.py` compares every screenshot
-  test page drawn both ways. Not working in site processes yet: video and audio (decoding
-  starts `ffmpeg`, which the sandbox forbids).
+  test page drawn both ways. Video and audio decoders are started by the browser for it
+  (`media_broker.rs`). The window does find in page, selection, menus, autofill, printing,
+  devtools and the accessibility tree from what the process sends (`frames.rs` updates);
+  pictures go through shared memory (`shm.rs`); big responses are streamed, and plain GETs
+  go through the browser's disk cache.
 - **Navigation** from a page (links, forms, scripts, `window.open`) goes through
   `security::page_may_navigate`, which keeps web pages away from `file:`, `about:`,
   `view-source:` and `data:` URLs. The address bar isn't limited.
