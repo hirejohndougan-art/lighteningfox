@@ -1871,10 +1871,14 @@ impl<'a> Ctx<'a> {
                 used = need;
             }
         }
-        let mut cy = y;
         let mut items_bottom = y;
-        let single_line = lines.len() == 1;
-        for (li, line) in lines.iter().enumerate() {
+        // A multi-line container (flex-wrap) spreads its lines over a set height with
+        // align-content; a single-line one makes its line as tall as itself.
+        let multi_line = fl.wrap && grid.is_none();
+        let single_line = lines.len() == 1 && !multi_line;
+        // First every line's items at their final widths, and the line's height.
+        let mut measured: Vec<(Vec<f32>, Vec<Detached>, f32)> = Vec::new();
+        for line in lines.iter() {
             // Flexible lengths.
             let mut sizes: Vec<f32> = line.iter().map(|&i| bases[i]).collect();
             if grid.is_none() {
@@ -1963,6 +1967,34 @@ impl<'a> Ctx<'a> {
                     cross = dh;
                 }
             }
+            measured.push((sizes, boxes, cross));
+        }
+        // align-content: where the lines go in a taller container (normal and stretch share
+        // the extra height out among the lines).
+        let (mut cy, line_between) = match (multi_line && !self.measuring, definite_h) {
+            (true, Some(dh)) => {
+                let heights: Vec<f32> = measured.iter().map(|m| m.2).collect();
+                match fl.align_content {
+                    None => {
+                        let used = heights.iter().sum::<f32>() + row_gap * heights.len().saturating_sub(1) as f32;
+                        let extra = (dh - used) / heights.len().max(1) as f32;
+                        if extra > 0.0 {
+                            for m in measured.iter_mut() {
+                                m.2 += extra;
+                            }
+                        }
+                        (y, 0.0)
+                    }
+                    a => {
+                        let (lead, between) = crate::grid_align::row_offsets(a, Some(dh), &heights, row_gap);
+                        (y + lead, between)
+                    }
+                }
+            }
+            _ => (y, 0.0),
+        };
+        let line_count = lines.len();
+        for (li, (line, (sizes, mut boxes, cross))) in lines.iter().zip(measured).enumerate() {
             // Stretch items with no height of their own to the line's height.
             for (k, &i) in line.iter().enumerate() {
                 if let FlexItem::Node(n) = &items[i] {
@@ -2008,8 +2040,8 @@ impl<'a> Ctx<'a> {
                 }
             }
             cy += cross;
-            if li + 1 < lines.len() {
-                cy += row_gap;
+            if li + 1 < line_count {
+                cy += row_gap + line_between;
             }
         }
         // Items taller than a definite-height line still make the box scroll that far down.

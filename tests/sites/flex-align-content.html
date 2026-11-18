@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- align-content on wrapping flex containers (left from X1a: it worked for grid rows only).
+     Each container is 200px tall with two 40px lines of 60px-wide items (four per 150px line). -->
+<html><head><title>flex align-content</title>
+<style>
+body { margin: 0 }
+.f { display: flex; flex-wrap: wrap; width: 150px; height: 200px; margin-bottom: 10px; background: #eee }
+.f > div { width: 60px; height: 40px; background: #36c }
+.s > div { height: auto; min-height: 10px }
+</style></head>
+<body>
+<div class="f" id="center" style="align-content: center"><div></div><div></div><div></div><div></div></div>
+<div class="f" id="between" style="align-content: space-between"><div></div><div></div><div></div><div></div></div>
+<div class="f" id="end" style="align-content: flex-end"><div></div><div></div><div></div><div></div></div>
+<div class="f s" id="stretch"><div></div><div></div><div></div><div></div></div>
+<div class="f" id="nowrap" style="flex-wrap: nowrap; align-content: center"><div></div><div></div></div>
+<script>/* measured from tests */</script>
+</body></html>

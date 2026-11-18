@@ -301,6 +301,26 @@ fn fit_content_search_box_is_centered() {
 }
 
 #[test]
+fn flex_align_content_spreads_wrapped_lines() {
+    let _serial = serial();
+    let mut page = open("tests/sites/flex-align-content.html");
+    // The top of each item, relative to its container: [first line, second line].
+    let tops = |page: &mut crate::Page, id: &str| {
+        eval(page, &format!("(() => {{ const c = document.getElementById('{id}'); const t = c.getBoundingClientRect().top; const k = c.children; return [k[0].getBoundingClientRect().top - t, k[2] ? k[2].getBoundingClientRect().top - t : -1, k[0].getBoundingClientRect().height].join(','); }})()"))
+            .trim_matches('"')
+            .to_string()
+    };
+    // 200px tall, two 40px lines: 120px free.
+    assert_eq!(tops(&mut page, "center"), "60,100,40");
+    assert_eq!(tops(&mut page, "between"), "0,160,40");
+    assert_eq!(tops(&mut page, "end"), "120,160,40");
+    // normal (stretch): each line gets half the free height, and auto-height items fill it.
+    assert_eq!(tops(&mut page, "stretch"), "0,100,100");
+    // A single-line container ignores align-content: its line is the container's height.
+    assert_eq!(tops(&mut page, "nowrap"), "0,-1,40");
+}
+
+#[test]
 fn tree_walker_and_node_iterator() {
     let _serial = serial();
     let _page = open("tests/sites/tree-walker.html");
