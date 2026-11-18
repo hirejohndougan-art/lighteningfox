@@ -29,9 +29,22 @@ fn run(code: &str, mode: JitMode) -> String {
     outcome
 }
 
+/// Runs on a thread with a big stack, as the browser runs scripts: Boa's parser recurses once
+/// per nesting level, and deeply nested input would overflow the fuzzer's main thread in both
+/// modes alike, which says nothing about the JIT.
+fn run_big_stack(code: &str, mode: JitMode) -> String {
+    let code = code.to_string();
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(move || run(&code, mode))
+        .expect("thread")
+        .join()
+        .unwrap_or_else(|_| "panicked".into())
+}
+
 fuzz_target!(|data: &[u8]| {
     let Ok(code) = std::str::from_utf8(data) else { return };
-    let interpreted = run(code, JitMode::Off);
-    let compiled = run(code, JitMode::Always);
+    let interpreted = run_big_stack(code, JitMode::Off);
+    let compiled = run_big_stack(code, JitMode::Always);
     assert_eq!(interpreted, compiled, "the JIT changed the outcome of {code:?}");
 });
