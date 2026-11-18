@@ -1,0 +1,18 @@
+GET https://static01.nyt.com/elections-assets/pages/data/feeds/0f26ed2f-d8ac-4db4-8d19-44427038fe41/trending-races/2026-11-03.json
+304 Not Modified
+date: Wed, 18 Nov 2026 14:05:40 GMT
+via: 1.1 varnish
+cache-control: max-age=5, stale-if-error=86400, stale-while-revalidate=5, public
+etag: "157cd99aca1ad82f3b7cbc4ba18ed460"
+expires: Wed, 18 Nov 2026 14:05:02 GMT
+age: 4
+x-served-by: cache-bfi-kbfi7400111-BFI
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1795010741.641032,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override

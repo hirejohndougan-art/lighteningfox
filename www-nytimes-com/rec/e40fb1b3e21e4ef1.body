@@ -1,0 +1,521 @@
+var e=`
+
+fragment onCardDeckCarousel on Carousel {
+  cards {
+    assets {
+      ... on CreativeWork {
+        ... on Published {
+          uri
+          url
+          sourceId
+          __typename
+        }
+        ... on Image {
+          id
+          uri
+          credit
+          sourceId
+          altText
+          crops(
+            renditionNames: [
+              "videoSixteenByNine1050"
+              "videoSixteenByNine600"
+              "threeByTwoMediumAt2X"
+              "verticalTwoByThree735"
+              "smallTwoByThree"
+              "square640"
+              "articleLarge"
+              "jumbo"
+            ]
+          ) {
+            name
+            renditions {
+              name
+              url
+              width
+              height
+            }
+          }
+        }
+        ... on Video {
+          id
+          uri
+          advertisingProperties {
+            sensitivity
+          }
+          bylines {
+            renderedRepresentation
+          }
+          transcript
+          duration
+          renditions {
+            aspectRatio
+            type
+            url
+            width
+            height
+          }
+          isCinemagraph
+          promotionalMedia {
+            ... on Image {
+              id
+              credit
+              crops(
+                renditionNames: [
+                  "videoSixteenByNine1050"
+                  "videoSixteenByNine600"
+                  "threeByTwoMediumAt2X"
+                  "verticalTwoByThree735"
+                  "smallTwoByThree"
+                  "square640"
+                  "articleLarge"
+                  "jumbo"
+                ]
+              ) {
+                name
+                renditions {
+                  name
+                  url
+                  width
+                  height
+                }
+              }
+            }
+          }
+          summary
+        }
+      }
+    }
+  }
+  linkedAsset {
+    ... on Published {
+      uri
+      url
+      lastModified
+    }
+  }
+}
+
+
+fragment onCardDeckCardStory on CardStory {
+  cards {
+    assets {
+      ... on CreativeWork {
+        ... on Published {
+          uri
+          url
+          sourceId
+          __typename
+        }
+        ... on Image {
+          id
+          uri
+          credit
+          sourceId
+          altText
+          crops(
+            renditionNames: [
+              "videoSixteenByNine1050"
+              "videoSixteenByNine600"
+              "threeByTwoMediumAt2X"
+              "verticalTwoByThree735"
+              "smallTwoByThree"
+              "square640"
+              "threeByTwoMediumAt2X"
+            ]
+          ) {
+            name
+            renditions {
+              name
+              url
+              width
+              height
+            }
+          }
+        }
+        ... on Video {
+          id
+          uri
+          advertisingProperties {
+            sensitivity
+          }
+          bylines {
+            renderedRepresentation
+          }
+          transcript
+          duration
+          renditions {
+            aspectRatio
+            type
+            url
+            width
+            height
+          }
+          isCinemagraph
+          promotionalMedia {
+            ... on Image {
+              id
+              credit
+              crops(
+                renditionNames: [
+                  "videoSixteenByNine1050"
+                  "videoSixteenByNine600"
+                  "threeByTwoMediumAt2X"
+                  "verticalTwoByThree735"
+                  "smallTwoByThree"
+                  "square640"
+                  "threeByTwoMediumAt2X"
+                ]
+              ) {
+                name
+                renditions {
+                  name
+                  url
+                  width
+                  height
+                }
+              }
+            }
+          }
+          summary
+        }
+      }
+    }
+    bylines {
+      key
+      byline {
+        renderedRepresentation
+      }
+    }
+  }
+}
+
+
+
+fragment onScoopReporterThread on ScoopReporterThread {
+  __typename
+  id
+  uri
+  kicker
+  uppercase
+  linkedAsset {
+    url
+  }
+  slides {
+    id
+    body
+    timestamp
+    dateline
+    bylines {
+      displayName
+      description
+      promotionalMedia {
+        ... on Image {
+          id
+          crops {
+            name
+            renditions {
+              name
+              url
+              width
+              height
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fragment onCardDeckReporterThread on ReporterThread {
+  cards {
+    bylines {
+      key
+      byline {
+        prefix
+        creators: creatorSnapshots {
+          ... on PersonSnapshot {
+            displayName
+            promotionalMedia {
+              ... on Image {
+                id
+                crops(renditionNames: ["thumbStandard", "thumbLarge", "mobileMasterAt3x"]) {
+                  renditions {
+                    url
+                    name
+                    width
+                    height
+                  }
+                }
+              }
+            }
+          }
+          __typename
+        }
+      }
+    }
+  }
+  linkedAsset {
+    ... on Published {
+      uri
+      url
+      lastModified
+    }
+  }
+  entityStoreAsset {
+    ...onScoopReporterThread
+  }
+}
+
+
+
+fragment posterCardAssetFragment on CreativeWork {
+  ... on Published {
+      uri
+      url
+  }
+  ... on Image {
+    __typename
+    altText
+    credit
+    id
+    sourceId
+    uri
+    crops(
+      renditionNames: [
+        "verticalTwoByThree735"
+        "smallTwoByThree"
+        "square640"
+        "threeByTwoMediumAt2X"
+        "videoSixteenByNine1050"
+      ]
+    ) {
+      name
+      renditions {
+        name
+        url
+        width
+        height
+      }
+    }
+  }
+  ... on LegacyCollection {
+    __typename
+    lastModified
+    url
+  }
+  ... on Article {
+    __typename
+    url
+    uri
+  }
+  ... on Video {
+    __typename
+    id
+    uri
+    transcript
+    duration
+    renditions {
+      aspectRatio
+      type
+      url
+      width
+      height
+    }
+    promotionalMedia {
+      ... on Image {
+        __typename
+        id
+        credit
+        crops(
+          renditionNames: [
+            "videoSixteenByNine1050"
+            "videoSixteenByNine600"
+            "verticalTwoByThree735"
+            "smallTwoByThree"
+            "square640"
+            "threeByTwoMediumAt2X"
+          ]
+        ) {
+          name
+          renditions {
+            name
+            url
+            width
+            height
+          }
+        }
+      }
+    }
+  }
+}
+
+
+fragment onCardDeckPoster on Poster {
+  cards {
+    assets {
+    ...posterCardAssetFragment
+    }
+  }
+}
+
+
+fragment onCardDeckGrid on Grid {
+  cards {
+    assets {
+      ... on CreativeWork {
+        ... on Published {
+          uri
+          url
+          sourceId
+          __typename
+        }
+        ... on Image {
+          id
+          uri
+          credit
+          sourceId
+          altText
+          crops(
+            renditionNames: [
+              "videoSixteenByNine1050"
+              "videoSixteenByNine600"
+              "threeByTwoMediumAt2X"
+              "verticalTwoByThree735"
+              "smallTwoByThree"
+              "square640"
+              "mediumSquareAt3X"
+              "articleLarge"
+              "jumbo",
+              "master1050",
+              "master768",
+              "master675",
+              "tmagArticle"
+            ]
+          ) {
+            name
+            renditions {
+              name
+              url
+              width
+              height
+            }
+          }
+        }
+        ... on Video {
+          id
+          uri
+          advertisingProperties {
+            sensitivity
+          }
+          bylines {
+            renderedRepresentation
+          }
+          transcript
+          duration
+          renditions {
+            aspectRatio
+            type
+            url
+            width
+            height
+          }
+          isCinemagraph
+          promotionalMedia {
+            ... on Image {
+              id
+              credit
+              crops(
+                renditionNames: [
+                  "videoSixteenByNine1050"
+                  "videoSixteenByNine600"
+                  "threeByTwoMediumAt2X"
+                  "verticalTwoByThree735"
+                  "smallTwoByThree"
+                  "square640"
+                  "mediumSquareAt3X"
+                  "articleLarge"
+                  "jumbo",
+                  "master1050",
+                  "master768",
+                  "master675",
+                  "tmagArticle"
+                ]
+              ) {
+                name
+                renditions {
+                  name
+                  url
+                  width
+                  height
+                }
+              }
+            }
+          }
+          summary
+        }
+      }
+    }
+  }
+  linkedAsset {
+    ... on Published {
+      uri
+      url
+      lastModified
+    }
+  }
+}
+
+
+fragment onCardDeck on CardDeck {
+  __typename
+  id
+  uri
+  slug
+  sourceId
+  url
+  storyFormat
+  newsStatus
+  desk
+  asset {
+    ... onCardDeckCarousel
+    ... onCardDeckCardStory
+    ... onCardDeckReporterThread
+    ... onCardDeckPoster
+    ... onCardDeckGrid
+    __typename
+    data
+    cards {
+      key
+      data
+      text {
+        key
+        content {
+          __typename
+          ... on LineBreakInline {
+            type
+          }
+          ... on TextInline {
+            text
+            formats {
+              __typename
+              ... on BoldFormat {
+                type
+              }
+              ... on ItalicFormat {
+                type
+              }
+              ... on LinkFormat {
+                url
+                title
+                uri
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`;export{e as t};
+//# sourceMappingURL=fragment-BaihTOY5.js.map

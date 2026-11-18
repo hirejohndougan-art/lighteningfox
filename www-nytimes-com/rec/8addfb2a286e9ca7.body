@@ -1,0 +1,2 @@
+var e=new Map([[0,`0`],[1,`0.0625rem`],[3,`0.1875rem`]]),t=`&:disabled, &[aria-disabled="true"]`,n=`&:not(:disabled):not([aria-disabled="true"])`;export{n,e as r,t};
+//# sourceMappingURL=disabledSelectors-CcyXWwKK.js.map

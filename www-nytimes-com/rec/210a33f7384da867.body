@@ -1,0 +1,2 @@
+import{b as e,m as t,p as n}from"./AdUtilities-16PIaUG0.js";function r(e){let r={edn:`us`,test:`projectvi`,ver:`vi`};if(e?.search){let i=t(e);i&&(r.ref=i);let a=n(e);a&&(r.refdom=a)}return r}function i(t,n){let i=r(t);return i.typ=`hp`,n&&(i=e(n,`large`,i)),i}export{r as n,i as t};
+//# sourceMappingURL=serverRequirements-DoD-p7er.js.map

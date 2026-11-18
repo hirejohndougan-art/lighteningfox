@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";var n=e(t());function r(){try{return window.matchMedia(`(prefers-color-scheme: dark)`).matches?`dark`:`light`}catch{return`light`}}function i(){try{return window.matchMedia(`(prefers-color-scheme: dark)`)}catch{return null}}function a(){let[e,t]=(0,n.useState)(`light`);return(0,n.useEffect)(()=>{let e=()=>{try{t(r())}catch{}};try{t(r()),i().addListener(e)}catch{}},[]),e}export{a as t};
+//# sourceMappingURL=usePreferredColorScheme-BAbeM9g8.js.map

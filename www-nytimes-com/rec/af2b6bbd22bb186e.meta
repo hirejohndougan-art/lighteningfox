@@ -1,0 +1,32 @@
+POST https://www.nytimes.com/statsig/rgstr?k=client-AkrHGgWqd8ygLMakFYSt6a5N7t1RFjTPb6XlY95T3hb&st=js-on-device-eval-client&sv=3.32.3&t=1795010645817&sid=fca51f94-5da1-4f05-a292-56c5586f566e&ec=2
+202 Accepted
+x-response-time: 0 ms
+access-control-allow-credentials: true
+x-content-type-options: nosniff
+x-content-type-options: nosniff
+accept-ranges: bytes
+content-type: application/json
+referrer-policy: strict-origin-when-cross-origin
+set-cookie: GCLB="710153922c633329"; Max-Age=1; Path=/; HttpOnly
+set-cookie: nyt-gdpr=0; Expires=Wed, 18 Nov 2026 20:04:05 GMT; Path=/; Domain=.nytimes.com
+set-cookie: datadome=0; Domain=.nytimes.com; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure
+date: Wed, 18 Nov 2026 14:04:05 GMT
+x-served-by: cache-bfi-kbfi7400024-BFI, cache-bfi-kbfi7400024-BFI, cache-bfi-kbfi7400050-BFI
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795010646.821763,VS0,VE51
+access-control-allow-origin: *
+x-gdpr: 0
+permissions-policy: browsing-topics=()
+x-frame-options: DENY
+x-api-version: F-X
+x-nyt-route: nyt-statsig
+content-security-policy: upgrade-insecure-requests; default-src data: 'unsafe-inline' 'unsafe-eval' https: nytresource:; script-src data: 'unsafe-inline' 'unsafe-eval' https: blob: nytresource:; style-src data: 'unsafe-inline' https: nytresource:; img-src data: https: blob: android-webview-video-poster: nytresource:; font-src data: https: nytresource:; connect-src data: https: wss: blob: nytresource:; media-src data: https: blob: nytresource:; object-src https:; child-src https: data: blob: nytresource:; form-action https: nytimes: nytcooking: nytxwd:; report-uri https://csp.nytimes.com/report;
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+access-control-expose-headers: X-Nyt-Mktg-Group
+x-nyt-mktg-group: group1
+x-nyt-edge-cache: MISS
+x-nyt-app-webview: 0
+x-nyt-app-map: webview=false,preloaded=false,service-worker-enabled=false
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 16

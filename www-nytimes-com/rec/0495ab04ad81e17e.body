@@ -1,0 +1,62 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i}from"./vendor-u8E3U9GY.js";import{_ as a,v as o}from"./lib-Bv-HyjgN.js";import{o as s}from"./color-BkLae2o_.js";import{a as c,i as l,n as u,r as d,t as f}from"./DataTpl-CE538Qxa.js";import{c as p,n as m,o as h,t as g}from"./TypeComponents-DMPwoK0D.js";import{t as _}from"./Flex-AnID7vaP.js";import{t as v}from"./spacing-CFWIHCPm.js";var y=e(t(),1);r();var b={alignItems:`flex-start`,textAlign:`start`,outerPaddingHorizontal:v.get(2.5),sectionHeaderPaddingTop:v.get(1),sectionHeaderPaddingBottom:`0`,sectionMarginTop:v.get(2),itemOuterPaddingTop:v.get(1.5),itemOuterPaddingBottom:v.get(3),itemContentMediaGap:v.get(2),itemActionsGap:v.get(1),itemContentInnerGap:v.get(1),itemTopLabelMarginBottom:`-${v.get(.5)}`,itemPosterOverlayColor:void 0,itemPosterTextShadowColor:void 0,itemPosterGradientColor:void 0},x=(e,t=`tpl-story-list`)=>`--${t?`${t}-`:``}${e}`,S=Object.fromEntries(Object.entries(b).map(([e,t])=>[e,`var(${x(e)}${t===void 0?``:`, ${t}`})`])),C=e=>Object.fromEntries(Object.entries(e).map(([e,t])=>[x(e),t])),w=e=>i(C(e));r();var{itemOuterPaddingBottom:T,itemOuterPaddingTop:E,outerPaddingHorizontal:D}=S;function O({edges:e=[`top`,`right`,`bottom`,`left`],scaleFactor:t=1,mode:n=`padding`}={}){if(t<0&&n===`padding`)throw Error(`Scale factor is ${t}, but CSS doesn't support negative padding! Try setting the \`mode\` parameter to 'margin'.`);let r=new Set(e),a={};return r.has(`top`)&&(a[`${n}Top`]=`calc(${E} * ${t})`),r.has(`right`)&&(a[`${n}Right`]=`calc(${D} * ${t})`),r.has(`bottom`)&&(a[`${n}Bottom`]=`calc(${T} * ${t})`),r.has(`left`)&&(a[`${n}Left`]=`calc(${D} * ${t})`),i(a)}var k=(0,y.createContext)(`trailing`);r();var{itemActionsGap:A,itemContentMediaGap:j,itemPosterGradientColor:M,itemPosterOverlayColor:N,itemPosterTextShadowColor:P}=S,F=i`
+  position: relative;
+`,I=i`
+  ::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: ${N};
+    mix-blend-mode: darken;
+    z-index: 1;
+  }
+`,L=i`
+  ${O()};
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+  gap: ${A};
+`,R=i`
+  display: flex;
+  gap: ${j};
+`,z=i`
+  flex-shrink: 0;
+`,B=i`
+  display: flex;
+  flex-direction: column;
+  gap: ${A};
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  text-shadow: 0 0 clamp(1px, 0.0625rem, 0.0625rem) ${P};
+`,V=i`
+  ${B};
+  justify-content: flex-start;
+  --tpl-story-list-item-overlay-gradient-side: to bottom;
+`,H=i`
+  ${B};
+  justify-content: flex-end;
+  --tpl-story-list-item-overlay-gradient-side: to top;
+`,U=i`
+  background: linear-gradient(
+    var(--tpl-story-list-item-overlay-gradient-side),
+    color-mix(in srgb, transparent, ${M} 20%),
+    color-mix(in srgb, transparent, ${M} 0%)
+  );
+`;r();var W=`
+  --tpl-story-list-item-poster-overlay-color: transparent;
+  --tpl-story-list-item-poster-text-shadow-color: transparent;
+  --tpl-story-list-item-poster-gradient-color: transparent;
+`,G=`
+  --tpl-story-list-item-poster-overlay-color: hsla(0 0% 50% / 0.1);
+  --tpl-story-list-item-poster-text-shadow-color: hsla(0 0 0% / 79%);
+  --tpl-story-list-item-poster-gradient-color: #000;
+`,K={userDefault:i`
+    ${W};
+    ${s(G)};
+  `,alwaysLight:i(W),alwaysDark:i(G),userInverse:i`
+    ${G};
+    ${s(W)};
+  `},q=(0,y.createContext)(!1);r();var J=({mediaPosition:e})=>{let t=(0,y.useContext)(k);return e??t},Y=({mediaPosition:e})=>{switch(J({mediaPosition:e})){case`topFullBleed`:return[`top`,`right`,`left`];case`bottomFullBleed`:return[`right`,`bottom`,`left`];case`leadingFullBleed`:return[`top`,`bottom`,`left`];case`trailingFullBleed`:return[`top`,`right`,`bottom`];case`posterTop`:case`posterBottom`:return[`top`,`right`,`bottom`,`left`];default:return[]}},X=(0,y.forwardRef)(({as:e=`div`,className:t,colorBehavior:r,mediaPosition:i,media:s,children:c,actions:l,sx:p,...m},h)=>{let{colorBehavior:g}=o(),_=r??g,v=d(p),b=Y({mediaPosition:i}),x=J({mediaPosition:i}),S;switch(x){case`leading`:case`leadingFullBleed`:S=`row`;break;case`trailing`:case`trailingFullBleed`:S=`row-reverse`;break;case`top`:case`topFullBleed`:case`posterTop`:case`posterBottom`:S=`column`;break;case`bottom`:case`bottomFullBleed`:S=`column-reverse`;break}let C=x===`posterTop`||x===`posterBottom`,w=C?`div`:e,T=y.createElement(w,{ref:C?void 0:h,className:C?L:n(L,K[_],{[I]:C},t,v),...C?{}:{...m,[u]:f.StoryListItem}},y.createElement(`div`,{className:R,style:{flexDirection:S}},!C&&s&&y.createElement(`div`,{className:n(z,O({edges:b,scaleFactor:-1,mode:`margin`}))},s),y.createElement(`div`,{style:{flexGrow:1}},c)),l),E=C?y.createElement(e,{ref:h,className:n(F,K[_],{[I]:C},t,v),[u]:f.StoryListItem,...m},s,y.createElement(q.Provider,{value:!0},y.createElement(`div`,{className:x===`posterTop`?V:H},y.createElement(`div`,{className:U},T)))):T;return y.createElement(a.Provider,{value:{colorBehavior:_}},y.createElement(k.Provider,{value:x},E))});r();var{itemContentInnerGap:Z,itemTopLabelMarginBottom:Q}=S,$=i`
+  gap: ${Z};
+`,ee=i({font:`${c.semiBold} ${l[0]}/1.25 nyt-franklin, helvetica, arial, sans-serif`,letterSpacing:`0.1em`,textTransform:`uppercase`,margin:`0 0 ${Q}`});r();var te=(0,y.forwardRef)(({children:e,className:t,topLabel:r,summary:i,byline:a,bottomLabel:o,inlineActions:s,...c},l)=>{let d=(0,y.useContext)(q);return y.createElement(_,{ref:l,flexDirection:`column`,className:n(t,$),[u]:f.StoryListItemContent,...c},r&&y.createElement(h,{as:`div`,variant:`Regular`,className:ee,color:`primary`},r),y.createElement(m,{as:`div`,size:18,color:`primary`},e),i&&y.createElement(g,{as:`div`,size:16,color:d?`primary`:`secondary`},i),a&&y.createElement(p,{as:`div`,size:14,color:`primary`},a),o&&y.createElement(h,{as:`div`,variant:`Regular`,color:d?`primary`:`secondary`},o),s)});export{w as a,O as i,X as n,C as o,k as r,S as s,te as t};
+//# sourceMappingURL=StoryListItemContent-B32K-RwM.js.map

@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2022/03/02/crosswords/alpha-wordle-icon-new/alpha-wordle-icon-new-smallSquare252-v3.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "RclGshsnqtzzhsp9f6aJWBQvtJeJM35F6GBpaZ7R49E"
+expires: Tue, 15 Sep 2026 00:58:17 GMT
+fastly-io-info: ifsz=5762 idim=252x252 ifmt=png ofsz=5716 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010214
+fastly-io-transform-stats: ifsz=5762 ofsz=5716 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: aVXIDg==
+x-goog-generation: 1719004093627475
+x-goog-hash: crc32c=aVXIDg==
+x-goog-hash: md5=Sd/MFtIFGWw+7hQ4zKC/2g==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 5762
+x-guploader-uploadid: AJjja9adLZPraur4kI-MuH9cwSFSIhbDP4hv8ZL4L885W4wFL2VL457_-7T3Xm3yIfAtHd1ZrJps8kQ0e53ggw
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+age: 9546
+date: Wed, 18 Nov 2026 14:04:40 GMT
+x-served-by: cache-iad-kcgs7200107-IAD, cache-bfi-kbfi7400111-BFI
+x-cache: HIT, HIT
+x-cache-hits: 21, 0
+x-timer: S1795010681.850560,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 5716

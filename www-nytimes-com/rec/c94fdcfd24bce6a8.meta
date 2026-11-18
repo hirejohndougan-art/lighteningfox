@@ -1,0 +1,34 @@
+GET https://www.nytimes.com/vi-assets/static-assets/chunks/breakpoints-CnkqmFa1.js
+200 OK
+x-amz-id-2: x7Z6cOFFpIhC2FxGtFcWWj97jZ+b7Ws7lHFapwnZYe5Onf0Mn5OytwQuLBnt95z/Vdi0kdaJ39k=
+x-amz-request-id: BTZFQ2GNJSG6N1FX
+server: AmazonS3
+last-modified: Mon, 19 Oct 2026 02:59:20 GMT
+etag: "41de84d63eac53320b9e9167a3ad6667"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: NzNjjQ.CJXqQ0MZrWtpdQnSBoE8Op.7c
+content-type: text/javascript
+x-nyt-debug-map: fastly-info-state=HIT,final-url="/vi-assets/static-assets/chunks/breakpoints-CnkqmFa1.js"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=JI7z3pMNb1qHn-e5NYYnx5,newsTenure=anon_user
+x-nyt-geoip-map: continent=NA,country=US,region=OR,gmt-offset=-700,meridiem=PM,latitude=45.810,longitude=-119.690,city=boardman,postal-code=97818,area-code=458,metro=810
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=JI7z3pMNb1qHn-e5NYYnx5,newsTenure=anon_user
+x-nyt-vars: slideshow-compatibility
+x-origin-time: 2026-10-19 20:02:22 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:30 GMT
+age: 1390529
+x-served-by: cache-lga-kjfk8660041-LGA, cache-bfi-kbfi7400042-BFI
+x-cache: HIT, HIT
+x-cache-hits: 15, 15115
+x-timer: S1795010431.974259,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 201

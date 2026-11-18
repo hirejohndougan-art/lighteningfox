@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Mn as t,Vr as n}from"./vendor-u8E3U9GY.js";var r=e(n()),i=e(t()),a=300;function o(){let[e,t]=(0,r.useState)(void 0),[n,o]=(0,r.useState)(void 0);return(0,r.useEffect)(()=>{let e=(0,i.default)(()=>{t(window.innerHeight),o(window.innerWidth)},a);return t(window.innerHeight),o(window.innerWidth),window.addEventListener(`resize`,e),()=>{window.removeEventListener(`resize`,e)}},[]),{height:e,width:n}}export{o as t};
+//# sourceMappingURL=useWindowDimensionsOnResize-wHEpKF-6.js.map

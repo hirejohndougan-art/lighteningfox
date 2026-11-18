@@ -1,0 +1,2 @@
+import"./disclose-version-DsnmJJEf.js";import"./legacy-O5PKu0gx.js";import{c as r,r as s,t as o,e as p,j as i,m}from"./preload-helper-BIDBWX1N.js";import{cT as c}from"./candidate-DJZLtRxd.js";var n=m("<span> </span>");function T(a){var t=n(),e=r(t);s(t),o(()=>p(e,`† ${c}`)),i(a,t)}export{T as S};
+//# sourceMappingURL=SpecialElectionText-DoU_S9xj.js.map

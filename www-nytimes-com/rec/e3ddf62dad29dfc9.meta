@@ -1,0 +1,18 @@
+GET https://static01.nyt.com/elections-assets/pages/data/2026-11-03/hp-multi.json
+304 Not Modified
+date: Wed, 18 Nov 2026 14:05:40 GMT
+via: 1.1 varnish
+cache-control: max-age=5, stale-if-error=86400, stale-while-revalidate=5, public
+etag: "5ada63d19414299297dcf5c4fce6acbc"
+expires: Wed, 18 Nov 2026 14:04:53 GMT
+age: 2
+x-served-by: cache-bfi-kbfi7400111-BFI
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1795010741.731893,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override

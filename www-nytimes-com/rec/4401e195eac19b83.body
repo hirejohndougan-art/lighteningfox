@@ -1,0 +1,2 @@
+import{i as e}from"./crops-CIwHofkk.js";var t=function(n,r){var i=[];return r.forEach(function(r){if(Array.isArray(r)){var a=t(n,r);a.length>0&&i.push(a.shift())}var o=e(n,r);o&&i.push(o)}),i},n=function(e){var t=e&&(e.crops||e.assetCrops||e.spanImageCrops);return!!(t&&Array.isArray(t))},r=function(e,t){var n=new Date().getFullYear()-1,r=t.match(/\b(2\d{3})\b/);return(e.year<n||e.year<=2023)&&!r?e.year:null};export{r as n,n as r,t};
+//# sourceMappingURL=utils-BQkInLfa.js.map

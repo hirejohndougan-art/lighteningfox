@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/12/arts/-1_33-PCST_S00_OFFSET_BAD-PERSON-CARDI_CLIP_9x16_V4_Thumbs/-1_33-PCST_S00_OFFSET_BAD-PERSON-CARDI_CLIP_9x16_V4_Thumbs-verticalTwoByThree735.png?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "7pGoTWRBFmXyaFDMPgd85T5rMtqgXG1MYyvc5YK8WP8"
+expires: Fri, 13 Nov 2026 20:56:13 GMT
+fastly-io-info: ifsz=988526 idim=735x1103 ifmt=png ofsz=31295 odim=735x1103 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010227
+fastly-io-transform-stats: ifsz=988526 ofsz=31295 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: a/B4nQ==
+x-goog-generation: 1794603255745075
+x-goog-hash: crc32c=a/B4nQ==
+x-goog-hash: md5=jWbP6fX2COyvOvpIxu4h4w==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 988526
+x-guploader-uploadid: AFy3sg1s-e7LYRjcg1SWFlcrV09i75fj_76KKAMp0GlPY0zEr9SxUuOip3Q80dY_Op3NLF78
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:32 GMT
+age: 407059
+x-served-by: cache-iad-kcgs7270044-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 15, 2
+x-timer: S1795010432.171441,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 31295

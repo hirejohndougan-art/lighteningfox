@@ -1,0 +1,27 @@
+GET https://www.nytimes.com/vi-assets/static-assets/icon-cooking_144x144-5a8be1ef711d4ba5e66b0be7a2ca8bfe.webp
+200 OK
+x-amz-id-2: szso7uxu0yTx13o0R+EjYuBmsmtB0cuL4IbTy9HBDtC0w72JcLnpp0MG3nOhHd1+7BaQxyQ3N2HnQ/Z/LW7F71JCO6O5EyyOa+vCZeKcIxw=
+x-amz-request-id: 8HVGCA1A58XRJ50V
+last-modified: Wed, 11 Jun 2025 02:24:59 GMT
+etag: "52dc1622da9acdd8e9d6425b778018a2"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: _mLDJr7yD_u1bnz8_.9k45ryash.T2cz
+content-type: image/webp
+server: AmazonS3
+x-nyt-route: vi-assets
+log-lem-timing: fetch=62842,misspass=203,do_stream=0
+log-lem-origin: shield=LGA,src_ip=157.52.117.33,alternate_path=0,ip=157.52.117.33,port=443,name=shield_ssl_cache_lga21933_LGA,status=200,reason=OK,method=GET,url="/vi-assets/static-assets/icon-cooking_144x144-5a8be1ef711d4ba5e66b0be7a2ca8bfe.webp",host=www.nytimes.com
+x-origin-time: 2025-08-16 05:22:13 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:06:00 GMT
+age: 786857
+x-served-by: cache-lga21933-LGA, cache-bfi-kbfi7400050-BFI
+x-cache: HIT, HIT
+x-cache-hits: 10843, 3
+x-timer: S1795010761.949433,VS0,VE1
+vary: Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, x-nyt-programming-abtest, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 1304

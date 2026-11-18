@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./withErrorBoundary-CPkTM6p9.js";var r=e(t()),i=({children:e,fallback:t=null})=>r.createElement(r.Suspense,{fallback:t},e);i.displayName=`SuspenseWithErrorBoundary`;var a=n(i);export{a as t};
+//# sourceMappingURL=SuspenseWithErrorBoundary-D8tlsrWV.js.map

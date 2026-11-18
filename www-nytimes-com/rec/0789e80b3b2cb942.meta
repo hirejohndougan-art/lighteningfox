@@ -1,0 +1,34 @@
+POST https://samizdat-graphql.nytimes.com/graphql/v2
+200 OK
+x-b3-sampled: 0
+access-control-allow-origin: https://www.nytimes.com
+x-envoy-upstream-service-time: 47
+x-datadog-sampling-priority: 0
+content-type: application/json
+traceparent: 00-000000000000000078be4de36738e4c0-29c2d9a562f4fc10-00
+cache-control: max-age=2,public,stale-while-revalidate=2
+access-control-allow-credentials: true
+x-b3-spanid: 29c2d9a562f4fc10
+x-datadog-parent-id: 3009206805389966352
+server: envoy
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+x-datadog-trace-id: 8700477169211073728
+via: 1.1 varnish, 1.1 varnish
+tracestate: dd=s:0;p:29c2d9a562f4fc10
+access-control-expose-headers: x-nyt-audience-target-flat, x-nyt-continent, x-nyt-country, x-nyt-region, x-nyt-meridiem, x-nyt-gmt-offset, x-nyt-geoip-map
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:02:39 GMT
+age: 0
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=OR
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: 9568dbc5563595d0
+x-samizdat-query-field-errors: 0
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-bfi-krnt7300028-BFI, cache-bfi-krnt7300028-BFI, cache-bfi-krnt7300087-BFI
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795010560.621235,VS0,VE90
+vary: origin
+timing-allow-origin: *
+x-nyt-edge-cache: MISS

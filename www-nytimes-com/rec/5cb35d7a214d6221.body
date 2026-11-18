@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./OverlayContext-CwslwEj8.js";var r=e(t()),i=()=>r.useContext(n);export{i as t};
+//# sourceMappingURL=useOverlayContext-PRoWHbdG.js.map

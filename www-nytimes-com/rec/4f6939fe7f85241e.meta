@@ -1,0 +1,24 @@
+GET https://www.nytimes.com/vi-assets/static-assets/assets/Transcript-DWPLxQHq.css
+200 OK
+x-amz-request-id: ETHCF3TP8HRAJZYR
+x-amz-id-2: TN6NA33QNIlO2cbhBccLwIQmFTYO9F0Vk8Cums256I+uivKtS3mOqWu8JzfUPkW7z9qiRaVoEtQ=
+server: AmazonS3
+last-modified: Mon, 19 Oct 2026 20:50:03 GMT
+etag: "79cd3d0df921ed52da61ae6a639ae603"
+x-amz-version-id: uZ5L0CJI7iV3mtj9ffmjDayztTviWWOr
+cache-control: public,max-age=31536000
+content-type: text/css
+x-amz-server-side-encryption: AES256
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-route: vi-assets
+x-origin-time: 2026-10-19 20:50:04 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:19 GMT
+age: 1652946
+x-served-by: cache-lga-kjfk8660065-LGA, cache-bfi-kbfi7400042-BFI
+x-cache: HIT, HIT
+x-cache-hits: 23, 11968
+x-timer: S1795010419.114677,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

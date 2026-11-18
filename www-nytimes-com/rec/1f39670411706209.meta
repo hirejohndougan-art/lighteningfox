@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/03/multimedia/03hfo-pol-ak-senate-01-gcpq/03hfo-pol-ak-senate-01-gcpq-verticalTwoByThree735.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "nnlxE55iB2YnlVqRfbHIaTrjkIEQPn4GVub7LLwELp4"
+expires: Wed, 18 Nov 2026 07:43:42 GMT
+fastly-io-info: ifsz=160089 idim=735x1103 ifmt=jpeg ofsz=36221 odim=735x1103 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010247
+fastly-io-transform-stats: ifsz=160089 ofsz=36221 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: ND4EQA==
+x-goog-generation: 1794972096349342
+x-goog-hash: crc32c=ND4EQA==
+x-goog-hash: md5=F0yLsit5JeGUMF3ri4Se/Q==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 160089
+x-guploader-uploadid: AFy3sg1uGY-Yf6jEGcdNPzY9NyEZ4FSbsdW_9qo5FuBI8WhpKz27eVzzerYaaU5fMFMHu0LDvvA3HMk
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:32 GMT
+age: 22610
+x-served-by: cache-iad-kcgs7200177-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 11, 2
+x-timer: S1795010432.161448,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 36221

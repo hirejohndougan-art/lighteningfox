@@ -1,0 +1,32 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i,tr as a}from"./vendor-u8E3U9GY.js";import{b as o,g as s,v as c}from"./urls-CWtYYmTD.js";import{n as l}from"./ErrorBoundary-CzLnwvXY.js";import{a as u,i as d,n as f,r as p,t as m}from"./styled-Dn8Ts_Qw.js";import{t as h}from"./ALL_ACCESS_PROMO_REPEATING_248-CCeYJwPL.js";var g=s,_=c,v=`https://www.nytimes.com/activate-access/purchase-confirmation`,y=e=>e.content?.upgrade_offer_purchase_flow||`product_switch`,b=e=>{let t=e.content?.upgrade_offer_id,n=e.offer?.productSwitch?.offerID||``;return t||n},x=e=>e.content?.aa_fp_upgrade_offer_purchase_flow||`product_switch`,S=e=>{let t=e.content?.aa_fp_upgrade_offer_id,n=e.offer?.allAccessFamilyUpgrade?.offerID||``;return t||n},C=e=>e.content?.gm_fp_upgrade_offer_purchase_flow||`product_switch`,w=e=>{let t=e.content?.gm_fp_upgrade_offer_id,n=e.offer?.gamesFamilyUpgrade?.offerID||``;return t||n},T=(e,t,n)=>t===`current_page_redirect_url`?e.withRedirectUri():t===`custom_redirect_url`&&n?e.withRedirectUri({uri:n}):e,E=(e,t,n,r=`current_page_redirect_url`,i)=>{let a=T(o(_).withOfferID(e).withSource(t),r,i);return(n?a.withCampaignID({defaultCampaignID:n}):a).toString()},D=(e,t,n,r=`current_page_redirect_url`,i)=>{let a=T(o(g).withOfferID(e).withSource(t),r,i);return(n?a.withCampaignID({defaultCampaignID:n}):a).toString()},O=(e,t,n,r=`current_page_redirect_url`,i)=>y(e)===`payflow`?D(b(e),t,n,r,i):E(b(e),t,n,r,i),k=(e,t,n,r=`current_page_redirect_url`,i)=>x(e)===`payflow`?D(S(e),t,n,r,i):E(S(e),t,n,r,i),A=(e,t,n,r=`current_page_redirect_url`,i)=>C(e)===`payflow`?D(w(e),t,n,r,i):E(w(e),t,n,r,i),j=()=>o(`https://www.nytimes.com/subscription/family`).withSource(`welcome_ad`).toString(),M=(e,t,n)=>o(`${v}?prtkn=${e}`).withSource(t).withRedirectUri({uri:n}).toString(),N=e(t(),1);r();function P({text:e,isInlaid:t=!1,noMaxWidth:r=!1,isFullWidth:i=!1,classNamePillSpan:a}){return N.createElement(`div`,{className:n({[p]:t,[f]:i})},N.createElement(m,{className:n(t?n(d,u):d,a),noMaxWidth:r},e))}var F={name:`saleUrgencyAllAccess`,onlyTrackWhenVisible:!1,fallback:{content:()=>({copy:`Sale starts now `,theme:`dark`})},campaigns:{[h.name]:{audiences:{sale_period_1_phase_1:{},sale_period_1_phase_2:{},sale_period_1_phase_3:{},sale_period_1_phase_4:{},sale_period_1_phase_5:{},sale_period_1_phase_6:{},sale_period_1_phase_7:{},sale_period_2_phase_1:{},sale_period_2_phase_2:{},sale_period_2_phase_3:{},sale_period_2_phase_4:{},sale_period_2_phase_5:{},sale_period_2_phase_6:{}}}}};function I({preSaleUrgencyText:e}){let{unit:t}=l(F),n=t?.content?.urgencyPhase?.copy??t?.content?.copy??``;return N.createElement(`span`,{"data-testid":`onsite-messaging-unit-${F?.name}`,"data-campaign":t?.campaign,"data-audience":t?.audience},e?`${e} ${n}`:n)}r();var L=i`
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+`,R=i`
+  display: inline-block;
+`,z=a(`s`)`
+  text-decoration: line-through;
+
+  ::before,
+  ::after {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+  ::after {
+    content: ' (end of stricken text) ';
+  }
+
+  ::before {
+    content: ' (start stricken text) ';
+  }
+`;r();function B({oldPrice:e,oldLabel:t=`original price: `,oldPricePrefix:r=``,currentPrice:i,currentLabel:a=`sale price: `,oldPriceClassname:o=``,currentPriceClassname:s=``,currentPriceSecondRow:c=``}){return N.createElement(`span`,{className:n(R,s)},r,N.createElement(z,{className:o},N.createElement(`span`,{className:L},t,`\xA0`),` `,e),N.createElement(`span`,{className:L},a,`\xA0`),` `,i,c&&N.createElement(`span`,null,N.createElement(`br`,null),c))}export{P as a,M as c,F as i,O as l,L as n,k as o,I as r,A as s,B as t,j as u};
+//# sourceMappingURL=Strikethrough-BsUiwXHX.js.map

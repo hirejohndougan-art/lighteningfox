@@ -1,0 +1,13 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,ir as i}from"./vendor-u8E3U9GY.js";import{n as a,t as o}from"./DataTpl-CE538Qxa.js";import{n as s}from"./focus-CAf75FJr.js";import{t as c}from"./Box-DvlvGzpY.js";import{t as l}from"./Link-4KEPZ-OU.js";var u=e(t(),1);r();var d=`tpl-lb`,f=`tpl-lbl`,p=`
+  a[href],
+  area,
+  button:enabled,
+  input:not([type=hidden]):enabled,
+  link[href],
+  object,
+  select:enabled,
+  textarea:enabled,
+  [tabindex],
+  [draggable]
+`,m={[`:where(.${d})`]:{position:`relative`,isolation:`isolate`},[`:where(.${d} :is(${p}):not(.${f}))`]:{position:`relative`,zIndex:1},[`:where(.${d} .${f})`]:s({selectorSuffix:`::before`}),[`:where(.${d} .${f})::before`]:{content:`''`,position:`absolute`,top:0,left:0,height:`100%`,width:`100%`}},h=u.forwardRef(({as:e=l,className:t,...r},i)=>u.createElement(e,{className:n(f,t),ref:i,...r}));r();var g=(0,u.forwardRef)(({children:e,className:t,...n},r)=>u.createElement(c,{className:[d,t].join(` `),ref:r,[a]:o.LinkBox,...n},u.createElement(i,{styles:m}),e)),_=Object.assign(g,{Link:h});export{f as n,_ as t};
+//# sourceMappingURL=LinkBox-2KARgvkA.js.map

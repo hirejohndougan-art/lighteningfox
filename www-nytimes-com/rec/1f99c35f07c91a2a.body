@@ -1,0 +1,2 @@
+import{an as f,ar as r}from"./preload-helper-BIDBWX1N.js";function u(i,t,e,a,l){f&&r();var n=t.$$slots?.[e],s=!1;n===!0&&(n=t[e==="default"?"children":e],s=!0),n===void 0||n(i,s?()=>a:a)}function d(i){const t={};i.children&&(t.default=!0);for(const e in i.$$slots)t[e]=!0;return t}export{d as a,u as s};
+//# sourceMappingURL=slot-Cg78VlvC.js.map

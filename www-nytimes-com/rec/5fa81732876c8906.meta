@@ -1,0 +1,16 @@
+GET https://rumcdn.geoedge.be/b3960cc6-bfd2-4adc-910c-6e917e8a6a0e/grumi-ip.js
+200 OK
+content-type: application/javascript
+age: 815
+date: Wed, 18 Nov 2026 13:47:17 GMT
+server: AmazonS3
+last-modified: Tue, 10 Nov 2026 09:24:39 GMT
+x-amz-server-side-encryption: AES256
+x-amz-version-id: 5_yGGOBDRyDc4KbHtJ.m0LScVVVy35Ss
+cache-control: public, max-age=14400, stale-while-revalidate=14400, immutable
+etag: W/"467735ae517a80012468e506cc1d5825"
+vary: Accept-Encoding
+x-cache: Hit from cloudfront
+via: 1.1 42eb5dfcc641e959ebaf60f01fc7d582.cloudfront.net (CloudFront)
+x-amz-cf-pop: HIO52-P4
+x-amz-cf-id: jaYGrP3-ewhgyEpk-f02efOBDeHGBHXoYZSbHGb62tSMyKX4a3qN7A==

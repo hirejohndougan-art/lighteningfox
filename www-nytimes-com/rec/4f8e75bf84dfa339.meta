@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2018/03/27/books/book-review-album-art-v2/book-review-album-art-v2-thumbLarge-v3.jpg?quality=75&auto=webp&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "x1UhTiw+Mn9z2nns0BtULwmHcPz73QTYo6XcWTw2QSc"
+expires: Wed, 23 Sep 2026 14:00:01 GMT
+fastly-io-info: ifsz=10250 idim=150x150 ifmt=jpeg ofsz=4800 odim=150x150 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010210
+fastly-io-transform-stats: ifsz=10250 ofsz=4800 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: EsOybg==
+x-goog-generation: 1789090994342577
+x-goog-hash: crc32c=EsOybg==
+x-goog-hash: md5=cjEwJ43bqRCDXcDgnJcMnA==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 10250
+x-guploader-uploadid: AJjja9ZWurA4DUsN8AdwtcYk3BtIZQ-Mc3AVEWZhPv41LA1Y8ud0sLniwgfnCWOn-FLWTlSNADOtpvI
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:06:00 GMT
+age: 179343
+x-served-by: cache-iad-kiad7000184-IAD, cache-bfi-kbfi7400111-BFI
+x-cache: HIT, HIT
+x-cache-hits: 31, 3
+x-timer: S1795010761.945349,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 4800

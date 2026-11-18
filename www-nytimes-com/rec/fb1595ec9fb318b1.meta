@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/18/multimedia/18pol-alaska-analysis-HFO-hjwm/18pol-alaska-analysis-HFO-hjwm-threeByTwoSmallAt2X.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "0+hJLxLDRb/Kj6Gr7X3SYBwYAJJeVWXquR3MHFyUWkI"
+expires: Wed, 18 Nov 2026 12:26:45 GMT
+fastly-io-info: ifsz=48680 idim=600x400 ifmt=jpeg ofsz=33669 odim=600x400 ofmt=jpeg
+fastly-io-served-by: img28-us-east4
+fastly-io-transform-stats: ifsz=48680 ofsz=33669 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: osDnKA==
+x-goog-generation: 1795004703973202
+x-goog-hash: crc32c=osDnKA==
+x-goog-hash: md5=HKTnoXK5yFT2grzlSjAZ5w==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 48680
+x-guploader-uploadid: AFy3sg0u-BIm5VCSj4G0uNTgeT9Bmp2eqTMOhG0HrAqx27Abl-V0OfAisFpvSVdhlSdArLUr_M8xKvEsVw1y4w
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+age: 5611
+date: Wed, 18 Nov 2026 14:00:16 GMT
+x-served-by: cache-iad-kiad7000082-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 18, 0
+x-timer: S1795010416.460788,VS0,VE1
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 33669

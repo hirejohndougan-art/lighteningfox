@@ -1,0 +1,2 @@
+import{h as r,y as o}from"./shared-DHv8vizd.js";function c(){const e=r(!1);return o(()=>{const r=window.matchMedia("(prefers-reduced-motion: reduce)"),n=()=>e.value=r.matches;return r.addEventListener("change",n),n(),()=>{r.removeEventListener("change",n)}},[e]),e}export{c as u};
+//# sourceMappingURL=reduced-motion-Qy27cQ1k.js.map

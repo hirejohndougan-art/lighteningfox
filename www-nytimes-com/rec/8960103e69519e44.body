@@ -1,0 +1,2 @@
+import{r as e}from"./useMessageSelection-D4M2CklK.js";function t(t){let n=e({config:{name:t}});return{name:n?.response?.campaign(),reason:n?.response?.reason(),loading:n?.loading,error:n?.error}}export{t};
+//# sourceMappingURL=useSelectionTargeting-o7gjFDFG.js.map

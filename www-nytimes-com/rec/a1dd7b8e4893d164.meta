@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/04/multimedia/VV-Cranberry-Creme-Brulee-BT-fwjq/VV-Cranberry-Creme-Brulee-BT-fwjq-verticalTwoByThree735-v3.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "lo9oEQcQXR1J3jfjnAUc8l/WOh/QuaIS5vX4Mwn8GCs"
+expires: Wed, 18 Nov 2026 12:44:00 GMT
+fastly-io-info: ifsz=339161 idim=735x1102 ifmt=jpeg ofsz=69751 odim=735x1102 ofmt=jpeg
+fastly-io-served-by: img25-us-east4
+fastly-io-transform-stats: ifsz=339161 ofsz=69751 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: ELo6Sg==
+x-goog-generation: 1794865579589951
+x-goog-hash: crc32c=ELo6Sg==
+x-goog-hash: md5=MOYYlptf3KlMBzvKE55xVw==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 339161
+x-guploader-uploadid: AFy3sg2Ysw05GTT9mXahedO7iV4KbcY94-sn-XIlQUCgfrpln9U7-e4ezrilZmEHH2i2-ICcKjN9iOA
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:32 GMT
+age: 4591
+x-served-by: cache-iad-khef600034-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 30, 2
+x-timer: S1795010432.176215,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 69751

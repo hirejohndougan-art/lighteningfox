@@ -1,0 +1,2 @@
+import{er as e,nr as t}from"./vendor-u8E3U9GY.js";e();var n={clip:`rect(0 0 0 0)`,clipPath:`inset(50%)`,height:`1px`,overflow:`hidden`,position:`absolute`,whiteSpace:`nowrap`,width:`1px`},r=t({"&:not(:focus):not(:active)":n});export{n,r as t};
+//# sourceMappingURL=util-VF0a77B-.js.map

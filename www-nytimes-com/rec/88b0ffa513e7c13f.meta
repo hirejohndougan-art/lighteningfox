@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/css/web-fonts.c851560786173ad206e1f76c1901be7e096e8f8b.css
+200 OK
+x-amz-id-2: yqlN7ImBrg6rAWiI29id/Jw7f6lk8qDujgM5hzvJ4caynO1N7N9GWZ/zLZR3w2Mi5/4cSwuYiKA=
+x-amz-request-id: ZQD9P3CH26F2H0K0
+last-modified: Fri, 21 Feb 2025 15:52:04 GMT
+etag: "3801bd4b5a043ac3c812291efa4a8a69"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-amz-version-id: bXr_3lZ_5j0o6B4bvrUGFilCDfxeL5ij
+content-type: text/css; charset=utf-8
+server: AmazonS3
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:13 GMT
+via: 1.1 varnish
+age: 1817085
+x-served-by: cache-bfi-krnt7300075-BFI
+x-cache: HIT
+x-cache-hits: 18233
+x-timer: S1795010414.549800,VS0,VE0
+vary: Accept-Encoding
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *

@@ -1,0 +1,27 @@
+GET https://static01.nyt.com/vi-assets/static-assets/iab-gpp-stub-02a14dbfddf7bec445adfaeef0a17830.js
+200 OK
+x-amz-id-2: pFr7ajJb9Duio6TBnO6Ip1g5SHkLOruc5kz5CHWuh3/g099A8uBL4LwI4TAgp9wDFfkOzs5gfI8=
+x-amz-request-id: ES1VJNQ0GP5S0NQ5
+server: AmazonS3
+last-modified: Mon, 19 Oct 2026 15:26:05 GMT
+etag: "60f0cfbb28aa4f3a97fa982b15188dc9"
+x-amz-server-side-encryption: AES256
+x-amz-meta-last-modified: 1792423564
+x-amz-meta-origin: fides
+cache-control: public,max-age=31536000
+x-amz-version-id: Qnj9bgK4v2VC89ugIcVFd5TUb.3FmjDt
+content-type: text/javascript
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:32 GMT
+age: 2465350
+x-served-by: cache-iad-khef600086-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 105, 89377
+x-timer: S1795010432.319225,VS0,VE0
+vary: Accept-Encoding
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 3834

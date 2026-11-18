@@ -1,0 +1,35 @@
+GET https://static.nytimes.com/email-images/NYT-Newsletters-TheEvening-Icon.jpg
+200 OK
+cache-control: public, max-age=3600
+content-type: image/jpeg
+etag: "VYl973Y5KU+d0YG2jF4GALP4Ei6rYqaHAvuIuVBJVxs"
+expires: Mon, 16 Nov 2026 22:12:57 GMT
+fastly-io-info: ifsz=79730 idim=501x501 ifmt=jpeg ofsz=20795 odim=501x501 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010216
+fastly-io-transform-stats: ifsz=79730 ofsz=20795 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 0gDelw==
+x-goog-generation: 1682952443126693
+x-goog-hash: crc32c=0gDelw==
+x-goog-hash: md5=rdPUDGkQ7ttoZnsCrHLB4Q==
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 79730
+x-guploader-uploadid: AFy3sg3DZelv_83iro-5JAHcNngsxr03YjlyT84eidWMOn_gWcz5KzAm2RQnBf4E6cgeZM-yHlQVabY
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:06:00 GMT
+age: 3166
+x-served-by: cache-iad-kiad7000158-IAD, cache-bfi-kbfi7400020-BFI
+x-cache: HIT, HIT
+x-cache-hits: 7, 2
+x-timer: S1795010761.942412,VS0,VE0
+vary: Accept
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 20795

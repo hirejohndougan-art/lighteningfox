@@ -1,0 +1,34 @@
+GET https://static01.nytimes.com/statsig/config/client-AkrHGgWqd8ygLMakFYSt6a5N7t1RFjTPb6XlY95T3hb.json?k=client-AkrHGgWqd8ygLMakFYSt6a5N7t1RFjTPb6XlY95T3hb&st=js-on-device-eval-client&sv=3.32.3&t=1795010472737&sid=fca51f94-5da1-4f05-a292-56c5586f566e
+200 OK
+content-type: application/json; charset=utf-8
+x-checksum: 
+x-since-time: 1794961902042
+x-cache-hit: false
+x-content-type-options: nosniff
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+permissions-policy: interest-cohort=()
+etag: W/"dcs:1794961902042:gzip:checksum="
+access-control-allow-credentials: true
+access-control-allow-origin: *
+x-nginx-cache: MISS
+statsig-final-byte-size: 39453
+referrer-policy: strict-origin-when-cross-origin
+x-statsig-region: gke-us-east5
+via: 1.1 google, 1.1 varnish, 1.1 varnish
+cf-cache-status: MISS
+server: cloudflare
+cf-ray: a5c2e036282ec968-IAD
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:01:12 GMT
+age: 7
+x-served-by: cache-iad-kcgs7200088-IAD, cache-bfi-kbfi7400065-BFI
+x-cache: HIT, HIT
+x-cache-hits: 2335804, 1
+x-timer: S1795010473.742645,VS0,VE2
+vary: Accept-Encoding,Accept-Encoding
+cache-control: public, max-age=5, stale-while-revalidate=31536000, stale-if-error=31536000
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

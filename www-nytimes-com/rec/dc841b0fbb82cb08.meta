@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/family/cheltenham-small/cheltenham-small-italic-700.4d88cc14057ed010aa281da2202f928c.woff2
+200 OK
+x-amz-id-2: VO48TxLLUTxvs78P7vl8I0Vj7FnYPTNpmXb2gbkcmEUTNm/63E4CwM2xO8D9h+NoN1YO65O4ofPK1K90/XVjKiExvO+pkvhn
+x-amz-request-id: 7PGJDY3QG79EQV1R
+last-modified: Mon, 16 Sep 2024 19:49:44 GMT
+etag: "4d88cc14057ed010aa281da2202f928c"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+x-amz-version-id: tePCYynUyddGb4hJ8oC.eTiLFHR9cUkE
+content-type: binary/octet-stream
+server: AmazonS3
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:18 GMT
+via: 1.1 varnish
+age: 1167664
+x-served-by: cache-bfi-krnt7300075-BFI
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1795010419.671604,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 25128

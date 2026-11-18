@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";var n=e(t()).createContext({isStatsigReady:!1,statsigClient:void 0,statsigUser:{},shouldWaitForAsyncAttributes:()=>!1});export{n as t};
+//# sourceMappingURL=StatsigContext-v-shvLMH.js.map

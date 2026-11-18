@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{n,t as r}from"./breakpoints-CnkqmFa1.js";var i=e(t()),a={SMARTPHONE:`smartphone`,TABLET:`tablet`,DESKTOP:`desktop`},o={[a.SMARTPHONE]:r.BREAKPOINT_S,[a.TABLET]:r.BREAKPOINT_M,[a.DESKTOP]:r.BREAKPOINT_L},s={[a.SMARTPHONE]:n.BREAKPOINT_S,[a.TABLET]:n.BREAKPOINT_M,[a.DESKTOP]:n.BREAKPOINT_L},c=i.createContext({});export{s as i,c as n,o as r,a as t};
+//# sourceMappingURL=DeviceType-BUXPcZTe.js.map

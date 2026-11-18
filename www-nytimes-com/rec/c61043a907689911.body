@@ -1,0 +1,2 @@
+var e=(e,t)=>function(){let n=arguments.length>0&&arguments[0]!==void 0?arguments[0]:`auto`,r=n;return n===`auto`&&(r=typeof window>`u`||!window.matchMedia?`light`:window.matchMedia(`(prefers-color-scheme: dark)`).matches?`dark`:`light`),{light:e,dark:t}[r]};export{e as t};
+//# sourceMappingURL=switchColorTheme-BRnHGOq6.js.map

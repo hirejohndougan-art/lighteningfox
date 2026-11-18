@@ -1,0 +1,21 @@
+OPTIONS https://static01.nyt.com/elections-assets/pages/data/2026-11-03/hp-multi.json
+200 OK
+x-guploader-uploadid: AFy3sg1An8rB3KfkmD3Jr-zginLMVfMrm02Co8QWQp41jO9bxySZR0UB9F1CijigxzXqne1o
+expires: Wed, 18 Nov 2026 14:05:40 GMT
+cache-control: private, max-age=0
+server: UploadServer
+content-type: text/html; charset=UTF-8
+accept-ranges: bytes
+via: 1.1 varnish, 1.1 varnish
+date: Wed, 18 Nov 2026 14:05:40 GMT
+x-served-by: cache-iad-kiad7000046-IAD, cache-bfi-kbfi7400111-BFI
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795010741.640895,VS0,VE82
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: MISS-MISS
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 0

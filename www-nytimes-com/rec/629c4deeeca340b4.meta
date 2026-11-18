@@ -1,0 +1,31 @@
+GET https://static01.nyt.com/elections-assets/pages/data/feeds/ffd36b98-554a-44df-8dfe-e1a867748f00/state-nav/2026-11-03.json
+200 OK
+content-type: application/json
+x-guploader-uploadid: AFy3sg05hq5SX4nKQGu4OpJL8GYIwpNSKskJ8XCLPpB86OxwExg6jHHUcuebwyLS8WijnMuDw4uAEbg
+cache-control: max-age=5, stale-if-error=86400, stale-while-revalidate=5, public
+expires: Tue, 17 Nov 2026 14:30:55 GMT
+last-modified: Tue, 17 Nov 2026 14:30:41 GMT
+etag: "82add576e162f15d0a9566548550f5be"
+x-goog-generation: 1794925841483520
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 10613
+x-goog-hash: crc32c=7XpWNA==
+x-goog-hash: md5=gq3VduFi8V0KlWZUhVD1vg==
+x-amz-checksum-crc32c: 7XpWNA==
+x-goog-storage-class: STANDARD
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:32 GMT
+age: 3
+x-served-by: cache-iad-kiad7000064-IAD, cache-bfi-kbfi7400110-BFI
+x-cache: HIT, HIT
+x-cache-hits: 5397284, 1
+x-timer: S1795010432.451147,VS0,VE1
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT

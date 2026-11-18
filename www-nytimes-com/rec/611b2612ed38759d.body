@@ -1,0 +1,28 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,ar as n,er as r,nr as i}from"./vendor-u8E3U9GY.js";import{_ as a,v as o}from"./lib-Bv-HyjgN.js";import{o as s}from"./color-BkLae2o_.js";import{n as c,r as l,t as u}from"./DataTpl-CE538Qxa.js";import{t as d}from"./colorClass-CbsSU852.js";var f=e(t(),1);r();var p=`icon-light`,m=`icon-dark`,h={get userDefault(){return i`
+      .${p} {
+        ${s(`visibility: hidden;`)}
+      }
+
+      .${m} {
+        visibility: hidden;
+        ${s(`visibility: visible;`)}
+      }
+    `},get alwaysLight(){return i`
+      .${m} {
+        visibility: hidden;
+      }
+    `},get alwaysDark(){return i`
+      .${p} {
+        visibility: hidden;
+      }
+    `},get userInverse(){return i`
+      .${p} {
+        visibility: hidden;
+        ${s(`visibility: visible;`)}
+      }
+
+      .${m} {
+        ${s(`visibility: hidden;`)}
+      }
+    `}};r();var g=[24,20,16,12],_=i({display:`inline`,marginTop:`-0.15em`,height:`0.95em`,verticalAlign:`-0.09em`,width:`0.95em`}),v=i({display:`block`}),y=(0,f.forwardRef)(({"aria-hidden":e,"aria-label":t,className:r,children:i,color:s,colorBehavior:p,role:m,size:g=24,inline:y=!1,sx:b,...x},S)=>{let C=l(b),{colorBehavior:w}=o(),T=p??w,E=m;t&&!E&&(E=`img`);let D=t==null&&e==null||e;return f.createElement(`svg`,{ref:S,width:g,height:g,viewBox:`0 0 ${g} ${g}`,"aria-hidden":D,"aria-label":t,role:E,className:n(d(s,`content`,T),h[T],y?_:v,r,C),[c]:u.Icon,...x},f.createElement(a.Provider,{value:{colorBehavior:T}},i))});export{p as i,g as n,m as r,y as t};
+//# sourceMappingURL=Icon-dIZhg0yy.js.map

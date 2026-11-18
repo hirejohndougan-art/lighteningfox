@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/imperial/imperial-normal-400.6131cd77b6e216c7693ed925f4309ffc.woff2
+200 OK
+x-guploader-uploadid: ADPycdvhknmYUQY1hXuuTBFUxa2nU3a-0Wq3p_KsaPnWNyw4_eadDUjYebLHnE6W7nRtglcoPM3--b8AfTyfG9DYhbPxqWE47yQP
+cache-control: public,max-age=31536000,immutable
+expires: Tue, 16 Jul 2024 11:17:14 GMT
+last-modified: Tue, 17 Jan 2023 21:42:56 GMT
+etag: "6131cd77b6e216c7693ed925f4309ffc"
+x-goog-generation: 1673991776736810
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 26504
+content-type: application/octet-stream
+x-goog-hash: crc32c=ZzOuxA==
+x-goog-hash: md5=YTHNd7biFsdpPtkl9DCf/A==
+x-goog-storage-class: STANDARD
+server: UploadServer
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:18 GMT
+via: 1.1 varnish
+age: 1177367
+x-served-by: cache-bfi-krnt7300075-BFI
+x-cache: HIT
+x-cache-hits: 14296
+x-timer: S1795010419.671051,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 26504

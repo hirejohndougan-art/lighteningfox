@@ -1,0 +1,2 @@
+import{u as n}from"./shared-DHv8vizd.js";function r(){var r;const t=null==(r=n("nyt-betamax"))?void 0:r.player;if(!t)throw new Error("Could not get player context. Is this rendering inside a betamax component?");return t}export{r as u};
+//# sourceMappingURL=use-player-context--R13HrgJ.js.map

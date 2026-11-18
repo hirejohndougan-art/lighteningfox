@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/franklin/franklin-normal-700.91eaf6b5642463af4091160b4bbfdfcb.woff2
+200 OK
+cache-control: public,max-age=31536000,immutable
+expires: Fri, 04 Jul 2025 07:57:08 GMT
+last-modified: Tue, 21 May 2024 20:39:23 GMT
+etag: "91eaf6b5642463af4091160b4bbfdfcb"
+x-goog-generation: 1716323963844009
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 20276
+content-type: application/octet-stream
+x-goog-hash: crc32c=teZvhg==
+x-goog-hash: md5=ker2tWQkY69AkRYLS7/fyw==
+x-goog-storage-class: STANDARD
+x-guploader-uploadid: ACJd0NqF3CpLOTpEo99VSh8rjcxNm32ZElOjWArDGLvrhr9Uw4RtTs-GrQcCrZ_q6dkDpFJfg94
+server: UploadServer
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:18 GMT
+via: 1.1 varnish
+age: 1179037
+x-served-by: cache-bfi-krnt7300075-BFI
+x-cache: HIT
+x-cache-hits: 15358
+x-timer: S1795010419.674348,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 20276

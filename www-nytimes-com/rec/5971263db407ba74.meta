@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2011/05/20/multimedia/music-popcast/music-popcast-thumbLarge-v3.jpg?quality=75&auto=webp&disable=upscale
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "Sj4TDA406T6TzfaIc1fCBS/p68vKiNTAn0LWNq+gmQg"
+expires: Wed, 23 Sep 2026 14:37:48 GMT
+fastly-io-info: ifsz=24419 idim=150x150 ifmt=jpeg ofsz=6103 odim=150x150 ofmt=jpeg
+fastly-io-served-by: img19-us-east4
+fastly-io-transform-stats: ifsz=24419 ofsz=6103 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: VUkWbw==
+x-goog-generation: 1708093536657688
+x-goog-hash: crc32c=VUkWbw==
+x-goog-hash: md5=jSTktUwT+uCRgjlqA0y9BQ==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 24419
+x-guploader-uploadid: AP6rU826KdL3llgKUzsmslodfTiG18K20f0c8TwgEUV_xY7UQKB_w7zGkx1rmLdEqXnhA91b
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:06:00 GMT
+age: 68707
+x-served-by: cache-iad-kiad7000117-IAD, cache-bfi-kbfi7400111-BFI
+x-cache: HIT, HIT
+x-cache-hits: 27, 3
+x-timer: S1795010761.942995,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 6103

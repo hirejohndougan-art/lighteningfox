@@ -1,0 +1,2 @@
+import{Zn as e,er as t}from"./vendor-u8E3U9GY.js";t();var n=function(){var t=e();return!!(t?.language===`es`||t!=null&&t.language?.startsWith(`es-`))};export{n as t};
+//# sourceMappingURL=useSpanish-CVRZvu1F.js.map

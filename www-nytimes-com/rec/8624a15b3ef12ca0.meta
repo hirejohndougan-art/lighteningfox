@@ -1,0 +1,27 @@
+GET https://www.nytimes.com/vi-assets/static-assets/icon-dealbook_144x144-28e8f71aafff426804c3a92b1b176e07.webp
+200 OK
+x-amz-id-2: A4bHnR7SyQb3oLqp8iP9VQGIKgQjaTS19Z1AHEvBDNyWHESIONkkiEJi/98dlT0lCMslX92zZXCxO9Np4SGOd6gBjFnNzK5L6sTEn3bK3/g=
+x-amz-request-id: KYBTF85S5HSQGHC6
+last-modified: Mon, 02 Jun 2025 20:08:59 GMT
+etag: "1b37cfabd6ce4edd45d8158c64192651"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: rQmCQUboKYfgElblvgQueLSR9UiXhUBH
+content-type: image/webp
+server: AmazonS3
+x-nyt-route: vi-assets
+log-lem-timing: fetch=62863,misspass=87,do_stream=0
+log-lem-origin: shield=LGA,src_ip=157.52.117.77,alternate_path=0,ip=157.52.117.77,port=443,name=shield_ssl_cache_lga21977_LGA,status=200,reason=OK,method=GET,url="/vi-assets/static-assets/icon-dealbook_144x144-28e8f71aafff426804c3a92b1b176e07.webp",host=www.nytimes.com
+x-origin-time: 2025-06-02 20:09:24 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:06:00 GMT
+age: 1313393
+x-served-by: cache-lga21977-LGA, cache-bfi-kbfi7400050-BFI
+x-cache: HIT, HIT
+x-cache-hits: 19, 3
+x-timer: S1795010761.943122,VS0,VE1
+vary: Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, x-nyt-programming-abtest, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 1094

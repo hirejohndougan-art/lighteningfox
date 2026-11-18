@@ -1,0 +1,33 @@
+GET https://www.nytimes.com/vi-assets/static-assets/chunks/iterate-DqLG6xm4.js
+200 OK
+x-amz-id-2: ypI31x9uOef3EzopqUcsuWgPvziB8tHaFGcLv94wSOZR0O3lCoJvUIdqImQ9yGwbvJY8+fZ4852HR2GGPVA7Us0uSQN3NL6S
+x-amz-request-id: GXXY1N7B4Q8HG321
+server: AmazonS3
+last-modified: Mon, 19 Oct 2026 19:55:09 GMT
+etag: "ffb69a4e738044bfbba4767c18e270d5"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: u1iO6aPh9padinlJvFlJSxnoAEkx4udU
+content-type: text/javascript
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=HIT,final-url="/vi-assets/static-assets/chunks/iterate-DqLG6xm4.js"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=JI7z3pMNb1qHn-e5NYYnx5,newsTenure=anon_user
+x-nyt-geoip-map: continent=NA,country=US,region=OR,gmt-offset=-700,meridiem=PM,latitude=45.810,longitude=-119.690,city=boardman,postal-code=97818,area-code=458,metro=810
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=JI7z3pMNb1qHn-e5NYYnx5,newsTenure=anon_user
+x-nyt-vars: slideshow-compatibility
+x-origin-time: 2026-10-19 20:02:22 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 14:00:31 GMT
+age: 2352544
+x-served-by: cache-lga-kjfk8660060-LGA, cache-bfi-kbfi7400042-BFI
+x-cache: HIT, HIT
+x-cache-hits: 4, 15375
+x-timer: S1795010431.258002,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT
