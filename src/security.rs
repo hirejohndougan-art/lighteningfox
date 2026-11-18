@@ -183,6 +183,21 @@ impl Csp {
         ok
     }
 
+    /// May the page compile WebAssembly from bytes (`WebAssembly.compile`, `new Module`…)?
+    /// Allowed with no policy, or when `script-src` (else `default-src`) lists
+    /// `'wasm-unsafe-eval'` or `'unsafe-eval'`.
+    pub fn allows_wasm_eval(&self) -> bool {
+        let mut ok = true;
+        for p in &self.policies {
+            let Some((name, list)) = Self::list(p, &["script-src", "default-src"]) else { continue };
+            if !has(list, "'unsafe-eval'") && !has(list, "'wasm-unsafe-eval'") {
+                refused("WebAssembly", name, p.report_only);
+                ok &= p.report_only;
+            }
+        }
+        ok
+    }
+
     /// May a form on the page submit to `url`?
     pub fn allows_form_action(&self, url: &str) -> bool {
         self.directive_ok("form-action", url)
@@ -777,5 +792,16 @@ mod tests {
         assert!(s.scripts && s.forms && !s.same_origin && !s.popups);
         assert_eq!(Sandbox::parse(""), Sandbox::default());
         assert!(!s.and(&Sandbox::parse("allow-forms")).scripts);
+    }
+
+    #[test]
+    fn wasm_unsafe_eval() {
+        assert!(Csp::new("https://s.com/", &[], &[]).allows_wasm_eval());
+        assert!(!Csp::new("https://s.com/", &h("script-src 'self'"), &[]).allows_wasm_eval());
+        assert!(Csp::new("https://s.com/", &h("script-src 'self' 'wasm-unsafe-eval'"), &[]).allows_wasm_eval());
+        assert!(Csp::new("https://s.com/", &h("default-src 'unsafe-eval'"), &[]).allows_wasm_eval());
+        // 'wasm-unsafe-eval' allows WebAssembly, not eval().
+        assert!(!Csp::new("https://s.com/", &h("script-src 'wasm-unsafe-eval'"), &[]).allows_eval());
+        assert!(Csp::new("https://s.com/", &h("img-src 'self'"), &[]).allows_wasm_eval());
     }
 }
