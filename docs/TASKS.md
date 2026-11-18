@@ -1101,7 +1101,9 @@ with no graphics card it draws in software (fine, slower). macOS: real window un
 signing (needs an Apple developer account).
 
 ### X22. Boa: bytecode compiler emits fewer instructions (from batch M)
-**Status:** claimed by main-chat 2026-11-17 14:00 (after X21)
+**Status:** done (main-chat, 2026-11-17 19:40). Property reads on locals, `local op= simple`
+and `return` emit fewer instructions (a summing loop: 11 → 7 per iteration); such loops run 27%
+faster, V8 suite unchanged within noise. Details in `vendor/boa/IRONSWIFT.md`.
 **After:** X21
 **Checklist:** §14 Bytecode compiler optimizations
 **Files:** `vendor/boa/boa_engine/src/bytecompiler`

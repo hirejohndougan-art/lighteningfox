@@ -1021,19 +1021,30 @@ impl<'ctx> ByteCompiler<'ctx> {
                 value.variable(),
                 ic_index.into(),
             );
-        } else if name == &StaticJsStrings::LENGTH {
-            self.bytecode.emit_get_length_property(
-                dst.variable(),
-                value.variable(),
-                ic_index.into(),
-            );
-        } else {
-            self.bytecode.emit_get_property_by_name(
-                dst.variable(),
-                value.variable(),
-                ic_index.into(),
-            );
+            return;
         }
+        self.emit_get_named(dst, value.variable(), ic_index, name == &StaticJsStrings::LENGTH);
+    }
+
+    /// `GetPropertyByName` (or `GetLengthProperty`) reading from any register, such as a local
+    /// variable's own (Ironswift: saves the `Move` into a temporary).
+    fn emit_get_named(&mut self, dst: &Register, value: RegisterOperand, ic_index: u32, length: bool) {
+        if length {
+            self.bytecode.emit_get_length_property(dst.variable(), value, ic_index.into());
+        } else {
+            self.bytecode.emit_get_property_by_name(dst.variable(), value, ic_index.into());
+        }
+    }
+
+    /// `object.name` with the object already in a register.
+    fn emit_get_property_by_name_from(&mut self, dst: &Register, value: RegisterOperand, ident: Sym) {
+        let ic_index = self.ic.len() as u32;
+        let name_index = self.get_or_insert_name(ident);
+        let Constant::String(ref name) = self.constants[name_index as usize].clone() else {
+            unreachable!("there should be a string at index")
+        };
+        self.ic.push(InlineCache::new(name.clone()));
+        self.emit_get_named(dst, value, ic_index, name == &StaticJsStrings::LENGTH);
     }
 
     fn emit_set_property_by_name(
@@ -1476,6 +1487,27 @@ impl<'ctx> ByteCompiler<'ctx> {
                 PropertyAccess::Simple(access) => {
                     let mut compiler = self.position_guard(access.field());
 
+                    // Ironswift: read a local variable's register directly when nothing runs
+                    // between reading the object and using it (`a.b`, `a[i]`, `a[0]`), instead
+                    // of copying it into a temporary first.
+                    let direct = match access.field() {
+                        PropertyAccessField::Const(_) => true,
+                        PropertyAccessField::Expr(key) => matches!(&**key, Expression::Literal(_) | Expression::Identifier(_)),
+                    };
+                    if direct {
+                        compiler.compile_expr_operand(access.target(), |compiler, object| match access.field() {
+                            PropertyAccessField::Const(ident) => {
+                                compiler.emit_get_property_by_name_from(dst, object, ident.sym());
+                            }
+                            PropertyAccessField::Expr(expr) => {
+                                compiler.compile_expr_operand(expr, |compiler, key| {
+                                    compiler.bytecode.emit_get_property_by_value(dst.variable(), key, object, object);
+                                });
+                            }
+                        });
+                        return;
+                    }
+
                     let object = compiler.register_allocator.alloc();
                     compiler.compile_expr(access.target(), &object);
 
@@ -1757,6 +1789,11 @@ impl<'ctx> ByteCompiler<'ctx> {
             }
             Expression::Parenthesized(parenthesized) => {
                 self.compile_expr_for_side_effects(parenthesized.expression());
+            }
+            Expression::Assign(assign) => {
+                let tmp = self.register_allocator.alloc();
+                self.compile_assign_inner(assign, &tmp, true);
+                self.register_allocator.dealloc(tmp);
             }
             _ => {
                 let tmp = self.register_allocator.alloc();

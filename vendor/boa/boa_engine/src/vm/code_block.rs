@@ -938,6 +938,22 @@ impl CodeBlock {
     }
 }
 
+impl CodeBlock {
+    /// This code block and every function nested in it, disassembled (Ironswift: for
+    /// `examples/bcdump.rs`, to look at what the compiler emits).
+    #[must_use]
+    pub fn disassemble_all(&self) -> String {
+        let mut out = self.to_string();
+        for c in &self.constants {
+            if let Constant::Function(code) = c {
+                out.push('\n');
+                out.push_str(&code.disassemble_all());
+            }
+        }
+        out
+    }
+}
+
 impl Display for CodeBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.name();

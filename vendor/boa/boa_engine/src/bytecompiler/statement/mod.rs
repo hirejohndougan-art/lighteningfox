@@ -77,6 +77,15 @@ impl ByteCompiler<'_> {
                         self.register_allocator.dealloc(resume_kind);
                         self.push_from_register(&value);
                         self.register_allocator.dealloc(value);
+                    } else if self.return_jump_record_actions().iter().all(|a| matches!(a, JumpRecordAction::PopEnvironments { count: 0 })) {
+                        // Ironswift: nothing to unwind (no finally, no iterator to close, no
+                        // environment to pop), so the value goes straight to the accumulator
+                        // instead of through the stack (Push, Pop, SetAccumulator).
+                        self.compile_expr_operand(expr, |compiler, value| {
+                            compiler.bytecode.emit_set_accumulator(value);
+                        });
+                        self.r#return(false);
+                        return;
                     } else {
                         self.compile_expr_to_stack(expr);
                     }

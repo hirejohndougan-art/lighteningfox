@@ -1,6 +1,6 @@
 use crate::{
-    bytecompiler::{Access, BindingAccessOpcode, ByteCompiler, Label, Register, ToJsString},
-    vm::opcode::BindingOpcode,
+    bytecompiler::{Access, BindingAccessOpcode, BindingKind, ByteCompiler, Label, Register, ToJsString},
+    vm::opcode::{BindingOpcode, RegisterOperand},
 };
 use boa_ast::{
     Expression,
@@ -13,6 +13,12 @@ use boa_ast::{
 
 impl ByteCompiler<'_> {
     pub(crate) fn compile_assign(&mut self, assign: &Assign, dst: &Register) {
+        self.compile_assign_inner(assign, dst, false);
+    }
+
+    /// `discard`: the assignment's value isn't used (an expression statement), so it needn't be
+    /// copied into `dst` where that would cost an instruction.
+    pub(crate) fn compile_assign_inner(&mut self, assign: &Assign, dst: &Register, discard: bool) {
         let mut compiler = self.position_guard(assign);
 
         if assign.op() == AssignOp::Assign {
@@ -140,6 +146,54 @@ impl ByteCompiler<'_> {
                         .get_identifier_reference(name.clone());
                     let is_lexical = binding.is_lexical();
                     let index = compiler.get_binding(&binding);
+
+                    // Ironswift: `local op= simple` (s += a[i], n *= 2) works on the local's own
+                    // register: `Add s, s, x; Move dst, s` instead of copying s out and back. Only
+                    // when the right side can't assign to the local (no assignment can hide in a
+                    // literal, a name or a property read of those), and the local can be written.
+                    let simple = |e: &Expression| match e {
+                        Expression::Literal(_) | Expression::Identifier(_) => true,
+                        Expression::PropertyAccess(PropertyAccess::Simple(a)) => {
+                            matches!(a.target(), Expression::Identifier(_) | Expression::This(_))
+                                && match a.field() {
+                                    PropertyAccessField::Const(_) => true,
+                                    PropertyAccessField::Expr(k) => {
+                                        matches!(&**k, Expression::Literal(_) | Expression::Identifier(_))
+                                    }
+                                }
+                        }
+                        _ => false,
+                    };
+                    if let BindingKind::Local(Some(local)) = &index
+                        && !short_circuit
+                        && simple(assign.rhs())
+                        && (!is_lexical || compiler.lexical_scope.is_binding_mutable(&name) == Some(true))
+                    {
+                        let local = RegisterOperand::from(*local);
+                        let op = assign.op();
+                        compiler.compile_expr_operand(assign.rhs(), |compiler, rhs| {
+                            let b = &mut compiler.bytecode;
+                            match op {
+                                AssignOp::Add => b.emit_add(local, local, rhs),
+                                AssignOp::Sub => b.emit_sub(local, local, rhs),
+                                AssignOp::Mul => b.emit_mul(local, local, rhs),
+                                AssignOp::Div => b.emit_div(local, local, rhs),
+                                AssignOp::Mod => b.emit_mod(local, local, rhs),
+                                AssignOp::Exp => b.emit_pow(local, local, rhs),
+                                AssignOp::And => b.emit_bit_and(local, local, rhs),
+                                AssignOp::Or => b.emit_bit_or(local, local, rhs),
+                                AssignOp::Xor => b.emit_bit_xor(local, local, rhs),
+                                AssignOp::Shl => b.emit_shift_left(local, local, rhs),
+                                AssignOp::Shr => b.emit_shift_right(local, local, rhs),
+                                AssignOp::Ushr => b.emit_unsigned_shift_right(local, local, rhs),
+                                _ => unreachable!(),
+                            }
+                        });
+                        if !discard {
+                            compiler.bytecode.emit_move(dst.variable(), local);
+                        }
+                        return;
+                    }
 
                     if is_lexical {
                         compiler.emit_binding_access(BindingAccessOpcode::GetName, &index, dst);

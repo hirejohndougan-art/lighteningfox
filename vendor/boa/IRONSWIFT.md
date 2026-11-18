@@ -95,6 +95,32 @@ RayTrace −6%, Splay −8%, EarleyBoyer −8%, RegExp −1%, NavierStokes +1%, 
 With changes 6 and 7 as well: Richards −9%, DeltaBlue −12%, RayTrace −6%, Splay −8%,
 EarleyBoyer −15%, RegExp −2%, NavierStokes −4%, Crypto −4%.
 
+### Bytecode compiler: fewer register moves (X22)
+
+`cargo run --release --example bcdump -- file.js` prints the bytecode for a script and every
+function in it (`CodeBlock::disassemble_all`, added for this). Three changes, all in
+`boa_engine/src/bytecompiler`:
+
+- **Property reads use a local's own register** (`mod.rs`, `PropertyAccess::Simple`): `p.x`,
+  `a[i]` and `a[0]` on a local variable read its register directly instead of first copying it
+  into a temporary (`Move`). Only when nothing runs between reading the object and using it: a
+  constant name, or a key that is a literal or a name.
+- **`local op= simple`** (`expression/assign.rs`): `s += a[i]`, `n *= 2` compute in the local's
+  register (`Add s, s, x`) instead of copying out and back; as a statement the result isn't
+  copied at all (`compile_assign_inner(.., discard)`). Only when the right side can't assign to
+  the local (a literal, a name, or a property read of a name or `this` with a literal or name
+  key), the binding is writable (so `const` still throws), and it lives in a register (not
+  captured by a closure).
+- **`return x` straight to the accumulator** (`statement/mod.rs`) when there's nothing to unwind
+  (no `finally`, no iterator to close, no environment to pop), instead of Push, Pop and
+  SetAccumulator.
+
+A `for` loop summing an array went from 11 instructions per iteration to 7. Timing: loops with
+property reads 27% faster (1.48 s → 1.07 s, `sum`/`dist` microbenchmark); the V8 suite is
+unchanged within noise (Richards about +15%). Checked with Boa's 1,116 engine tests, Ironswift's
+tests and edge cases (assignment inside the right side, `const`, captured variables, getters,
+`finally`, `for…of`, generators, async, BigInt).
+
 ## Testing changes
 
 Boa's own tests need its workspace: clone `boa-dev/boa` at tag `v0.22`, copy a changed crate's
