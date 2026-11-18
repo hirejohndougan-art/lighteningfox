@@ -16,7 +16,7 @@ mod blit;
 use crate::webgl_raster::{g, Attr, AttrSrc, BufState, Pipeline, RState, StencilFace, Target, MAX_DRAW_BUFFERS};
 use crate::webgl_tf::{Tf, TfVar};
 use crate::webgl_tex::{self as tex, e, Fmt, Image, Num, Sampler, TexParams, Texture, Unpack, UnitView};
-use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsDataView, JsFloat32Array, JsInt32Array, JsTypedArray, JsUint32Array};
+use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsDataView, JsFloat32Array, JsInt32Array, JsSharedArrayBuffer, JsTypedArray, JsUint32Array};
 use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction, Source};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -313,6 +313,8 @@ pub struct Gl {
     seed: u32,
     /// WEBGL_compressed_texture_s3tc (and _srgb) enabled.
     s3tc: bool,
+    /// The ETC1, ETC2/EAC and RGTC compressed-texture extensions enabled.
+    etc_families: Vec<crate::webgl_etc::Family>,
 }
 
 fn fb_fmt(alpha: bool) -> Fmt {
@@ -389,6 +391,7 @@ impl Gl {
             hints: HashMap::new(),
             seed,
             s3tc: false,
+            etc_families: Vec::new(),
         };
         gl.alloc_default();
         gl
@@ -1775,24 +1778,25 @@ fn string(a: &[JsValue], i: usize, ctx: &mut Context) -> String {
 /// The bytes an ArrayBuffer, typed array or DataView covers.
 fn view_bytes(v: Option<&JsValue>, ctx: &mut Context) -> Option<Vec<u8>> {
     let o = v?.as_object()?;
+    // A view's buffer may be an ArrayBuffer or a SharedArrayBuffer.
+    let whole = |b: JsValue| -> Option<Vec<u8>> {
+        let bo = b.as_object()?.clone();
+        if let Ok(ab) = JsArrayBuffer::from_object(bo.clone()) {
+            return ab.data().map(|d| d.to_vec());
+        }
+        JsSharedArrayBuffer::from_object(bo).ok().map(|sb| sb.to_vec())
+    };
     if let Ok(arr) = JsTypedArray::from_object(o.clone()) {
-        let buf = arr.buffer(ctx).ok()?;
-        let buf = JsArrayBuffer::from_object(buf.as_object()?.clone()).ok()?;
+        let data = whole(arr.buffer(ctx).ok()?)?;
         let (off, len) = (arr.byte_offset(ctx).ok()?, arr.byte_length(ctx).ok()?);
-        let data = buf.data()?;
         return data.get(off..off + len).map(|b| b.to_vec());
     }
     if let Ok(dv) = JsDataView::from_object(o.clone()) {
-        let buf = dv.buffer(ctx).ok()?;
-        let buf = JsArrayBuffer::from_object(buf.as_object()?.clone()).ok()?;
+        let data = whole(dv.buffer(ctx).ok()?)?;
         let (off, len) = (dv.byte_offset(ctx).ok()? as usize, dv.byte_length(ctx).ok()? as usize);
-        let data = buf.data()?;
         return data.get(off..off + len).map(|b| b.to_vec());
     }
-    if let Ok(buf) = JsArrayBuffer::from_object(o.clone()) {
-        return buf.data().map(|d| d.to_vec());
-    }
-    None
+    whole(JsValue::from(o.clone()))
 }
 
 /// Write bytes into a typed array view starting at byte `at`.
@@ -2699,7 +2703,7 @@ fn n_tex_storage(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         if levels < 1 || w < 1 || h < 1 {
             return gl.error(INVALID_VALUE);
         }
-        let compressed = if gl.s3tc { tex::compressed_format(internal).map(|c| c.0) } else { None };
+        let compressed = gl.compressed_fmt(internal).map(|c| c.0);
         let Some(fmt) = tex::sized_format(internal, gl.v2).or(compressed) else { return gl.error(INVALID_ENUM) };
         if target == e::TEXTURE_3D && (fmt.depth || fmt.stencil || compressed.is_some()) {
             return gl.error(INVALID_OPERATION);
@@ -2924,7 +2928,8 @@ fn n_generate_mipmap(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<
         if !v2 && (!b.w.is_power_of_two() || !b.h.is_power_of_two()) {
             return gl.error(INVALID_OPERATION);
         }
-        if b.fmt.depth || b.fmt.is_integer() {
+        let compressed = tex::compressed_format(b.fmt.internal).is_some() || crate::webgl_etc::format(b.fmt.internal).is_some();
+        if b.fmt.depth || b.fmt.is_integer() || compressed {
             return gl.error(INVALID_OPERATION);
         }
         if !t.generate_mipmap() {
@@ -4931,15 +4936,30 @@ fn n_enable_ext(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVal
         if name == "OES_draw_buffers_indexed" {
             gl.draw_buffers_indexed = true;
         }
+        use crate::webgl_etc::Family;
+        let fam = match name.as_str() {
+            "WEBGL_compressed_texture_etc1" => Some(Family::Etc1),
+            "WEBGL_compressed_texture_etc" => Some(Family::Etc),
+            "EXT_texture_compression_rgtc" => Some(Family::Rgtc),
+            _ => None,
+        };
+        if let Some(f) = fam {
+            gl.etc_families.push(f);
+        }
     });
     undef()
 }
 
 /// __glCompressedTexImage(cid, target, level, internal, w, h, d, border, data, sub, [x, y, z])
+/// __glCompressedTexImage(cid, target, level, internal, w, h, d, border, data, sub, [x, y, z],
+/// pbo, offset, size): compressedTex(Sub)Image2D/3D; with `pbo` the data is `size` bytes at
+/// `offset` in the PIXEL_UNPACK_BUFFER.
 fn n_compressed_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let (target, level, internal) = (u(a, 1, ctx), int(a, 2, ctx), u(a, 3, ctx));
-    let (w, h, d, border) = (int(a, 4, ctx), int(a, 5, ctx), int(a, 6, ctx).max(1), int(a, 7, ctx));
-    let data = view_bytes(a.get(8), ctx);
+    let (w, h, d, border) = (int(a, 4, ctx), int(a, 5, ctx), int(a, 6, ctx), int(a, 7, ctx));
+    let pbo = boolean(a, 11);
+    let data = if pbo { None } else { view_bytes(a.get(8), ctx) };
+    let (pbo_off, pbo_size) = (num(a, 12, ctx), num(a, 13, ctx));
     let sub = boolean(a, 9);
     let offs: Vec<i32> = a
         .get(10)
@@ -4948,31 +4968,68 @@ fn n_compressed_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRe
         .map(|arr| (0..3).map(|i| arr.get(i, ctx).ok().and_then(|v| v.to_number(ctx).ok()).unwrap_or(0.0) as i32).collect())
         .unwrap_or(vec![0, 0, 0]);
     with_gl(a, ctx, |gl| {
-        let Some((fmt, _)) = tex::compressed_format(internal).filter(|_| gl.s3tc) else { return gl.error(INVALID_ENUM) };
-        if level < 0 || w < 0 || h < 0 || border != 0 || !size_ok(target, level, w, h, 1) {
+        let unpack_buf = gl.pixel_buffer(PIXEL_UNPACK_BUFFER);
+        if (unpack_buf != 0) != pbo {
+            return gl.error(INVALID_OPERATION);
+        }
+        let Some((fmt, codec)) = gl.compressed_fmt(internal) else { return gl.error(INVALID_ENUM) };
+        let array = target == 0x8C1A; // TEXTURE_2D_ARRAY
+        if target == e::TEXTURE_3D {
+            return gl.error(INVALID_OPERATION);
+        }
+        let d = if array { d } else { 1 };
+        if level < 0 || w < 0 || h < 0 || d < 0 || border != 0 || !size_ok(target, level, w, h, 1) {
             return gl.error(INVALID_VALUE);
         }
-        let Some(data) = data else { return gl.error(INVALID_VALUE) };
+        let data = if pbo {
+            let buf = gl.buf(unpack_buf).map(|b| b.data.clone()).unwrap_or_default();
+            if pbo_off < 0.0 || pbo_size < 0.0 || pbo_off + pbo_size > buf.len() as f64 {
+                return gl.error(INVALID_OPERATION);
+            }
+            buf[pbo_off as usize..(pbo_off + pbo_size) as usize].to_vec()
+        } else {
+            let Some(data) = data else { return gl.error(INVALID_VALUE) };
+            data
+        };
+        // S3TC and RGTC: the implied base level must be whole blocks (ETC has no such rule).
+        let whole_blocks = |v: i32| ((v as i64) << level.min(30)) % 4 == 0;
+        if !sub && !matches!(codec, Codec::Etc(crate::webgl_etc::Family::Etc1 | crate::webgl_etc::Family::Etc, _)) && (!whole_blocks(w) || !whole_blocks(h)) {
+            return gl.error(INVALID_OPERATION);
+        }
         let Some((id, face)) = gl.image_target(target) else { return };
-        let v2 = gl.v2;
-        let _ = v2;
-        if tex::compressed_size(internal, w as u32, h as u32) != Some(data.len() / d as usize) {
+        // A sub-image must be in the level's own format (checked before the data size).
+        if sub && gl.texture(id).and_then(|t| t.level(face, level as usize)).is_some_and(|img| img.fmt.internal != internal) {
+            return gl.error(INVALID_OPERATION);
+        }
+        let slice = (w as usize).div_ceil(4) * (h as usize).div_ceil(4) * codec.block();
+        if data.len() != slice * d.max(0) as usize {
             return gl.error(INVALID_VALUE);
         }
-        let Some(px) = tex::decode_s3tc(&data, w as u32, h as u32, internal) else { return gl.error(INVALID_VALUE) };
+        let mut px = Vec::with_capacity((w * h * d.max(0)) as usize);
+        for z in 0..d.max(0) as usize {
+            let Some(p) = codec.decode(&data[z * slice..(z + 1) * slice], w as u32, h as u32, internal) else { return gl.error(INVALID_VALUE) };
+            px.extend(p);
+        }
         if sub {
+            // ETC1 images can't be partly replaced.
+            if matches!(codec, Codec::Etc(crate::webgl_etc::Family::Etc1, _)) {
+                return gl.error(INVALID_OPERATION);
+            }
             let Some(t) = gl.texture_mut(id) else { return };
             let Some(Some(img)) = t.faces.get_mut(face).and_then(|f| f.get_mut(level as usize)) else { return gl.error(INVALID_OPERATION) };
-            let (x, y) = (offs[0], offs[1]);
+            let (x, y, z) = (offs[0], offs[1], offs[2]);
             if img.fmt.internal != internal || x % 4 != 0 || y % 4 != 0 || (w % 4 != 0 && x + w != img.w as i32) || (h % 4 != 0 && y + h != img.h as i32) {
                 return gl.error(INVALID_OPERATION);
             }
-            if x < 0 || y < 0 || x + w > img.w as i32 || y + h > img.h as i32 {
+            if x < 0 || y < 0 || z < 0 || x + w > img.w as i32 || y + h > img.h as i32 || z + d > img.d as i32 {
                 return gl.error(INVALID_VALUE);
             }
-            for yy in 0..h {
-                for xx in 0..w {
-                    img.px[((y + yy) as u32 * img.w + (x + xx) as u32) as usize] = px[(yy * w + xx) as usize];
+            for zz in 0..d {
+                for yy in 0..h {
+                    for xx in 0..w {
+                        let di = (((z + zz) as u32 * img.h + (y + yy) as u32) * img.w + (x + xx) as u32) as usize;
+                        img.px[di] = px[((zz * h + yy) * w + xx) as usize];
+                    }
                 }
             }
             return;
@@ -4981,10 +5038,42 @@ fn n_compressed_tex_image(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRe
             if t.immutable {
                 return gl.error(INVALID_OPERATION);
             }
-            t.set_level(face, level as usize, Image { w: w as u32, h: h as u32, d: 1, fmt, px, st: Vec::new() });
+            t.set_level(face, level as usize, Image { w: w as u32, h: h as u32, d: d.max(1) as u32, fmt, px, st: Vec::new() });
         }
     });
     undef()
+}
+
+/// How a compressed format's blocks are decoded.
+#[derive(Clone, Copy, PartialEq)]
+enum Codec {
+    S3tc(usize),
+    Etc(crate::webgl_etc::Family, usize),
+}
+
+impl Codec {
+    fn block(&self) -> usize {
+        match self {
+            Codec::S3tc(b) | Codec::Etc(_, b) => *b,
+        }
+    }
+    fn decode(&self, data: &[u8], w: u32, h: u32, internal: u32) -> Option<Vec<[f32; 4]>> {
+        match self {
+            Codec::S3tc(_) => tex::decode_s3tc(data, w, h, internal),
+            Codec::Etc(..) => crate::webgl_etc::decode(data, w, h, internal),
+        }
+    }
+}
+
+impl Gl {
+    /// A compressed format whose extension is enabled: its storage format and codec.
+    fn compressed_fmt(&self, internal: u32) -> Option<(Fmt, Codec)> {
+        if let Some((f, block)) = tex::compressed_format(internal).filter(|_| self.s3tc) {
+            return Some((f, Codec::S3tc(block)));
+        }
+        let (f, block, fam) = crate::webgl_etc::format(internal)?;
+        self.etc_families.contains(&fam).then_some((f, Codec::Etc(fam, block)))
+    }
 }
 
 #[cfg(test)]

@@ -257,10 +257,12 @@
     "OES_standard_derivatives", "OES_texture_float", "OES_texture_float_linear", "OES_texture_half_float",
     "OES_texture_half_float_linear", "OES_vertex_array_object", "WEBGL_color_buffer_float", "WEBGL_depth_texture",
     "WEBGL_draw_buffers", "WEBGL_lose_context", "KHR_parallel_shader_compile", "WEBGL_compressed_texture_s3tc",
-    "WEBGL_compressed_texture_s3tc_srgb"];
+    "WEBGL_compressed_texture_s3tc_srgb", "WEBGL_compressed_texture_etc", "WEBGL_compressed_texture_etc1",
+    "EXT_texture_compression_rgtc"];
   const EXT2 = ["EXT_color_buffer_float", "EXT_color_buffer_half_float", "EXT_float_blend", "EXT_texture_filter_anisotropic",
     "OES_texture_float_linear", "WEBGL_lose_context", "KHR_parallel_shader_compile", "OES_draw_buffers_indexed",
-    "WEBGL_compressed_texture_s3tc", "WEBGL_compressed_texture_s3tc_srgb"];
+    "WEBGL_compressed_texture_s3tc", "WEBGL_compressed_texture_s3tc_srgb", "WEBGL_compressed_texture_etc",
+    "WEBGL_compressed_texture_etc1", "EXT_texture_compression_rgtc"];
   P.getSupportedExtensions = function () { return (this.__v2 ? EXT2 : EXT1).slice(); };
   P.getExtension = function (name) {
     name = String(name);
@@ -306,6 +308,25 @@
         x = { COMPRESSED_SRGB_S3TC_DXT1_EXT: 0x8c4c, COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT: 0x8c4d, COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT: 0x8c4e, COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: 0x8c4f };
         __glEnableExt(this.__cid, real);
         this.__compressed = (this.__compressed || []).concat([0x8c4c, 0x8c4d, 0x8c4e, 0x8c4f]);
+        break;
+      case "WEBGL_compressed_texture_etc1":
+        x = { COMPRESSED_RGB_ETC1_WEBGL: 0x8d64 };
+        __glEnableExt(this.__cid, real);
+        this.__compressed = (this.__compressed || []).concat([0x8d64]);
+        break;
+      case "WEBGL_compressed_texture_etc":
+        x = { COMPRESSED_R11_EAC: 0x9270, COMPRESSED_SIGNED_R11_EAC: 0x9271, COMPRESSED_RG11_EAC: 0x9272,
+          COMPRESSED_SIGNED_RG11_EAC: 0x9273, COMPRESSED_RGB8_ETC2: 0x9274, COMPRESSED_SRGB8_ETC2: 0x9275,
+          COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2: 0x9276, COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2: 0x9277,
+          COMPRESSED_RGBA8_ETC2_EAC: 0x9278, COMPRESSED_SRGB8_ALPHA8_ETC2_EAC: 0x9279 };
+        __glEnableExt(this.__cid, real);
+        this.__compressed = (this.__compressed || []).concat([0x9270, 0x9271, 0x9272, 0x9273, 0x9274, 0x9275, 0x9276, 0x9277, 0x9278, 0x9279]);
+        break;
+      case "EXT_texture_compression_rgtc":
+        x = { COMPRESSED_RED_RGTC1_EXT: 0x8dbb, COMPRESSED_SIGNED_RED_RGTC1_EXT: 0x8dbc,
+          COMPRESSED_RED_GREEN_RGTC2_EXT: 0x8dbd, COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT: 0x8dbe };
+        __glEnableExt(this.__cid, real);
+        this.__compressed = (this.__compressed || []).concat([0x8dbb, 0x8dbc, 0x8dbd, 0x8dbe]);
         break;
       case "WEBGL_lose_context":
         x = {
@@ -439,23 +460,26 @@
     const es = v.BYTES_PER_ELEMENT || 1;
     return off || len ? u8.subarray((off || 0) * es, len ? ((off || 0) + len) * es : undefined) : u8;
   };
+  // A number for data (WebGL 2) means (imageSize, offset) in the bound PIXEL_UNPACK_BUFFER.
   P.compressedTexImage2D = function (t, level, internal, w, h, border, data, off, len) {
     if (arguments.length < 7) throw new TypeError("compressedTexImage2D: not enough arguments");
-    if (typeof data === "number") return this.__err(0x502);
+    if (typeof data === "number") return __glCompressedTexImage(this.__cid, t, level, internal, w, h, 1, border, null, false, [0, 0, 0], true, off || 0, data);
     __glCompressedTexImage(this.__cid, t, level, internal, w, h, 1, border, view(data, off, len), false, [0, 0, 0]);
   };
   P.compressedTexSubImage2D = function (t, level, x, y, w, h, format, data, off, len) {
     if (arguments.length < 8) throw new TypeError("compressedTexSubImage2D: not enough arguments");
-    if (typeof data === "number") return this.__err(0x502);
+    if (typeof data === "number") return __glCompressedTexImage(this.__cid, t, level, format, w, h, 1, 0, null, true, [x, y, 0], true, off || 0, data);
     __glCompressedTexImage(this.__cid, t, level, format, w, h, 1, 0, view(data, off, len), true, [x, y, 0]);
   };
-  P.compressedTexImage3D = function (t, level, internal, w, h, d, border, data) {
+  P.compressedTexImage3D = function (t, level, internal, w, h, d, border, data, off, len) {
     if (arguments.length < 8) throw new TypeError("compressedTexImage3D: not enough arguments");
-    this.__err(0x500);
+    if (typeof data === "number") return __glCompressedTexImage(this.__cid, t, level, internal, w, h, d, border, null, false, [0, 0, 0], true, off || 0, data);
+    __glCompressedTexImage(this.__cid, t, level, internal, w, h, d, border, view(data, off, len), false, [0, 0, 0]);
   };
-  P.compressedTexSubImage3D = function (t, level, x, y, z, w, h, d, format, data) {
+  P.compressedTexSubImage3D = function (t, level, x, y, z, w, h, d, format, data, off, len) {
     if (arguments.length < 10) throw new TypeError("compressedTexSubImage3D: not enough arguments");
-    this.__err(0x500);
+    if (typeof data === "number") return __glCompressedTexImage(this.__cid, t, level, format, w, h, d, 0, null, true, [x, y, z], true, off || 0, data);
+    __glCompressedTexImage(this.__cid, t, level, format, w, h, d, 0, view(data, off, len), true, [x, y, z]);
   };
 
   // ---- samplers (WebGL 2)

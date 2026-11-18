@@ -40,6 +40,7 @@ mod geometry;
 // finished, then these allows come off (see R3 in docs/TASKS.md).
 mod webgl;
 mod webgl_raster;
+mod webgl_etc;
 mod webgl_tf;
 mod webgl_tex;
 mod glsl;

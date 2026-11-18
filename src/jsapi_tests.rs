@@ -1200,3 +1200,42 @@ fn image_bitmap_options_reach_webgl() {
     );
     assert_eq!(r.trim_matches('"'), "1x2:255 0 0 0,1x2:0 128 0 128,1x1:0 255 0 128");
 }
+
+/// Compressed textures: the ETC/RGTC extensions, uploads from a pixel buffer and from shared
+/// memory, and the block-size and sub-image rules.
+#[test]
+fn webgl2_compressed_texture_rules() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const s3tc = gl.getExtension("WEBGL_compressed_texture_s3tc");
+            const etc1 = gl.getExtension("WEBGL_compressed_texture_etc1");
+            const etc = gl.getExtension("WEBGL_compressed_texture_etc");
+            const rgtc = gl.getExtension("EXT_texture_compression_rgtc");
+            out.push(!!(etc1 && etc && rgtc));
+            gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+            gl.compressedTexImage2D(gl.TEXTURE_2D, 0, etc.COMPRESSED_RGBA8_ETC2_EAC, 4, 4, 0, new Uint8Array(new SharedArrayBuffer(16)));
+            out.push(gl.getError());
+            gl.compressedTexImage2D(gl.TEXTURE_2D, 0, s3tc.COMPRESSED_RGBA_S3TC_DXT5_EXT, 3, 4, 0, new Uint8Array(16));
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.compressedTexImage2D(gl.TEXTURE_2D, 0, etc1.COMPRESSED_RGB_ETC1_WEBGL, 4, 4, 0, new Uint8Array(8));
+            gl.compressedTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4, 4, etc1.COMPRESSED_RGB_ETC1_WEBGL, new Uint8Array(8));
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.generateMipmap(gl.TEXTURE_2D);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            const pbo = gl.createBuffer();
+            gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, pbo);
+            gl.bufferData(gl.PIXEL_UNPACK_BUFFER, 16, gl.STATIC_DRAW);
+            gl.compressedTexImage2D(gl.TEXTURE_2D, 0, rgtc.COMPRESSED_RED_GREEN_RGTC2_EXT, 4, 4, 0, 16, 0);
+            out.push(gl.getError());
+            gl.compressedTexImage2D(gl.TEXTURE_2D, 0, rgtc.COMPRESSED_RED_GREEN_RGTC2_EXT, 4, 4, 0, 16, 1);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "true,0,true,true,true,0,true");
+}
