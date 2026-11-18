@@ -37,8 +37,9 @@ pub enum Event {
     Resize { w: u32, h: u32 },
     /// Scroll the page to this y (find in page jumping to a match).
     ScrollTo(f32),
-    /// The window asks the page something: "devtools" (a snapshot for the developer tools) or
-    /// "run" (console code in `arg`). Answered with Update::Answer.
+    /// The window asks the page something: "devtools" (a snapshot for the developer tools),
+    /// "run" (console code in `arg`) or "print" (the printed sheets, as PNGs: see print_sheets).
+    /// Answered with Update::Answer.
     Ask { what: String, arg: String },
     /// An option was picked in the window's list for the <select> `id` (see Update::Select).
     SelectChoose { id: u32, index: u32 },
@@ -66,7 +67,7 @@ pub enum Update {
     /// text selection in the window (a top-level page in a site process).
     Text(Vec<crate::chrome::TextRun>),
     /// The answer to Event::Ask.
-    Answer { what: String, data: String },
+    Answer { what: String, data: Vec<u8> },
     /// A right click the page didn't cancel (a top-level page in a site process): the link and
     /// the image under the mouse (absolute addresses), for the window's menu.
     ContextMenu { link: Option<String>, image: Option<String> },
@@ -268,7 +269,7 @@ impl Update {
             Update::Answer { what, data } => {
                 put(&mut m, b"answer");
                 put(&mut m, what.as_bytes());
-                put(&mut m, data.as_bytes());
+                put(&mut m, data);
             }
             Update::ContextMenu { link, image } => {
                 put(&mut m, b"menu");
@@ -329,7 +330,7 @@ impl Update {
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
             b"answer" => {
                 let what = String::from_utf8_lossy(&get(r)?).to_string();
-                Update::Answer { what, data: String::from_utf8_lossy(&get(r)?).to_string() }
+                Update::Answer { what, data: get(r)? }
             }
             b"menu" => {
                 let some = |b: Vec<u8>| Some(String::from_utf8_lossy(&b).to_string()).filter(|s| !s.is_empty());
@@ -844,19 +845,30 @@ impl Host {
             }
             Event::ScrollTo(y) => self.scroll = y,
             Event::Ask { what, arg } => {
-                let data = match what.as_str() {
+                let data: Vec<u8> = match what.as_str() {
+                    "print" => {
+                        let mut b = Vec::new();
+                        for sheet in crate::print_pages(&self.page, self.fonts) {
+                            let mut png = Vec::new();
+                            if image::DynamicImage::ImageRgb8(sheet).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).is_ok() {
+                                put(&mut b, &png);
+                            }
+                        }
+                        b
+                    }
                     "devtools" => {
                         let (scripts, errors) = self.page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
                         let p = &self.page;
                         js::with_dom(|d| crate::devtools::capture(d, &p.url, &p.title, p.loaded_at, scripts, errors));
-                        crate::devtools::snapshot()
+                        crate::devtools::snapshot().into_bytes()
                     }
                     "run" => match self.page.js.as_mut().map(|j| j.run(&arg)) {
                         Some(Ok(v)) => format!("ok:{v}"),
                         Some(Err(e)) => format!("err:{e}"),
                         None => "err:this page doesn't run scripts".into(),
-                    },
-                    _ => String::new(),
+                    }
+                    .into_bytes(),
+                    _ => Vec::new(),
                 };
                 if what == "run" && js::take_dirty() {
                     self.page.restyle();
@@ -1257,7 +1269,7 @@ pub fn site_origin(doc: u64, lay: &layout::Layout) -> Option<(f32, f32)> {
 
 /// Ask the site-process page of `doc` (shown or in a background tab) something and wait for the
 /// answer (Event::Ask): None if it isn't in a site process or doesn't answer in time.
-pub fn site_ask(doc: u64, what: &str, arg: &str, wait: Duration) -> Option<String> {
+pub fn site_ask(doc: u64, what: &str, arg: &str, wait: Duration) -> Option<Vec<u8>> {
     {
         let live = LIVE.lock().ok()?;
         let f = live.iter().find(|f| f.doc == Some(doc) && matches!(f.sink, Sink::Site(_)))?;
@@ -1279,6 +1291,19 @@ pub fn site_ask(doc: u64, what: &str, arg: &str, wait: Duration) -> Option<Strin
         std::thread::sleep(Duration::from_millis(10));
     }
     None
+}
+
+/// The printed sheets of the site-process page of `doc` (None if it isn't in one or didn't
+/// answer).
+pub fn print_sheets(doc: u64) -> Option<Vec<image::RgbImage>> {
+    let data = site_ask(doc, "print", "", Duration::from_secs(30))?;
+    let mut r = data.as_slice();
+    let mut sheets = Vec::new();
+    while !r.is_empty() {
+        let png = get(&mut r).ok()?;
+        sheets.push(image::load_from_memory_with_format(&png, image::ImageFormat::Png).ok()?.to_rgb8());
+    }
+    Some(sheets).filter(|s| !s.is_empty())
 }
 
 /// Pass a picked <select> option to the site-process page shown for `doc`.
@@ -1804,8 +1829,8 @@ mod tests {
         }
         let b = Update::Select { id: 7, x: 1.0, y: 20.0, w: 120.0, options: vec!["Apple".into(), "Bänana".into()] }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Select { id: 7, options, .. } if options == ["Apple", "Bänana"]));
-        let b = Update::Answer { what: "run".into(), data: "ok:2".into() }.encode();
-        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Answer { what, data } if what == "run" && data == "ok:2"));
+        let b = Update::Answer { what: "run".into(), data: b"ok:2".to_vec() }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Answer { what, data } if what == "run" && data == b"ok:2"));
         let b = Update::ContextMenu { link: Some("https://a.com/l".into()), image: None }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::ContextMenu { link: Some(l), image: None } if l == "https://a.com/l"));
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];

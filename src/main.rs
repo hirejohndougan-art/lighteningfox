@@ -3992,7 +3992,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     // A page in a site process takes its own snapshot (its document, console and
                     // requests are there).
                     if let Some(s) = frames::site_ask(page.doc, "devtools", "", std::time::Duration::from_secs(5)) {
-                        devtools::set_snapshot(s);
+                        devtools::set_snapshot(String::from_utf8_lossy(&s).to_string());
                     } else {
                         let (scripts, errors) = page.js.as_ref().map_or((0, 0), |j| (j.stats.scripts, j.stats.errors));
                         js::with_dom(|d| devtools::capture(d, &page.url, &page.title, page.loaded_at, scripts, errors));
@@ -4001,7 +4001,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     tab_cmd = Some(TabCmd::Open("about:devtools".into(), false));
                 }
                 Ctx::SavePdf | Ctx::Print => {
-                    let sheets = print_pages(&page, fonts);
+                    // A page in a site process lays itself out for paper there.
+                    let sheets = frames::print_sheets(page.doc).unwrap_or_else(|| print_pages(&page, fonts));
                     let name: String = page.label().chars().map(|c| if c.is_alphanumeric() || " -_.".contains(c) { c } else { '_' }).take(80).collect();
                     let printed = matches!(a, Ctx::Print) && {
                         let tmp = std::env::temp_dir().join(format!("ironswift-print-{}.pdf", std::process::id()));
@@ -4076,7 +4077,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             Some(Go::To(t)) => devtools::run_request(t),
             _ => None,
         } {
-            let site = frames::site_ask(devtools::inspected(), "run", &code, std::time::Duration::from_secs(10)).map(|a| match a.strip_prefix("ok:") {
+            let site = frames::site_ask(devtools::inspected(), "run", &code, std::time::Duration::from_secs(10)).map(|a| String::from_utf8_lossy(&a).to_string()).map(|a| match a.strip_prefix("ok:") {
                 Some(v) => Ok(v.to_string()),
                 None => Err(a.strip_prefix("err:").unwrap_or(&a).to_string()),
             });
@@ -4683,7 +4684,7 @@ fn downloads_panel(x: f32, y: f32, win_w: f32, win_h: f32) -> chrome::Menu<DlAct
 
 /// Lay the page out for paper (7.5 × 10 inch printable area, drawn at twice the resolution)
 /// and draw it sheet by sheet.
-fn print_pages(page: &Page, fonts: &Fonts) -> Vec<image::RgbImage> {
+pub(crate) fn print_pages(page: &Page, fonts: &Fonts) -> Vec<image::RgbImage> {
     let (cw, ch) = (pdf::CONTENT_W_PX, pdf::CONTENT_H_PX);
     let lay = js::with_dom(|d| match d.composed() {
         Some(c) => layout::layout(&c, &page.styles, fonts, &page.images, cw, ch),
