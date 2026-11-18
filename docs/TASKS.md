@@ -1184,7 +1184,9 @@ boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper inst
 **Checklist:** §18 "Full (optimizing) JIT compiler for Boa"
 
 ### J1. Baseline JIT for Boa: plan and groundwork
-**Status:** claimed by chat-jit-1 2026-11-18 05:25
+**Status:** done
+**Left undone:** nothing in the task. (Clippy in the Boa workspace stops at an existing `boa_string` lint before reaching the new module; rustc reports no warnings in it.)
+**Result:** `docs/JIT.md` has the plan: the J2 opcode list, tier-up (1,000 calls or 10,000 loop iterations; `BOA_JIT=off|on|always`), entry and bailout through the interpreter's own registers in the VM stack (NaN-boxed values read directly, entry at pc 0 or any loop header), GC roots (none in J2; from J3 every call out is a safepoint, which works because Boa's GC doesn't move objects), and W^X memory. Code in `vendor/boa/boa_engine/src/jit/` behind boa_engine's `jit` feature, forwarded by Ironswift's `boa_jit` (off by default): per-code-block counters bumped in `function_call`/`function_construct` and `IncrementLoopIteration`, a one-time scan that marks hot blocks `Eligible` or `Rejected` (with the first unsupported opcode), and a Cranelift 0.137.2 backend. P1a chose `wasmi`, so there is no wasmtime Cranelift to share. 9 tests (scan, thresholds, modes, compiling and running a function, code pages r-x and not writable); Boa's 1,116 engine tests pass with `BOA_JIT=always` and without the feature. Choices: `CheckReturn` is in the list (it ends every function; `new` frames will bail out there); `Pow` is left out (JS `**` differs from C `pow`); the JIT refuses to build with `jsvalue-enum`.
 **After:** —
 **Checklist:** none (J4 closes §14 "Baseline JIT compiler (via Cranelift)")
 **Files:** `vendor/boa/boa_engine/src/vm/`, new `vendor/boa/boa_engine/src/jit/`, `docs/JIT.md`
