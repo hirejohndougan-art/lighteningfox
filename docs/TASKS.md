@@ -1248,7 +1248,7 @@ task); generators, async functions and class constructors stay interpreted; func
 32 KB stay interpreted.
 
 ### J4. Baseline JIT: on by default
-**Status:** free
+**Status:** claimed by chat-wasm-1 2026-11-18 20:28
 **After:** J3
 **Checklist:** §14 "Baseline JIT compiler (via Cranelift)"
 **Files:** `vendor/boa/`, `Cargo.toml`, `src/settings.rs`
