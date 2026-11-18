@@ -681,19 +681,93 @@
   P.invalidateFramebuffer = P.invalidateSubFramebuffer = function () {};
 
   // ---- queries, syncs and transform feedback (WebGL 2): complete immediately
+  // Queries and fences. Results come from the context's count of samples that passed the
+  // fragment tests (__glSamplesPassed); as the spec requires, a query result or a fence
+  // signal only shows once the page has returned to the event loop.
+  const ANY_SAMPLES = 0x8C2F, ANY_SAMPLES_CONSERVATIVE = 0x8D6A, TF_PRIMITIVES = 0x8C88;
+  const qSlot = (t) => (t === ANY_SAMPLES || t === ANY_SAMPLES_CONSERVATIVE ? "occlusion" : t === TF_PRIMITIVES ? "tf" : null);
+  const afterTask = (o, key) => { o[key] = true; setTimeout(() => { o[key] = false; }, 0); };
+  P.__queries = function () { return this.__activeQ || (this.__activeQ = { occlusion: null, tf: null }); };
   P.createQuery = function () { return this.__new(8); };
-  P.deleteQuery = function (q) { this.__del(q, WebGLQuery); };
-  P.isQuery = function (q) { return this.__is(q, WebGLQuery, 8); };
-  P.beginQuery = function (t, q) { this.__query = q; };
-  P.endQuery = function () { this.__query = null; };
-  P.getQuery = function () { return this.__query || null; };
-  P.getQueryParameter = function (q, p) { return p === 0x8867 ? true : 0; };
-  P.fenceSync = function () { return this.__new(9); };
+  P.deleteQuery = function (q) {
+    if (q instanceof WebGLQuery && q.__ctx === this && !q.__deleted) {
+      const a = this.__queries();
+      for (const k of ["occlusion", "tf"]) if (a[k] === q) a[k] = null;
+    }
+    this.__del(q, WebGLQuery);
+  };
+  P.isQuery = function (q) { return q instanceof WebGLQuery && q.__ctx === this && !q.__deleted && q.__target !== undefined; };
+  P.beginQuery = function (t, q) {
+    const slot = qSlot(t);
+    if (!slot) return this.__err(0x500);
+    if (q === null || q === undefined) return this.__err(0x502);
+    if (this.__id(q, WebGLQuery) <= 0) return;
+    const a = this.__queries();
+    if (a[slot] || a.occlusion === q || a.tf === q) return this.__err(0x502);
+    if (q.__target !== undefined && q.__target !== t) return this.__err(0x502);
+    q.__target = t;
+    q.__start = slot === "occlusion" ? __glSamplesPassed(this.__cid) : 0;
+    q.__result = undefined;
+    a[slot] = q;
+  };
+  P.endQuery = function (t) {
+    const slot = qSlot(t);
+    if (!slot) return this.__err(0x500);
+    const a = this.__queries();
+    const q = a[slot];
+    if (!q || q.__target !== t) return this.__err(0x502);
+    a[slot] = null;
+    // Transform feedback primitives: none are captured yet.
+    q.__result = slot === "occlusion" ? (__glSamplesPassed(this.__cid) > q.__start ? 1 : 0) : 0;
+    afterTask(q, "__pending");
+  };
+  P.getQuery = function (t, p) {
+    const slot = qSlot(t);
+    if (!slot || p !== 0x8865) return this.__err(0x500), null;
+    const q = this.__queries()[slot];
+    return q && q.__target === t ? q : null;
+  };
+  P.getQueryParameter = function (q, p) {
+    if (this.__id(q, WebGLQuery) <= 0) return null;
+    if (q === null || q === undefined) return this.__err(0x502), null;
+    const a = this.__queries();
+    if (q.__result === undefined || a.occlusion === q || a.tf === q) return this.__err(0x502), null;
+    if (p === 0x8867) return !q.__pending; // QUERY_RESULT_AVAILABLE
+    if (p === 0x8866) return q.__result;   // QUERY_RESULT
+    return this.__err(0x500), null;
+  };
+  P.fenceSync = function (cond, flags) {
+    if (cond !== 0x9117) return this.__err(0x500), null;
+    if (flags !== 0) return this.__err(0x501), null;
+    const s = this.__new(9);
+    if (s) afterTask(s, "__unsignaled");
+    return s;
+  };
   P.deleteSync = function (s) { this.__del(s, WebGLSync); };
   P.isSync = function (s) { return this.__is(s, WebGLSync, 9); };
-  P.clientWaitSync = function () { return 0x911a; };
-  P.waitSync = function () {};
-  P.getSyncParameter = function (s, p) { return p === 0x9114 ? 0x9119 : p === 0x9112 ? 0x9116 : p === 0x9113 ? 0x9117 : 0; };
+  P.clientWaitSync = function (s, flags, timeout) {
+    if (this.__id(s, WebGLSync) <= 0) return 0x911D; // WAIT_FAILED
+    if (s === null || s === undefined) return this.__err(0x501), 0x911D;
+    if ((flags & ~1) !== 0) return this.__err(0x501), 0x911D;
+    if (timeout > this.getParameter(0x9247)) return this.__err(0x502), 0x911D;
+    return s.__unsignaled ? 0x911B : 0x911A; // TIMEOUT_EXPIRED : ALREADY_SIGNALED
+  };
+  P.waitSync = function (s, flags, timeout) {
+    if (this.__id(s, WebGLSync) <= 0) return;
+    if (s === null || s === undefined) return this.__err(0x501);
+    if (flags !== 0 || timeout !== -1) return this.__err(0x501);
+  };
+  P.getSyncParameter = function (s, p) {
+    if (this.__id(s, WebGLSync) <= 0) return null;
+    if (s === null || s === undefined) return this.__err(0x502), null;
+    switch (p) {
+      case 0x9112: return 0x9116; // OBJECT_TYPE: SYNC_FENCE
+      case 0x9113: return 0x9117; // SYNC_CONDITION
+      case 0x9114: return s.__unsignaled ? 0x9118 : 0x9119; // SYNC_STATUS
+      case 0x9115: return 0; // SYNC_FLAGS
+    }
+    return this.__err(0x500), null;
+  };
   P.createTransformFeedback = function () { const o = new WebGLTransformFeedback(); o.__deleted = false; return o; };
   P.deleteTransformFeedback = function () {};
   P.isTransformFeedback = function (t) { return t instanceof WebGLTransformFeedback; };

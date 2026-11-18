@@ -257,6 +257,8 @@ pub struct Gl {
     read_fbo: u32,
     rbo: u32,
     generic: [([f32; 4], u8); MAX_ATTRIBS],
+    /// Samples that passed the fragment tests, over the context's life (occlusion queries).
+    samples_passed: u64,
     // State.
     clear_color: [f32; 4],
     clear_depth: f32,
@@ -329,6 +331,7 @@ impl Gl {
             read_fbo: 0,
             rbo: 0,
             generic: [([0.0, 0.0, 0.0, 1.0], 0); MAX_ATTRIBS],
+            samples_passed: 0,
             clear_color: [0.0; 4],
             clear_depth: 1.0,
             clear_stencil: 0,
@@ -1218,7 +1221,7 @@ impl Gl {
         self.before_draw();
         let Some((mut target, restore, dep, sten)) = self.take_target(false) else { return };
         let st = self.rstate();
-        {
+        let passed = {
             let gl = &*self;
             let p = gl.program_ref(gl.program).unwrap();
             let l = p.linked.as_ref().unwrap();
@@ -1296,6 +1299,7 @@ impl Gl {
             // Which draw buffer gets which output.
             let outs: Vec<Option<u32>> = (0..target.color.len()).map(|i| l.outs.get(i).copied().flatten()).collect();
             let mut pipe = Pipeline {
+                passed: 0,
                 vs_code: &l.vs.code,
                 vs_mem,
                 fs_code: &l.fs.code,
@@ -1316,7 +1320,9 @@ impl Gl {
                 st: &st,
             };
             pipe.draw(&mut target, mode, ids, instances);
-        }
+            pipe.passed
+        };
+        self.samples_passed += passed;
         self.put_target(target, restore, dep, sten, false);
         self.dirty = true;
     }
@@ -1670,6 +1676,7 @@ pub fn install(ctx: &mut Context) {
         ("__glPixelStore", 3, n_pixel_store),
         ("__glGetParameter", 2, n_get_parameter),
         ("__glReadPixels", 9, n_read_pixels),
+        ("__glSamplesPassed", 1, n_samples_passed),
         ("__glBindFramebuffer", 3, n_bind_framebuffer),
         ("__glFramebufferTexture", 7, n_framebuffer_texture),
         ("__glFramebufferRenderbuffer", 4, n_framebuffer_renderbuffer),
@@ -3776,6 +3783,13 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
         Some(P::Bs(v)) => jarr(v.into_iter().map(JsValue::from), ctx),
         _ => JsValue::null(),
     })
+}
+
+/// __glSamplesPassed(cid): samples that passed the fragment tests so far (occlusion queries
+/// take the difference between beginQuery and endQuery).
+fn n_samples_passed(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let n = with_gl(a, ctx, |gl| gl.samples_passed).unwrap_or(0);
+    Ok(JsValue::from(n as f64))
 }
 
 /// __glReadPixels(cid, x, y, w, h, format, type, view, dstOffset)

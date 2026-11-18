@@ -159,6 +159,8 @@ fn bands(t: &mut Target, n: usize) -> Vec<Band<'_>> {
 }
 
 pub struct Pipeline<'a> {
+    /// Samples that passed the scissor, stencil and depth tests (occlusion queries).
+    pub passed: u64,
     pub vs_code: &'a [Op],
     pub vs_mem: Vec<Lanes>,
     pub fs_code: &'a [Op],
@@ -383,6 +385,7 @@ impl Pipeline<'_> {
                         scope.spawn(move || p.primitives(band, mode, sh, at));
                     }
                 });
+                self.passed += forks.iter().map(|p| p.passed).sum::<u64>();
             } else {
                 let mut parts = bands(t, 1);
                 self.primitives(&mut parts[0], mode, &sh, &at);
@@ -393,6 +396,7 @@ impl Pipeline<'_> {
     /// A copy for another thread: the same program and state, its own fragment memory.
     fn fork(&self) -> Pipeline<'_> {
         Pipeline {
+            passed: 0,
             vs_code: self.vs_code,
             vs_mem: Vec::new(),
             fs_code: self.fs_code,
@@ -816,6 +820,7 @@ impl Pipeline<'_> {
             if !depth_ok {
                 continue;
             }
+            self.passed += 1;
             if self.st.depth_test && self.st.depth_mask {
                 if let Some(db) = t.depth.as_mut() {
                     db[i] = z;

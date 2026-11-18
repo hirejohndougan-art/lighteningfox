@@ -800,3 +800,42 @@ fn navigation_and_paint_entries() {
     assert_eq!(r.trim_matches('"'), "true,first-paint+first-contentful-paint,true");
 }
 
+
+/// WebGL 2 queries and fences (O4): occlusion samples are counted, the result and the fence
+/// signal wait for the event loop, and misuse is reported.
+#[test]
+fn webgl2_queries_and_fences() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+            const p = gl.createProgram();
+            gl.attachShader(p, sh(gl.VERTEX_SHADER, "#version 300 es\nvoid main(){ gl_Position = vec4(0,0,0,1); gl_PointSize = 4.0; }"));
+            gl.attachShader(p, sh(gl.FRAGMENT_SHADER, "#version 300 es\nprecision mediump float; out vec4 c; void main(){ c = vec4(1); }"));
+            gl.linkProgram(p);
+            gl.useProgram(p);
+            const q = gl.createQuery();
+            out.push(gl.isQuery(q));
+            gl.beginQuery(gl.ANY_SAMPLES_PASSED, q);
+            gl.beginQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE, gl.createQuery());
+            out.push(gl.getError() === gl.INVALID_OPERATION, gl.getQuery(gl.ANY_SAMPLES_PASSED, gl.CURRENT_QUERY) === q);
+            const before = __glSamplesPassed(gl.__cid);
+            gl.drawArrays(gl.POINTS, 0, 1);
+            out.push(__glSamplesPassed(gl.__cid) - before);
+            gl.endQuery(gl.ANY_SAMPLES_PASSED);
+            out.push(gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE), gl.getQueryParameter(q, gl.QUERY_RESULT));
+            gl.endQuery(gl.ANY_SAMPLES_PASSED);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            const f = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+            out.push(gl.getSyncParameter(f, gl.SYNC_STATUS) === gl.UNSIGNALED, gl.clientWaitSync(f, 0, 0) === gl.TIMEOUT_EXPIRED);
+            gl.clientWaitSync(f, 0, 1);
+            out.push(gl.getError() === gl.INVALID_OPERATION, gl.getError());
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "false,true,true,16,false,1,true,true,true,true,0");
+}
