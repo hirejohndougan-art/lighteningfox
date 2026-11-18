@@ -13,6 +13,7 @@ finishTest(). The suite's own harness hooks (window.parent.webglTestHarness) are
 reporter put in front of js/js-test-pre.js in the checkout. A page passes when every check in
 it passed; the count of checks is reported too.
 
+Test profiles turn off anti-fingerprinting (it nudges readPixels values by 1).
 KHR_TIMEOUT=60 gives each page 60 seconds instead of 40; KHR_DETAILS=out.json writes every
 page's result; KHR_JOBS=n runs n pages at a time (default: the number of cores).
 """
@@ -87,6 +88,10 @@ def serve(root):
 def run(base, rel, tmp):
     timeout = int(os.environ.get("KHR_TIMEOUT", "40"))
     prof = tempfile.mkdtemp(dir=tmp)
+    # Canvas and WebGL readouts carry anti-fingerprinting noise by default (a value in a
+    # hundred moved by 1); the suite measures WebGL itself, so it's off in test profiles.
+    with open(os.path.join(prof, "settings.tsv"), "w") as f:
+        f.write("resist_fingerprinting\t0\n")
     env = dict(os.environ, IRONSWIFT_PROFILE=prof, NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost",
                IRONSWIFT_WAIT_FOR="window.__khrDone === true", IRONSWIFT_WAIT_SECS=str(max(1, timeout - 5)),
                IRONSWIFT_WAIT_EXPIRED="window.webglTestHarness && window.webglTestHarness.notifyFinished()")

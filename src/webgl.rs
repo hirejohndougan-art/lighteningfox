@@ -1062,7 +1062,7 @@ impl Gl {
         let Some(prog) = self.program_ref(self.program) else { return self.error(INVALID_OPERATION) };
         let Some(l) = prog.linked.as_ref() else { return self.error(INVALID_OPERATION) };
         let attribs_needed: Vec<(u32, Ty, u32)> = l.attribs.iter().map(|a| (a.2, a.1.clone(), a.3)).collect();
-        if self.v2 && !self.samplers_match_textures() {
+        if self.v2 && (!self.samplers_match_textures() || !self.attrib_types_match(&attribs_needed)) {
             return self.error(INVALID_OPERATION);
         }
         if count == 0 || instances == 0 {
@@ -1105,6 +1105,31 @@ impl Gl {
             }
         };
         self.draw_ids(mode, &ids, instances as u32, &attribs_needed);
+    }
+
+    /// WebGL 2: each vertex input's base type (float, int, uint) must match what feeds it — the
+    /// array's pointer call (`vertexAttribIPointer` with a signed or unsigned type, or
+    /// `vertexAttribPointer`), or the constant `vertexAttrib*` value when the array is off.
+    fn attrib_types_match(&self, needed: &[(u32, Ty, u32)]) -> bool {
+        let vao = self.vao_ref();
+        needed.iter().all(|(loc, ty, _)| {
+            let want = match ty.base() {
+                Some(Base::I) => 1u8,
+                Some(Base::U) => 2,
+                _ => 0,
+            };
+            let Some(a) = vao.attribs.get(*loc as usize) else { return true };
+            let have = if a.enabled {
+                match (a.int, a.ty) {
+                    (false, _) => 0,
+                    (true, e::BYTE | e::SHORT | e::INT) => 1,
+                    (true, _) => 2,
+                }
+            } else {
+                self.generic[*loc as usize].1
+            };
+            have == want
+        })
     }
 
     /// WebGL 2: each sampler the program uses must suit the texture on its unit — float
@@ -3790,6 +3815,11 @@ fn n_read_pixels(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
             return None;
         }
         let bpp = if ty == e::UNSIGNED_BYTE { 4 } else { 16 };
+        // A row length shorter than the skipped pixels plus the width can't hold a row.
+        if gl.pack_row_length > 0 && gl.pack_skip_pixels + w as usize > gl.pack_row_length {
+            gl.error(INVALID_OPERATION);
+            return None;
+        }
         let row_px = if gl.pack_row_length > 0 { gl.pack_row_length } else { w as usize };
         let row = (row_px * bpp).div_ceil(gl.pack_alignment) * gl.pack_alignment;
         let start = doff + gl.pack_skip_rows * row + gl.pack_skip_pixels * bpp;
