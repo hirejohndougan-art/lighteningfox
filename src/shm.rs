@@ -27,10 +27,17 @@ unsafe impl Send for Shm {}
 unsafe impl Sync for Shm {}
 
 impl Shm {
+    #[cfg(unix)]
     fn map(fd: i32) -> Option<Shm> {
         // SAFETY: mapping a descriptor of at least TOTAL bytes, checked by the callers.
         let p = unsafe { libc::mmap(std::ptr::null_mut(), TOTAL, libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED, fd, 0) };
         (p != libc::MAP_FAILED).then(|| Shm { ptr: p as *mut u8 })
+    }
+
+    /// No shared memory outside Unix: pictures go through the pipe.
+    #[cfg(not(unix))]
+    fn map(_fd: i32) -> Option<Shm> {
+        None
     }
 
     /// A new area (in the browser), and the descriptor to give the site process.
@@ -59,10 +66,13 @@ impl Shm {
         static SHM: std::sync::OnceLock<Option<Shm>> = std::sync::OnceLock::new();
         SHM.get_or_init(|| {
             let fd: i32 = std::env::var("IRONSWIFT_SHM_FD").ok()?.parse().ok()?;
-            // SAFETY: fstat on a descriptor number; a wrong one just fails.
-            let mut st: libc::stat = unsafe { std::mem::zeroed() };
-            if unsafe { libc::fstat(fd, &mut st) } != 0 || (st.st_size as usize) < TOTAL {
-                return None;
+            #[cfg(unix)]
+            {
+                // SAFETY: fstat on a descriptor number; a wrong one just fails.
+                let mut st: libc::stat = unsafe { std::mem::zeroed() };
+                if unsafe { libc::fstat(fd, &mut st) } != 0 || (st.st_size as usize) < TOTAL {
+                    return None;
+                }
             }
             Shm::map(fd)
         })
@@ -133,8 +143,11 @@ pub fn share_with(_cmd: &mut std::process::Command) -> Option<(Shm, ())> {
 
 impl Drop for Shm {
     fn drop(&mut self) {
-        // SAFETY: unmapping what map() mapped.
-        unsafe { libc::munmap(self.ptr as *mut libc::c_void, TOTAL) };
+        // SAFETY: unmapping what map() mapped (only Unix maps anything).
+        #[cfg(unix)]
+        unsafe {
+            libc::munmap(self.ptr as *mut libc::c_void, TOTAL)
+        };
     }
 }
 
