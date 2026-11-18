@@ -1182,7 +1182,7 @@ boa-chat stopped after compile speed. Make the compiler emit fewer, cheaper inst
 **Checklist:** §18 "Full (optimizing) JIT compiler for Boa"
 
 ### J1. Baseline JIT for Boa: plan and groundwork
-**Status:** free
+**Status:** claimed by chat-jit-1 2026-11-18 05:25
 **After:** —
 **Checklist:** none (J4 closes §14 "Baseline JIT compiler (via Cranelift)")
 **Files:** `vendor/boa/boa_engine/src/vm/`, new `vendor/boa/boa_engine/src/jit/`, `docs/JIT.md`
