@@ -1219,7 +1219,7 @@ results as the interpreter on every test262 and Boa test with the JIT forced on 
 function (`BOA_JIT=always`). Measure the summing-loop and V8 suite in `docs/boa-speed.md`.
 
 ### J3. Baseline JIT: properties, calls and exceptions
-**Status:** free
+**Status:** claimed by chat-wasm-1 2026-11-18 08:35
 **After:** J2
 **Checklist:** none
 **Files:** `vendor/boa/boa_engine/src/jit/`, `fuzz/`
