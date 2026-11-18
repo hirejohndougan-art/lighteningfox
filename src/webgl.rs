@@ -2558,12 +2558,21 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         .map(|arr| (0..3).map(|i| arr.get(i, ctx).ok().and_then(|v| v.to_number(ctx).ok()).unwrap_or(0.0) as i32).collect())
         .unwrap_or(vec![0, 0, 0]);
     let is3d = boolean(a, 13);
+    let p3 = boolean(a, 15);
+    // WebGL 2 sub-rectangle forms: the size to take from the source (UNPACK_SKIP_* place it).
+    let size: Option<Vec<i64>> = a
+        .get(14)
+        .and_then(|v| v.as_object())
+        .and_then(|o| JsArray::from_object(o.clone()).ok())
+        .map(|arr| (0..arr.length(ctx).unwrap_or(0)).map(|i| arr.get(i, ctx).ok().and_then(|v| v.to_number(ctx).ok()).unwrap_or(0.0) as i64).collect());
     // The source's pixels, straight RGBA, top row first.
     let src: Option<(u32, u32, Vec<u8>)> = match kind {
         2 => {
             let (w, h) = (u(a, 9, ctx), u(a, 10, ctx));
             view_bytes(a.get(8), ctx).map(|b| (w, h, b))
         }
+        // A <video>: its current frame.
+        3 => key.parse::<NodeId>().ok().and_then(|id| crate::media::current_frame(ctx, id)).map(|f| (f.width(), f.height(), f.as_raw().clone())),
         k => {
             if k == 1 {
                 if let Ok(id) = key.parse::<NodeId>() {
@@ -2579,30 +2588,67 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
             return gl.error(INVALID_OPERATION);
         }
         // An image that hasn't loaded uploads nothing (and isn't an error).
-        let Some((w, h, rgba)) = src else { return };
+        let Some((w, h, mut rgba)) = src else { return };
+        if p3 {
+            to_display_p3(&mut rgba);
+        }
+        // With UNPACK_FLIP_Y the source is flipped first and the rectangle taken from that.
+        let mut flip = gl.unpack.flip_y;
+        let (w, h, rgba, dd) = if gl.v2 {
+            // The rectangle at UNPACK_SKIP_PIXELS/ROWS (from the source's top left) of the
+            // given size; 3D uploads take `depth` slices of UNPACK_IMAGE_HEIGHT rows each.
+            let (sx, sy) = (gl.unpack.skip_pixels as i64, gl.unpack.skip_rows as i64);
+            let (cw, ch) = size.as_ref().map_or((w as i64 - sx, h as i64 - sy), |s| (s[0], s[1]));
+            let depth = size.as_ref().and_then(|s| s.get(2).copied()).unwrap_or(1).max(1);
+            let ih = if gl.unpack.image_height > 0 { gl.unpack.image_height as i64 } else { ch };
+            let rows = sy + ih * (depth - 1) + ch + gl.unpack.skip_images as i64 * ih;
+            if cw < 0 || ch < 0 || sx + cw > w as i64 || rows > h as i64 {
+                return gl.error(INVALID_OPERATION);
+            }
+            if (sx, sy, cw, ch * depth) == (0, 0, w as i64, h as i64) && gl.unpack.skip_images == 0 {
+                (w, h / depth as u32, rgba, depth as u32)
+            } else {
+                let mut out = Vec::with_capacity((cw * ch * depth * 4) as usize);
+                let src_row = |y: i64| if flip { h as i64 - 1 - y } else { y };
+                for z in 0..depth {
+                    let top = sy + (gl.unpack.skip_images as i64 + z) * ih;
+                    // Flipped rows come out bottom-up, so slices stay in order.
+                    for y in top..top + ch {
+                        let y = src_row(y);
+                        let o = ((y * w as i64 + sx) * 4) as usize;
+                        out.extend_from_slice(&rgba[o..o + cw as usize * 4]);
+                    }
+                }
+                flip = false;
+                (cw as u32, ch as u32, out, depth as u32)
+            }
+        } else {
+            (w, h, rgba, 1)
+        };
         if !valid_pixel_type(ty, gl.v2) {
             return gl.error(INVALID_ENUM);
         }
-        if rgba.len() < (w * h * 4) as usize {
+        if rgba.len() < (w * h * dd * 4) as usize {
             return gl.error(INVALID_VALUE);
         }
         let Some((id, face)) = gl.image_target(target) else { return };
         let v2 = gl.v2;
-        let up = (gl.unpack.flip_y, gl.unpack.premultiply);
+        let up = (flip, gl.unpack.premultiply);
         if sub {
             let Some(t) = gl.texture(id) else { return };
             let Some(img) = t.level(face, level.max(0) as usize) else { return gl.error(INVALID_OPERATION) };
             let fmt = img.fmt;
             let (x, y, z) = (offs[0], offs[1], offs[2]);
-            if x < 0 || y < 0 || x + w as i32 > img.w as i32 || y + h as i32 > img.h as i32 || z < 0 || z >= img.d as i32 {
+            if x < 0 || y < 0 || x + w as i32 > img.w as i32 || y + h as i32 > img.h as i32 || z < 0 || z + dd as i32 > img.d as i32 {
                 return gl.error(INVALID_VALUE);
             }
-            let px = tex::from_rgba8(&rgba, w, h, format, ty, &fmt, up.0, up.1);
+            let px = tex::from_rgba8(&rgba, w, h * dd, format, ty, &fmt, up.0, up.1);
             let Some(t) = gl.texture_mut(id) else { return };
             let Some(Some(img)) = t.faces.get_mut(face).and_then(|f| f.get_mut(level as usize)) else { return };
-            for yy in 0..h as i32 {
+            for yy in 0..(h * dd) as i32 {
+                let (zz, ry) = (yy as u32 / h, yy as u32 % h);
                 for xx in 0..w as i32 {
-                    let di = ((z as u32 * img.h + (y + yy) as u32) * img.w + (x + xx) as u32) as usize;
+                    let di = (((z as u32 + zz) * img.h + y as u32 + ry) * img.w + (x + xx) as u32) as usize;
                     img.px[di] = px[(yy as u32 * w + xx as u32) as usize];
                 }
             }
@@ -2618,12 +2664,24 @@ fn n_tex_image_source(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult
         if gl.texture(id).is_some_and(|t| t.immutable) {
             return gl.error(INVALID_OPERATION);
         }
-        let px = tex::from_rgba8(&rgba, w, h, format, ty, &fmt, up.0, up.1);
+        let px = tex::from_rgba8(&rgba, w, h * dd, format, ty, &fmt, up.0, up.1);
         if let Some(t) = gl.texture_mut(id) {
-            t.set_level(face, level.max(0) as usize, Image { w, h, d: 1, fmt, px, st: Vec::new() });
+            t.set_level(face, level.max(0) as usize, Image { w, h, d: dd, fmt, px, st: Vec::new() });
         }
     });
     undef()
+}
+
+/// Convert straight sRGB RGBA8 pixels to Display P3 (same transfer curve, wider primaries).
+fn to_display_p3(rgba: &mut [u8]) {
+    const M: [[f32; 3]; 3] = [[0.822_462, 0.177_538, 0.0], [0.033_194, 0.966_806, 0.0], [0.017_083, 0.072_397, 0.910_520]];
+    for p in rgba.chunks_exact_mut(4) {
+        let l = [0, 1, 2].map(|c| tex::srgb_to_linear(p[c] as f32 / 255.0));
+        for (c, row) in M.iter().enumerate() {
+            let v = row[0] * l[0] + row[1] * l[1] + row[2] * l[2];
+            p[c] = (tex::linear_to_srgb(v) * 255.0).round() as u8;
+        }
+    }
 }
 
 /// __glTexStorage(cid, target, levels, internal, w, h, d)

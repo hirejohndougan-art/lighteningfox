@@ -594,6 +594,13 @@ fn with<R>(ctx: &Context, id: NodeId, f: impl FnOnce(&mut Media) -> R) -> R {
     f(s.media.entry(id).or_insert_with(Media::new))
 }
 
+/// The video's current frame (for WebGL texture uploads), if it has decoded one.
+pub fn current_frame(ctx: &Context, id: NodeId) -> Option<Arc<image::RgbaImage>> {
+    let store = ctx.get_data::<RefCell<Store>>()?;
+    let store = store.borrow();
+    store.media.get(&id)?.frame.clone()
+}
+
 /// Set up `<video>`/`<audio>` support in a page's script engine.
 pub fn install(ctx: &mut Context) {
     ctx.insert_data(RefCell::new(Store::default()));

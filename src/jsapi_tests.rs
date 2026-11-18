@@ -1115,3 +1115,47 @@ fn flex_items_overflow_a_definite_height_line() {
     // content height.
     assert_eq!(text_of("out"), "60-100 190-230 320-360");
 }
+
+/// WebGL 2 DOM-source uploads: UNPACK_SKIP_* with an explicit size take a sub-rectangle
+/// (of the flipped source with UNPACK_FLIP_Y), and unpackColorSpace "display-p3" converts.
+#[test]
+fn webgl2_dom_source_subrect_and_p3() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const c = document.createElement("canvas"); c.width = 4; c.height = 4;
+            const x = c.getContext("2d");
+            x.fillStyle = "#ff0000"; x.fillRect(0, 0, 4, 2);
+            x.fillStyle = "#00ff00"; x.fillRect(0, 2, 4, 2);
+            const gl = document.createElement("canvas").getContext("webgl2");
+            const fb = gl.createFramebuffer();
+            const read = (t) => {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+                const px = new Uint8Array(4);
+                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+                return px.slice(0, 3).join(" ");
+            };
+            const upload = (flip, space) => {
+                const t = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, t);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip);
+                gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 2);
+                gl.unpackColorSpace = space;
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 4, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, c);
+                gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+                return read(t);
+            };
+            out.push(upload(false, "srgb"), upload(true, "srgb"), upload(true, "display-p3"));
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 3);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 4, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, c);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "0 255 0,255 0 0,234 51 35,true");
+}

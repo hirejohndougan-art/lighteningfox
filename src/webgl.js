@@ -228,7 +228,11 @@
   Object.defineProperty(P, "drawingBufferWidth", { get() { return this.__w(); } });
   Object.defineProperty(P, "drawingBufferHeight", { get() { return this.__h(); } });
   Object.defineProperty(P, "drawingBufferColorSpace", { get() { return "srgb"; }, set(_) {} });
-  Object.defineProperty(P, "unpackColorSpace", { get() { return "srgb"; }, set(_) {} });
+  // DOM sources uploaded with "display-p3" have their colors converted from sRGB (webgl.rs).
+  Object.defineProperty(P, "unpackColorSpace", {
+    get() { return this.__unpackSpace || "srgb"; },
+    set(v) { if (v === "srgb" || v === "display-p3") this.__unpackSpace = v; },
+  });
 
   P.getContextAttributes = function () { return this.__lost ? null : Object.assign({}, this.__attrs, { antialias: false }); };
   P.isContextLost = function () { return this.__lost; };
@@ -381,19 +385,20 @@
       const tag = src.localName;
       if (tag === "canvas") { if (g.__glHas(src.__id)) __glFlush(src.__id); return [1, String(src.__id), null, 0, 0]; }
       if (tag === "img" || tag === "image") return [0, String(src.__id), null, 0, 0];
-      if (tag === "video") return null;
+      if (tag === "video") return [3, String(src.__id), null, 0, 0];
     }
     throw new TypeError("texImage: unsupported image source");
   }
-  P.__texSource = function (target, level, internal, format, type, src, sub, offs, is3d) {
+  // size: [w, h(, d)] for the WebGL 2 forms that name a sub-rectangle of the source.
+  P.__texSource = function (target, level, internal, format, type, src, sub, offs, is3d, size) {
     // Sources that upload nothing (a video) still get the context's checks.
     const s = sourceOf(src) || [9, "", null, 0, 0];
-    __glTexImageSource(this.__cid, target, level, internal, format, type, s[0], s[1], s[2], s[3], s[4], !!sub, offs || [0, 0, 0], !!is3d);
+    __glTexImageSource(this.__cid, target, level, internal, format, type, s[0], s[1], s[2], s[3], s[4], !!sub, offs || [0, 0, 0], !!is3d, size || null, this.__unpackSpace === "display-p3");
   };
   P.texImage2D = function (target, level, internal, a, b, c, d, e, f, srcOffset) {
     if (arguments.length <= 6 || (arguments.length === 9 && !(f === null || f === undefined || isView(f) || typeof f === "number")) || (arguments.length >= 9 && f && typeof f === "object" && !isView(f))) {
       if (arguments.length <= 6) return this.__texSource(target, level, internal, a, b, c);
-      return this.__texSource(target, level, internal, d, e, f);
+      return this.__texSource(target, level, internal, d, e, f, false, null, false, [a, b]);
     }
     // (target, level, internal, w, h, border, format, type, pixels | null, srcOffset)
     // A number is a byte offset into the bound PIXEL_UNPACK_BUFFER.
@@ -402,18 +407,18 @@
   };
   P.texSubImage2D = function (target, level, x, y, a, b, c, d, e, srcOffset) {
     if (arguments.length <= 7) return this.__texSource(target, level, 0, a, b, c, true, [x, y, 0]);
-    if (e && typeof e === "object" && !isView(e)) return this.__texSource(target, level, 0, c, d, e, true, [x, y, 0]);
+    if (e && typeof e === "object" && !isView(e)) return this.__texSource(target, level, 0, c, d, e, true, [x, y, 0], false, [a, b]);
     if (e === null || e === undefined) throw new TypeError("texSubImage2D: no pixels");
     if (typeof e === "number") return __glTexImage(this.__cid, target, level, 0, a, b, 1, 0, c, d, null, e, 1, [x, y, 0], true);
     __glTexImage(this.__cid, target, level, 0, a, b, 1, 0, c, d, e, srcOffset || 0, 1, [x, y, 0]);
   };
   P.texImage3D = function (target, level, internal, w, h, depth, border, format, type, src, srcOffset) {
-    if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, internal, format, type, src, false, null, true);
+    if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, internal, format, type, src, false, null, true, [w, h, depth]);
     if (typeof src === "number") return __glTexImage(this.__cid, target, level, internal, w, h, depth, border, format, type, null, src, 2, null, true);
     __glTexImage(this.__cid, target, level, internal, w, h, depth, border, format, type, src || null, srcOffset || 0, 2);
   };
   P.texSubImage3D = function (target, level, x, y, z, w, h, depth, format, type, src, srcOffset) {
-    if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, 0, format, type, src, true, [x, y, z], true);
+    if (src && typeof src === "object" && !isView(src)) return this.__texSource(target, level, 0, format, type, src, true, [x, y, z], true, [w, h, depth]);
     if (typeof src === "number") return __glTexImage(this.__cid, target, level, 0, w, h, depth, 0, format, type, null, src, 1, [x, y, z], true);
     __glTexImage(this.__cid, target, level, 0, w, h, depth, 0, format, type, src, srcOffset || 0, 1, [x, y, z]);
   };
