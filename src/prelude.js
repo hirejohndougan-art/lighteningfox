@@ -216,20 +216,20 @@
         if (entry.once) this.removeEventListener(ev.type, entry.fn, { capture: entry.capture });
         try {
           typeof entry.fn === "function" ? entry.fn.call(this, ev) : entry.fn.handleEvent(ev);
-        } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); }
+        } catch (e) { console.error(e); if (g.__onListenerError) g.__onListenerError(e); }
         if (ev._stopNow) return;
       }
       if (phase === "capture") return;
       const prop = this["on" + ev.type];
       if (typeof prop === "function") {
-        try { if (prop.call(this, ev) === false) ev.preventDefault(); } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); }
+        try { if (prop.call(this, ev) === false) ev.preventDefault(); } catch (e) { console.error(e); if (g.__onListenerError) g.__onListenerError(e); }
       } else if (this.getAttribute && this.getAttribute("on" + ev.type)) {
         try {
           const code = this.getAttribute("on" + ev.type);
           if (!__cspInline("attr", code)) return;
           const f = new Function("event", code);
           if (f.call(this, ev) === false) ev.preventDefault();
-        } catch (e) { console.error(String(e)); }
+        } catch (e) { console.error(e); }
       }
     }
     dispatchEvent(ev) {
@@ -820,7 +820,7 @@
     __nowMs = now;
     if (tasks.length) {
       const fn = tasks.shift();
-      try { fn(); } catch (e) { console.error(String(e)); }
+      try { fn(); } catch (e) { console.error(e); }
       return 1;
     }
     let next = null;
@@ -830,7 +830,7 @@
     if (t.repeat) t.due = Math.max(t.due + t.delay, now - t.delay + 1);
     else timers.delete(id);
     try { typeof t.fn === "function" ? t.fn(...t.args) : (0, eval)(String(t.fn)); }
-    catch (e) { console.error(String(e)); }
+    catch (e) { console.error(e); }
     return 1;
   };
   // Animation frames: callbacks run once per drawn frame, all with the same timestamp.
@@ -845,7 +845,7 @@
     __nowMs = now;
     const due = [...frames.values()];
     frames.clear();
-    for (const fn of due) { try { fn(now); } catch (e) { console.error(String(e)); } }
+    for (const fn of due) { try { fn(now); } catch (e) { console.error(e); } }
     return due.length;
   };
   // Kept for older callers: run everything that's due in one go.
@@ -1766,7 +1766,7 @@
     if (r.once) geoReqs.delete(id);
     return r;
   };
-  const geoCall = (f, arg) => { try { f(arg); } catch (e) { console.error(String(e)); if (g.__onListenerError) g.__onListenerError(e); } };
+  const geoCall = (f, arg) => { try { f(arg); } catch (e) { console.error(e); if (g.__onListenerError) g.__onListenerError(e); } };
   g.__geoDone = function (id, p) {
     const r = geoFinish(id);
     if (!r) return;
