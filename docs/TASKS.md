@@ -980,7 +980,7 @@ the old one; shared memory as `SharedArrayBuffer` where cross-origin isolation a
 exported both ways. Typed arrays over `memory.buffer` must see writes made by the module.
 
 ### P1c. WebAssembly: streaming, modules and security
-**Status:** free
+**Status:** claimed by chat-jit-1 2026-11-18 06:12
 **After:** P1a
 **Checklist:** none
 **Files:** `src/wasm/`, the fetch and module-loading code
