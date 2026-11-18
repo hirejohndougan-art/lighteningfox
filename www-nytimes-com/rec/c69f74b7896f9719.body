@@ -1,0 +1,2 @@
+var e=(function(){return!!(typeof window<`u`&&window.document&&window.document.createElement)}),t=(function(e){return!!(e&&typeof e==`function`)}),n=function(){var e=arguments.length>0&&arguments[0]!==void 0?arguments[0]:{};return e.AdSlot4=e.AdSlot4||{},e.AdSlot4.cmd=e.AdSlot4.cmd||[],e.AdSlot4},r=(function(){return n(e()?window:{})}),i=(function(n){if(!(!e()||!t(n))){var i=r();if(!t(i.cmd.push)){console.warn(`WARNING: Unexpected result for "Adslot.cmd" `,i.cmd);return}i.cmd.push(n)}});export{e as i,r as n,t as r,i as t};
+//# sourceMappingURL=addCommand-Dh3qjovF.js.map

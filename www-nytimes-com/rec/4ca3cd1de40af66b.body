@@ -1,0 +1,2 @@
+import{t as e}from"./useAppContext-DHMQ7JDl.js";function t(){let{webviewEnvironment:t}=e();return!!t?.isInWebview}export{t};
+//# sourceMappingURL=useIsInWebview-DpFf3zJE.js.map

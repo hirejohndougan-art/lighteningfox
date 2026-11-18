@@ -1,0 +1,34 @@
+GET https://static01.nytimes.com/statsig/config/$client-BasfMtnVqHD0fEI7mV1O7VkykGye1bute6nczoac1oS.json?k=client-BasfMtnVqHD0fEI7mV1O7VkykGye1bute6nczoac1oS&st=js-on-device-eval-client&sv=3.32.3&t=1795014821812&sid=d2c7adfe-bd07-45e1-8ea4-9bddef856f25
+200 OK
+content-type: application/json; charset=utf-8
+x-checksum: 
+x-since-time: 1795010822976
+x-cache-hit: false
+permissions-policy: interest-cohort=()
+x-content-type-options: nosniff
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+etag: W/"dcs:1795010822976:gzip:checksum="
+access-control-allow-credentials: true
+access-control-allow-origin: *
+x-nginx-cache: MISS
+statsig-final-byte-size: 52761
+referrer-policy: strict-origin-when-cross-origin
+x-statsig-region: gke-us-east5
+via: 1.1 google, 1.1 varnish
+cf-cache-status: DYNAMIC
+server: cloudflare
+cf-ray: a5c78b97dd44e190-IAD
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:41 GMT
+age: 1
+x-served-by: cache-iad-khef600043-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795014822.815323,VS0,VE1
+vary: Accept-Encoding,Accept-Encoding
+cache-control: public, max-age=5, stale-while-revalidate=31536000, stale-if-error=31536000
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

@@ -1,0 +1,37 @@
+GET https://static01.nytimes.com/newsgraphics/storylines/styln-hp-reporteranalysis/957227228a516b439bdf9c4af7e3f1ee5ad19937/LiveHPPromo.js
+200 OK
+content-type: application/javascript
+x-guploader-uploadid: AFy3sg1vrNZ5pVAjWQODHqiAlcYAqA8OZIVyYksAf4x4habOdEm1Ib43W4lCdxriLinVPBivGPjPhaM
+cache-control: max-age=5, stale-if-error=3600, stale-while-revalidate=5, public
+expires: Wed, 18 Nov 2026 15:13:06 GMT
+last-modified: Wed, 18 Nov 2026 15:12:06 GMT
+etag: W/"223e48e8f63d89b65308c3957f23022d"
+x-goog-generation: 1795014725999435
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 77599
+x-amz-meta-checksum: 
+x-goog-hash: crc32c=ZrzH/Q==
+x-goog-hash: md5=Ij5I6PY9ibZTCMOVfyMCLQ==
+x-amz-checksum-crc32c: ZrzH/Q==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: range
+access-control-expose-headers: etag
+access-control-expose-headers: if-match
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:05 GMT
+via: 1.1 varnish
+age: 4
+x-served-by: cache-iad-khef600043-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795014786.712894,VS0,VE2
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

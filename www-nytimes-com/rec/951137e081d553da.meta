@@ -1,0 +1,33 @@
+GET https://static01.nyt.com/elections-assets/pages/assets/util-WwSbo3Wp.css
+200 OK
+content-type: text/css
+x-guploader-uploadid: AFy3sg3XdIH9Zg2-m9o_xvwPSjCq9wPrWtcSnPt53gQxKm07yDSJJUEBO6xv8hxUFWJSSQhD
+cache-control: public, max-age=31536000, stale-while-revalidate=86400, stale-if-error=86400
+expires: Wed, 17 Nov 2027 07:27:01 GMT
+last-modified: Mon, 16 Nov 2026 22:15:45 GMT
+etag: W/"22bd5b5dd139989b384e22125ddcbfe0"
+x-goog-generation: 1794867345179368
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 232
+x-goog-hash: crc32c=aEQd3Q==
+x-goog-hash: md5=Ir1bXdE5mJs4TiISXdy/4A==
+x-amz-checksum-crc32c: aEQd3Q==
+x-goog-storage-class: STANDARD
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:46 GMT
+via: 1.1 varnish
+age: 114345
+x-served-by: cache-iad-kcgs7200057-IAD
+x-cache: HIT
+x-cache-hits: 1606
+x-timer: S1795014767.960716,VS0,VE0
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

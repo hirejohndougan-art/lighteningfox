@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/18/opinion/18pressfreedom-editorial-image/18pressfreedom-editorial-image-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "JedjjKz5fNGEYYjyP/DDZMFIDjZySPAeDoe47N7RKrs"
+expires: Wed, 18 Nov 2026 10:10:45 GMT
+fastly-io-info: ifsz=29022 idim=252x252 ifmt=jpeg ofsz=16559 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010210
+fastly-io-transform-stats: ifsz=29022 ofsz=16559 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: kIAu9w==
+x-goog-generation: 1794996284797420
+x-goog-hash: crc32c=kIAu9w==
+x-goog-hash: md5=dlPvR/igmOWvd092kWjBQQ==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 29022
+x-guploader-uploadid: AFy3sg14xm74MVfdhQ705IYBCOx0rnMJ3RGsN0UOk-FLlnsPgo9eURTs5f6o_UCcKY0DbH-dJOgK-a4
+accept-ranges: bytes
+age: 18466
+date: Wed, 18 Nov 2026 15:18:31 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795015112.785606,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 16559

@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/18/18vid-trump-china-54967-cover/18vid-trump-china-54967-cover-smallTwoByThree-v2.jpg?quality=75&auto=avif
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "RANbmT3sqShL5Zl/c3oE0InDz7l8IGOadv42MbcCfbc"
+expires: Wed, 18 Nov 2026 10:50:59 GMT
+fastly-io-info: ifsz=30985 idim=400x600 ifmt=jpeg ofsz=21118 odim=400x600 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010213
+fastly-io-transform-stats: ifsz=30985 ofsz=21118 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 6kctPA==
+x-goog-generation: 1794995011370013
+x-goog-hash: crc32c=6kctPA==
+x-goog-hash: md5=F9ksA9SD16/f5f1APBiAxw==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 30985
+x-guploader-uploadid: AFy3sg3EKvklbR9uLfGOJOZUvtXeK46KVWzeBUO3IExlZJi2VUYurZcjeUlP3bb3-HUZEptfcq1Pamegm7fkyw
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:14:55 GMT
+via: 1.1 varnish
+age: 15836
+x-served-by: cache-iad-kcgs7200057-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795014896.811210,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 21118

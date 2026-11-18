@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/family/cheltenham-small/cheltenham-small-normal-400.108ce298d451197b23fefceb3e36959f.woff2
+200 OK
+x-amz-id-2: rBRN+IXjeA0rgK5DSra6G1l3F9A0jQRgE6/U+Mu2CdLS68FIxlSC7h95ydRC7dMYxpcol+mn3rvDnE6Hv2H32rc3Ff523SCZ
+x-amz-request-id: BVRADN65N3393BGT
+server: AmazonS3
+last-modified: Fri, 21 Feb 2025 15:52:12 GMT
+etag: "108ce298d451197b23fefceb3e36959f"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+x-amz-version-id: .QKxDmUMGVO3ygi0H664AWOhqdJxyQ1V
+content-type: binary/octet-stream
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:51 GMT
+via: 1.1 varnish
+age: 383151
+x-served-by: cache-iad-kcgs7200052-IAD
+x-cache: HIT
+x-cache-hits: 2636
+x-timer: S1795014771.317705,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 20136

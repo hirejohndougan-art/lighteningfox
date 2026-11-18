@@ -1,0 +1,2 @@
+import{t as e}from"./isBrowser-Dkae7dA-.js";import{t}from"./breakpoints-CnkqmFa1.js";import{t as n}from"./getDeviceType-CZu9j55k.js";var r=()=>{if(e)return window.matchMedia(`(min-width: ${t.BREAKPOINT_ML}px)`).matches?`desktop`:n()};export{r as t};
+//# sourceMappingURL=getViewportType-iDRJqLB8.js.map

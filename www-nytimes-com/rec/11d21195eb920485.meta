@@ -1,0 +1,22 @@
+GET https://static01.nyt.com/athletic/logos/team/Connections_TA_logo.svg
+200 OK
+x-amz-id-2: olOC55tXWTk9zoe6QY3YhanujcjvznmQOI4srnvjaOf/gAmlnGLUlM8tBQ9tLLuyt7pV8QGUxzY=
+x-amz-request-id: 5P8BQQCH0JRCMK39
+last-modified: Wed, 21 Oct 2026 21:22:43 GMT
+etag: "88c352f65ccc12ad77c80210909ff74e"
+x-amz-server-side-encryption: AES256
+content-type: image/svg+xml
+server: AmazonS3
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+via: 1.1 varnish, 1.1 varnish
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:51 GMT
+age: 90815
+x-served-by: cache-bfi-kbfi7400036-BFI, cache-iad-kcgs7200057-IAD
+x-cache: MISS, HIT
+x-cache-hits: 0, 15
+x-timer: S1795014771.295423,VS0,VE0
+vary: Accept-Encoding
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: MISS-HIT

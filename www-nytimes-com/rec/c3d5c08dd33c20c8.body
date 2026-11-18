@@ -1,0 +1,2 @@
+import{y as t}from"./shared-DHv8vizd.js";function y({containerRef:e,playState:n,setUserDrivenPlaystate:r}){t(()=>{const t=e.current;if(!t)return;t.setAttribute("tabindex","-1"),t.style.outline="none";const a=e=>{(32===e.keyCode||" "===e.key||"Space"===e.key)&&(e.preventDefault(),"paused"===n.value?r("play",e):r("pause",e))};return t.addEventListener("keydown",a),()=>{t.removeEventListener("keydown",a)}},[e,n,r])}export{y as u};
+//# sourceMappingURL=keyboard-controls-Cq-fSIHU.js.map

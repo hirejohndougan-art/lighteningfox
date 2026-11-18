@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/17/multimedia/17int-russia-ukraine-bridges-ltwc/17int-russia-ukraine-bridges-ltwc-verticalTwoByThree735.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "3bxcbbBW1cXuE4NyyZQLIrI9YI2LAG2awslE3MmIFDo"
+expires: Tue, 17 Nov 2026 19:41:05 GMT
+fastly-io-info: ifsz=152313 idim=735x1103 ifmt=jpeg ofsz=49553 odim=735x1103 ofmt=jpeg
+fastly-io-served-by: img10-us-east4
+fastly-io-transform-stats: ifsz=152313 ofsz=49553 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: tHNjEQ==
+x-goog-generation: 1794919456821128
+x-goog-hash: crc32c=tHNjEQ==
+x-goog-hash: md5=+WB74fqmkVWvoVd7xrtRoQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 152313
+x-guploader-uploadid: AFy3sg0oc6YMMrLjM_Jp9R8fkRtmJbbcDgFGCoWCV_Op940TNZfCxcMRB6fQKDQW1gVX3qHTsyBlxUY
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:04 GMT
+via: 1.1 varnish
+age: 70320
+x-served-by: cache-iad-kcgs7200057-IAD
+x-cache: HIT
+x-cache-hits: 5
+x-timer: S1795014785.942565,VS0,VE0
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 49553

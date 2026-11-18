@@ -1,0 +1,28 @@
+OPTIONS https://samizdat-graphql.nytimes.com/graphql/v2
+200 OK
+x-envoy-upstream-service-time: 0
+server: envoy
+access-control-allow-methods: GET, POST
+access-control-allow-credentials: true
+accept-ranges: bytes
+access-control-allow-origin: https://www.nytimes.com
+access-control-max-age: 300
+via: 1.1 varnish, 1.1 varnish
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+allow: GET,HEAD,POST
+date: Wed, 18 Nov 2026 15:15:29 GMT
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: ac6d497f53b26cb8
+x-samizdat-query-field-errors: 0
+x-nyt-pass-reason: IGQL
+access-control-allow-headers: content-type,nyt-app-type,nyt-app-version,nyt-token, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-kcgs7200138-IAD, cache-iad-kcgs7200138-IAD, cache-iad-kcgs7200138-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795014930.591054,VS0,VE35
+vary: origin, access-control-request-headers
+timing-allow-origin: *
+x-nyt-edge-cache: MISS
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 0

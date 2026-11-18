@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2023/08/25/crosswords/alpha-connections-icon-original/alpha-connections-icon-original-smallSquare252.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "ehmSxdn3vDUg4S3zkeFOGJAiQBG+kEQ8fiN2Elygxdo"
+expires: Mon, 26 Oct 2026 11:54:44 GMT
+fastly-io-info: ifsz=6262 idim=252x252 ifmt=png ofsz=6074 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010250
+fastly-io-transform-stats: ifsz=6262 ofsz=6074 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 4xlHBw==
+x-goog-generation: 1692973588512924
+x-goog-hash: crc32c=4xlHBw==
+x-goog-hash: md5=SqD615JxZz/vQL6j7h5dSQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 6262
+x-guploader-uploadid: AP6rU81EXFW7BMusFFRLyRP6YGGbCdsWCAECs9y-904BZJAA3_3H0MyyjCLBJytiv-eKxmO87Td4iWQ
+accept-ranges: bytes
+age: 124360
+date: Wed, 18 Nov 2026 15:17:15 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795015036.822681,VS0,VE6
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 6074

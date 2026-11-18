@@ -1,0 +1,28 @@
+OPTIONS https://samizdat-graphql.nytimes.com/graphql/v2?operationName=getOfferSupergraph&variables=%7B%22country%22%3A%22US%22%2C%22allAccessAcquisitionAnnualUnitedStatesId%22%3A%22d5ea21cf-26fa-4cb1-b79f-381f862069b8%22%2C%22allAccessAcquisitionMonthlyId%22%3A%228029be31-44f0-459a-bc6d-6aed0ef7c22b%22%2C%22allAccessAcquisitionMonthlyAsDefaultId%22%3A%228029be31-44f0-459a-bc6d-6aed0ef7c22b%22%2C%22allAccessAcquisitionMonthlyFreeTrialId%22%3A%2257fa046f-6856-46fa-82c7-f412fd5a5d56%22%2C%22allAccessFamilyAcquisitionMonthlyId%22%3A%222ff79808-5910-4bfb-b7e3-ed07db31b52c%22%2C%22allAccessSaleAcquisitionMonthlyId%22%3A%223cb3d1fe-2d8a-42ea-8111-760953709d05%22%2C%22athleticAcquisitionAnnualId%22%3A%220c131b6a-d3c0-44dd-ad99-45c8f47d5306%22%2C%22athleticAcquisitionAnnualFreeTrialTestV1Id%22%3A%222dbead69-01cb-47c1-b473-080afddc392e%22%2C%22athleticAcquisitionAnnualOneWeekTrialId%22%3A%229b062229-a728-4905-af10-d0e2e5eee74b%22%2C%22athleticAcquisitionMonthlyId%22%3A%22d6d6f756-cc59-45d8-af3c-8ff36aff1afd%22%2C%22athleticAcquisitionMonthlyFreeTrialTestV1Id%22%3A%22473f576b-29f5-4df1-b060-6674f49168cc%22%2C%22athleticAcquisitionSaleAnnualId%22%3A%227447aec1-802f-47d8-be4e-ecd50886c0ab%22%2C%22athleticAcquisitionSaleAnnualOneWeekTrialId%22%3A%2260530c7f-f9a1-4ca2-9f0d-40eaa9bc6616%22%2C%22athleticAcquisitionSaleMonthlyId%22%3A%227e1887fe-d00a-4dab-a662-4e1e0a566a94%22%2C%22athleticFreeTrialAcquisitionSaleMonthlyId%22%3A%22a385f2f5-368a-4d49-bf6c-6656700eb921%22%2C%22audioAcquisitionAllAccessId%22%3A%228029be31-44f0-459a-bc6d-6aed0ef7c22b%22%2C%22audioAcquisitionAnnualId%22%3A%223f72fc34-5c4d-4e70-b61d-6b394256486d%22%2C%22audioAcquisitionAnnualGWPHardForkId%22%3A%2206aef65d-3a62-49b1-b4c3-b70cc9ea2de0%22%2C%22audioAcquisitionMonthlyId%22%3A%2264600308-bb0d-44e2-a7e6-8fc6fc68dce7%22%2C%22cookingAcquisitionAnnualId%22%3A%225409f671-255e-4fc9-8e9e-e9f6d591963f%22%2C%22cookingAcquisitionMonthlyId%22%3A%22dfd70236-6081-11ed-90cf-c6456bb18bea%22%2C%22cookingHolidaySaleAcquisitionAnnualId%22%3A%22f7a4a07b-9927-41a9-9e0d-e54b77e3f239%22%2C%22cookingHolidaySaleAcquisitionMonthlyId%22%3A%22a987ad9c-a076-4f7f-8a58-d2600dfdf666%22%2C%22cookingSaleAcquisitionAnnualId%22%3A%22bd10559b-ecc1-4f33-91a2-9298953f169d%22%2C%22cookingSaleAcquisitionMonthlyId%22%3A%2295fe8db8-5690-4d85-a8d1-c8867ffe7562%22%2C%22gamesAcquisitionAnnualId%22%3A%22edba9376-6087-11ed-abd7-da088c6a7d92%22%2C%22gamesAcquisitionMonthlyId%22%3A%2264caa187-5475-11ed-b326-4e22c4ff147f%22%2C%22gamesFamilyAcquisitionAnnualId%22%3A%2244307215-cc62-472f-b995-b479cdf023f8%22%2C%22gamesFamilyAcquisitionMonthlyId%22%3A%22881c30ba-70ba-4770-af2b-8d8cafc9217e%22%2C%22gamesSaleAcquisitionAnnualId%22%3A%2240ff69b0-57bc-48a7-af9c-d26e6b37e877%22%2C%22gamesSaleAcquisitionMonthlyId%22%3A%22754d4261-6ecb-4b8c-b0ac-16c5b743ad0f%22%2C%22giftAcquisitionAnnualId%22%3A%22af08f8ad-7407-4360-b386-dcef226715ad%22%2C%22giftAcquisitionAthleticAnnualId%22%3A%224b2fb7de-2dc9-4cab-8461-88e2bc41df27%22%2C%22giftAcquisitionAthleticBiAnnualId%22%3A%22bcfea5d3-07ae-4815-b5d8-feeb420bc869%22%2C%22giftAcquisitionCookingAnnualId%22%3A%22a6e3e9bb-363d-4def-991a-20a90d795a26%22%2C%22giftAcquisitionGamesAnnualId%22%3A%2224990602-efeb-4118-bd79-8aecbd904b7a%22%2C%22giftHolidaySaleAcquisitionAnnualId%22%3A%228d10b39c-380f-40cc-9e89-e4d1d187a1c9%22%2C%22giftSaleAcquisitionAnnualId%22%3A%22695f5254-1311-4a22-9cc3-9c48ca0ccdfd%22%2C%22giftSaleAcquisitionAthleticAnnualId%22%3A%2208905b5f-7005-4b37-b4b7-3a97c3a5b2c2%22%2C%22giftSaleAcquisitionAthleticBiAnnualId%22%3A%222970ece3-d9c2-4520-b3bc-3dfde74778da%22%2C%22giftSaleAcquisitionCookingAnnualId%22%3A%22ca4c371c-db29-11ea-9d62-7a958c5d7319%22%2C%22giftSaleAcquisitionGamesAnnualId%22%3A%22a0f34ea6-53da-11ed-a5f5-ee8e6990e449%22%2C%22hyundaiCardAllAccessAnnualId%22%3A%22b05c3ccb-ea0a-48fe-835a-ce961d2b3ce4%22%2C%22veteransAdvantageAllAccessAcquisitionMonthlyId%22%3A%228c393759-4682-4fba-94f3-e087f98b7c62%22%2C%22wirecutterAcquisitionAnnualId%22%3A%22f90bde80-5f41-4302-aba3-d38aef05c79e%22%2C%22wirecutterAcquisitionMonthlyId%22%3A%2211c7c30a-d179-45cf-a0f4-226892e8c4a3%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22sha256Hash%22%3A%22cba863773f39acc0c73fa670d9c7309360886e4984874173350d78d15c6fd5c3%22%2C%22version%22%3A1%7D%7D
+200 OK
+x-envoy-upstream-service-time: 1
+server: envoy
+access-control-allow-methods: GET, POST
+access-control-allow-credentials: true
+accept-ranges: bytes
+access-control-allow-origin: https://www.nytimes.com
+access-control-max-age: 300
+via: 1.1 varnish, 1.1 varnish
+x-envoy-decorator-operation: router-core.samizdat.nyti.nyt.net:443/*
+allow: GET,HEAD,POST
+date: Wed, 18 Nov 2026 15:15:29 GMT
+x-nyt-geoip-map: meridiem=AM,continent=NA,country=US,region=VA
+x-nyt-audience-target-flat: NA
+x-samizdat-query-exe-id: 8da7c9ea1166b0ea
+x-samizdat-query-field-errors: 0
+x-nyt-pass-reason: IGQL
+access-control-allow-headers: content-type,nyt-app-type,nyt-app-version,nyt-token, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-served-by: cache-iad-kcgs7200138-IAD, cache-iad-kcgs7200138-IAD, cache-iad-kcgs7200138-IAD
+x-cache: MISS, MISS
+x-cache-hits: 0, 0
+x-timer: S1795014930.590014,VS0,VE40
+vary: origin, access-control-request-headers
+timing-allow-origin: *
+x-nyt-edge-cache: MISS
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 0

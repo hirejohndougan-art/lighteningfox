@@ -1,0 +1,30 @@
+import{Tr as e}from"./vendor-u8E3U9GY.js";import{a as t,i as n}from"./GTMAdapter-BRiIVm_3.js";import{t as r}from"./isBrowser-Dkae7dA-.js";import{i,r as a}from"./location-COT35A-U.js";import{t as o}from"./cookie-DtATbXr1.js";import"./utils-QFIJzWP3.js";import{t as s}from"./getViewportType-iDRJqLB8.js";import{_ as c,b as l,c as u,d,f,g as p,h as m,i as h,l as g,n as _,r as v,t as y,u as b,y as x}from"./AdUtilities-16PIaUG0.js";async function S(e){let[t,n]=e.trim().toLowerCase().split(`@`),r=t;return n===`gmail.com`&&([r]=t.replace(/\./g,``).split(`+`)),`${r}@${n}`}async function C(e){let t=await S(e),n=new TextEncoder().encode(t),r=await crypto?.subtle?.digest(`SHA-256`,n),i=Array.from(new Uint8Array(r));return{liveramp:i.map(e=>e.toString(16).padStart(2,`0`)).join(``),uid2:btoa(String.fromCharCode(...i))}}function w(e){let t=window,n=()=>t?.ats?.setAdditionalData({id:[e.liveramp],type:`emailHashes`});if(t?.ats?.setAdditionalData)n();else{let e=()=>{n(),window.removeEventListener(`envelopeModuleReady`,e)};window.addEventListener(`envelopeModuleReady`,e)}}async function T(e){window.mnjs.que=window.mnjs.que||[],window.mnjs.que.push(()=>{window.mnjs.setUids({emailHash:e.uid2})})}function E(){let e=new Promise((e,t)=>{n.subscribe({async next(n){try{if(!n?.email){e({user:n});return}let t=await C(n.email);t&&(w(t),window?.mnjs&&await T(t)),e({user:n})}catch(e){t(e)}},error(e){t(e)}})});return e.catch(e=>{console.error(e)}),e}function D(e){let{getTrackingData:t}=e;return typeof t==`function`?t():null}E();function O(e,t){if(e?.subscriptionDetails&&Array.isArray(e.subscriptionDetails)&&e.subscriptionDetails.length>=1){let n=e.subscriptionDetails[0];n.billingSource&&(t.subsrc=n.billingSource)}return t}function k(e,t,n=void 0){if(!e)return t;let{targetUrl:r,timesTags:i,collections:a,adTargetingParams:o}=e,d=s()||`smartphone`,f=n||c(d);return r||(o?t=l(o,f,t):(t=v(t,e,f),i&&(t=b(i,t)),a&&(t=u(a,t)))),t}function A(e){let t=e?.adContextualTaxonomy?.openrtb;return Array.isArray(t)&&t.length>0?t:null}k.fragments={data:e`
+    fragment getTargetingParams_data on WorkOrLocation {
+      ... on RelocatedWork {
+        targetUrl
+      }
+      ... on CreativeWork {
+        adTargetingParams(clientAdParams: { edn: "us", plat: "web", prop: "nyt" }) {
+          key
+          value
+        }
+        adContextualTaxonomy {
+          iab {
+            name
+            tier1
+            tier2
+            tier3
+            tier4
+          }
+          openrtb
+        }
+        ...getAdLibraryFallback_data
+        ...getCollections_collections
+        ...getNewsKeywords_keywords
+      }
+    }
+    ${v.fragments.data}
+    ${u.fragments.collections}
+    ${b.fragments.keywords}
+  `};function j(e,n){let{tracking:l,getPageviewId:u,getReferrer:v}=n,b=s()||`smartphone`,S=h(o),C=l?D(l):null,w=a(),T=r?t():null,E={ver:p(b),sov:m(),vp:c(b),test:`projectvi`,ref:d(),refdom:f(),abra_dfp:_(),"gpt-beta":`vqwdtftx`},k;return w&&(k=i(w,`ad-keywords`)),u&&(E.page_view_id=u()),v&&(E.topref=v()),g(o)===`1`&&(E.gdprUser=!0),S?.toString().toLowerCase()===`out`&&(E.noTracking=!0),C?.interaction?.page&&(E.page=C.interaction.page),k&&(E.adv=k),E=O(T,E),b===`smartphone`?x(E):y(E)}export{A as n,k as r,j as t};
+//# sourceMappingURL=AdRequirements-BDJGixJi.js.map

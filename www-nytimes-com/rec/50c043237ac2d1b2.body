@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./OfflineResourceProvider-BSbc79uH.js";var r=e(t(),1),i=function(){var e={addImages:function(){},addSubresources:function(){},addInlinedInteractives:function(){}};try{e=(0,r.useContext)(n)}catch{}return e};export{i as t};
+//# sourceMappingURL=useOffline-Bv1x9Nb4.js.map

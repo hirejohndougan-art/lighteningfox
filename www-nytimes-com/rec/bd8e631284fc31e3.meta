@@ -1,0 +1,35 @@
+GET https://www.nytimes.com/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css
+200 OK
+x-amz-id-2: Qi1YDLWeWqCx+MHZ/N00Uc1wo+Htw0XBT2bF8fMNDJ4TMgIYPpWG3163GZYEakhSdC+iA2g3kDQ=
+x-amz-request-id: GCXC9H0S6T0CD01C
+server: AmazonS3
+last-modified: Tue, 03 Nov 2026 21:49:37 GMT
+etag: "d9a6e77102b8649419259ee66efbfe1d"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: gtQW0VxqIdcUx664NfHSYL1MIvfsiY_m
+content-type: text/css
+lei-timing: fetch=104346,misspass=1019,do_stream=0
+lei-origin: ip=52.216.56.34,port=443,name=F_vi_assets,status=200,reason=OK,method=GET,path="/static-assets/assets/CardDeck-Gs6iwXno.css",host=vi-assets-us-east-1.s3.amazonaws.com,shield=LGA,src_ip=167.82.132.26,alternate_path=0
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=HIT,final-url="/vi-assets/static-assets/assets/CardDeck-Gs6iwXno.css"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=97R3dEi_09psS7hPQXDAlW,newsTenure=anon_user
+x-nyt-geoip-map: continent=NA,country=US,region=VA,gmt-offset=-500,meridiem=AM,latitude=39.030,longitude=-77.490,city=ashburn,postal-code=20147,area-code=703,metro=511
+x-nyt-device-map: type=tablet,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=97R3dEi_09psS7hPQXDAlW,newsTenure=anon_user
+x-nyt-vars: slideshow-compatibility
+x-origin-time: 2026-11-09 09:10:11 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:51 GMT
+age: 1067630
+x-served-by: cache-lga-kjfk8660026-LGA, cache-iad-kcgs7200053-IAD
+x-cache: HIT, HIT
+x-cache-hits: 6160, 4857
+x-timer: S1795014772.672445,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

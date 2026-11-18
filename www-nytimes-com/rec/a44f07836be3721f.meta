@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2026/11/18/multimedia/18theheadlines-rubio-ztpl/18theheadlines-rubio-ztpl-smallSquare252.jpg?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "6jFI57Yw06uH7ua64dviiBcKyclBh6kKX+mHR0DFkgI"
+expires: Wed, 18 Nov 2026 11:02:03 GMT
+fastly-io-info: ifsz=24142 idim=252x252 ifmt=jpeg ofsz=14763 odim=252x252 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010250
+fastly-io-transform-stats: ifsz=24142 ofsz=14763 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: qJh8PQ==
+x-goog-generation: 1794995452158519
+x-goog-hash: crc32c=qJh8PQ==
+x-goog-hash: md5=PBdzaIAgqoXb3Lm1gpVbZg==
+x-goog-metageneration: 1
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 24142
+x-guploader-uploadid: AFy3sg1YoOrbFoo2shPshRKXkaaZzfP9Zlklcb9tdb8BJY5Zsdm8isf02ixUzUh3nkuO5IeIV4LuKOI
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:18:37 GMT
+via: 1.1 varnish
+age: 15394
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795015118.801010,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 14763

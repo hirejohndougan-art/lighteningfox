@@ -1,0 +1,21 @@
+OPTIONS https://static01.nyt.com/elections-assets/pages/data/2026-11-03/hp-multi.json
+200 OK
+x-guploader-uploadid: AFy3sg3I_1pp7uSB9eIHs_6J5Nn09kydk3LgZW121iXC6Q62f3715xh6MQIuoDgKERUXr8RNUzP5M6Y
+expires: Wed, 18 Nov 2026 15:18:00 GMT
+cache-control: private, max-age=0
+server: UploadServer
+content-type: text/html; charset=UTF-8
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:18:00 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: MISS
+x-cache-hits: 0
+x-timer: S1795015080.269574,VS0,VE15
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: MISS
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 0

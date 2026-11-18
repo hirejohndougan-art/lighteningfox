@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Nn as t}from"./vendor-u8E3U9GY.js";var n=e(t()),r=(e,t)=>{let r=n.parse(e,!0);return Object.entries(t).forEach(([e,t])=>{r.query[e]=t}),r.search=null,n.format(r)},i=(e,t)=>{let r=n.parse(e);return r.pathname.startsWith(t)||(r.pathname=`${t}${r.pathname}`),n.format(r)};export{i as n,r as t};
+//# sourceMappingURL=addQueryParam-BPKTmhth.js.map

@@ -1,0 +1,26 @@
+GET https://g1.nyt.com/fonts/family/karnak/karnak-normal-400.b2143e2f1890f4d516078da14aebab03.woff2
+200 OK
+x-amz-id-2: llex6N7/reJGY1hWPziW8iK+aMRHaUWF52lROMQFWELUajCg708gqSY14L/k+9Ll2IX1k10MIt4=
+x-amz-request-id: QBQFF7W2S606NQ10
+last-modified: Fri, 21 Feb 2025 15:52:14 GMT
+etag: "b2143e2f1890f4d516078da14aebab03"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000,immutable
+x-amz-version-id: rB8QgglB0QUwykidPosHlSQf22v0FNT5
+content-type: binary/octet-stream
+server: AmazonS3
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:51 GMT
+via: 1.1 varnish
+age: 1193833
+x-served-by: cache-iad-kcgs7200052-IAD
+x-cache: HIT
+x-cache-hits: 345
+x-timer: S1795014771.315054,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 27004

@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vr as t,Yn as n}from"./vendor-u8E3U9GY.js";import{r}from"./performance-DGwsy9qo.js";var i=e(t()),a=e(n()),o=(()=>{let e={};return t=>(e[t]||(e[t]={startTiming:(0,a.default)(()=>{r.mark(`start-${t}`)}),endTiming:(0,a.default)(()=>{r.mark(`end-${t}`),r.measure(t,`start-${t}`,`end-${t}`)})}),e[t])})();function s(e){let{startTiming:t,endTiming:n}=o(e);return(0,i.useEffect)(()=>{n()},[n]),t(),null}export{s as t};
+//# sourceMappingURL=useTiming-Bes2Vq-S.js.map

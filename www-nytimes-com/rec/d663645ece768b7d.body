@@ -1,0 +1,2 @@
+var e=e=>Math.floor(Math.random()*Math.floor(e));export{e as t};
+//# sourceMappingURL=utils-B4_pHWtd.js.map

@@ -1,0 +1,17 @@
+GET https://www.datadoghq-browser-agent.com/us1/v7/datadog-rum.js
+200 OK
+content-type: text/javascript
+server: AmazonS3
+last-modified: Mon, 16 Nov 2026 13:03:49 GMT
+timing-allow-origin: *
+x-amz-server-side-encryption: AES256
+date: Wed, 18 Nov 2026 15:12:12 GMT
+cache-control: max-age=14400, s-maxage=60
+etag: W/"c7f4d309abf86a2bd8f7ff83097672f3"
+vary: Accept-Encoding
+vary: Origin
+x-cache: Hit from cloudfront
+via: 1.1 adbd5a952eb287ac84e05fd5fd42328e.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD61-P10
+x-amz-cf-id: NoHjx-9fDWXZEoTDPs2HZNbtLzYHqu8rx2ASKXoxsMZwvMBuRzZN3w==
+age: 55

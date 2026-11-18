@@ -1,0 +1,2 @@
+import{h as t,y as u}from"./shared-DHv8vizd.js";const s=a=>{const s=t(a);return u(()=>{s.value=a},[a]),s};function i(a,s){const e=a.value;s(e),a.value=new Map(e)}function o(a,s){const e=a.value;s(e),a.value=new Set(e)}export{o as a,i as e,s as u};
+//# sourceMappingURL=signal-utils-BMEMACOT.js.map

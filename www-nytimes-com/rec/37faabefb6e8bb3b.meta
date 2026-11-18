@@ -1,0 +1,24 @@
+GET https://pay.google.com/gp/p/js/pay.js
+200 OK
+content-type: application/javascript; charset=utf-8
+expires: Wed, 18 Nov 2026 15:14:11 GMT
+date: Wed, 18 Nov 2026 15:14:11 GMT
+cache-control: private, max-age=600
+p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+strict-transport-security: max-age=31536000
+content-security-policy: script-src 'report-sample' 'nonce-CLzdqGP56T8xe4yqp7VD3w' 'unsafe-inline';object-src 'none';base-uri 'self';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport;worker-src 'self'
+content-security-policy: require-trusted-types-for 'script';report-uri /gp/p/_/InstantbuyFrontendHttp/cspreport
+accept-ch: Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Model, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version
+permissions-policy: ch-ua-arch=*, ch-ua-bitness=*, ch-ua-full-version=*, ch-ua-full-version-list=*, ch-ua-model=*, ch-ua-wow64=*, ch-ua-form-factors=*, ch-ua-platform=*, ch-ua-platform-version=*
+cross-origin-resource-policy: cross-origin
+cross-origin-opener-policy: same-origin
+reporting-endpoints: default="/gp/p/_/InstantbuyFrontendHttp/web-reports?context=eJzj2sKoxSXF4K0hxbCsVIqh9eY51slAPDfgPGt45nnWkkXnWZuAuAuIZwCxocIlVnsg9rC4zFokcYW1AYg_Vd1gFai-wfpq503WGJE7rEJT77KeS_dme_jKm-1bsS8bS4kv2zWPALY5jwLYTEMC2ZyBWCU0kG02eyhbcmc0G9f6aLa5OjFsf7tj2TKuxrJVXYtlO8oZx1YTFceWKhbPdsUrnk3rcjzbDvsENu7TCWzWDxPYhLg5Djd-v84m0PBwA6OSdlJ-YXxmXnFJYl5JUmllWlF-XklqXkpxalFZalG8kYGRmaGhobmegVF8gQEANG1XWg"
+document-policy: include-js-call-stacks-in-crash-reports
+server: ESF
+x-xss-protection: 0
+x-frame-options: SAMEORIGIN
+x-content-type-options: nosniff
+set-cookie: NID=CucBCAESmQEBM9Agl2_2s3pJ3G45QIt0rq6OfaFVCacubWYmokNREulZ-HU9VDGMWHcJDiEENZaSfsQYBRSsRPMFLpsb8f10vr28bNEBmG2RnQ1Pv1wIgutxn_piQi9mlwSEphql-8RTybXxl-boOU6JgoyvFjVtpmmnxLjeYrG_fZ4dRhWQo7Q5wAHpjOVSJ1wIcyhitKCpwIuL4qSJ4tgoATJFAXBKQs9fV0Mhk9Y2Lp6StLoIxXObJIK47Mg6aAB7TkgxlnYj_IqTqB-9VlKwstb9L8e2r4erYy587fbK5n_6qPrlrT4E; expires=Thu, 20-May-2027 15:14:10 GMT; path=/; domain=.google.com; HttpOnly
+alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+accept-ranges: none
+vary: Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site,Accept-Encoding

@@ -1,0 +1,37 @@
+GET https://static01.nyt.com/images/2025/03/25/multimedia/tamc-032525-connections-sports-edition-hp-img/tamc-032525-connections-sports-edition-hp-img-smallSquare252.png?format=pjpg&quality=75&auto=avif&disable=upscale
+200 OK
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, X-GUploader-UploadID, X-Google-Trace
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "y7/DuJnpt1gKwyDpZVSxG+BoP0mTnA2D/UHE3TVIABY"
+expires: Wed, 07 Oct 2026 14:37:44 GMT
+fastly-io-info: ifsz=6116 idim=252x252 ifmt=png ofsz=6018 odim=252x252 ofmt=jpeg
+fastly-io-served-by: img10-us-east4
+fastly-io-transform-stats: ifsz=6116 ofsz=6018 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: V1TlCA==
+x-goog-generation: 1742924145212059
+x-goog-hash: crc32c=V1TlCA==
+x-goog-hash: md5=h/UH2/uD0puCu+zSeQTSsQ==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 6116
+x-guploader-uploadid: AP6rU81HV-U3jQRFwXTvOPr4UdbjHu1BODMpngR7R8r0I91U3B-PpoTNiUaH0n0dSO93tl_F3YpIpXI
+accept-ranges: bytes
+age: 193652
+date: Wed, 18 Nov 2026 15:17:15 GMT
+via: 1.1 varnish
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: HIT
+x-cache-hits: 0
+x-timer: S1795015036.823669,VS0,VE4
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 6018

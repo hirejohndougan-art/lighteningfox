@@ -1,0 +1,35 @@
+GET https://static01.nyt.com/projects/weather/weather-bots/home-screen-module/homepage-v2.json
+200 OK
+content-type: application/json
+x-guploader-uploadid: AFy3sg13QbE9vpid3om8-RSpIJxBU_uGn-6wbnyJvPWuOt2pk_HiApfiYgj_FIv5NveL2qDgYr2lMLg
+cache-control: max-age=50, stale-while-revalidate=30
+expires: Wed, 18 Nov 2026 15:13:36 GMT
+last-modified: Wed, 18 Nov 2026 15:10:44 GMT
+etag: W/"8d5c881c8d4e5ca51754100a7cdf5bb7"
+x-goog-generation: 1795014644882121
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: gzip
+x-goog-stored-content-length: 1481
+x-amz-meta-checksum: 
+x-goog-hash: crc32c=RmAqUg==
+x-goog-hash: md5=jVyIHI1OXKUXVBAKfN9btw==
+x-amz-checksum-crc32c: RmAqUg==
+x-goog-storage-class: MULTI_REGIONAL
+access-control-expose-headers: Content-Length, Date, Server, Transfer-Encoding, Warning, X-GUploader-Response-Body-Transformations, X-GUploader-UploadID, X-Google-Trace, etag, if-match, range
+x-guploader-response-body-transformations: gunzipped
+warning: 214 UploadServer gunzipped
+server: UploadServer
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:02 GMT
+via: 1.1 varnish
+age: 16
+x-served-by: cache-iad-kcgs7200057-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795014783.934004,VS0,VE2
+vary: Accept-Encoding
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT

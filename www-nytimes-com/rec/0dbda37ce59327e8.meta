@@ -1,0 +1,24 @@
+GET https://www.nytimes.com/vi-assets/static-assets/chunks/useMessageSelection-D4M2CklK.js
+200 OK
+x-amz-id-2: ZjfRJJjOe9fdPlwPlUZBbRuKa5VOPCoYZ2ChXeXXS6p029P4ljfXrj+mhvBdSPz+P7drWLvMLHriitRVzag2AkUKwLwIJT3i
+x-amz-request-id: VJ6R0VE44M67PMNE
+server: AmazonS3
+last-modified: Tue, 17 Nov 2026 20:41:02 GMT
+etag: "139f5157212237fabe9aa9dfe9d11836"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: AwH9WmJmtECb7Hxk.4woZE7AmW_czIo0
+content-type: text/javascript
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-route: vi-assets
+x-origin-time: 2026-11-17 20:41:23 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:03 GMT
+age: 66701
+x-served-by: cache-lga-kjfk8660065-LGA, cache-iad-kcgs7200053-IAD
+x-cache: HIT, HIT
+x-cache-hits: 7, 3674
+x-timer: S1795014784.937491,VS0,VE3
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: HIT-HIT

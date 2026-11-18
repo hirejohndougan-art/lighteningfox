@@ -1,0 +1,2 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Vn as t}from"./vendor-u8E3U9GY.js";import{t as n}from"./useIsInWebview-DpFf3zJE.js";var r=e(t()),i=()=>{let e=typeof document>`u`?``:document.cookie;return r.parse(e)?.NYT_AWV===`on`?`on`:`off`},a=()=>n()?!0:i()===`on`;export{a as t};
+//# sourceMappingURL=useInAndroidWebView-CYEFGbqS.js.map

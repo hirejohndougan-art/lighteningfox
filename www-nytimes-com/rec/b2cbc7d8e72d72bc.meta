@@ -1,0 +1,17 @@
+GET https://purr.nytimes.com/v1/purr-cache
+200 OK
+access-control-allow-credentials: true
+access-control-allow-origin: https://www.nytimes.com
+set-cookie: purr-cache=<G_<C_<T0<Td_<Tp1_<Tp2_<Tp3_<Tp4_<Tp7_<a0_<K0<r<ua<As_<Au_; Path=/; Domain=nytimes.com; Expires=Sun, 19 Dec 2027 02:53:45 GMT; HttpOnly; Secure; SameSite=Lax
+set-cookie: purr-pref-agent=<G_<Co<T0<Td_<Tp1_<Tp2_<Tp3_<Tp4_<Tp7_<a0_; Path=/; Domain=nytimes.com; Expires=Sun, 19 Dec 2027 02:53:45 GMT; HttpOnly; Secure; SameSite=Lax
+set-cookie: gpp-string=",,DBABLA~BVQVAAAAAABo.QA"; Path=/; Domain=nytimes.com; Expires=Sun, 19 Dec 2027 02:53:45 GMT; Secure; SameSite=Lax
+vary: Origin
+x-cloud-trace-context: 6afdc0a9000000002c5094261d70588a
+date: Wed, 18 Nov 2026 15:13:45 GMT
+content-type: text/html
+server: envoy
+content-length: 0
+via: 1.1 google
+x-envoy-upstream-service-time: 26
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-envoy-decorator-operation: purr.nytimes.com:443/*

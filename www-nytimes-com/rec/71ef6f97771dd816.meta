@@ -1,0 +1,31 @@
+GET https://g1.nyt.com/fonts/family/karnak/karnak-cursive-700.8f7bd9925d45259466cb9cb526fc9c15.woff2
+200 OK
+x-guploader-uploadid: ADPycduPo9It5HQFBN6qBIM9ZuPFLbkkRTJL3iaP04Hq1tUFCQUr0xWvfDmxnUa_l0-t3m6_LoA5lTjbOUonSV-LpliSbQ
+cache-control: public,max-age=31536000,immutable
+expires: Wed, 11 Sep 2024 11:53:30 GMT
+last-modified: Tue, 17 Jan 2023 21:42:56 GMT
+etag: "8f7bd9925d45259466cb9cb526fc9c15"
+x-goog-generation: 1673991776843427
+x-goog-metageneration: 1
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 23892
+content-type: application/octet-stream
+x-goog-hash: crc32c=x8YdtQ==
+x-goog-hash: md5=j3vZkl1FJZRmy5y1JvycFQ==
+x-goog-storage-class: STANDARD
+server: UploadServer
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:12:51 GMT
+via: 1.1 varnish
+age: 124220
+x-served-by: cache-iad-kcgs7200052-IAD
+x-cache: HIT
+x-cache-hits: 3
+x-timer: S1795014771.315707,VS0,VE0
+x-nyt-pagetype: web-font
+access-control-allow-origin: *
+access-control-expose-headers: Content-Type
+access-control-allow-methods: GET, OPTIONS
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+content-length: 23892

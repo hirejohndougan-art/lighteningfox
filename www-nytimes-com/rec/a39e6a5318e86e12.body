@@ -1,0 +1,62 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{Nn as t,Tr as n}from"./vendor-u8E3U9GY.js";import{t as r}from"./cookie-DtATbXr1.js";import{n as i,t as a}from"./internationalHomeUtils-Dul_YSVM.js";var o=e(t()),s=`${vi.env.AUTH_HOST}/auth/login`,c=`${vi.env.MESSAGING_LANDING_PAGE_HOST}/subscription/onboarding-offer?campaignId=7JFJX`,l=`Subscribe`,u=`Account`,d=`Today’s Paper`,f=`https://www.nytimes.com/section/todayspaper`;`${vi.env.AUTH_HOST}`;var p=`Account Information`,m=`vi`,h=365*24*60*60*1e3,g={US:{value:`edition|US`,path:`/`},ES:{value:`edition|SPANISH`,path:`/es/`},CA:{value:`edition|CANADA`,path:a},INT:{value:`edition|INTERNATIONAL`,path:i},INTL:{value:`edition|INTERNATIONAL`,path:i}},_=e=>{let t={path:`/`,domain:`.nytimes.com`,expires:new Date(Date.now()+h)};r.load(`NYT-Edition`)!==g[e].value&&r.save(`NYT-Edition`,g[e].value,t)},v=()=>r.load(`NYT-Edition`)===g.CA.value?`CANADA`:r.load(`NYT-Edition`)===g.INT.value?`INTL`:r.load(`NYT-Edition`)===g.ES.value?`ES`:`US`,y=`/`,b=`es`;function x(e={}){return e?.section===`espanol`||e?.language&&e?.language.startsWith(b)?`/${b}/`:r.load(`NYT-Edition`)===g.CA.value?g.CA.path:r.load(`NYT-Edition`)===g.INT.value?g.INT.path:r.load(`NYT-Edition`)===g.US.value?g.US.path:r.load(`NYT-Edition`)===g.ES.value?g.ES.path:e?.homepath?e.homepath:y}function S(e){let{protocol:t,host:n,pathname:r,query:i}=o.parse(c,!0),a={...i,EXIT_URI:e};return e?`${t}//${n}${r}?${new URLSearchParams(a).toString()}`:c}function C(){return globalThis.window?.location?.href||`https://www.nytimes.com`}function w(e){let t=s;globalThis?.vi?.env?.ENVIRONMENT!==`prd`&&new URLSearchParams(globalThis?.window?.location?.search).get(`GQL_ENV`)===`stg`&&(t=`https://myaccount.stg.nytimes.com/auth/login`);let n={response_type:`cookie`,client_id:e?.customClientId||m,redirect_uri:e?.redirectUri||C(),...e?.extraParams||{}};return`${t}?${new URLSearchParams(n).toString()}`}function T(e=null,t=null,n=null){return w({redirectUri:S(e),extraParams:{asset:t},customClientId:n})}var E=n`
+  fragment SubNavMenuProps on ScoopSubNavMenu {
+    id
+    uri
+    edition
+    panels {
+      linkUrl
+      id
+      name
+      footNote
+      cover {
+        title
+        description
+        footerText
+        footerLinkUrl
+        linkUrl
+        id
+        publishInfo {
+          version
+        }
+      }
+      categories {
+        id
+        name
+        footLinkUrl
+        footLinkText
+        columns {
+          id
+          width
+          items {
+            id
+            name
+            linkUrl
+            description
+            iconUrl
+            status
+            publishInfo {
+              version
+            }
+          }
+        }
+      }
+    }
+  }
+`,D={US:`subnavmenu-usa`,CANADA:`subnavmenu-canada`,INTL:`subnavmenu-intl`,esp:`subnavmenu-esp`},O=e=>{let t=e||``;return t.startsWith(g.ES.path)?D.esp:t.startsWith(g.CA.path)?D.CANADA:t.startsWith(g.INT.path)?D.INTL:D.US},k=n`
+  query SubnavQuery($slug: String!) {
+    subNavMenuData: scoopNodes(
+      first: 1
+      filter: { slug: $slug, types: [ScoopSubNavMenu] }
+    ) {
+      edges {
+        node {
+          ... on ScoopSubNavMenu {
+            ...SubNavMenuProps
+          }
+        }
+      }
+    }
+  }
+  ${E}
+`,A=e=>e?.subNavMenuData?.edges?.map(e=>e.node)||[],j=e=>(e?.items||[]).some(e=>!!e?.iconUrl),M=e=>(e?.items||[]).some(e=>!!e?.description),N=e=>e?e.toLowerCase().split(` `).join(`-`):``,P=e=>j(e)&&M(e)?`thumbnail-column`:j(e)?`links-icons-column`:`links-column`,F=(e,t,n,r)=>{let i=t?`${N(t)}-column`:`${n}-${r}`;return`${N(e)||`section`}-${i||`column`}`},I={nofollow:[{Video:`Today's Videos`}],standaloneFooter:[`Audio`,`Games`,`Cooking`,`Wirecutter`,`The Athletic`],cssSpecialConfig:[]};export{u as S,I as _,g as a,d as b,P as c,T as d,A as f,k as g,_ as h,M as i,v as l,N as m,E as n,F as o,O as p,j as r,w as s,D as t,x as u,p as v,f as x,l as y};
+//# sourceMappingURL=utils-6Nsp_q8b.js.map

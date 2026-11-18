@@ -1,0 +1,35 @@
+GET https://static.nytimes.com/email-images/newsletters/Weekender/NYT-TheWeekender-Icon.jpg
+200 OK
+cache-control: public, max-age=3600
+content-type: image/jpeg
+etag: "y7ASpwTk9E9VcBKBd61Fa34jK21OxEb/p/CmixSk19U"
+expires: Wed, 18 Nov 2026 15:32:41 GMT
+fastly-io-info: ifsz=179738 idim=3000x3000 ifmt=jpeg ofsz=87430 odim=3000x3000 ofmt=jpeg
+fastly-io-served-by: img18-us-east4
+fastly-io-transform-stats: ifsz=179738 ofsz=87430 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: DWG6Ww==
+x-goog-generation: 1604674086850390
+x-goog-hash: crc32c=DWG6Ww==
+x-goog-hash: md5=ArMNtYLGEgcA8sj+nGex/g==
+x-goog-metageneration: 1
+x-goog-storage-class: REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 179738
+x-guploader-uploadid: AFy3sg1f4ZNvRSGxN52pS_NxUMIILPyGBt93XiI2f8dZQQor35pRH5wi7svkr0eodq_aQUFn
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:18:37 GMT
+via: 1.1 varnish
+age: 2756
+x-served-by: cache-iad-kcgs7200025-IAD
+x-cache: HIT
+x-cache-hits: 2
+x-timer: S1795015118.798994,VS0,VE0
+vary: Accept
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 87430

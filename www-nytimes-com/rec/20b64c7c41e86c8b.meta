@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/13/arts/EKS_Piker_CLIP-1_SOCIAL/EKS_Piker_CLIP-1_SOCIAL-verticalTwoByThree735.jpg?auto=webp&quality=30&disable=upscale&format=pjpg
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "NGc4iCTXzWt01W+MJJpzml1LF4ImBG0UgmLWhS733wA"
+expires: Tue, 17 Nov 2026 05:47:00 GMT
+fastly-io-info: ifsz=117962 idim=735x1103 ifmt=jpeg ofsz=26987 odim=735x1103 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010231
+fastly-io-transform-stats: ifsz=117962 ofsz=26987 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: 06o3SQ==
+x-goog-generation: 1794568586241222
+x-goog-hash: crc32c=06o3SQ==
+x-goog-hash: md5=A7H0aI2WXoRanQSrUdOu/Q==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 117962
+x-guploader-uploadid: AFy3sg3sCqSuJzNMt0-FxnX4QjwWSWZd38lbMCRy6RXQ1eFO8Z30BNgui26GP5cK6IFra1t3c8Zd9Co
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:04 GMT
+via: 1.1 varnish
+age: 120364
+x-served-by: cache-iad-kcgs7200057-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795014785.939316,VS0,VE2
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 26987

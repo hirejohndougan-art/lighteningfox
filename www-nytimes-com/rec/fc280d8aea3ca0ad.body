@@ -1,0 +1,395 @@
+[
+  {
+    "title": "Air Quality Index",
+    "asOf": "2026-11-18T13:00:00.000Z",
+    "dataType": "aqi",
+    "source": "AirNow",
+    "url": "https://www.nytimes.com/interactive/2026/weather/canada-us-wildfire-smoke-air-quality-maps.html",
+    "uri": "nyt://interactive/d01eeb4a-4213-5410-88c7-5291ff358f0a",
+    "cities": [
+      {
+        "aqi": 81,
+        "placeName": "Quebec",
+        "aqiCategory": "Moderate",
+        "severity": "mild",
+        "longitude": -71.3789354,
+        "latitude": 46.7357015
+      },
+      {
+        "aqi": 79,
+        "placeName": "Toronto",
+        "aqiCategory": "Moderate",
+        "severity": "mild",
+        "longitude": -79.422,
+        "latitude": 43.7019
+      },
+      {
+        "aqi": 75,
+        "placeName": "Columbus, Ohio",
+        "aqiCategory": "Moderate",
+        "severity": "mild",
+        "longitude": -82.989,
+        "latitude": 39.9884
+      }
+    ]
+  },
+  {
+    "title": "Excessive Rain Risk",
+    "asOf": "2026-11-18T07:00:00.000-05:00",
+    "hazard": "rain",
+    "source": "NWS",
+    "url": "https://www.nytimes.com/interactive/2023/us/extreme-weather-forecast-maps.html",
+    "uri": "nyt://interactive/aac34210-c0d2-51fe-914c-4e1c82296c6d",
+    "dataType": "meteo-risk",
+    "days": {
+      "day1": {
+        "forecastDate": "2026-11-18T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Jose, Calif.",
+            "riskLevel": "Some risk",
+            "longitude": -121.8,
+            "latitude": 37.296
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Jacksonville, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -81.689,
+            "latitude": 30.349
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Francisco",
+            "riskLevel": "Some risk",
+            "longitude": -122.447,
+            "latitude": 37.758,
+            "knownPlaceSlug": "san-francisco-california"
+          }
+        ]
+      },
+      "day2": {
+        "forecastDate": "2026-11-19T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Los Angeles",
+            "riskLevel": "Some risk",
+            "longitude": -118.285,
+            "latitude": 34.021,
+            "knownPlaceSlug": "los-angeles-california"
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Diego",
+            "riskLevel": "Some risk",
+            "longitude": -117.152,
+            "latitude": 32.824
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Jose, Calif.",
+            "riskLevel": "Some risk",
+            "longitude": -121.8,
+            "latitude": 37.296
+          }
+        ]
+      },
+      "day3": {
+        "forecastDate": "2026-11-20T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Jacksonville, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -81.689,
+            "latitude": 30.349
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Miami",
+            "riskLevel": "Some risk",
+            "longitude": -80.222,
+            "latitude": 25.783
+          },
+          {
+            "severity": "moderate",
+            "hazardType": "Excessive rain",
+            "placeName": "Orlando, Fla.",
+            "riskLevel": "Moderate risk",
+            "longitude": -81.204,
+            "latitude": 28.434,
+            "knownPlaceSlug": "orlando-florida"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "title": "Unhealthy Heat",
+    "asOf": "2026-11-18T00:00:00.000-05:00",
+    "hazard": "heat",
+    "source": "NWS",
+    "url": "https://www.nytimes.com/interactive/2023/us/extreme-weather-forecast-maps.html",
+    "uri": "nyt://interactive/aac34210-c0d2-51fe-914c-4e1c82296c6d",
+    "dataType": "meteo-risk",
+    "days": {
+      "day1": {
+        "forecastDate": "2026-11-18T00:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Unhealthy heat",
+            "placeName": "Miami",
+            "riskLevel": "Some risk",
+            "longitude": -80.222,
+            "latitude": 25.783
+          },
+          {
+            "severity": "some",
+            "hazardType": "Unhealthy heat",
+            "placeName": "Miami Beach",
+            "riskLevel": "Some risk",
+            "longitude": -80.14,
+            "latitude": 25.815
+          },
+          {
+            "severity": "some",
+            "hazardType": "Unhealthy heat",
+            "placeName": "Lauderhill, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -80.225,
+            "latitude": 26.158
+          }
+        ]
+      },
+      "day2": null,
+      "day3": null
+    }
+  },
+  {
+    "title": "Wind Chill Temperatures",
+    "dataType": "wind_chill",
+    "asOf": "2026-11-18T14:17:45Z",
+    "source": "NOAA",
+    "url": "https://www.nytimes.com/interactive/2024/us/freezing-temperatures-cold-weather-map.html",
+    "uri": "nyt://interactive/f101f9c0-5132-5396-87b4-b23c925c8ef7",
+    "days": {
+      "day1": {
+        "forecastDate": "2026-11-18T09:17:45.000-05:00",
+        "cities": [
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -5,
+              "imperial": 23
+            },
+            "placeName": "Reno, Nev.",
+            "longitude": -119.8142691,
+            "latitude": 39.529919
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -4,
+              "imperial": 24
+            },
+            "placeName": "Colorado Springs",
+            "longitude": -104.8213634,
+            "latitude": 38.8338816
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -4,
+              "imperial": 24
+            },
+            "placeName": "Boise, Idaho",
+            "longitude": -116.2023137,
+            "latitude": 43.6150186
+          }
+        ]
+      },
+      "day2": {
+        "forecastDate": "2026-11-19T09:17:45.000-05:00",
+        "cities": [
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -3,
+              "imperial": 27
+            },
+            "placeName": "Denver",
+            "longitude": -104.990251,
+            "latitude": 39.7392358,
+            "knownPlaceSlug": "denver-colorado"
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": 0,
+              "imperial": 32
+            },
+            "placeName": "Columbus, Ohio",
+            "longitude": -82.9987942,
+            "latitude": 39.9611755
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": 0,
+              "imperial": 32
+            },
+            "placeName": "Pittsburgh",
+            "longitude": -79.9958864,
+            "latitude": 40.4406248
+          }
+        ]
+      },
+      "day3": {
+        "forecastDate": "2026-11-20T09:17:45.000-05:00",
+        "cities": [
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -7,
+              "imperial": 19
+            },
+            "placeName": "Reno, Nev.",
+            "longitude": -119.8142691,
+            "latitude": 39.529919
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -3,
+              "imperial": 27
+            },
+            "placeName": "Boise, Idaho",
+            "longitude": -116.2023137,
+            "latitude": 43.6150186
+          },
+          {
+            "riskLevel": "mild",
+            "apparentTemperature": {
+              "metric": -1,
+              "imperial": 31
+            },
+            "placeName": "Denver",
+            "longitude": -104.990251,
+            "latitude": 39.7392358,
+            "knownPlaceSlug": "denver-colorado"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "title": "Excessive Rain Risk",
+    "asOf": "2026-11-18T07:00:00.000-05:00",
+    "hazard": "rain",
+    "source": "NWS",
+    "url": "https://www.nytimes.com/interactive/2023/us/extreme-weather-forecast-maps.html",
+    "uri": "nyt://interactive/aac34210-c0d2-51fe-914c-4e1c82296c6d",
+    "dataType": "risk",
+    "days": {
+      "day1": {
+        "forecastDate": "2026-11-18T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Los Angeles",
+            "riskLevel": "Some risk",
+            "longitude": -118.285,
+            "latitude": 34.021,
+            "knownPlaceSlug": "los-angeles-california"
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Jose, Calif.",
+            "riskLevel": "Some risk",
+            "longitude": -121.8,
+            "latitude": 37.296
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Jacksonville, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -81.689,
+            "latitude": 30.349
+          }
+        ]
+      },
+      "day2": {
+        "forecastDate": "2026-11-19T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "San Diego",
+            "riskLevel": "Some risk",
+            "longitude": -117.152,
+            "latitude": 32.824
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Long Beach, Calif.",
+            "riskLevel": "Some risk",
+            "longitude": -118.118,
+            "latitude": 33.8
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Bakersfield, Calif.",
+            "riskLevel": "Some risk",
+            "longitude": -119.14,
+            "latitude": 35.35
+          }
+        ]
+      },
+      "day3": {
+        "forecastDate": "2026-11-20T07:00:00.000-05:00",
+        "places": [
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Savannah, Ga.",
+            "riskLevel": "Some risk",
+            "longitude": -81.102,
+            "latitude": 32.038
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Spring Hill, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -82.523,
+            "latitude": 28.483
+          },
+          {
+            "severity": "some",
+            "hazardType": "Excessive rain",
+            "placeName": "Lakeland, Fla.",
+            "riskLevel": "Some risk",
+            "longitude": -81.948,
+            "latitude": 28.062
+          }
+        ]
+      }
+    }
+  }
+]

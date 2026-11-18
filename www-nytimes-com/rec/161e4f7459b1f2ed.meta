@@ -1,0 +1,8 @@
+POST https://eg.nytimes.com/api/v1/events
+202 Accepted
+x-envoy-decorator-operation: eg.nytimes.com:443/*
+vary: Accept-Encoding
+date: Wed, 18 Nov 2026 15:12:51 GMT
+server: envoy
+x-envoy-upstream-service-time: 0
+strict-transport-security: max-age=63072000; preload; includeSubdomains

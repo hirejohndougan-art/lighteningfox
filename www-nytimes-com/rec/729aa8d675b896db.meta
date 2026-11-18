@@ -1,0 +1,14 @@
+GET https://als-svc.nytimes.com/als?uri=https%3A%2F%2Fwww.nytimes.com%2Fpages%2Findex.html&typ=hp&prop=nyt&plat=web
+200 OK
+access-control-allow-credentials: true
+access-control-allow-headers: DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Cookie, Accept, x-requested-by, x-api-key, nyt-a
+access-control-allow-methods: GET, POST, OPTIONS
+access-control-allow-origin: https://www.nytimes.com
+cache-control: private, no-store, no-cache, must-revalidate, max-age=0
+x-envoy-decorator-operation: als-svc.nytimes.com:443/*
+content-type: application/json; charset=utf-8
+vary: Accept-Encoding
+date: Wed, 18 Nov 2026 15:12:51 GMT
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-envoy-upstream-service-time: 11
+server: envoy

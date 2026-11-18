@@ -1,0 +1,35 @@
+GET https://www.nytimes.com/vi-assets/static-assets/chunks/utils-B4_pHWtd.js
+200 OK
+x-amz-id-2: zWVhMFBqSkhdw3imt14tChPcr0nUK83sgDXFdgRPZC66tDbVeItOg/yMC7pzOMlObkvCU6f3tKQ=
+x-amz-request-id: HJ5PENKCXTQ9AWKC
+server: AmazonS3
+last-modified: Tue, 03 Nov 2026 21:47:59 GMT
+etag: "ba8b75ef77016035eed5d7b403637756"
+x-amz-server-side-encryption: AES256
+cache-control: public,max-age=31536000
+x-amz-version-id: zpmiWmOxTx56IbY1al4aVKHx19pdQ8GM
+content-type: text/javascript
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override, traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+x-nyt-debug-map: fastly-info-state=MISS,final-url="/vi-assets/static-assets/chunks/utils-B4_pHWtd.js"
+x-nyt-route: vi-assets
+debug-nyt-vars: cltraceid=1,service-name=prd,app-name=www,send-gdpr=false,sumo-purge-log-name="fastly-www-purge/prd",sumo-log-name=fastly_prd_www,canonical-www-host=true,nyti-enabled=true,nyt-truncated=false_live_exp,truncation-eligible=false,user-query-persisted=true,user-query-collapsed=true,env=prd
+debug-var-nyt-env: prd
+debug-var-nyt-force-pass: false
+debug-targeting-dimensions-map: agent_id=HLu7xYiwswCfZmhgMGHSIZKV,regi_id=189424703,newsTenure=sub13m
+x-nyt-geoip-map: continent=NA,country=US,region=VA,gmt-offset=-500,meridiem=PM,latitude=36.850,longitude=-76.290,city=norfolk,postal-code=23510,area-code=757,metro=544
+x-nyt-device-map: type=desktop,bot-access-response
+x-nyt-targeting-dimensions-map: agent_id=HLu7xYiwswCfZmhgMGHSIZKV,regi_id=189424703,newsTenure=sub13m
+x-nyt-vars: slideshow-compatibility
+lei-timing: fetch=85354,misspass=127,do_stream=0
+lei-origin: shield=LGA,src_ip=167.82.132.74,alternate_path=0,ip=167.82.132.74,port=443,name=shield_ssl_cache_lga_kjfk8660074_LGA,status=200,reason=OK,method=GET,path="/vi-assets/static-assets/chunks/utils-B4_pHWtd.js",host=www.nytimes.com
+x-origin-time: 2026-11-03 21:49:08 UTC
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:13:03 GMT
+age: 1047389
+x-served-by: cache-lga-kjfk8660074-LGA, cache-iad-kcgs7200053-IAD
+x-cache: MISS, HIT
+x-cache-hits: 0, 2533
+x-timer: S1795014784.790005,VS0,VE1
+vary: Accept-Encoding, Fastly-SSL
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-nyt-edge-cache: MISS-HIT

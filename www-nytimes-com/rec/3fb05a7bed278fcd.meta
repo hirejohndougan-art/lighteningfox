@@ -1,0 +1,36 @@
+GET https://static01.nyt.com/images/2026/11/18/multimedia/18trump-summits-carousel-zzz-jfgq/18trump-summits-carousel-zzz-jfgq-verticalTwoByThree735-v5.jpg?quality=75&auto=avif
+200 OK
+cache-control: max-age=604800; stale-if-error=86400; stale-while-revalidate=30, public
+content-type: image/jpeg
+etag: "Z5F7PWE2wEGCjGG+OJQWoFNFp4TfvJmOZEbnxhtjkDo"
+expires: Wed, 18 Nov 2026 13:07:31 GMT
+fastly-io-info: ifsz=205693 idim=735x1104 ifmt=jpeg ofsz=108692 odim=735x1104 ofmt=jpeg
+fastly-io-served-by: vpop-kiad7010251
+fastly-io-transform-stats: ifsz=205693 ofsz=108692 ofmt=jpeg
+fastly-io-warning: Unable to read or modify C2PA manifest from source image
+fastly-stats: io=1
+server: UploadServer
+x-amz-checksum-crc32c: gN16+Q==
+x-goog-generation: 1795007250438954
+x-goog-hash: crc32c=gN16+Q==
+x-goog-hash: md5=MOuFmWyO1e2clpMSd559mg==
+x-goog-metageneration: 2
+x-goog-storage-class: MULTI_REGIONAL
+x-goog-stored-content-encoding: identity
+x-goog-stored-content-length: 205693
+x-guploader-uploadid: AFy3sg0Q3wHGA2DDcFCTY5X3NGGSGZJ4kJpg5nU4GST0vJeENcCIL1WbHfZJDotpX21nVxem
+accept-ranges: bytes
+date: Wed, 18 Nov 2026 15:18:37 GMT
+via: 1.1 varnish
+age: 7867
+x-served-by: cache-iad-kcgs7200080-IAD
+x-cache: HIT
+x-cache-hits: 1
+x-timer: S1795015118.801104,VS0,VE6
+vary: Accept
+access-control-allow-origin: *
+timing-allow-origin: *
+strict-transport-security: max-age=63072000; preload; includeSubdomains
+x-nyt-edge-cache: HIT
+access-control-allow-headers: traceparent, tracestate, X-B3-Sampled, X-B3-SpanId, X-B3-TraceId, x-datadog-origin, x-datadog-parent-id, x-datadog-sampling-priority, x-datadog-trace-id, x-nyt-entitlements, x-nyt-internal-meter-override
+content-length: 108692

@@ -1,0 +1,214 @@
+[blocked] https://www.googletagmanager.com/gtm.js?id=GTM-P528B3&gtm_auth=tfAzqo1rYDLgYhmTnSjPqw&gtm_preview=env-130&gtm_cookies_win=x (||googletagmanager.com/gtm.js$script,redirect=googletagmanager_gtm.js,important, answered with googletagmanager_gtm.js)
+[js log] Error: Fides Wrapper: No valid GPP string value was found. GPP CMP will not be loaded.
+    at c (unknown at :81:28)
+    at e (unknown at :41:21)
+    at fidesScript (unknown at :147:6)
+    at <main> (unknown at :160:3)
+[js warn] getTemperatureUnit: GraphQL client is not configured {"ok":false,"reason":"missing-config"}
+[js debug] [nyt-betamax] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for page to load
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for page to load
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for page to load
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-video-feed] waiting for page to load
+[js log] <!--
+         0000000                         000        0000000
+       111111111      11111111100          000      111111111
+       00000        111111111111111111      00000      000000
+       000        1111111111111111111111111100000         000
+       000        1111       1111111111111111100          000
+       000         11       0     1111111100              000
+       000          1      00             1               000
+       000               00      00       1               000
+       000             000    00000       1               000
+    00000            0000  00000000       1                00000
+  11111            000 00    000000      000                 11111
+    00000          0000      000000     00000              00000
+       000        10000      000000      000              0000
+       000        00000      000000       1               000
+       000        000000     10000        1     0         000
+       000        1000000 00              1    00         000
+       000         1111111                1 0000          000
+       000          1111111100           000000           000
+       0000          111111111111111110000000            0000
+       111111111        111111111111100000          111111111
+         0000000              00000000              0000000
+
+      NYTimes.com: All the code that's fit to window.print()!
+      We're hiring: https://boards.greenhouse.io/thenewyorktimes
+   -->
+[js warn] userinfo data unavailable
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with SSRed props
+[js debug] [nyt-video-feed] new instance connected
+[js debug] [nyt-video-feed] hydrating with SSRed props
+[js debug] [nyt-betamax] waiting for nyt-betamax-pool
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax] waiting for nyt-betamax-pool
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax] waiting for nyt-betamax-pool
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax] waiting for nyt-betamax-pool
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax] waiting for nyt-betamax-pool
+[js debug] [nyt-betamax-cover] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] waiting for nyt-betamax-cover
+[js debug] [nyt-betamax-overlay-controls] waiting for nyt-betamax
+[js debug] [nyt-betamax-poster] set props before initial render, storing for later use
+[js debug] [nyt-betamax-cover] set props before initial render, storing for later use
+[js debug] [nyt-betamax-overlay-controls] set props before initial render, storing for later use
+[js debug] [nyt-betamax] set props before initial render, storing for later use
+[js debug] [nyt-betamax-poster] set props before initial render, storing for later use
+[js debug] [nyt-betamax-cover] set props before initial render, storing for later use
+[js debug] [nyt-betamax-overlay-controls] set props before initial render, storing for later use
+[js debug] [nyt-betamax] set props before initial render, storing for later use
+[js debug] [nyt-betamax-poster] set props before initial render, storing for later use
+[js debug] [nyt-betamax-cover] set props before initial render, storing for later use
+[js debug] [nyt-betamax-overlay-controls] set props before initial render, storing for later use
+[js debug] [nyt-betamax] set props before initial render, storing for later use
+[js debug] [nyt-betamax-poster] set props before initial render, storing for later use
+[js debug] [nyt-betamax-cover] set props before initial render, storing for later use
+[js debug] [nyt-betamax-overlay-controls] set props before initial render, storing for later use
+[js debug] [nyt-betamax] set props before initial render, storing for later use
+[js debug] [nyt-betamax-poster] set props before initial render, storing for later use
+[js debug] [nyt-betamax-cover] set props before initial render, storing for later use
+[js debug] [nyt-betamax-overlay-controls] set props before initial render, storing for later use
+[js debug] [nyt-betamax] set props before initial render, storing for later use
+[js debug] [nyt-betamax-pool] set props before initial render, storing for later use
+[js debug] [nyt-betamax-pool] new instance connected
+[js debug] [nyt-betamax-pool] hydrating with client-provided props {"size":5}
+[js debug] [nyt-betamax-pool] disconnected, tearing down shadow root
+[js debug] [nyt-betamax-pool] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with SSRed props
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with SSRed props
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with client-provided props {"alwaysPlayFromBeginning":false,"forceHlsJs":false,"aspectRatio":"2/3","src":[{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/18/183821_1_18vid-alaska-results_wg_mobile_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/18/183821_1_18vid-alaska-results_wg_mobile/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/18/183821_1_18vid-alaska-results_wg_mobile/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/18/183821_1_18vid-alaska-results_wg_mobile_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":608},{"src":"https://vp.nyt.com/video/2026/11/18/183821_1_18vid-alaska-results_wg_mobile_1080p.mp4","type":"mp4","height":1080,"width":608},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/18/183821_1_18vid-alaska-results_wg_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/18/183821_1_18vid-alaska-results_wg/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/18/183821_1_18vid-alaska-results_wg/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/18/183821_1_18vid-alaska-results_wg_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":1620},{"src":"https://vp.nyt.com/video/2026/11/18/183821_1_18vid-alaska-results_wg_1080p.mp4","type":"mp4","height":1080,"width":1620}],"visibleOnPageLoad":true,"disableTrackingEvents":["canplay","ended","enterpictureinpicture","leavepictureinpicture","loadeddata","pause","play","seeking","stalled","timeupdate","visibilitychange","volumechange","waiting","ad-auto-play-start","ad-buffering","ad-complete","ad-error","ad-impression","ad-loaded","ad-manager-loaded","ad-pause","ad-resume","ad-skip","ad-user-play-next","auto-loop","auto-play-loop","auto-play-next","auto-play-start","endslate-inview","enter-captions","enter-fullscreen","enter-picture-in-picture","exit-captions","exit-fullscreen","impression","leave-picture-in-picture","media-complete","media-error","media-load","1-minutes-consumed","2-minutes-consumed","3-minutes-consumed","4-minutes-consumed","5-minutes-consumed","moduleInteraction","muted","pause","percent-25-consumed","percent-30-consumed","percent-40-consumed","percent-50-consumed","percent-60-consumed","percent-70-consumed","percent-75-consumed","percent-80-consumed","percent-90-consumed","player-load","rebuffering","resume","105-seconds-consumed","15-seconds-consumed","30-seconds-consumed","3-seconds-consumed","45-seconds-consumed","75-seconds-consumed","90-seconds-consumed","seek","stalled","unmuted","user-loop","user-play","user-play-loop","user-play-next","video-stop"],"muted":true,"play":true,"loop":true,"fit":"cover","preload":"none","ignoreGlobalState":["mute","pause"],"pauseWhenOutOfView":true,"isInVideoFeed":true,"trackingData":{"contentId":"100000011291983","region":"0","playerType":"nyt-betamax","videoType":"video","mData":{"videoName":"Mary Peltola Wins Senate Seat in Alaska","videoPosition":"0","videoSection":"Home","videoUri":"nyt://video/c5d732bc-997e-5ca1-b055-eeefc162868e"}},"testId":"feed-player","captionsStyle":"hidden","unifiedTrackingRef":{},"videoTitle":"Mary Peltola Wins Senate Seat in Alaska"}
+[js debug] [nyt-betamax] connected and already initialized, skipping construction
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with client-provided props {"alwaysPlayFromBeginning":false,"forceHlsJs":false,"aspectRatio":"2/3","src":[{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/12/183296_1_13eks-piker-clip01_wg_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/12/183296_1_13eks-piker-clip01_wg/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/12/183296_1_13eks-piker-clip01_wg/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/12/183296_1_13eks-piker-clip01_wg_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":608},{"src":"https://vp.nyt.com/video/2026/11/12/183296_1_13eks-piker-clip01_wg_1080p.mp4","type":"mp4","height":1080,"width":608}],"visibleOnPageLoad":false,"disableTrackingEvents":["canplay","ended","enterpictureinpicture","leavepictureinpicture","loadeddata","pause","play","seeking","stalled","timeupdate","visibilitychange","volumechange","waiting","ad-auto-play-start","ad-buffering","ad-complete","ad-error","ad-impression","ad-loaded","ad-manager-loaded","ad-pause","ad-resume","ad-skip","ad-user-play-next","auto-loop","auto-play-loop","auto-play-next","auto-play-start","endslate-inview","enter-captions","enter-fullscreen","enter-picture-in-picture","exit-captions","exit-fullscreen","impression","leave-picture-in-picture","media-complete","media-error","media-load","1-minutes-consumed","2-minutes-consumed","3-minutes-consumed","4-minutes-consumed","5-minutes-consumed","moduleInteraction","muted","pause","percent-25-consumed","percent-30-consumed","percent-40-consumed","percent-50-consumed","percent-60-consumed","percent-70-consumed","percent-75-consumed","percent-80-consumed","percent-90-consumed","player-load","rebuffering","resume","105-seconds-consumed","15-seconds-consumed","30-seconds-consumed","3-seconds-consumed","45-seconds-consumed","75-seconds-consumed","90-seconds-consumed","seek","stalled","unmuted","user-loop","user-play","user-play-loop","user-play-next","video-stop"],"muted":true,"play":false,"loop":true,"fit":"cover","preload":"none","ignoreGlobalState":["mute","pause"],"pauseWhenOutOfView":true,"isInVideoFeed":true,"trackingData":{"contentId":"100000011278289","region":"1","playerType":"nyt-betamax","videoType":"video","mData":{"videoName":"Hasan Piker on Liberal Zionism","videoPosition":"1","videoSection":"Home","videoUri":"nyt://video/d8f9c1e7-ed37-52e7-84a5-90b41ab1d8aa"}},"testId":"feed-player","captionsStyle":"hidden","unifiedTrackingRef":{},"videoTitle":"Hasan Piker on Liberal Zionism"}
+[js debug] [nyt-betamax] connected and already initialized, skipping construction
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with client-provided props {"alwaysPlayFromBeginning":false,"forceHlsJs":false,"aspectRatio":"2/3","src":[{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/17/183738_1_17vid-ukraine-strikes_wg_mobile_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/17/183738_1_17vid-ukraine-strikes_wg_mobile/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/17/183738_1_17vid-ukraine-strikes_wg_mobile/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/17/183738_1_17vid-ukraine-strikes_wg_mobile_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":608},{"src":"https://vp.nyt.com/video/2026/11/17/183738_1_17vid-ukraine-strikes_wg_mobile_1080p.mp4","type":"mp4","height":1080,"width":608},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/17/183738_1_17vid-ukraine-strikes_wg_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/17/183738_1_17vid-ukraine-strikes_wg/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/17/183738_1_17vid-ukraine-strikes_wg/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/17/183738_1_17vid-ukraine-strikes_wg_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":1620},{"src":"https://vp.nyt.com/video/2026/11/17/183738_1_17vid-ukraine-strikes_wg_1080p.mp4","type":"mp4","height":1080,"width":1620}],"visibleOnPageLoad":false,"disableTrackingEvents":["canplay","ended","enterpictureinpicture","leavepictureinpicture","loadeddata","pause","play","seeking","stalled","timeupdate","visibilitychange","volumechange","waiting","ad-auto-play-start","ad-buffering","ad-complete","ad-error","ad-impression","ad-loaded","ad-manager-loaded","ad-pause","ad-resume","ad-skip","ad-user-play-next","auto-loop","auto-play-loop","auto-play-next","auto-play-start","endslate-inview","enter-captions","enter-fullscreen","enter-picture-in-picture","exit-captions","exit-fullscreen","impression","leave-picture-in-picture","media-complete","media-error","media-load","1-minutes-consumed","2-minutes-consumed","3-minutes-consumed","4-minutes-consumed","5-minutes-consumed","moduleInteraction","muted","pause","percent-25-consumed","percent-30-consumed","percent-40-consumed","percent-50-consumed","percent-60-consumed","percent-70-consumed","percent-75-consumed","percent-80-consumed","percent-90-consumed","player-load","rebuffering","resume","105-seconds-consumed","15-seconds-consumed","30-seconds-consumed","3-seconds-consumed","45-seconds-consumed","75-seconds-consumed","90-seconds-consumed","seek","stalled","unmuted","user-loop","user-play","user-play-loop","user-play-next","video-stop"],"muted":true,"play":false,"loop":true,"fit":"cover","preload":"none","ignoreGlobalState":["mute","pause"],"pauseWhenOutOfView":true,"isInVideoFeed":true,"trackingData":{"contentId":"100000011289672","region":"2","playerType":"nyt-betamax","videoType":"video","mData":{"videoName":"Ukraine Strikes Symbolic Bridge Connecting Crimea to Russia","videoPosition":"2","videoSection":"Home","videoUri":"nyt://video/0d041c0f-c554-5619-ba15-48be9618950a"}},"testId":"feed-player","captionsStyle":"hidden","unifiedTrackingRef":{},"videoTitle":"Ukraine Strikes Symbolic Bridge Connecting Crimea to Russia"}
+[js debug] [nyt-betamax] connected and already initialized, skipping construction
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with client-provided props {"alwaysPlayFromBeginning":false,"forceHlsJs":false,"aspectRatio":"2/3","src":[{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/13/183050_1_12popcast-offset-hp-2_wg_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/13/183050_1_12popcast-offset-hp-2_wg/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/13/183050_1_12popcast-offset-hp-2_wg/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/13/183050_1_12popcast-offset-hp-2_wg_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":608},{"src":"https://vp.nyt.com/video/2026/11/13/183050_1_12popcast-offset-hp-2_wg_1080p.mp4","type":"mp4","height":1080,"width":608}],"visibleOnPageLoad":false,"disableTrackingEvents":["canplay","ended","enterpictureinpicture","leavepictureinpicture","loadeddata","pause","play","seeking","stalled","timeupdate","visibilitychange","volumechange","waiting","ad-auto-play-start","ad-buffering","ad-complete","ad-error","ad-impression","ad-loaded","ad-manager-loaded","ad-pause","ad-resume","ad-skip","ad-user-play-next","auto-loop","auto-play-loop","auto-play-next","auto-play-start","endslate-inview","enter-captions","enter-fullscreen","enter-picture-in-picture","exit-captions","exit-fullscreen","impression","leave-picture-in-picture","media-complete","media-error","media-load","1-minutes-consumed","2-minutes-consumed","3-minutes-consumed","4-minutes-consumed","5-minutes-consumed","moduleInteraction","muted","pause","percent-25-consumed","percent-30-consumed","percent-40-consumed","percent-50-consumed","percent-60-consumed","percent-70-consumed","percent-75-consumed","percent-80-consumed","percent-90-consumed","player-load","rebuffering","resume","105-seconds-consumed","15-seconds-consumed","30-seconds-consumed","3-seconds-consumed","45-seconds-consumed","75-seconds-consumed","90-seconds-consumed","seek","stalled","unmuted","user-loop","user-play","user-play-loop","user-play-next","video-stop"],"muted":true,"play":false,"loop":true,"fit":"cover","preload":"none","ignoreGlobalState":["mute","pause"],"pauseWhenOutOfView":true,"isInVideoFeed":true,"trackingData":{"contentId":"100000011273033","region":"3","playerType":"nyt-betamax","videoType":"video","mData":{"videoName":"Offset on Getting Shot: ‘I Broke My Mama’s Heart’","videoPosition":"3","videoSection":"Home","videoUri":"nyt://video/ab7bc1ed-e8c4-520d-ab78-bf46ba45ee50"}},"testId":"feed-player","captionsStyle":"hidden","unifiedTrackingRef":{},"videoTitle":"Offset on Getting Shot: ‘I Broke My Mama’s Heart’"}
+[js debug] [nyt-betamax] connected and already initialized, skipping construction
+[js debug] [nyt-betamax] new instance connected
+[js debug] [nyt-betamax] hydrating with client-provided props {"alwaysPlayFromBeginning":false,"forceHlsJs":false,"aspectRatio":"2/3","src":[{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/16/183710_1_16vid-cooking-Cranberry-Creme-Brulee_wg_av1-720p,av1-1080p,av1-480p,av1-360p,av1-240p/master.m3u8","type":"hlsfmp4_av1","specificQuality":1080},{"src":"https://vp.nyt.com/video/hlsfmp4/2026/11/16/183710_1_16vid-cooking-Cranberry-Creme-Brulee_wg/master.m3u8","type":"hlsfmp4","specificQuality":1080},{"src":"https://vp.nyt.com/video/hls/2026/11/16/183710_1_16vid-cooking-Cranberry-Creme-Brulee_wg/master.m3u8","type":"hls","specificQuality":1080},{"src":"https://vp.nyt.com/video/2026/11/16/183710_1_16vid-cooking-Cranberry-Creme-Brulee_wg_av1-1080p.mp4","type":"mp4_av1","height":1080,"width":608},{"src":"https://vp.nyt.com/video/2026/11/16/183710_1_16vid-cooking-Cranberry-Creme-Brulee_wg_1080p.mp4","type":"mp4","height":1080,"width":608}],"visibleOnPageLoad":false,"disableTrackingEvents":["canplay","ended","enterpictureinpicture","leavepictureinpicture","loadeddata","pause","play","seeking","stalled","timeupdate","visibilitychange","volumechange","waiting","ad-auto-play-start","ad-buffering","ad-complete","ad-error","ad-impression","ad-loaded","ad-manager-loaded","ad-pause","ad-resume","ad-skip","ad-user-play-next","auto-loop","auto-play-loop","auto-play-next","auto-play-start","endslate-inview","enter-captions","enter-fullscreen","enter-picture-in-picture","exit-captions","exit-fullscreen","impression","leave-picture-in-picture","media-complete","media-error","media-load","1-minutes-consumed","2-minutes-consumed","3-minutes-consumed","4-minutes-consumed","5-minutes-consumed","moduleInteraction","muted","pause","percent-25-consumed","percent-30-consumed","percent-40-consumed","percent-50-consumed","percent-60-consumed","percent-70-consumed","percent-75-consumed","percent-80-consumed","percent-90-consumed","player-load","rebuffering","resume","105-seconds-consumed","15-seconds-consumed","30-seconds-consumed","3-seconds-consumed","45-seconds-consumed","75-seconds-consumed","90-seconds-consumed","seek","stalled","unmuted","user-loop","user-play","user-play-loop","user-play-next","video-stop"],"muted":true,"play":false,"loop":true,"fit":"cover","preload":"none","ignoreGlobalState":["mute","pause"],"pauseWhenOutOfView":true,"isInVideoFeed":true,"trackingData":{"contentId":"100000011288611","region":"4","playerType":"nyt-betamax","videoType":"video","mData":{"videoName":"Cranberry Crème Brûlée","videoPosition":"4","videoSection":"Home","videoUri":"nyt://video/aed01898-3d74-5846-a19c-4fe8446af196"}},"testId":"feed-player","captionsStyle":"hidden","unifiedTrackingRef":{},"videoTitle":"Cranberry Crème Brûlée"}
+[js debug] [nyt-betamax] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with SSRed props
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with client-provided props {"visibleWhen":["before-play","paused"]}
+[js debug] [nyt-betamax-cover] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with client-provided props {"part":"overlay-play-controls","controls":["play"],"controlsVariant":"icon-only","focusedControl":null,"overlayClickBehavior":"first-unmute-then-pause","testId":"feed-play-controls","share":{"url":"https://www.nytimes.com/video/us/politics/100000011291983/alaska-senate-mary-peltola.html","text":"Mary Peltola Wins Senate Seat in Alaska","confirmationPosition":"left","title":"Mary Peltola Wins Senate Seat in Alaska"},"disableScrubbing":false}
+[js debug] [nyt-betamax-overlay-controls] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with client-provided props {"visibleWhen":["before-play","paused"]}
+[js debug] [nyt-betamax-cover] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with client-provided props {"controls":["play"],"controlsVariant":"icon-only","focusedControl":null,"overlayClickBehavior":"first-unmute-then-pause","testId":"feed-play-controls","share":{"url":"https://www.nytimes.com/video/opinion/100000011278289/hasan-piker-on-liberal-zionism.html","text":"Hasan Piker on Liberal Zionism","confirmationPosition":"left","title":"Hasan Piker on Liberal Zionism"},"disableScrubbing":true}
+[js debug] [nyt-betamax-overlay-controls] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with client-provided props {"visibleWhen":["before-play","paused"]}
+[js debug] [nyt-betamax-cover] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with client-provided props {"controls":["play"],"controlsVariant":"icon-only","focusedControl":null,"overlayClickBehavior":"first-unmute-then-pause","testId":"feed-play-controls","share":{"url":"https://www.nytimes.com/video/world/europe/100000011289672/ukraine-kyiv-russia-kerch-bridge-crimea.html","text":"Ukraine Strikes Symbolic Bridge Connecting Crimea to Russia","confirmationPosition":"left","title":"Ukraine Strikes Symbolic Bridge Connecting Crimea to Russia"},"disableScrubbing":true}
+[js debug] [nyt-betamax-overlay-controls] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with client-provided props {"visibleWhen":["before-play","paused"]}
+[js debug] [nyt-betamax-cover] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with client-provided props {"controls":["play"],"controlsVariant":"icon-only","focusedControl":null,"overlayClickBehavior":"first-unmute-then-pause","testId":"feed-play-controls","share":{"url":"https://www.nytimes.com/video/podcasts/100000011273033/offset-on-getting-shot-i-broke-my-mamas-heart.html","text":"Offset on Getting Shot: ‘I Broke My Mama’s Heart’","confirmationPosition":"left","title":"Offset on Getting Shot: ‘I Broke My Mama’s Heart’"},"disableScrubbing":true}
+[js debug] [nyt-betamax-overlay-controls] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-cover] new instance connected
+[js debug] [nyt-betamax-cover] hydrating with client-provided props {"visibleWhen":["before-play","paused"]}
+[js debug] [nyt-betamax-cover] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-overlay-controls] new instance connected
+[js debug] [nyt-betamax-overlay-controls] hydrating with client-provided props {"controls":["play"],"controlsVariant":"icon-only","focusedControl":null,"overlayClickBehavior":"first-unmute-then-pause","testId":"feed-play-controls","share":{"url":"https://www.nytimes.com/video/dining/100000011288611/cranberry-creme-brulee.html","text":"Cranberry Crème Brûlée","confirmationPosition":"left","title":"Cranberry Crème Brûlée"},"disableScrubbing":true}
+[js debug] [nyt-betamax-overlay-controls] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with client-provided props {"url":"https://static01.nyt.com/images/2026/11/03/multimedia/03hfo-pol-ak-senate-01-gcpq/03hfo-pol-ak-senate-01-gcpq-verticalTwoByThree735.jpg","renderUnderVideo":true,"disablePlayStateRender":true,"fetchpriority":"high"}
+[js debug] [nyt-betamax-poster] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with client-provided props {"url":"https://static01.nyt.com/images/2026/11/13/arts/EKS_Piker_CLIP-1_SOCIAL/EKS_Piker_CLIP-1_SOCIAL-verticalTwoByThree735.jpg","renderUnderVideo":true,"disablePlayStateRender":true,"fetchpriority":"high"}
+[js debug] [nyt-betamax-poster] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with client-provided props {"url":"https://static01.nyt.com/images/2026/11/17/multimedia/17int-russia-ukraine-bridges-ltwc/17int-russia-ukraine-bridges-ltwc-verticalTwoByThree735.jpg","renderUnderVideo":true,"disablePlayStateRender":true,"fetchpriority":"high"}
+[js debug] [nyt-betamax-poster] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with client-provided props {"url":"https://static01.nyt.com/images/2026/11/12/arts/-1_33-PCST_S00_OFFSET_BAD-PERSON-CARDI_CLIP_9x16_V4_Thumbs/-1_33-PCST_S00_OFFSET_BAD-PERSON-CARDI_CLIP_9x16_V4_Thumbs-verticalTwoByThree735.png","renderUnderVideo":true,"disablePlayStateRender":true,"fetchpriority":"high"}
+[js debug] [nyt-betamax-poster] connected and already initialized, skipping construction
+[js debug] [nyt-betamax-poster] new instance connected
+[js debug] [nyt-betamax-poster] hydrating with client-provided props {"url":"https://static01.nyt.com/images/2026/11/04/multimedia/VV-Cranberry-Creme-Brulee-BT-fwjq/VV-Cranberry-Creme-Brulee-BT-fwjq-verticalTwoByThree735-v3.jpg","renderUnderVideo":true,"disablePlayStateRender":true,"fetchpriority":"high"}
+[js debug] [nyt-betamax-poster] connected and already initialized, skipping construction
+[js error] Unhandled Promise Rejection (unhandledrejection): TypeError: cannot convert 'null' or 'undefined' to object
+    at <main> (https://static01.nyt.com/video-static/betamax/video-feed-0.3.50-DaA5I5pM.js:1:11249)
+    at et (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:14586)
+    at <main> (https://static01.nyt.com/video-static/betamax/shared-DHv8vizd.js:1:14049)
+    at filter (native)
+[js warn] limitedAds is not set, defaulting to false
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||securepubads.g.doubleclick.net/tag/js/gpt.js$script,redirect=googletagservices_gpt.js,important, answered with googletagservices_gpt.js)
+[blocked] https://securepubads.g.doubleclick.net/tag/js/gpt.js (||securepubads.g.doubleclick.net/tag/js/gpt.js$script,redirect=googletagservices_gpt.js,important, answered with googletagservices_gpt.js)
+[js warn] XMLHttpRequest failed: https://eg.nytimes.com/api/v1/events: blocked by CORS (no Access-Control-Allow-Origin for https://www.nytimes.com)
+[js warn] https://svelte.dev/e/hydration_mismatch
+[js error] https://rumcdn.geoedge.be/b3960cc6-bfd2-4adc-910c-6e917e8a6a0e/grumi-ip.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:18861)
+    at t (unknown at :1:5076)
+    at e (unknown at :1:5491)
+    at <main> (unknown at :1:5600)
+    at <main> (unknown at :1:18861)
+[blocked] https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1 (||media.net^$third-party)
+[js] couldn't load https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1: https://warp.media.net/js/tags/clientag.js?cid=8CU26C87G&dn=www.nytimes.com&ysection=home&version=1: blocked by filter rule ||media.net^$third-party
+[blocked] https://c.amazon-adsystem.com/aax2/apstag.js (||amazon-adsystem.com^)
+[js] couldn't load https://c.amazon-adsystem.com/aax2/apstag.js: https://c.amazon-adsystem.com/aax2/apstag.js: blocked by filter rule ||amazon-adsystem.com^
+[js error] https://static01.nyt.com/video-static/vhs3/vhs.min.js: TypeError: cannot redefine property: Symbol(Symbol.toStringTag) (unknown at :1:187)
+    at <main> (unknown at :7:2194)
+    at <main> (unknown at :7:118132)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :7:117790)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :7:117754)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :7:117724)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :1:20657)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :7:376010)
+    at call (native)
+    at s (unknown at :1:577)
+    at <main> (unknown at :1:2595)
+    at <main> (unknown at :1:2605)
+    at <main> (unknown at :1:184)
+    at <main> (unknown at :1:187)
+[js error] VHS did not load
+[js error] Error fetching generic personalized packages: Error: unknown value
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:157692)
+    at call (native)
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:154441)
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:155284)
+[js error] Error fetching personalized packages: Error: unknown value
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:158435)
+    at call (native)
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:154441)
+    at <main> (https://www.nytimes.com/vi-assets/static-assets/chunks/Home-DA0--Rlg.js:130:155284)
+[js error] https://accounts.google.com/gsi/client: SyntaxError: unexpected token '<', primary expression at line 1, col 1 (native)
+https://www.nytimes.com/: 13629 nodes, 14409 display items, 1280x10993 px, 351.994988639s total | JS: 44 scripts, 3 errors, 329.872647126s
+exit 0
