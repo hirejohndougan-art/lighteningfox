@@ -970,7 +970,9 @@ BigInt, f32, f64) passed to and from Boa. Runaway-script limits must also stop a
 Push in stages; P1b and P1c start once `instantiate` and function calls work.
 
 ### P1b. WebAssembly: Memory, Table and Global
-**Status:** claimed by chat-wasm-1 2026-11-18 06:40
+**Status:** done
+**Result:** `src/wasm/objects.rs` + `src/wasm.js`: `WebAssembly.Memory` (`buffer`, `grow`), `Table` (`get`/`set`/`grow`/`length`, funcref and externref) and `Global` (`value`/`valueOf`, i32/i64/f32/f64/externref/funcref), made in script or exported, imported and exported both ways; one script object per memory/table/global (exports of the same item are `===`). `memory.buffer` is an `ArrayBuffer` over the wasm memory itself: a vendored-Boa change adds external buffers (`JsArrayBuffer::from_external`, listed in `vendor/boa/IRONSWIFT.md`) that script can't transfer or resize; the buffer is detached on every `grow()` and whenever script runs again after wasm grew the memory (on return from wasm and before each JS import runs). Checked by hand with Emscripten's zstd (`@bokuweb/zstd-wasm`): instantiate, grow through `emscripten_resize_heap`, compress and decompress 1 MB through typed arrays. 6 tests in `src/wasm/objects_tests.rs`.
+**Left undone:** shared memory: wasmi has no threads proposal, so `new WebAssembly.Memory({shared: true})` throws a TypeError and modules with shared memories don't compile (no `SharedArrayBuffer` buffers). The type-reflection extras (`.type()`, `Memory.prototype.toResizableBuffer`) aren't there. Functions reached through a table (not an export) get their store slot as `name`, not their function index.
 **After:** P1a
 **Checklist:** none
 **Files:** `src/wasm/`
