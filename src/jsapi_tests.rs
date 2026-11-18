@@ -6,12 +6,12 @@ use crate::js;
 /// These tests share the engine's global network queue: run them one at a time.
 static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn serial() -> std::sync::MutexGuard<'static, ()> {
+pub(crate) fn serial() -> std::sync::MutexGuard<'static, ()> {
     SERIAL.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// Load a page, run its scripts and timers, and return the engine for more checks.
-fn open(path: &str) -> crate::Page {
+pub(crate) fn open(path: &str) -> crate::Page {
     let profile = std::env::temp_dir().join(format!("ironswift-jsapi-{}", std::process::id()));
     // SAFETY: tests only read this variable; every test sets the same value.
     unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
@@ -25,7 +25,7 @@ fn open(path: &str) -> crate::Page {
     page
 }
 
-fn text_of(id: &str) -> String {
+pub(crate) fn text_of(id: &str) -> String {
     js::with_dom(|d| {
         let n = d.descendants(crate::dom::Dom::ROOT).into_iter().find(|&n| d.attr(n, "id") == Some(id));
         n.map(|n| d.text_content(n)).unwrap_or_default()

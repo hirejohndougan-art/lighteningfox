@@ -150,7 +150,8 @@
 
   const hook = (name, fn) => {
     const orig = g[name];
-    g[name] = function (...args) { return defs.size ? fn(orig, ...args) : orig.apply(this, args); };
+    // Fixed arguments (the hooked natives take at most three): no rest array per DOM change.
+    g[name] = function (a, b, c) { return defs.size ? fn(orig, a, b, c) : orig(a, b, c); };
   };
   hook("__insert", (orig, p, c, b) => {
     const leaving = __parent(c) >= 0 ? upgradedUnder(c) : [];

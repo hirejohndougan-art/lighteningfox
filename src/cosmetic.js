@@ -304,7 +304,10 @@ function schedule() {
 function start() {
   pass();
   if (typeof MutationObserver === 'function') {
-    new MutationObserver(schedule).observe(doc.documentElement || doc, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'id', 'hidden'] });
+    var opts = { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'id', 'hidden'] };
+    // Only "something changed" is needed (prelude.js): no full record per change on the page.
+    if (typeof __moSignalOnly !== 'undefined') opts[__moSignalOnly] = true;
+    new MutationObserver(schedule).observe(doc.documentElement || doc, opts);
   }
 }
 if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', start, { once: true });

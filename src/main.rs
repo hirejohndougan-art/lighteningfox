@@ -94,6 +94,8 @@ mod userinput;
 #[cfg(test)]
 mod jsapi_tests;
 #[cfg(test)]
+mod mutation_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;

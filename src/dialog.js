@@ -308,6 +308,6 @@
   if (typeof MutationObserver === "function") {
     new MutationObserver(() => {
       for (const [el] of layer.slice()) if (!el.isConnected) { removeTop(el); if (isDialog(el)) el.removeAttribute("open"); }
-    }).observe(document, { childList: true, subtree: true });
+    }).observe(document, { childList: true, subtree: true, [globalThis.__moSignalOnly]: true }); // records unused
   }
 })();

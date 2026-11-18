@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MutationObserver records</title>
+<!-- X31: the observer hooks look up neighbours natively and skip work nobody watches; these
+     are the records pages must still get. src/mutation_tests.rs checks #out and #timing. -->
+<div id="a"><span id="a1"></span><span id="a2"></span></div>
+<div id="b"><span id="b1"></span></div>
+<p id="out"></p><p id="timing"></p>
+<script>
+const name = (n) => (n ? n.id || n.nodeName : "-");
+const desc = (r) => r.type + "@" + name(r.target) + "[" +
+  (r.type === "attributes" ? r.attributeName + "=" + r.oldValue :
+   "+" + [...r.addedNodes].map(name).join(",") + " -" + [...r.removedNodes].map(name).join(",") +
+   " prev " + name(r.previousSibling) + " next " + name(r.nextSibling)) + "]";
+const a = document.getElementById("a"), b = document.getElementById("b");
+const log = [];
+const mo = new MutationObserver((recs) => { for (const r of recs) log.push(desc(r)); });
+mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ["class"] });
+// An observer on one element only (no subtree) and one on a detached element.
+const only = [];
+new MutationObserver((recs) => { for (const r of recs) only.push(desc(r)); }).observe(b, { childList: true });
+const loose = document.createElement("div");
+const detached = [];
+new MutationObserver((recs) => { for (const r of recs) detached.push(desc(r)); }).observe(loose, { childList: true });
+
+const n = document.createElement("i"); n.id = "n";
+a.appendChild(n);                                        // +n after a2
+a.insertBefore(document.getElementById("a2"), document.getElementById("a1")); // a2 moves to the front
+b.appendChild(document.getElementById("a1"));            // moved between parents
+b.removeChild(document.getElementById("b1"));            // removed
+n.className = "x";                                       // class: recorded with old value null
+n.className = "y";                                       // old value x
+n.title = "ignored";                                     // filtered out
+const k = document.createElement("u"); k.id = "k"; loose.appendChild(k); // detached parent, its own observer
+const free = document.createElement("div"); free.appendChild(document.createElement("b")); // nobody watches
+Promise.resolve().then(() => {
+  document.getElementById("out").textContent = [log.join(" | "), "ONLY " + only.join(" | "), "LOOSE " + detached.join(" | ")].join(" || ");
+  // Appends into a watched parent stay linear: 4000 used to take seconds (each copied the child list).
+  const host = document.createElement("div"); document.body.appendChild(host);
+  const t = Date.now();
+  for (let i = 0; i < 4000; i++) host.appendChild(document.createElement("p"));
+  document.getElementById("timing").textContent = "appends " + (Date.now() - t) + " ms, children " + host.children.length;
+});
+</script>

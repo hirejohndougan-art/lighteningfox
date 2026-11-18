@@ -342,6 +342,12 @@ fn n_id_list(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
 }
 
 /// __shadowRootList(): every shadow root (for slotchange checks).
+/// `__shadowRootCount()`: how many shadow roots the document has. Checked on every DOM change
+/// (for slotchange), so it allocates nothing, unlike `__shadowRootList`.
+fn n_shadow_root_count(_: &JsValue, _a: &[JsValue], _ctx: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::from(with_dom(|d| d.shadow_hosts.len()) as f64))
+}
+
 fn n_shadow_root_list(_: &JsValue, _a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let mut roots: Vec<NodeId> = with_dom(|d| d.shadow_hosts.keys().copied().collect());
     roots.sort_unstable();
@@ -440,6 +446,22 @@ fn n_children(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue
     let id = arg_id(a, 0, ctx)?;
     let kids = valid(id).map(|id| with_dom(|d| d.nodes[id].children.clone())).unwrap_or_default();
     Ok(ids(kids, ctx))
+}
+
+/// `__sibling(id, dir)`: the node before (`dir` < 0) or after a node among its parent's
+/// children, or -1. MutationObserver records name these; copying the whole child list into
+/// JavaScript to find them made every append cost as much as the parent had children.
+fn n_sibling(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let id = arg_id(a, 0, ctx)?;
+    let dir = arg(a, 1).to_number(ctx)?;
+    let found = valid(id).and_then(|id| {
+        with_dom(|d| {
+            let kids = &d.nodes[d.nodes[id].parent?].children;
+            let i = kids.iter().rposition(|&k| k == id)?;
+            if dir < 0.0 { i.checked_sub(1).map(|j| kids[j]) } else { kids.get(i + 1).copied() }
+        })
+    });
+    Ok(JsValue::from(found.map_or(-1.0, |n| n as f64)))
 }
 
 fn n_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
@@ -1473,10 +1495,12 @@ impl Js {
             ("__templateContent", 1, n_template_content),
             ("__idList", 0, n_id_list),
             ("__shadowRootList", 0, n_shadow_root_list),
+            ("__shadowRootCount", 0, n_shadow_root_count),
             ("__shadowRoot", 2, n_shadow_root),
             ("__shadowHost", 1, n_shadow_host),
             ("__parent", 1, n_parent),
             ("__children", 1, n_children),
+            ("__sibling", 2, n_sibling),
             ("__text", 1, n_text),
             ("__setText", 2, n_set_text),
             ("__insert", 3, n_insert),

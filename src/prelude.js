@@ -1448,15 +1448,17 @@
     for (const slot of changed) slot.dispatchEvent(new Event("slotchange", { bubbles: true }));
   }
   g.__slotsMaybeChanged = function () {
-    if (slotCheckQueued || !__shadowRootList().length) return;
+    if (slotCheckQueued || !__shadowRootCount()) return;
     slotCheckQueued = true;
     Promise.resolve().then(checkSlots);
   };
   for (const name of ["__setText", "__insert", "__detach", "__setAttr", "__removeAttr", "__setHTML", "__attachShadow"]) {
     const orig = g[name];
     if (typeof orig !== "function") continue;
-    g[name] = function (...args) {
-      const r = orig.apply(this, args);
+    // Fixed arguments (these natives take at most three): a rest array per DOM change is
+    // garbage the collector has to sweep, and DOM changes come in tight loops.
+    g[name] = function (a, b, c) {
+      const r = orig(a, b, c);
       g.__slotsMaybeChanged();
       return r;
     };
@@ -1468,7 +1470,6 @@
     const regs = []; // { obs, target (id), opts }
     const pending = new Set();
     let queued = false;
-    const ancestors = (id) => { const out = []; let n = id, guard = 0; while (n >= 0 && guard++ < 10000) { out.push(n); n = __parent(n); } return out; };
     const deliver = () => {
       queued = false;
       const list = [...pending];
@@ -1478,19 +1479,41 @@
         if (recs.length) { try { o.__cb.call(o, recs, o); } catch (e) { __log("error", "MutationObserver callback: " + e); } }
       }
     };
+    // How many levels above `id` the node `anc` is (0 = itself), or -1. Walks parents without
+    // building a list: this runs on every DOM change while any observer exists.
+    const depthOf = (anc, id) => {
+      for (let n = id, d = 0; n >= 0 && d < 10000; n = __parent(n), d++) if (n === anc) return d;
+      return -1;
+    };
+    const covers = (r, targetId) => {
+      const depth = depthOf(r.target, targetId);
+      return depth === 0 || (depth > 0 && r.opts.subtree);
+    };
+    // `extra` may be a function giving the details, called once on the first match, so a change
+    // nobody watches costs one walk up the tree and nothing else.
+    // Observers the browser itself registers (ad blocking, dialogs) only need to know that
+    // something changed: with this option they get one placeholder record per batch, so a page
+    // doesn't pay for full records on every change it makes.
+    const SIGNAL = Symbol("signal only");
+    const SIGNAL_RECORD = Object.freeze({ type: "childList", target: null, addedNodes: [], removedNodes: [], previousSibling: null, nextSibling: null, attributeName: null, attributeNamespace: null, oldValue: null });
+    g.__moSignalOnly = SIGNAL;
     const record = (type, targetId, extra) => {
       if (!regs.length) return;
-      const chain = ancestors(targetId);
-      const seen = new Set();
+      let seen = null;
       for (const r of regs) {
-        if (seen.has(r.obs)) continue;
-        const depth = chain.indexOf(r.target);
-        if (depth < 0 || (depth > 0 && !r.opts.subtree)) continue;
+        if (seen && seen.has(r.obs)) continue;
         const o = r.opts;
         if (type === "childList" && !o.childList) continue;
         if (type === "attributes" && (!o.attributes || (o.attributeFilter && !o.attributeFilter.includes(extra.attributeName)))) continue;
         if (type === "characterData" && !o.characterData) continue;
-        seen.add(r.obs);
+        if (!covers(r, targetId)) continue;
+        (seen || (seen = new Set())).add(r.obs);
+        if (o[SIGNAL]) {
+          if (!r.obs.__records.length) r.obs.__records.push(SIGNAL_RECORD);
+          pending.add(r.obs);
+          continue;
+        }
+        if (typeof extra === "function") extra = extra();
         const rec = {
           type, target: wrap(targetId),
           addedNodes: extra.added || [], removedNodes: extra.removed || [],
@@ -1504,41 +1527,52 @@
       if (pending.size && !queued) { queued = true; Promise.resolve().then(deliver); }
     };
     const kids = (id) => Array.from(__children(id) || []);
+    // Whether any observer would get a childList record for `targetId`. Checked before the
+    // neighbours are looked up, so changes nobody watches (detached nodes, unobserved parts
+    // of the page) cost nothing extra.
+    const watched = (targetId) => {
+      for (const r of regs) if (r.opts.childList && covers(r, targetId)) return true;
+      return false;
+    };
+    // The same for an attribute change (its filter checked first, as it's cheapest).
+    const watchedAttr = (targetId, name) => {
+      for (const r of regs) {
+        const o = r.opts;
+        if (o.attributes && (!o.attributeFilter || o.attributeFilter.includes(name)) && covers(r, targetId)) return true;
+      }
+      return false;
+    };
     const hook = (name, fn) => {
       const orig = g[name];
       if (typeof orig !== "function") return;
-      g[name] = function (...args) { return regs.length ? fn(orig, ...args) : orig.apply(this, args); };
+      g[name] = function (a, b, c) { return regs.length ? fn(orig, a, b, c) : orig(a, b, c); };
     };
     hook("__insert", (orig, p, c, b) => {
       const old = __parent(c);
-      if (old >= 0) {
-        const sib = kids(old), i = sib.indexOf(c);
-        const r = orig(p, c, b);
-        record("childList", old, { removed: [wrap(c)], prev: wrap(sib[i - 1]), next: wrap(sib[i + 1]) });
-        const now = kids(p), j = now.indexOf(c);
-        record("childList", p, { added: [wrap(c)], prev: wrap(now[j - 1]), next: wrap(now[j + 1]) });
-        return r;
-      }
+      // The old neighbours must be read before the move; two native lookups, no lists.
+      const oldPrev = old >= 0 ? __sibling(c, -1) : -1, oldNext = old >= 0 ? __sibling(c, 1) : -1;
       const r = orig(p, c, b);
-      const now = kids(p), j = now.indexOf(c);
-      record("childList", p, { added: [wrap(c)], prev: wrap(now[j - 1]), next: wrap(now[j + 1]) });
+      if (old >= 0) record("childList", old, () => ({ removed: [wrap(c)], prev: wrap(oldPrev), next: wrap(oldNext) }));
+      if (__parent(c) === p) record("childList", p, () => ({ added: [wrap(c)], prev: wrap(__sibling(c, -1)), next: wrap(__sibling(c, 1)) }));
       return r;
     });
     hook("__detach", (orig, id) => {
       const p = __parent(id);
       if (p < 0) return orig(id);
-      const sib = kids(p), i = sib.indexOf(id);
+      const prev = __sibling(id, -1), next = __sibling(id, 1);
       const r = orig(id);
-      record("childList", p, { removed: [wrap(id)], prev: wrap(sib[i - 1]), next: wrap(sib[i + 1]) });
+      record("childList", p, () => ({ removed: [wrap(id)], prev: wrap(prev), next: wrap(next) }));
       return r;
     });
     hook("__setAttr", (orig, id, name, value) => {
+      if (!watchedAttr(id, String(name))) return orig(id, name, value);
       const old = __getAttr(id, name);
       const r = orig(id, name, value);
       record("attributes", id, { attributeName: String(name), oldValue: old });
       return r;
     });
     hook("__removeAttr", (orig, id, name) => {
+      if (!watchedAttr(id, String(name))) return orig(id, name);
       const old = __getAttr(id, name);
       const r = orig(id, name);
       if (old != null) record("attributes", id, { attributeName: String(name), oldValue: old });
@@ -1551,6 +1585,7 @@
         record("characterData", id, { oldValue: old });
         return r;
       }
+      if (!watched(id)) return orig(id, v);
       const before = kids(id).map(wrap);
       const r = orig(id, v);
       const after = kids(id).map(wrap);
