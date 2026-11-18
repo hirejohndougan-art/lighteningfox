@@ -13,6 +13,7 @@
 //! wasm `Caller` it was given stands in for the store (`CALLERS`), and the script engine the
 //! outermost call came from is reached through `CONTEXTS`.
 
+mod objects;
 mod values;
 // Streaming, `.wasm` ES modules, CSP and postMessage (task P1c).
 mod csp;
@@ -23,6 +24,8 @@ mod share;
 mod tests;
 #[cfg(test)]
 mod loading_tests;
+#[cfg(test)]
+mod objects_tests;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -98,6 +101,8 @@ struct Tables {
     of_object: HashMap<JsObject, u32>,
     /// `CompileError`, `LinkError`, `RuntimeError` from `wasm.js`.
     errors: Option<[JsObject; 3]>,
+    /// Memories, tables and globals script can see.
+    slots: objects::Slots,
 }
 
 pub(crate) struct State {
@@ -162,6 +167,8 @@ fn enter<R>(ctx: &mut Context, st: &State, f: impl FnOnce(&mut StoreContextMut<'
         f(s)
     });
     CONTEXTS.with(|c| c.borrow_mut().pop());
+    // Back in script: memories the call grew get new buffers.
+    objects::refresh_buffers(st);
     r.map_err(|e| js_error(ctx, st, e, Kind::Runtime))
 }
 
@@ -243,7 +250,7 @@ pub fn install(ctx: &mut Context) {
         ("__wasmShareNative", 1, share::n_share),
         ("__wasmAdoptNative", 1, share::n_adopt),
     ];
-    for (name, len, f) in natives {
+    for (name, len, f) in natives.iter().chain(objects::NATIVES) {
         let _ = ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f));
     }
     if let Err(e) = ctx.eval_cached(include_str!("../wasm.js").as_bytes()) {
@@ -349,28 +356,40 @@ fn n_custom_sections(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<
     Ok(out.into())
 }
 
-/// __wasmInstantiate(id, [import values in the module's order]) -> [name, value, …] of the
-/// exports this build supports (functions). Throws LinkError, RuntimeError (from the start
-/// function) or whatever an import threw.
+/// The items of a script array.
+fn array_items(v: Option<&JsValue>, ctx: &mut Context) -> JsResult<Vec<JsValue>> {
+    match v.and_then(|v| v.as_object()) {
+        Some(o) => {
+            let arr = JsArray::from_object(o.clone())?;
+            let n = arr.length(ctx)?;
+            (0..n).map(|i| arr.get(i, ctx)).collect()
+        }
+        None => Ok(Vec::new()),
+    }
+}
+
+/// __wasmInstantiate(id, [import values in the module's order], [their Memory, Table or
+/// Global slots, or -1]) -> [name, kind, value, …] of the exports in the module's order: a
+/// function, or the slot of a memory, table or global. Throws LinkError, RuntimeError (from
+/// the start function) or whatever an import threw.
 fn n_instantiate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let id = index_arg(a, 0, ctx)?;
     let st = state(ctx);
     let module = module_of(&st, id)?;
-    let given = match a.get(1).and_then(|v| v.as_object()) {
-        Some(o) => {
-            let arr = JsArray::from_object(o.clone())?;
-            let n = arr.length(ctx)?;
-            (0..n).map(|i| arr.get(i, ctx)).collect::<JsResult<Vec<_>>>()?
-        }
-        None => Vec::new(),
-    };
+    let given = array_items(a.get(1), ctx)?;
+    let slots = array_items(a.get(2), ctx)?;
     let wanted: Vec<(String, String, ExternType)> =
         module.imports().map(|i| (i.module().to_string(), i.name().to_string(), i.ty().clone())).collect();
     let mut externs = Vec::with_capacity(wanted.len());
     for (i, (m, n, ty)) in wanted.into_iter().enumerate() {
         let v = given.get(i).cloned().unwrap_or_default();
         let what = format!("import {m:?} {n:?}");
-        externs.push(resolve_import(ctx, &st, &what, ty, v)?);
+        let slot = slots.get(i).and_then(JsValue::as_number).filter(|n| *n >= 0.0);
+        let item = match slot.and_then(|s| objects::extern_of(&st, &ty, s as usize)) {
+            Some(item) => item,
+            None => resolve_import(ctx, &st, &what, ty, v)?,
+        };
+        externs.push(item);
     }
     let instance = enter(ctx, &st, |s| wasmi::Instance::new(s, &module, &externs))?;
     let order = st.tables.borrow().modules[id].exports.clone();
@@ -378,12 +397,15 @@ fn n_instantiate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
         with_store(&st, |s| order.into_iter().map(|(name, _, index)| (name.clone(), index, instance.get_export(&*s, &name))).collect());
     let out = JsArray::new(ctx)?;
     for (name, index, ext) in exports {
-        let value = match ext {
-            Some(Extern::Func(f)) => JsValue::from(function_object(ctx, &st, f, Some(index))?),
-            // WebAssembly.Memory, Table and Global objects come with P1b.
-            _ => continue,
+        let (kind, value) = match ext {
+            Some(Extern::Func(f)) => ("function", JsValue::from(function_object(ctx, &st, f, Some(index))?)),
+            Some(Extern::Memory(m)) => ("memory", objects::memory_slot(&st, m).into()),
+            Some(Extern::Table(t)) => ("table", objects::table_slot(&st, t).into()),
+            Some(Extern::Global(g)) => ("global", objects::global_slot(&st, g).into()),
+            None => continue,
         };
         out.push(JsValue::from(JsString::from(name)), ctx)?;
+        out.push(JsValue::from(JsString::from(kind)), ctx)?;
         out.push(value, ctx)?;
     }
     Ok(out.into())
@@ -424,9 +446,8 @@ fn resolve_import(ctx: &mut Context, st: &State, what: &str, ty: ExternType, v: 
             let val = values::to_wasm(ctx, st, &v, content)?;
             Ok(Extern::Global(with_store(st, |s| wasmi::Global::new(s, val, wasmi::Mutability::Const))))
         }
-        ExternType::Memory(_) | ExternType::Table(_) => {
-            Err(throw(ctx, st, Kind::Link, &format!("{what}: importing a WebAssembly.Memory or Table is not supported yet")))
-        }
+        ExternType::Memory(_) => Err(throw(ctx, st, Kind::Link, &format!("{what}: memory import must be a WebAssembly.Memory"))),
+        ExternType::Table(_) => Err(throw(ctx, st, Kind::Link, &format!("{what}: table import must be a WebAssembly.Table"))),
     }
 }
 
@@ -465,6 +486,8 @@ fn host_func(st: &State, ty: FuncType, callee: JsObject) -> Func {
 /// Run a JavaScript import: wasm arguments to script values, and the return value to wasm.
 fn call_js(ctx: &mut Context, callee: &JsObject, params: &[Val], results: &[wasmi::ValType], out: &mut [Val]) -> JsResult<()> {
     let st = state(ctx);
+    // Script is about to run: memories wasm grew get new buffers.
+    objects::refresh_buffers(&st);
     let args = params.iter().map(|v| values::to_js(ctx, &st, v)).collect::<JsResult<Vec<_>>>()?;
     let ret = callee.call(&JsValue::undefined(), &args, ctx)?;
     match results.len() {

@@ -3,7 +3,7 @@
 
 use crate::js::Js;
 
-fn page(wat: &str) -> Js {
+pub(super) fn page(wat: &str) -> Js {
     let bin = wat::parse_str(wat).expect("test module parses");
     let list: Vec<String> = bin.iter().map(|b| b.to_string()).collect();
     let mut js = Js::new("https://wasm.example/");
@@ -12,7 +12,7 @@ fn page(wat: &str) -> Js {
 }
 
 /// Run script; a string result comes back without the console's quotes.
-fn run(js: &mut Js, code: &str) -> String {
+pub(super) fn run(js: &mut Js, code: &str) -> String {
     let out = js.run(code).unwrap_or_else(|e| format!("error: {e}"));
     if out.starts_with('"') {
         return serde_json::from_str(&out).unwrap_or(out);
