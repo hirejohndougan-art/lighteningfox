@@ -1530,6 +1530,8 @@ impl Js {
         crate::canvas::install(&mut ctx);
         // <video> and <audio> (media.rs, media.js).
         crate::media::install(&mut ctx);
+        // TextDecoder's decoding (textdecode.rs), used by blob.js.
+        crate::textdecode::install(&mut ctx);
         if let Err(e) = ctx.eval_cached(BLOB.as_bytes()) {
             log!("[ironswift] Blob setup failed: {e}");
         }

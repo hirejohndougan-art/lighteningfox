@@ -155,25 +155,38 @@
     };
   }
   if (typeof g.TextDecoder !== "function") {
+    // Decoding is native (src/textdecode.rs, encoding_rs): every WHATWG encoding, streaming,
+    // fatal mode and BOM handling.
+    const decodeNative = __textDecode, nameOf = __encodingName;
     g.TextDecoder = class TextDecoder {
       constructor(label, opts) {
-        const l = label === undefined ? "utf-8" : String(label).trim().toLowerCase();
-        const names = { "utf-8": "utf-8", utf8: "utf-8", "unicode-1-1-utf-8": "utf-8", "iso-8859-1": "windows-1252", latin1: "windows-1252", "windows-1252": "windows-1252", ascii: "windows-1252", "us-ascii": "windows-1252" };
-        if (!names[l]) throw new RangeError("Unsupported encoding: " + label);
-        this._enc = names[l];
+        const name = nameOf(label === undefined ? "utf-8" : String(label));
+        if (name === null) throw new RangeError("Unsupported encoding: " + label);
+        this._enc = name;
         this.fatal = !!(opts && opts.fatal);
         this.ignoreBOM = !!(opts && opts.ignoreBOM);
+        this._pending = null;
+        this._started = false;
       }
       get encoding() { return this._enc; }
-      decode(input) {
-        if (input === undefined) return "";
-        let b = input instanceof ArrayBuffer ? new Uint8Array(input) : ArrayBuffer.isView(input) ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength) : null;
-        if (!b) throw new TypeError("decode() needs an ArrayBuffer or a typed array.");
-        if (this._enc !== "utf-8") return Array.from(b, (c) => String.fromCharCode(c)).join("");
-        if (!this.ignoreBOM && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) b = b.subarray(3);
-        const s = fromUtf8(b);
-        if (this.fatal && s.includes("\ufffd") && !utf8(s).every((x, i) => x === b[i])) throw new TypeError("The data is not valid UTF-8.");
-        return s;
+      decode(input, options) {
+        const stream = !!(options && options.stream);
+        let b;
+        if (input === undefined) b = new Uint8Array(0);
+        else if (input instanceof ArrayBuffer || (typeof SharedArrayBuffer === "function" && input instanceof SharedArrayBuffer)) b = new Uint8Array(input);
+        else if (ArrayBuffer.isView(input)) b = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+        else throw new TypeError("decode() needs an ArrayBuffer or a typed array.");
+        if (this._pending) {
+          const joined = new Uint8Array(this._pending.length + b.length);
+          joined.set(this._pending);
+          joined.set(b, this._pending.length);
+          b = joined;
+        }
+        // A BOM only counts at the start of a stream.
+        const [text, used] = decodeNative(this._enc, b, this.fatal, !this.ignoreBOM && !this._started, stream);
+        this._pending = stream && used < b.length ? b.slice(used) : null;
+        this._started = stream && (this._started || used > 0);
+        return text;
       }
     };
   }

@@ -95,6 +95,7 @@ mod jsapi_tests;
 #[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
+mod textdecode;
 mod layout;
 mod doc_extent;
 mod cssvars;
