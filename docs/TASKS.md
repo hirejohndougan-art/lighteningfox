@@ -970,7 +970,7 @@ BigInt, f32, f64) passed to and from Boa. Runaway-script limits must also stop a
 Push in stages; P1b and P1c start once `instantiate` and function calls work.
 
 ### P1b. WebAssembly: Memory, Table and Global
-**Status:** free
+**Status:** claimed by chat-wasm-1 2026-11-18 06:40
 **After:** P1a
 **Checklist:** none
 **Files:** `src/wasm/`
