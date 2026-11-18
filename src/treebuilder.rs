@@ -1462,7 +1462,9 @@ impl TreeBuilder {
             Token::EndTag(ref tag) if tag.name == "script" => {
                 let script = self.pop();
                 self.mode = self.orig_mode;
-                if self.pause_at_scripts {
+                // Only a script in the document runs: one parsed into a <template>'s
+                // contents is inert (HTML "prepare the script element": not connected).
+                if self.pause_at_scripts && script.is_some_and(|s| self.in_document(s)) {
                     self.pending_script = script;
                 }
             }
@@ -1476,6 +1478,14 @@ impl TreeBuilder {
                 self.mode = self.orig_mode;
             }
         }
+    }
+
+    /// Whether a node hangs from the document (not from a template's contents fragment).
+    fn in_document(&self, mut id: NodeId) -> bool {
+        while let Some(p) = self.dom.nodes[id].parent {
+            id = p;
+        }
+        id == 0
     }
 
     fn clear_to(&mut self, names: &[&str]) {

@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- NYT (2026-11): embeds sit in <template> elements whose scripts a mount script re-creates
+     after copying the template's contents into the page. Scripts parsed into a template's
+     contents ran too, so each embed started twice and SvelteKit hydrated the same element a
+     second time (the markets ticker and the weather strip broke). Scripts in a template are
+     inert; a clone inserted into the document runs once. -->
+<html><head><title>template scripts</title></head>
+<body>
+<script>window.ran = [];</script>
+<template id="plain"><div><script>ran.push("plain")</script></div></template>
+<template id="withhead"><!-- c --><head><link rel="modulepreload" href="x.js"></head><div><script>ran.push("head")</script></div></template>
+<div id="mount"></div>
+<p id="out"></p>
+<script>
+document.getElementById("mount").appendChild(document.getElementById("plain").content.cloneNode(true));
+ran.push("contents:" + document.getElementById("withhead").content.querySelectorAll("script").length);
+document.getElementById("out").textContent = ran.join(",");
+</script></body></html>

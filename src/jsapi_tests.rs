@@ -1356,3 +1356,12 @@ fn comments_and_text_constructors_make_nodes() {
     let _page = open("tests/sites/comment-nodes.html");
     assert_eq!(text_of("out"), "8#comment[|<!--[0--><span>a</span><!--]--><!--[--><!--]-->|3xtruetrue|8ytrue|sibling|needs new");
 }
+
+/// NYT: scripts parsed into a <template>'s contents ran; only a clone put into the document
+/// should run (once).
+#[test]
+fn template_scripts_are_inert() {
+    let _serial = serial();
+    let _page = open("tests/sites/template-scripts.html");
+    assert_eq!(text_of("out"), "plain,contents:1");
+}
