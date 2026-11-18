@@ -16,6 +16,7 @@ macro_rules! log {
 }
 
 mod a11y_remote;
+mod shm;
 mod clicks;
 mod mcp;
 mod cookies;

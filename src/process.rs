@@ -267,7 +267,10 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     if let Some((_, child_end)) = &media {
         crate::media_broker::pass_to(&mut cmd, child_end);
     }
+    // Shared memory for its pictures (shm.rs).
+    let shared = crate::shm::share_with(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| log!("[process] couldn't start the process for {site}: {e}")).ok()?;
+    let pictures = shared.map(|(s, _fd)| s);
     #[cfg(target_os = "linux")]
     if let Some((mine, _child_end)) = media {
         crate::media_broker::serve(mine, site.to_string());
@@ -292,6 +295,24 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
                                 if let Some((k, _, tx)) = routes.as_ref().and_then(|r| r.get(&id)) {
                                     if *k == key {
                                         let _ = tx.send(u);
+                                    }
+                                }
+                            }
+                        }
+                        b"pic" => {
+                            // A picture in shared memory: (width, height, scroll, max, inner, slot).
+                            let id = get_u32(&mut stdout)?;
+                            let v = crate::frames::read_f32s(&get(&mut stdout)?);
+                            let (Some(shm), &[w, h, scroll, max, inner, slot]) = (pictures.as_ref(), &v[..]) else {
+                                return Err(std::io::Error::other("bad picture"));
+                            };
+                            let (w, h) = (w as u32, h as u32);
+                            let len = (w as usize).saturating_mul(h as usize).saturating_mul(4);
+                            let img = shm.take(slot as usize, len).and_then(|px| image::RgbaImage::from_raw(w, h, px));
+                            if let (Some(img), Ok(routes)) = (img, ROUTES.lock()) {
+                                if let Some((k, _, tx)) = routes.as_ref().and_then(|r| r.get(&id)) {
+                                    if *k == key {
+                                        let _ = tx.send(Update::Picture { img, scroll, max, inner: inner > 0.5 });
                                     }
                                 }
                             }
@@ -768,6 +789,15 @@ pub fn serve(site: &str) {
                     let _ = std::thread::Builder::new().name("page".into()).stack_size(crate::MAIN_STACK).spawn(move || {
                         let send = |u: Update| {
                             let mut m = Vec::new();
+                            // A picture goes through shared memory when there's a free slot.
+                            if let (Update::Picture { img, scroll, max, inner }, Some(shm)) = (&u, crate::shm::Shm::inherited()) {
+                                if let Some(slot) = shm.put(img.as_raw()) {
+                                    put(&mut m, b"pic");
+                                    put(&mut m, &id.to_le_bytes());
+                                    put(&mut m, &crate::frames::f32s(&[img.width() as f32, img.height() as f32, *scroll, *max, *inner as u8 as f32, slot as f32]));
+                                    return send_out(&m);
+                                }
+                            }
                             put(&mut m, b"upd");
                             put(&mut m, &id.to_le_bytes());
                             m.extend(u.encode());
