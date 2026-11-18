@@ -958,7 +958,9 @@ the existing notification prompt, and installing a site as an app from its web a
 own window and desktop entry). Partition by site like storage. Run WPT `service-workers/`.
 
 ### P3. `<dialog>` and popovers
-**Status:** claimed by chat-opus-t12 2026-11-18 00:25
+**Status:** done (chat-opus-t12 2026-11-18)
+**Done:** the top layer (`src/dialog.rs`, `Dom::top_layer`) with `:modal`, `:popover-open`, `:open`, a `::backdrop` pseudo-element behind modal dialogs, and `height: fit-content` for centering; `src/dialog.js`: `show`/`showModal`/`close`/`requestClose`, `returnValue`, `closedBy`, cancel/close and beforetoggle/toggle (`ToggleEvent`) events, `<form method=dialog>` (submit events now carry `event.submitter`), Esc, focus in and back, the page inert behind a modal; the `popover` attribute and API, `popovertarget`/`popovertargetaction`, light dismiss. Mouse buttons over empty space now go to the root element. Tested in the real window (site process) and `dialogs_and_popovers`. WPT `the-dialog-element` 68/446 subtests and 10/45 reference pages; `popovers` 1225/3899 and 7/19 (nothing before).
+**Left undone:** most remaining WPT failures use test_driver (real key presses and clicks) or iframes of other sizes; popover anchoring (`position-anchor`, `hint` stacking rules), nested-popover ancestry beyond containment, and `inert` on other elements aren't done; focus isn't trapped inside a modal when tabbing.
 **After:** —
 **Checklist:** §19 "Dialog and popover"
 **Files:** `src/dom_classes.rs`, `src/prelude.js`, `src/layout.rs`, `src/paint.rs`
