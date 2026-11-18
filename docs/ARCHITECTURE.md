@@ -67,6 +67,16 @@ of wasm unchanged; traps become `WebAssembly.RuntimeError`, a stack overflow a `
 Runaway modules are stopped by wasmi fuel (`wasm::FUEL`, about 20 seconds of work per call
 from script), with the same uncatchable error as Boa's loop limit.
 
+Loading (`wasm_loading.js`, `wasm/share.rs`, `wasm/esm.rs`, `wasm/csp.rs`):
+`compileStreaming`/`instantiateStreaming` check the `Response` (`application/wasm`, ok, not
+opaque, unread) and compile once the whole body is in (fetch bodies arrive whole). A `.wasm` ES
+module (served as `application/wasm`) is compiled by the module loader and stands behind a
+generated JavaScript module that imports what the wasm imports and exports its exports. A page
+whose CSP limits scripts may only compile from bytes with `'wasm-unsafe-eval'` or
+`'unsafe-eval'` (else `CompileError`). A `Module` sent with `postMessage` travels as its bytes
+(shared, not copied) and is compiled again by the receiver: wasmi never frees a module's code
+before its engine goes, so each page and worker keeps its own engine.
+
 **Why wasmi and not wasmtime** (measured 2026-11-18 on a 2-core x86-64 VM, release builds,
 compressing 8 MB of text with zstd 1.5 compiled by Emscripten (`@bokuweb/zstd-wasm`, 246 KB of
 wasm), level 3):

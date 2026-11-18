@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebAssembly</title>
+<style>body { font: 24px sans-serif; margin: 40px; } p { margin: 8px 0; }</style>
+<p id="stream">instantiateStreaming: waiting</p>
+<p id="esm">.wasm module: waiting</p>
+<script>
+  // tests/wasm/add.wasm exports add(a, b). Run directly and in a site process
+  // (tools/site_process_check.py wasm.html): both should say "ok 5" and "ok 12".
+  WebAssembly.instantiateStreaming(fetch("wasm/add.wasm"))
+    .then((r) => { document.getElementById("stream").textContent = "instantiateStreaming: ok " + r.instance.exports.add(2, 3); })
+    .catch((e) => { document.getElementById("stream").textContent = "instantiateStreaming: " + e; });
+</script>
+<script type="module">
+  import { add } from "./wasm/add.wasm";
+  document.getElementById("esm").textContent = ".wasm module: ok " + add(5, 7);
+</script>
