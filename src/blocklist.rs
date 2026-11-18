@@ -192,6 +192,8 @@ pub struct Engine {
     /// Other HTML filters (`##^.ad-frame`, `##^div:has-text(…)`): domain -> selector. The
     /// elements are taken out of the page's HTML before it's used.
     html_filters_on: HashMap<String, Vec<String>>,
+    /// `##^responseheader(name)`: domain -> response headers dropped from its pages.
+    response_headers_on: HashMap<String, Vec<String>>,
     /// Is the list being added trusted (uBlock Origin's own lists and your own rules)? Only
     /// trusted lists may use the `trusted-…` scriptlets, as in uBlock Origin.
     loading_trusted: bool,
@@ -1005,7 +1007,22 @@ impl Engine {
         // HTML filters (`##^…`): inline scripts by their text are dropped before they run;
         // other elements are removed as the page loads.
         if let Some(html) = body.strip_prefix('^') {
-            if exception || positive.is_empty() || html.starts_with("responseheader(") {
+            // `##^responseheader(name)`: only the headers uBlock Origin allows.
+            if let Some(name) = html.strip_prefix("responseheader(").and_then(|r| r.strip_suffix(')')) {
+                let name = name.trim().to_ascii_lowercase();
+                if exception {
+                    let sites = if positive.is_empty() { vec![String::new()] } else { positive };
+                    for d in sites {
+                        self.unhide.insert((d, format!("^responseheader({name})")));
+                    }
+                } else if RESPONSE_HEADERS.contains(&name.as_str()) {
+                    for d in positive {
+                        self.response_headers_on.entry(d).or_default().push(name.clone());
+                    }
+                }
+                return;
+            }
+            if exception || positive.is_empty() {
                 return;
             }
             if let Some(needle) = html.strip_prefix("script:has-text(").and_then(|r| r.strip_suffix(')')) {
@@ -1514,6 +1531,19 @@ impl Engine {
             .collect()
     }
 
+    /// Response headers filters drop from this page.
+    fn response_headers_for(&self, page: &str) -> Vec<String> {
+        let Some(page_host) = host_of(page) else { return Vec::new() };
+        if self.page_flags(page, &page_host) & PAGE_ALL != 0 {
+            return Vec::new();
+        }
+        let keys = page_keys(&page_host);
+        let unhidden = |s: &str| keys.iter().chain([String::new()].iter()).any(|d| self.unhide.contains(&(d.clone(), format!("^responseheader({s})"))));
+        let mut out: Vec<String> = keys.iter().filter_map(|k| self.response_headers_on.get(k)).flatten().filter(|s| !unhidden(s)).cloned().collect();
+        out.dedup();
+        out
+    }
+
     /// HTML filters for this page (selectors, each maybe ending in `:has-text(…)`).
     fn html_filters_for(&self, page: &str) -> Vec<String> {
         let Some(page_host) = host_of(page) else { return Vec::new() };
@@ -1930,6 +1960,25 @@ fn scriptlets_needed(names: &HashSet<&str>) -> String {
         }
     }
     out
+}
+
+/// Headers `##^responseheader(…)` may drop (uBlock Origin's list).
+const RESPONSE_HEADERS: &[&str] = &["location", "refresh", "report-to", "set-cookie"];
+
+/// Take the headers filter lists drop (`##^responseheader(name)`) out of a page's response.
+pub fn drop_response_headers(page: &str, headers: &mut Vec<(String, String)>) {
+    if !web(page) || exempt(page) {
+        return;
+    }
+    let names = engine().response_headers_for(page);
+    if names.is_empty() {
+        return;
+    }
+    let before = headers.len();
+    headers.retain(|(k, _)| !names.iter().any(|n| k.eq_ignore_ascii_case(n)));
+    if headers.len() != before {
+        log!("[content blocking] {page}: dropped response headers {}", names.join(", "));
+    }
 }
 
 /// HTML filters (`##^…`) for a page: (plain CSS selector, text the element must contain).
@@ -2351,6 +2400,16 @@ mod tests {
         assert_eq!(e.filter_script("https://other.com/", "showAds(2);"), Some("showAds(2);".into()));
         assert_eq!(text_pattern("/a(b)/g").unwrap().replace("ab ab", "[$1$&$$]"), "[bab$] [bab$]");
         assert_eq!(text_pattern("x.y").unwrap().replace("x.y x.y", "z"), "z x.y");
+    }
+
+    #[test]
+    fn response_header_filters() {
+        let mut e = Engine::default();
+        e.add_list_from("news.com##^responseheader(Refresh)\nnews.com##^responseheader(report-to)\nnews.com##^responseheader(content-security-policy)\nsub.news.com#@#^responseheader(refresh)\n", Kind::Ads, false);
+        // Only the headers uBlock Origin allows; an exception lifts one on a subdomain.
+        assert_eq!(e.response_headers_for("https://www.news.com/a"), vec!["refresh", "report-to"]);
+        assert_eq!(e.response_headers_for("https://sub.news.com/a"), vec!["report-to"]);
+        assert!(e.response_headers_for("https://other.com/").is_empty());
     }
 
     #[test]

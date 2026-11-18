@@ -972,6 +972,153 @@ def('trusted-prune-inbound-object', function(path, argpos, paths, needs) {
   });
 });
 
+// ---------------------------------------------------------------- JSONPath-style edits
+
+// uBlock Origin's object queries: steps `.key`, `..key` (at any depth), `[*]`, `[n]`,
+// `["key"]` and filters `[?.a.b]` (exists), `[?.a.b==x]`, `!=`, `*=` (contains), `^=`
+// (starts), `$=` (ends), `=/re/flags`; then an edit: `+={json}` (merge), `=value` (set:
+// JSON, else text), `=repl({"regex":"…","replacement":"…"})`, or none (remove). Returns true
+// if the object changed.
+function jsonEdit(root, query) {
+  var q = String(query || '');
+  var i = 0;
+  var steps = [];
+  var readQuoted = function() {
+    var quote = q[i], out = '';
+    i++;
+    while (i < q.length && q[i] !== quote) { if (q[i] === '\\') i++; out += q[i]; i++; }
+    i++;
+    return out;
+  };
+  var readName = function() {
+    var out = '';
+    while (i < q.length && !/[.\[=+!*^$]/.test(q[i])) out += q[i++];
+    return out;
+  };
+  // The bracket's contents, up to its matching `]` (quotes and nested brackets skipped).
+  var readBracket = function() {
+    var depth = 0, out = '';
+    for (; i < q.length; i++) {
+      var c = q[i];
+      if (c === '"' || c === "'") { var start = i; readQuoted(); out += q.slice(start, i); i--; continue; }
+      if (c === '[') { depth++; if (depth === 1) continue; }
+      if (c === ']') { depth--; if (depth === 0) { i++; return out; } }
+      out += c;
+    }
+    return null;
+  };
+  while (i < q.length) {
+    var c = q[i];
+    if (c === '.' && q[i + 1] === '.') { i += 2; steps.push({ deep: readName() }); }
+    else if (c === '.') { i++; if (q[i] === '[') continue; var n = readName(); if (n) steps.push({ key: n }); }
+    else if (c === '[') {
+      var inner = readBracket();
+      if (inner === null) return false;
+      if (inner[0] === '?') steps.push({ filter: inner.slice(1) });
+      else if (inner === '*') steps.push({ all: true });
+      else if (/^-?\d+$/.test(inner)) steps.push({ key: Number(inner) });
+      else if (/^["']/.test(inner)) steps.push({ key: inner.slice(1, -1) });
+      else steps.push({ key: inner });
+    } else break;
+  }
+  // The edit at the end.
+  var rest = q.slice(i), op = null, arg = '';
+  if (rest.indexOf('+=') === 0) { op = 'merge'; arg = rest.slice(2); }
+  else if (rest[0] === '=') { op = 'set'; arg = rest.slice(1); }
+  else if (rest !== '') return false;
+  var parseValue = function(t) {
+    try { return safe.JSON_parse(t); } catch (e) { return t; }
+  };
+  // Does `v` pass the filter `.a.b op value`?
+  var test = function(v, f) {
+    var m = /^((?:\.[^.=!*^$]+)+)\s*(?:(==|!=|\*=|\^=|\$=|=)(.*))?$/.exec(f.trim());
+    if (!m) return false;
+    var path = m[1].slice(1).split('.');
+    var x = v;
+    for (var k = 0; k < path.length; k++) {
+      if (x === null || typeof x !== 'object' || !(path[k] in x)) return false;
+      x = x[path[k]];
+    }
+    if (!m[2]) return true;
+    var want = m[3].trim();
+    if (m[2] === '=') { var re = /^\/(.*)\/([a-z]*)$/.exec(want); return !!re && new RegExp(re[1], re[2]).test(String(x)); }
+    var w = parseValue(want);
+    var sx = typeof x === 'string' ? x : safe.JSON_stringify(x);
+    var sw = typeof w === 'string' ? w : safe.JSON_stringify(w);
+    switch (m[2]) {
+      case '==': return sx === sw;
+      case '!=': return sx !== sw;
+      case '*=': return sx.indexOf(sw) !== -1;
+      case '^=': return sx.indexOf(sw) === 0;
+      default: return sx.length >= sw.length && sx.slice(sx.length - sw.length) === sw;
+    }
+  };
+  // Nodes: {o: parent, k: key} (the root has no parent).
+  var nodes = [{ o: null, k: null, v: root }];
+  var children = function(n) {
+    var out = [];
+    if (n.v !== null && typeof n.v === 'object') for (var k in n.v) if (Object.prototype.hasOwnProperty.call(n.v, k)) out.push({ o: n.v, k: k, v: n.v[k] });
+    return out;
+  };
+  for (var s = 0; s < steps.length; s++) {
+    var st = steps[s], next = [];
+    nodes.forEach(function(n) {
+      if (st.filter !== undefined) { if (test(n.v, st.filter)) next.push(n); }
+      else if (st.all) next.push.apply(next, children(n));
+      else if (st.deep !== undefined) {
+        var walk = function(m, depth) {
+          if (depth > 64) return;
+          children(m).forEach(function(c) { if (c.k === st.deep) next.push(c); walk(c, depth + 1); });
+        };
+        walk(n, 0);
+      } else if (n.v !== null && typeof n.v === 'object' && Object.prototype.hasOwnProperty.call(n.v, st.key)) next.push({ o: n.v, k: st.key, v: n.v[st.key] });
+    });
+    nodes = next;
+    if (nodes.length === 0) return false;
+  }
+  var changed = false;
+  nodes.forEach(function(n) {
+    if (op === 'merge') {
+      var add = parseValue(arg);
+      if (n.v && typeof n.v === 'object' && add && typeof add === 'object') { for (var k in add) n.v[k] = add[k]; changed = true; }
+    } else if (op === 'set') {
+      if (n.o === null) return;
+      var r = /^repl\((.*)\)$/.exec(arg);
+      if (r) {
+        var spec = parseValue(r[1]);
+        if (typeof n.v === 'string' && spec && spec.regex !== undefined) { n.o[n.k] = n.v.replace(new RegExp(spec.regex, spec.flags || 'g'), spec.replacement || ''); changed = true; }
+      } else { n.o[n.k] = parseValue(arg); changed = true; }
+    } else if (n.o !== null) {
+      if (Array.isArray(n.o)) n.o.splice(n.k, 1); else delete n.o[n.k];
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+// Edit an object argument (JSONPath-style query, see jsonEdit) before a function gets it.
+def('trusted-edit-inbound-object', function(path, argpos, query) {
+  if (!path || !query) return;
+  var parts = path.split('.');
+  var owner = win;
+  for (var i = 0; i < parts.length - 1; i++) { owner = owner && owner[parts[i]]; }
+  var prop = parts[parts.length - 1];
+  if (!owner || typeof owner[prop] !== 'function') return;
+  var pos = Number(argpos) || 0;
+  owner[prop] = new safe.Proxy(owner[prop], {
+    apply: function(t, self, args) {
+      var k = pos >= 0 ? pos : args.length + pos;
+      var o = args[k];
+      if (o && typeof o === 'object') {
+        var copy;
+        try { copy = safe.JSON_parse(safe.JSON_stringify(o)); } catch (e) { copy = null; }
+        if (copy && jsonEdit(copy, query)) args[k] = copy;
+      }
+      return safe.apply(t, self, args);
+    },
+  });
+});
+
 // Don't let a native method run when its arguments match.
 def('trusted-suppress-native-method', function(path, signature, how) {
   if (!path) return;

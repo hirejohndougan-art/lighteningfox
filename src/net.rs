@@ -420,7 +420,12 @@ pub fn http_stream(req: &Request) -> Result<(String, crate::http::Stream), Strin
                 headers.push(("Cookie".into(), c));
             }
         }
-        let resp = crate::http::open(&method, &url, &headers, body.as_deref(), std::time::Duration::from_secs(timeout))?;
+        let mut resp = crate::http::open(&method, &url, &headers, body.as_deref(), std::time::Duration::from_secs(timeout))?;
+        // A page's own response: filter lists may drop some of its headers (location, refresh,
+        // report-to, set-cookie) before anything uses them.
+        if req.top.is_none() {
+            crate::blocklist::drop_response_headers(&url, &mut resp.headers);
+        }
         if let Some(h) = resp.header("strict-transport-security") {
             crate::hsts::record(&url, h);
         }

@@ -695,9 +695,12 @@ fn content_blocking_more_scriptlets() {
         call(&["trusted-suppress-native-method", "console.warn", "/AdBlock/"]),
         call(&["trusted-create-html", ".feed", "<span id=\"made\">made</span>"]),
         call(&["trusted-prevent-dom-bypass", "Node.prototype.appendChild", "fetch"]),
+        call(&["trusted-edit-inbound-object", "send", "0", "[?.attestationRequest][?.context.client.userAgent*=\"channel\"].context.client+={\"clientScreen\":\"CHANNEL\"}"]),
+        call(&["trusted-edit-inbound-object", "send2", "0", "..ads"]),
+        call(&["trusted-edit-inbound-object", "send3", "0", ".items[*][?.kind==\"ad\"].title=repl({\"regex\":\"Buy\",\"replacement\":\"Skip\"})"]),
     ];
     let code = crate::blocklist::code_for(&calls, &[]);
-    eval(&mut page, "window.getMsg = function () { return 'hello blocker'; }; window.report = function (x) { window.reported = x; };");
+    eval(&mut page, "window.getMsg = function () { return 'hello blocker'; }; window.report = function (x) { window.reported = x; }; window.send = function (o) { window.sent = o; }; window.send2 = function (o) { window.sent2 = o; }; window.send3 = function (o) { window.sent3 = o; };");
     let r = eval(&mut page, &code);
     assert!(!r.starts_with("error"), "{r}");
     if let Some(j) = page.js.as_mut() {
@@ -727,6 +730,22 @@ fn content_blocking_more_scriptlets() {
         })()"##,
     );
     assert_eq!(r.trim_matches('"'), "false|https://bayou.example/story|block|90px|0|hello friend|clean|undefined|made|true");
+    // trusted-edit-inbound-object: the filtered object is merged into; others are left alone.
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            send({ attestationRequest: 1, context: { client: { userAgent: "x channel y" } } });
+            const a = JSON.stringify(sent.context.client);
+            send({ attestationRequest: 1, context: { client: { userAgent: "desktop" } } });
+            const b = JSON.stringify(sent.context.client);
+            send2({ a: { ads: [1], keep: 2 }, ads: 3 });
+            const c = JSON.stringify(sent2);
+            send3({ items: [{ kind: "ad", title: "Buy now" }, { kind: "post", title: "Buy later" }] });
+            const d = sent3.items.map(i => i.title).join(",");
+            return [a, b, c, d].join("|");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"').replace("\\\"", "'"), r#"{'userAgent':'x channel y','clientScreen':'CHANNEL'}|{'userAgent':'desktop'}|{'a':{'keep':2}}|Skip now,Buy later"#);
 }
 
 #[test]
