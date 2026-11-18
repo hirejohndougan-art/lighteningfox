@@ -53,3 +53,25 @@ path = "fuzz_targets/filters.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "jit_diff"
+path = "fuzz_targets/jit_diff.rs"
+test = false
+doc = false
+bench = false
+required-features = ["jit"]
+
+[features]
+# The `jit_diff` target: Ironswift's Boa (vendor/boa) with the baseline JIT built in.
+jit = ["boa_engine/jit"]
+
+# Ironswift's own copy of Boa, as the browser uses it.
+[patch.crates-io]
+boa_engine = { path = "../vendor/boa/boa_engine" }
+boa_gc = { path = "../vendor/boa/boa_gc" }
+boa_ast = { path = "../vendor/boa/boa_ast" }
+boa_parser = { path = "../vendor/boa/boa_parser" }
+boa_interner = { path = "../vendor/boa/boa_interner" }
+boa_string = { path = "../vendor/boa/boa_string" }
+boa_macros = { path = "../vendor/boa/boa_macros" }
