@@ -13,19 +13,22 @@ at a time, without the interpreter's dispatch and decoding. It is built in stage
 
 ## Building and switching it on
 
-The JIT is behind a cargo feature, off by default:
+Since J4 the JIT is built in by default (the `boa_jit` feature, which forwards to
+`boa_engine/jit`); `--no-default-features` leaves it out. Settings → "JavaScript JIT" turns it
+off at the next start (`src/js_jit.rs` calls `set_mode` before any script runs, in every
+process); `BOA_JIT` in the environment wins over the setting.
 
-    cargo build --release --features boa_jit          # Ironswift (forwards to boa_engine/jit)
+    cargo build --release                             # Ironswift, JIT included
     cargo test --release -p boa_engine --features jit jit::   # the JIT's own tests
 
 When built in, the `BOA_JIT` environment variable picks the mode (`boa_engine::jit::set_mode`
-does the same from code, for the Settings switch in J4):
+does the same from code, for the Settings switch):
 
 | `BOA_JIT` | Effect |
 |---|---|
 | `off` (or `0`, `false`) | Never tier up. Same behaviour as a build without the feature. |
-| `on` (default) | Tier up after `CALL_THRESHOLD` (1,000) calls or `LOOP_THRESHOLD` (10,000) loop iterations. |
-| `always` | Tier up on the first call or loop iteration. Used to run test262 and Boa's tests with every function compiled. |
+| `on` (default) | Tier up after `CALL_THRESHOLD` (1,000) calls or `LOOP_THRESHOLD` (10,000) loop iterations, if at most 25% of the function's instructions are ones the interpreter has to run for compiled code (see J4 below). |
+| `always` | Tier up on the first call or loop iteration, whatever the function holds. Used to run test262, Boa's and Ironswift's tests with every function compiled. |
 
 Code is in `vendor/boa/boa_engine/src/jit/`: `mode.rs` (the switch), `counters.rs` (per code
 block counters and tier state), `support.rs` (which opcodes the first version takes),
@@ -173,6 +176,28 @@ getters and proxies run once, generators called from compiled code, recursion li
 Rust), each comparing the JIT forced on with the interpreter. The `jit_diff` fuzz target
 (`fuzz/`) runs any script both ways and fails on a difference.
 
+## J4: on by default
+
+Compiling a function only pays when most of it becomes machine code of its own. An instruction
+compiled code hands to the interpreter (a property access, a call) costs a call out of machine
+code and back on top of the interpreter's own work, so an object-heavy function gets slower
+compiled: with every eligible function compiled, the V8 suite scored 275 against 297 with the
+JIT off (Richards and DeltaBlue −20%). In the default mode `tier_up` therefore also rejects a
+function when more than `MAX_STEPPED_PERCENT` (25%) of its instructions are of that kind
+(`support::worth_compiling`, reason "mostly interpreter work"); `always` still compiles them,
+so testing covers every path. The share was chosen on the V8 suite: 0% (J2's number-only set)
+scored 298, 10% 308, 25% 315, 50% 295. Numbers in `docs/boa-speed.md`.
+
+Checked (2026-11-18), default build:
+- test262 with `BOA_JIT=on` gives the same `latest.json` as `off` (51,226 / 53,578, 95.61%).
+- Boa's 1,148 engine tests pass with `on` and `always`; Ironswift's 431 tests pass by default
+  and with `BOA_JIT=always`.
+- `tests/jit-check.html` (numbers, properties, calls, closures, exceptions, mixed types) shows
+  "JIT check: ok" in every mode; CI loads it with `BOA_JIT=always` on Linux x86-64, Linux
+  ARM64, Windows and macOS, and runs Ironswift's tests with `BOA_JIT=always` there too.
+- The sandboxed site processes' system-call filter doesn't block `mmap`/`mprotect`, so the JIT
+  works there unchanged.
+
 ## How compiled code runs and bails out
 
 Registers stay where they are. The interpreter keeps a frame's registers in the VM stack
@@ -243,7 +268,8 @@ page permissions through `/proc/self/maps`.
 
 `JitBackend` (one per `Context`, since J3) owns the Cranelift module, and frees all of its
 code when it is dropped with the context. Code blocks whose functions are collected leave their
-machine code behind until then (J4 measures that on real pages and can add a size cap).
+machine code behind until then. Not yet measured on long-lived real pages; a size cap per
+context is the fix if it turns out to matter.
 
 ## Cranelift version
 
@@ -253,7 +279,7 @@ rather than `wasmtime` (`docs/ARCHITECTURE.md`), so there is no second copy of C
 in step with. If WebAssembly ever moves to `wasmtime`, move the JIT to the Cranelift version that
 `wasmtime` release uses.
 
-## Security notes (for `SECURITY.md` in J4)
+## Security notes (summarized for users in `SECURITY.md`)
 
 - W^X as above; no RWX mappings, no code patching.
 - Every compiled operation keeps the interpreter's semantics; differences are found with the J3

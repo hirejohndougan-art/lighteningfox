@@ -16,8 +16,41 @@ release meant for daily use.
 | Local files and browser pages | Web pages can't load, read, navigate to or frame `file:` URLs, `about:` pages, `view-source:` or `data:` documents. A local HTML file can read only files in its own folder. | `security.rs`, `net.rs` |
 | Process sandbox | The browser: `no_new_privs` and a seccomp filter (no ptrace, mount, module loading, BPF, keyrings, namespaces…). Cross-site iframes: their own process that also can't start programs, and with Landlock can't write any file or read outside system folders and the profile. | `sandbox.rs` |
 | Content blocking | EasyList/EasyPrivacy network and element-hiding rules; a warning page for hosts on the URLhaus and Phishing Army lists. | `blocklist.rs` |
+| JavaScript JIT | Busy functions are compiled to machine code (Cranelift). Code pages are never writable and executable at once, and compiled code is never patched. Each page's code is freed with its JavaScript context. Settings → "JavaScript JIT" turns it off. | `vendor/boa/boa_engine/src/jit/`, `docs/JIT.md` |
 | Fuzzing | The HTML, CSS, JavaScript, CSP and filter-list parsers are fuzzed with cargo-fuzz (`fuzz/README.md`). | `fuzz/` |
 | Updates | A daily check for a newer release; per-user installs download it, verify its SHA-256 and install it on exit. | `updates.rs` |
+
+## The JavaScript JIT
+
+Since task J4 the baseline JIT is on by default. A JIT is a classic place for browser exploits,
+because a wrong assumption in compiled code can turn a value into a pointer. What limits it here:
+
+- **W^X.** Cranelift writes code into read+write pages and then makes them read+execute; pages
+  are never read+write+execute and are never written again (checked by the
+  `executable_memory_is_never_writable` test). On ARM64 it uses BTI when the CPU has it.
+- **Small surface.** The compiler does number arithmetic, locals, branches and loops itself.
+  Every other operation (property access, calls, exceptions) calls the interpreter's own code
+  for that instruction, so the compiler holds no separate copy of JavaScript's rules about
+  objects to get wrong. Generators, async functions, class constructors and functions over
+  32 KB of bytecode are never compiled.
+- **Type checks, and no object pointers.** Compiled code reads a value's tag (a few small
+  helpers in `compiler.rs`) before doing number arithmetic on it, and never dereferences an
+  object pointer itself: a value that isn't a number goes to the interpreter for that
+  instruction. Tests feed compiled code values of other types to check they take that path.
+- **Differential testing.** test262 gives byte-identical results with the JIT off, on and
+  forced on for every function, and the `jit_diff` fuzz target runs each program with and
+  without the JIT and fails on any difference.
+- **Lifetime.** Each JavaScript context owns its machine code and frees it when the page goes
+  away, so code can't outlive the objects it refers to.
+- **The sandbox still applies.** Site processes keep their system-call filter and Landlock
+  rules with the JIT on. The JIT only needs `mmap`/`mprotect`, which the filter allows.
+- **Off switch.** Settings → "JavaScript JIT" (applies at the next start), or `BOA_JIT=off` in
+  the environment, runs all JavaScript in the interpreter without rebuilding. Builds without
+  the `boa_jit` feature have no JIT at all.
+
+Not done yet: Spectre-style hardening of compiled code (index masking, as V8 and SpiderMonkey
+added), and the parts of the code still left to the interpreter. Bugs in compiled code that change a
+script's result count as security bugs: please report them privately as below.
 
 ## Reporting a vulnerability
 

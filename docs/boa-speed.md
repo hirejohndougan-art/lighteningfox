@@ -93,3 +93,24 @@ call pays a helper call and dispatch on top of the interpreter's own work). `too
 (number loops): **785 ms → 278 ms (2.8×)**, best of 3. Making object code faster than the
 interpreter needs property access and calls compiled in line (inline caches read from compiled
 code), which is beyond J3.
+
+## Baseline JIT on by default (J4)
+
+Same machine, idle, 2026-11-18, default build (the JIT is now built in), full suite. With J3's
+rule, every eligible function compiled, object- and call-heavy code got slower; J4 compiles a
+function in the default mode only when at most 25% of its instructions are ones the interpreter
+has to run for compiled code (`docs/JIT.md`, "J4").
+
+| | Richards | DeltaBlue | Crypto | RayTrace | EarleyBoyer | RegExp | Splay | NavierStokes | Score |
+|---|---|---|---|---|---|---|---|---|---|
+| JIT off (two runs) | 208–230 | 201–207 | 206–221 | 311–312 | 381–394 | 51 | 591–666 | 489–515 | 297–309 |
+| Every eligible function compiled (J3 rule) | 165 | 159 | 264 | 266 | 321 | 49.4 | 581 | 582 | 275 |
+| J4 default (two runs) | 229–247 | 212–220 | 258–293 | 314–327 | 358–383 | 49–50 | 674–726 | 538–544 | 312–315 |
+
+Choosing the share (one run each): 0% (number-only functions, as J2) 298, 10% 308, **25% 315**,
+50% 295. `tools/bench/jit-sum.js` (number loops), best of 3: **785 ms → 274 ms (2.9×)**.
+
+Net: number-heavy code 13–40% faster (Crypto, NavierStokes) and number loops ~3× faster; object-
+and call-heavy code unchanged within noise. Making that faster needs property access and calls
+compiled in line (inline caches), which no task covers yet.
+
