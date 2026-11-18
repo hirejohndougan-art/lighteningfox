@@ -53,6 +53,7 @@ pub struct Saved {
 
 /// Save one response. The `.meta` file is plain text: the request line, the status line, then
 /// one `name: value` header per line.
+#[cfg(test)]
 pub fn save(dir: &std::path::Path, method: &str, url: &str, r: &Saved) {
     save_with(dir, method, url, None, r);
 }
