@@ -31,6 +31,10 @@ pub(crate) struct JitFrame {
     pub(crate) acc: u64,
     pub(crate) acc_set: u64,
     pub(crate) entry_pc: u64,
+    /// The context, for the steps compiled code hands to the interpreter (J3).
+    pub(crate) ctx: *mut crate::Context,
+    /// The frame's `fp`, to tell whether the top frame is still this one after a step.
+    pub(crate) fp: u64,
 }
 
 mod offsets {
@@ -43,6 +47,12 @@ mod offsets {
     pub(super) const ACC_SET: i32 = 48;
     pub(super) const ENTRY_PC: i32 = 56;
 }
+
+/// What a compiled function returns besides a bytecode offset: it threw (the error waits in
+/// `runtime`), or the interpreter's frames changed under it (a call pushed one, an exception
+/// unwound); the interpreter goes on from wherever the VM now stands.
+pub(crate) const EXIT_ERROR: u32 = u32::MAX;
+pub(crate) const EXIT_RESUME: u32 = u32::MAX - 1;
 
 const _: () = {
     assert!(size_of::<JsValue>() == 8);
@@ -71,10 +81,11 @@ pub(crate) fn compile(backend: &mut JitBackend, code: &CodeBlock) -> Result<JitF
     let bin_sig = backend.signature(&[types::I64, types::I64], &[types::I64]);
     let un_sig = backend.signature(&[types::I64], &[types::I64]);
     let step_sig = backend.signature(&[types::I64, ptr], &[types::I64]);
+    let interp_sig = backend.signature(&[ptr, types::I32], &[types::I32]);
 
     let mut failed = None;
     let entry = backend.compile(sig, |b| {
-        let mut g = Gen::new(b, ptr, bin_sig, un_sig, step_sig, &instructions, end);
+        let mut g = Gen::new(b, ptr, bin_sig, un_sig, step_sig, interp_sig, &instructions, end);
         for i in 0..instructions.len() {
             g.instruction(i);
         }
@@ -93,8 +104,13 @@ pub(crate) fn compile(backend: &mut JitBackend, code: &CodeBlock) -> Result<JitF
 struct Gen<'a, 'b> {
     b: &'a mut FunctionBuilder<'b>,
     frame: Value,
-    regs: Value,
+    ptr: types::Type,
     exit: Block,
+    /// Goes to the block for the pc in its parameter (any instruction can be resumed).
+    dispatch: Block,
+    /// The instruction being compiled (its index), for slow paths.
+    cur: usize,
+    interp: SigRef,
     blocks: HashMap<u32, Block>,
     instructions: &'a [(u32, Instruction)],
     end: u32,
@@ -112,6 +128,7 @@ impl<'a, 'b> Gen<'a, 'b> {
         bin: cranelift_codegen::ir::Signature,
         un: cranelift_codegen::ir::Signature,
         step: cranelift_codegen::ir::Signature,
+        interp: cranelift_codegen::ir::Signature,
         instructions: &'a [(u32, Instruction)],
         end: u32,
     ) -> Self {
@@ -126,40 +143,39 @@ impl<'a, 'b> Gen<'a, 'b> {
         let bin = b.import_signature(bin);
         let un = b.import_signature(un);
         let step = b.import_signature(step);
+        let interp = b.import_signature(interp);
         let step_out = b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3));
 
-        // The start (the first block placed, so Cranelift's entry): read the frame, then go to the block for the entry pc.
+        // The start (the first block placed, so Cranelift's entry): read the frame, then go to
+        // the block for the entry pc. Every instruction can be an entry (J3): compiled code
+        // resumes after calls and caught exceptions anywhere in the function.
         b.switch_to_block(start);
         let frame = b.block_params(start)[0];
         let flags = MemFlagsData::trusted();
-        let regs = b.ins().load(ptr, flags, frame, offsets::REGS);
         let entry_pc = b.ins().load(types::I64, flags, frame, offsets::ENTRY_PC);
         let entry_pc32 = b.ins().ireduce(types::I32, entry_pc);
+        let dispatch = b.create_block();
+        b.append_block_param(dispatch, types::I32);
+        b.ins().jump(dispatch, &[entry_pc32.into()]);
+
+        b.switch_to_block(dispatch);
+        let want = b.block_params(dispatch)[0];
+        let want64 = b.ins().uextend(types::I64, want);
         let default = b.create_block();
         let mut switch = Switch::new();
-        let mut entries: Vec<u32> = vec![0];
-        for (i, (_, ins)) in instructions.iter().enumerate() {
-            if matches!(ins, Instruction::IncrementLoopIteration) {
-                if let Some((next, _)) = instructions.get(i + 1) {
-                    entries.push(*next);
-                }
-            }
+        for (pc, _) in instructions {
+            switch.set_entry(u128::from(*pc), blocks[pc]);
         }
-        for pc in entries {
-            if let Some(&block) = blocks.get(&pc) {
-                switch.set_entry(u128::from(pc), block);
-            }
-        }
-        switch.emit(b, entry_pc, default);
+        switch.emit(b, want64, default);
         b.switch_to_block(default);
-        b.ins().jump(exit, &[entry_pc32.into()]);
+        b.ins().jump(exit, &[want.into()]);
 
         // The exit: return the pc the interpreter goes on from.
         b.switch_to_block(exit);
         let pc = b.block_params(exit)[0];
         b.ins().return_(&[pc]);
 
-        Self { b, frame, regs, exit, blocks, instructions, end, bin, un, step, step_out, unsupported: None }
+        Self { b, frame, ptr, exit, dispatch, cur: 0, interp, blocks, instructions, end, bin, un, step, step_out, unsupported: None }
     }
 
     // ---- small pieces ----
@@ -168,22 +184,69 @@ impl<'a, 'b> Gen<'a, 'b> {
         self.b.ins().iconst(types::I64, v as i64)
     }
 
+    /// The register file's address. Read from the frame every time: a step can grow the VM
+    /// stack and move it.
+    fn regs(&mut self) -> Value {
+        self.b.ins().load(self.ptr, MemFlagsData::trusted(), self.frame, offsets::REGS)
+    }
+
     fn reg(&mut self, r: impl Into<u32>) -> Value {
         let offset = (r.into() as i32) * 8;
-        self.b.ins().load(types::I64, MemFlagsData::trusted(), self.regs, offset)
+        let regs = self.regs();
+        self.b.ins().load(types::I64, MemFlagsData::trusted(), regs, offset)
     }
 
     fn put(&mut self, r: impl Into<u32>, v: Value) {
         let offset = (r.into() as i32) * 8;
-        self.b.ins().store(MemFlagsData::trusted(), v, self.regs, offset);
+        let regs = self.regs();
+        self.b.ins().store(MemFlagsData::trusted(), v, regs, offset);
     }
 
-    /// Goes to the interpreter at `pc` when `cond` is true; carries on otherwise.
-    fn bail_if(&mut self, cond: Value, pc: u32) {
+    /// Leaves for the interpreter at `pc` when `cond` is true (it redoes that instruction);
+    /// carries on otherwise. Only the loop limit still does this; everything else takes the
+    /// slow path ([`Self::bail_if`]).
+    fn exit_if(&mut self, cond: Value, pc: u32) {
         let cont = self.b.create_block();
         let pcv = self.b.ins().iconst(types::I32, i64::from(pc));
         self.b.ins().brif(cond, self.exit, &[pcv.into()], cont, &[]);
         self.b.switch_to_block(cont);
+    }
+
+    /// When `cond` is true, the interpreter does this whole instruction (each instruction checks
+    /// everything before it writes anything), and compiled code goes on from where that left
+    /// the frame; carries on in line otherwise.
+    fn bail_if(&mut self, cond: Value, pc: u32) {
+        let cont = self.b.create_block();
+        let slow = self.b.create_block();
+        self.b.ins().brif(cond, slow, &[], cont, &[]);
+        self.b.switch_to_block(slow);
+        let i = self.cur;
+        self.interpret(i, pc);
+        self.b.switch_to_block(cont);
+    }
+
+    /// The interpreter runs instruction `i` (at `pc`) for compiled code, then compiled code
+    /// goes on: at the next instruction, at wherever the instruction jumped or an exception
+    /// was caught, or out to the interpreter when its frames changed or it threw.
+    fn interpret(&mut self, i: usize, pc: u32) {
+        let pcv = self.b.ins().iconst(types::I32, i64::from(pc));
+        let addr = self.iconst(super::runtime::step as *const () as usize as u64);
+        let call = self.b.ins().call_indirect(self.interp, addr, &[self.frame, pcv]);
+        let r = self.b.inst_results(call)[0];
+        let next_pc = self.instructions.get(i + 1).map_or(self.end, |(p, _)| *p);
+        let is_next = self.b.ins().icmp_imm_s(IntCC::Equal, r, i64::from(next_pc));
+        let other = self.b.create_block();
+        match self.next_block(i) {
+            Some(next) => {
+                self.b.ins().brif(is_next, next, &[], other, &[]);
+            }
+            None => {
+                self.b.ins().brif(is_next, self.exit, &[r.into()], other, &[]);
+            }
+        }
+        self.b.switch_to_block(other);
+        let special = self.b.ins().icmp_imm_s(IntCC::UnsignedGreaterThanOrEqual, r, i64::from(EXIT_RESUME));
+        self.b.ins().brif(special, self.exit, &[r.into()], self.dispatch, &[r.into()]);
     }
 
     fn is_pointer(&mut self, v: Value) -> Value {
@@ -270,6 +333,7 @@ impl<'a, 'b> Gen<'a, 'b> {
         let (pc, ref ins) = self.instructions[i];
         let block = self.blocks[&pc];
         self.b.switch_to_block(block);
+        self.cur = i;
         let constant = |v: JsValue| v.jit_bits();
         match *ins {
             Instruction::StoreZero { dst } => self.store_const(i, pc, dst, constant(JsValue::from(0))),
@@ -397,20 +461,14 @@ impl<'a, 'b> Gen<'a, 'b> {
                 let count = self.b.ins().load(types::I64, flags, counter, 0);
                 let max = self.b.ins().load(types::I64, flags, self.frame, offsets::LOOP_MAX);
                 let over = self.b.ins().icmp(IntCC::UnsignedGreaterThan, count, max);
-                self.bail_if(over, pc);
+                // The interpreter raises the error (stepping this opcode would re-enter here).
+                self.exit_if(over, pc);
                 let next = self.b.ins().iadd_imm_s(count, 1);
                 self.b.ins().store(flags, next, counter, 0);
                 self.fall_through(i);
             }
-            Instruction::SetAccumulator { src } => {
-                let v = self.reg(src);
-                self.bail_if_pointer(v, pc);
-                let flags = MemFlagsData::trusted();
-                self.b.ins().store(flags, v, self.frame, offsets::ACC);
-                let one = self.iconst(1);
-                self.b.ins().store(flags, one, self.frame, offsets::ACC_SET);
-                self.fall_through(i);
-            }
+            // The interpreter's own `SetAccumulator` (it owns the return value).
+            Instruction::SetAccumulator { .. } => self.interpret(i, pc),
             // A no-op for calls; `new` frames never run compiled code.
             Instruction::CheckReturn => self.fall_through(i),
             // The interpreter returns (it knows about early exits and popping the frame).
@@ -418,12 +476,9 @@ impl<'a, 'b> Gen<'a, 'b> {
                 let pcv = self.b.ins().iconst(types::I32, i64::from(pc));
                 self.b.ins().jump(self.exit, &[pcv.into()]);
             }
-            _ => {
-                // `support::scan` keeps these out; never reached.
-                self.unsupported.get_or_insert("an unsupported opcode");
-                let pcv = self.b.ins().iconst(types::I32, i64::from(pc));
-                self.b.ins().jump(self.exit, &[pcv.into()]);
-            }
+            // Everything else: the interpreter runs it (`support::scan` only lets through opcodes
+            // that finish in place).
+            _ => self.interpret(i, pc),
         }
     }
 

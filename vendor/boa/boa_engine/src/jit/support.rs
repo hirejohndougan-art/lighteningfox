@@ -100,11 +100,10 @@ pub(crate) fn scan(code: &CodeBlock) -> Result<(), Rejection> {
     if code.is_class_constructor() || code.is_derived_constructor() {
         return Err(Rejection::kind("class constructor"));
     }
-    if !code.handlers.is_empty() {
-        return Err(Rejection::kind("try/catch/finally"));
-    }
+    // J3: anything else the interpreter can run for compiled code (one instruction at a time,
+    // its exceptions handled as the interpreter does, `try` included).
     for (pc, opcode, _) in InstructionIterator::new(&code.bytecode) {
-        if !is_supported(opcode) {
+        if !is_supported(opcode) && !crate::vm::opcode::jit_steppable(opcode) {
             return Err(Rejection {
                 reason: opcode.as_str(),
                 pc: Some(pc as u32),

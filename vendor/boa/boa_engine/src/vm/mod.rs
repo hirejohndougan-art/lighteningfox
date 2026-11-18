@@ -45,7 +45,7 @@ pub(crate) use code_block::GlobalFunctionBinding;
 
 mod call_frame;
 mod code_block;
-mod completion_record;
+pub(crate) mod completion_record;
 mod inline_cache;
 mod runtime_limits;
 
@@ -811,7 +811,7 @@ impl Context {
         self.execute_instruction(f, opcode)
     }
 
-    fn handle_error(&mut self, mut err: JsError) -> ControlFlow<CompletionRecord> {
+    pub(crate) fn handle_error(&mut self, mut err: JsError) -> ControlFlow<CompletionRecord> {
         // Capture the backtrace early, before any exception handler check,
         // so that errors caught by internal handlers (e.g. async module
         // evaluation) still carry source position information.
@@ -884,6 +884,12 @@ impl Context {
 
         self.vm.stack.push(result);
         self.vm.pop_frame().expect("frame must exist");
+        // Ironswift change (baseline JIT, J3): back in a compiled caller, go on in its machine
+        // code right after the call (docs/JIT.md).
+        #[cfg(feature = "jit")]
+        if let Err(err) = crate::jit::enter_after_return(self) {
+            return self.handle_error(err);
+        }
         ControlFlow::Continue(())
     }
 

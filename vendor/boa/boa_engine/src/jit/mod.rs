@@ -20,13 +20,15 @@ mod support;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_j3;
 
 pub use backend::JitBackend;
 pub(crate) use counters::JitCounters;
 pub use counters::TierState;
 pub use mode::{JitMode, mode, set_mode};
 pub use support::Rejection;
-pub(crate) use runtime::enter;
+pub(crate) use runtime::{enter, enter_after_return, enter_at_call};
 
 use crate::vm::CodeBlock;
 use std::sync::atomic::{AtomicU64, Ordering};

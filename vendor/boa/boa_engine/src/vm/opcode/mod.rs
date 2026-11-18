@@ -417,6 +417,52 @@ macro_rules! generate_opcodes {
             ]
         };
 
+        /// Ironswift change (baseline JIT, J3): one instruction run for compiled code. Like the
+        /// handlers above, but an error comes back instead of being handled, so compiled code
+        /// can decide what happens next. Only for opcodes [`jit_steppable`] accepts.
+        #[cfg(feature = "jit")]
+        type OpcodeJitStep = fn(&mut Context, usize) -> crate::vm::completion_record::JitStep;
+
+        #[cfg(feature = "jit")]
+        pub(crate) const OPCODE_JIT_STEPS: [OpcodeJitStep; 256] = {
+            [
+                $(
+                    pastey::paste! { [<jit_step_ $Variant:snake>] },
+                )*
+            ]
+        };
+
+        /// Whether compiled code may run this opcode through [`OPCODE_JIT_STEPS`]: its operation
+        /// finishes in place (no `ControlFlow` of its own, such as returning or yielding).
+        #[cfg(feature = "jit")]
+        pub(crate) fn jit_steppable(opcode: Opcode) -> bool {
+            fn of<A, T: crate::vm::completion_record::IntoJitStep>(_: fn(A, &mut Context) -> T) -> bool {
+                T::STEPPABLE
+            }
+            // The exception opcodes steer the interpreter, but only by throwing or catching,
+            // which compiled code handles; the other `ControlFlow` opcodes return or yield.
+            if matches!(opcode, Opcode::Throw | Opcode::ReThrow | Opcode::Exception) {
+                return true;
+            }
+            match opcode {
+                $(Opcode::$Variant => of($Variant::operation)),*
+            }
+        }
+
+        $(
+            pastey::paste! {
+                #[cfg(feature = "jit")]
+                #[allow(unused_parens)]
+                fn [<jit_step_ $Variant:snake>](context: &mut Context, pc: usize) -> crate::vm::completion_record::JitStep {
+                    let bytes = &context.vm.frame().code_block.bytecode.bytes;
+                    let (args, next_pc) = <($($($FieldType),*)?)>::decode(bytes, pc + 1);
+                    context.vm.frame_mut().pc = next_pc as u32;
+                    let result = $Variant::operation(args, context);
+                    crate::vm::completion_record::IntoJitStep::into_jit_step(result)
+                }
+            }
+        )*
+
         type OpcodeHandlerBudget = fn(&mut Context, usize, &mut u32) -> ControlFlow<CompletionRecord>;
 
         pub(crate) const OPCODE_HANDLERS_BUDGET: [OpcodeHandlerBudget; 256] = {

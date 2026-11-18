@@ -5,7 +5,7 @@ use boa_parser::Source;
 use cranelift_codegen::ir::{InstBuilder, types};
 
 /// Runs `body` with this thread's JIT mode set to `mode`.
-fn with_mode<R>(mode: JitMode, body: impl FnOnce() -> R) -> R {
+pub(super) fn with_mode<R>(mode: JitMode, body: impl FnOnce() -> R) -> R {
     TEST_MODE.with(|m| m.set(Some(mode)));
     let result = body();
     TEST_MODE.with(|m| m.set(None));
@@ -13,7 +13,7 @@ fn with_mode<R>(mode: JitMode, body: impl FnOnce() -> R) -> R {
 }
 
 /// Evaluates `source` (which must end with a function expression) and returns its code block.
-fn code_of(context: &mut Context, source: &str) -> Gc<CodeBlock> {
+pub(super) fn code_of(context: &mut Context, source: &str) -> Gc<CodeBlock> {
     let value = context
         .eval(Source::from_bytes(source))
         .expect("script runs");
@@ -56,26 +56,36 @@ fn number_loop_is_compiled() {
 }
 
 #[test]
-fn property_access_is_rejected_with_the_opcode() {
+fn property_access_is_compiled() {
+    // J3: the interpreter does the property read for compiled code, which goes on after it.
     with_mode(JitMode::Always, || {
         let mut context = Context::default();
         let code = code_of(&mut context, "function f(o) { return o.x + 1; } f");
-        context.eval(Source::from_bytes("f({ x: 1 })")).unwrap();
-        let TierState::Rejected(rejection) = code.jit.state() else {
-            panic!("expected a rejection, got {:?}", code.jit.state());
-        };
-        assert!(rejection.reason.starts_with("GetProperty"), "{rejection:?}");
-        assert!(rejection.pc.is_some());
+        assert_eq!(context.eval(Source::from_bytes("f({ x: 1 })")).unwrap(), JsValue::new(2));
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 
 #[test]
-fn generators_and_try_are_rejected() {
+fn generators_and_async_are_left_to_the_interpreter() {
     with_mode(JitMode::Always, || {
         let mut context = Context::default();
-        let code = code_of(&mut context, "function f(a) { try { return a + 1; } catch { return 0; } } f");
-        context.eval(Source::from_bytes("f(1)")).unwrap();
-        assert!(matches!(code.jit.state(), TierState::Rejected(r) if r.pc.is_none()));
+        for (source, run) in [("function* g(a) { yield a + 1; } g", "[...g(1)]"), ("async function h(a) { return a + 1; } h", "h(1)")] {
+            let code = code_of(&mut context, source);
+            let _ = context.eval(Source::from_bytes(run));
+            assert!(!matches!(code.jit.state(), TierState::Compiled), "{source}: {:?}", code.jit.state());
+            assert!(code.jit.code().is_none());
+        }
+    });
+}
+
+#[test]
+fn try_catch_is_compiled() {
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        let code = code_of(&mut context, "function f(a) { try { return a.b.c + 1; } catch { return 0; } } f");
+        assert_eq!(context.eval(Source::from_bytes("f({ b: { c: 1 } }) + f(null)")).unwrap(), JsValue::new(2));
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 
@@ -181,7 +191,7 @@ fn executable_memory_is_never_writable() {
 /// Runs `driver` after defining `functions` (only plain number code, so each one compiles
 /// with the JIT forced on), with the JIT off and with it forced on, and checks the results are
 /// the same, `-0` and `NaN` included. Also checks every named function really ran compiled.
-fn same(functions: &[(&str, &str)], driver: &str) {
+pub(super) fn same(functions: &[(&str, &str)], driver: &str) {
     let mut source = String::new();
     for (name, body) in functions {
         source.push_str(&format!("function {name}{body}\n"));
@@ -285,7 +295,7 @@ fn values_that_need_the_interpreter() {
 }
 
 #[test]
-fn compiled_code_runs_and_bails_out() {
+fn values_machine_code_cant_handle_go_to_the_interpreter_in_place() {
     with_mode(JitMode::Always, || {
         let mut context = Context::default();
         let code = code_of(&mut context, SUM);
@@ -293,23 +303,14 @@ fn compiled_code_runs_and_bails_out() {
         assert!(r.is_number());
         assert_eq!(code.jit.state(), TierState::Compiled);
         assert!(code.jit.code().is_some());
-        assert_eq!(code.jit.bailouts(), 0, "numbers only");
-        // A string argument: `i < n` can't be done in machine code, so it bails out and the
-        // interpreter finishes with the right answer.
+        // A string argument: the interpreter does `i < n` for compiled code (J3), which goes
+        // on; nothing bails out.
         let r = context.eval(Source::from_bytes("sum('10')")).unwrap();
         assert_eq!(r, JsValue::new(80));
-        assert!(code.jit.bailouts() >= 1);
-    });
-}
-
-#[test]
-fn a_function_that_keeps_bailing_out_stops_using_its_code() {
-    with_mode(JitMode::Always, || {
-        let mut context = Context::default();
-        let code = code_of(&mut context, "function f(a) { return a + 1; } f");
-        context.eval(Source::from_bytes("for (let i = 0; i < 200; i++) f('x');")).unwrap();
-        assert!(matches!(code.jit.state(), TierState::Rejected(r) if r.reason == "bails out"), "{:?}", code.jit.state());
-        assert_eq!(context.eval(Source::from_bytes("f('y')")).unwrap().to_string(&mut context).unwrap().to_std_string_escaped(), "y1");
+        let r = context.eval(Source::from_bytes("function g(a) { return a + 1; } for (let i = 0; i < 200; i++) g('x'); g('y')")).unwrap();
+        assert_eq!(r.to_string(&mut context).unwrap().to_std_string_escaped(), "y1");
+        assert_eq!(code.jit.bailouts(), 0);
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 

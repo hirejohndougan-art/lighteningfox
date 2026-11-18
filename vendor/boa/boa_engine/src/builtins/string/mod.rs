@@ -736,7 +736,7 @@ impl String {
         // Charge each repetition against the VM loop-iteration limit.
         let mut result = Vec::with_capacity(n);
         for _ in 0..n {
-            crate::vm::opcode::IncrementLoopIteration::operation((), context)?;
+            crate::vm::opcode::IncrementLoopIteration::charge(context)?;
             result.push(string.as_str());
         }
 

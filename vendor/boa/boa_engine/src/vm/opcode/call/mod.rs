@@ -193,7 +193,13 @@ impl Call {
             return Err(Self::handle_not_callable());
         };
 
-        object.__call__(argument_count.into()).resolve(context)?;
+        let finished = object.__call__(argument_count.into()).resolve(context)?;
+        // Ironswift change: a JavaScript callee with machine code starts in it (docs/JIT.md).
+        #[cfg(feature = "jit")]
+        if !finished {
+            crate::jit::enter_at_call(context)?;
+        }
+        let _ = finished;
 
         Ok(())
     }
@@ -247,7 +253,13 @@ impl CallSpread {
                 .into());
         };
 
-        object.__call__(argument_count).resolve(context)?;
+        let finished = object.__call__(argument_count).resolve(context)?;
+        // Ironswift change: as in `Call`.
+        #[cfg(feature = "jit")]
+        if !finished {
+            crate::jit::enter_at_call(context)?;
+        }
+        let _ = finished;
         Ok(())
     }
 }

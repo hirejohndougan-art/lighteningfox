@@ -1097,10 +1097,9 @@ pub(crate) fn function_call(
         );
     }
 
-    // Ironswift change: run the function's machine code, if it has some (docs/JIT.md). It
-    // leaves the frame's pc where the interpreter goes on.
-    #[cfg(feature = "jit")]
-    crate::jit::enter(context);
+    // Ironswift change: compiled code is entered by the `Call` opcodes once this returns
+    // (docs/JIT.md), not here: calls from Rust (`JsObject::call`) must have the frame marked
+    // `exit_early` before any of its code runs.
 
     Ok(CallValue::Ready)
 }

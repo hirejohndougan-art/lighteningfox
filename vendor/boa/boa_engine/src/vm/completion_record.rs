@@ -84,3 +84,59 @@ impl IntoCompletionRecord for ControlFlow<CompletionRecord> {
         self
     }
 }
+
+/// Ironswift change (baseline JIT, J3): what one instruction run for compiled code did.
+#[cfg(feature = "jit")]
+pub(crate) enum JitStep {
+    /// It finished; the frame's pc is where it goes on.
+    Done,
+    /// It threw; nothing has handled the error yet.
+    Threw(JsError),
+    /// It steered the interpreter itself (`Throw`, `ReThrow`, `Exception`): unwinding is done,
+    /// and a `Break` is what the run loop would have returned.
+    Flow(ControlFlow<CompletionRecord>),
+}
+
+/// An operation's result as a [`JitStep`]. `STEPPABLE` is false for operations that steer the
+/// interpreter themselves (they return a `ControlFlow`); compiled code never runs those.
+#[cfg(feature = "jit")]
+pub(crate) trait IntoJitStep {
+    const STEPPABLE: bool;
+    fn into_jit_step(self) -> JitStep;
+}
+
+#[cfg(feature = "jit")]
+impl IntoJitStep for () {
+    const STEPPABLE: bool = true;
+    fn into_jit_step(self) -> JitStep {
+        JitStep::Done
+    }
+}
+
+#[cfg(feature = "jit")]
+impl IntoJitStep for JsError {
+    const STEPPABLE: bool = true;
+    fn into_jit_step(self) -> JitStep {
+        JitStep::Threw(self)
+    }
+}
+
+#[cfg(feature = "jit")]
+impl IntoJitStep for JsResult<()> {
+    const STEPPABLE: bool = true;
+    fn into_jit_step(self) -> JitStep {
+        match self {
+            Ok(()) => JitStep::Done,
+            Err(e) => JitStep::Threw(e),
+        }
+    }
+}
+
+#[cfg(feature = "jit")]
+impl IntoJitStep for ControlFlow<CompletionRecord> {
+    /// Only the exception opcodes, which `jit_steppable` names; the others return or yield.
+    const STEPPABLE: bool = false;
+    fn into_jit_step(self) -> JitStep {
+        JitStep::Flow(self)
+    }
+}

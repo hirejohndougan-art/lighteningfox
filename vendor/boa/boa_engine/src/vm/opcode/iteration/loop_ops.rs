@@ -9,6 +9,20 @@ use crate::{Context, JsResult, vm::opcode::Operation};
 pub(crate) struct IncrementLoopIteration;
 
 impl IncrementLoopIteration {
+    /// Charges one iteration against the loop limit, for native code that loops (such as
+    /// `String.prototype.repeat`). Unlike the opcode, it never tiers up or enters compiled
+    /// code: the frame on top is whoever called the native function, mid-call.
+    pub(crate) fn charge(context: &mut Context) -> JsResult<()> {
+        let max = context.vm.runtime_limits.loop_iteration_limit();
+        let frame = context.vm.frame_mut();
+        let previous_iteration_count = frame.loop_iteration_count;
+        if previous_iteration_count > max {
+            return Err(RuntimeLimitError::LoopIteration.into());
+        }
+        frame.loop_iteration_count = previous_iteration_count.wrapping_add(1);
+        Ok(())
+    }
+
     #[inline(always)]
     pub(crate) fn operation((): (), context: &mut Context) -> JsResult<()> {
         let max = context.vm.runtime_limits.loop_iteration_limit();
@@ -29,7 +43,7 @@ impl IncrementLoopIteration {
         }
         // A loop header in a compiled function: go on in machine code.
         #[cfg(feature = "jit")]
-        crate::jit::enter(context);
+        crate::jit::enter(context)?;
         Ok(())
     }
 }
