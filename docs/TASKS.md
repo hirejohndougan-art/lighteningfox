@@ -626,7 +626,15 @@ plays in real time and the run ends when the test harness reports, with the usua
 report the new numbers for `media-source` and `html/semantics/embedded-content/media-elements`.
 
 ### X30. CI green after J4: ARM64 build, a slow-machine test limit
-**Status:** claimed by chat-wasm-1 2026-11-18 16:45
+**Status:** done
+**Result:** `sandbox.rs`: `BPF_JGE_K` and `denied_always`'s `mut` are x86-64-only now, which
+is what failed the linux-arm64 job's `-D warnings` build (the CI log listed only these two).
+Extension waits on the background script (blocking webRequest answer and startup 2 s, messages
+5 s) are 30 s in tests (`extensions::wait_limit`); the product limits are unchanged.
+**Left undone:** neither fix could be run here (no ARM64 or macOS); the next CI run is the
+check. `webgl2_*` pixel tests are still intermittently off by one under a loaded parallel run
+(CI 254 vs 255; locally 139 vs 140 once with `BOA_JIT=always`, passing alone in both modes):
+WebGL code, not this task.
 **After:** J4
 **Checklist:** none
 **Files:** `src/sandbox.rs`, `src/extensions/`
@@ -636,7 +644,23 @@ Found by J4's first CI run (added at John's request): the new linux-arm64 job fa
 limit is too short when every function is compiled first).
 
 ### X31. DOM: "create+append 2000 nodes" 30 ms → 1,700 ms
-**Status:** claimed by chat-wasm-1 2026-11-18 16:45
+**Status:** done
+**Result:** the MutationObserver hooks copied the parent's child list into a JS array on
+every insert and removal while any observer existed, and the ad blocker's element hiding
+observes every page, so appends were O(n²). Now neighbours come from a native `__sibling`,
+records are built only for observers that would get them (filters first, an allocation-free
+walk up the parents, child-list details made lazily), hook wrappers take fixed arguments, the
+slotchange check counts shadow roots instead of listing them, and the browser's own observers
+(ad blocking, dialogs) register as signal-only (one placeholder record per batch; they never
+read records). `create+append 2000 nodes`: ~1,700 → ~100 ms (perf_check passes, limit 115);
+4,000 appends to one parent 5,439 → 51 ms. Tests: `src/mutation_tests.rs`
+(`tests/sites/mutation-records.html`: appends, moves, removals, filters, no-subtree and
+detached observers, linear time).
+Choices: kept the 30 ms baseline (taken before the always-on observer existed) rather than
+raise it.
+**Left undone:** the benchmark is still ~3× its old baseline: each DOM call goes through
+several layers of interpreted JS (setter → `setAttribute` → three hooks), which only a faster
+interpreter or native setters would remove.
 **After:** —
 **Checklist:** none
 **Files:** to be found (DOM, `src/js*.rs`)
