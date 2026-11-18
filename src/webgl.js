@@ -581,8 +581,8 @@
   }
   P.vertexAttribI4i = function (i, x, y, z, w) { __glVertexAttrib(this.__cid, i, [x, y, z, w], 1); };
   P.vertexAttribI4ui = function (i, x, y, z, w) { __glVertexAttrib(this.__cid, i, [x, y, z, w], 2); };
-  P.vertexAttribI4iv = function (i, v) { __glVertexAttrib(this.__cid, i, Array.from(v).slice(0, 4), 1); };
-  P.vertexAttribI4uiv = function (i, v) { __glVertexAttrib(this.__cid, i, Array.from(v).slice(0, 4), 2); };
+  P.vertexAttribI4iv = function (i, v) { const a = Array.from(v).slice(0, 4); if (a.length < 4) return this.__err(0x501); __glVertexAttrib(this.__cid, i, a, 1); };
+  P.vertexAttribI4uiv = function (i, v) { const a = Array.from(v).slice(0, 4); if (a.length < 4) return this.__err(0x501); __glVertexAttrib(this.__cid, i, a, 2); };
   P.getVertexAttrib = function (i, p) {
     const r = __glGetVertexAttrib(this.__cid, i, p);
     return p === 0x889f ? this.__obj(r) : r;

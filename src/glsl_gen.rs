@@ -67,6 +67,8 @@ pub struct Compiled {
     pub mem: Vec<Lanes>,
     pub uniforms: Vec<UniformVar>,
     pub inputs: Vec<IoVar>,
+    /// Every declared input, read or not (names and types: attribute aliasing checks).
+    pub declared_inputs: Vec<(String, Ty)>,
     pub outputs: Vec<IoVar>,
     pub blocks: Vec<BlockVar>,
     pub b: Builtins,
@@ -200,7 +202,9 @@ pub fn compile(src: &str, stage: Stage, webgl2: bool) -> Result<Compiled, String
     // Only inputs the shader reads count (an unread varying needn't be written by the
     // vertex shader).
     let inputs = g.inputs.iter().filter(|(_, u)| u.get()).map(|(v, _)| v.clone()).collect();
+    let declared_inputs = g.inputs.iter().map(|(v, _)| (v.name.clone(), v.ty.clone())).collect();
     Ok(Compiled {
+        declared_inputs,
         version: g.version,
         code: g.code,
         mem: g.mem,

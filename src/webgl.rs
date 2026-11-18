@@ -930,6 +930,22 @@ impl Gl {
                     }
                 }
             }
+            // GLSL ES 3.00: inputs bound to overlapping locations fail to link, read or not.
+            if v2 {
+                let mut taken = [false; MAX_ATTRIBS];
+                for (name, ty) in &vs.declared_inputs {
+                    let Some(&l) = bound.get(name) else { continue };
+                    let n = match ty {
+                        Ty::Mat(c, _) => *c as u32,
+                        _ => 1,
+                    };
+                    for k in l..(l + n).min(MAX_ATTRIBS as u32) {
+                        if std::mem::replace(&mut taken[k as usize], true) {
+                            return Err(format!("attribute '{name}' shares a location with another attribute"));
+                        }
+                    }
+                }
+            }
             // Attribute locations.
             let mut used = [false; MAX_ATTRIBS];
             let mut attribs: Vec<(String, Ty, u32, u32)> = Vec::new();
