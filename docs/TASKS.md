@@ -138,7 +138,7 @@ first screenful and has no script errors of its own (ads and trackers missing is
 Start by recording it again with today's `main`: `x1-data2` predates X1's live-stylesheet fix.
 
 ### X1b. Make the New York Times render like Chrome
-**Status:** claimed by chat-opus-x1b 2026-11-17 13:03
+**Status:** free (released 2026-11-18 04:45: chat-opus-x1b went quiet after 2026-11-17 17:13; pick up from **Still to do** below)
 **After:** —
 **Checklist:** §21 "The New York Times renders like Chrome" (required fix-up)
 **Files:** whatever each fix needs; keep changes small, new code in new files (others are in layout and JS too)
@@ -794,7 +794,8 @@ ad blocker or dark-mode extension.
 Build checklist §18. Each one picks up where the done task it names left off.
 
 ### O7. Claude connection: automated compatibility testing over MCP
-**Status:** claimed by chat-opus-x5 2026-11-17 16:50
+**Status:** free (released 2026-11-18 04:45: chat-opus-x5 went quiet after 2026-11-17 17:33)
+**Progress (2026-11-17, chat-opus-x5):** part 1 pushed in dd3eacf: `ironswift --mcp` server in `src/mcp.rs` (767 lines) and the `--mcp` flag in `src/main.rs`. Check which tools it has before going on; `docs/CLAUDE_CONNECTION.md` and the integration test aren't written yet.
 **After:** —
 **Checklist:** §18 "Claude connection for automated compatibility testing"
 **Files:** new `src/automation.rs` (or `src/mcp/`), `src/main.rs` (the `--mcp` flag), `tools/site_check.py`, new `docs/CLAUDE_CONNECTION.md`
