@@ -47,6 +47,12 @@ pub struct Saved {
 pub fn save(dir: &std::path::Path, method: &str, url: &str, r: &Saved) {
     let _ = std::fs::create_dir_all(dir);
     let k = key(method, url);
+    // A revalidation (304, empty body) of something already saved: keep the full response.
+    // Replaying with a fresh profile there is no cached copy for a 304 to refer to (NYT's
+    // elections feed came back empty).
+    if r.status == 304 && load(dir, method, url).is_some_and(|old| old.status != 304) {
+        return;
+    }
     let mut meta = format!("{} {}\n{} {}\n", method.to_ascii_uppercase(), url, r.status, r.status_text);
     for (n, v) in &r.headers {
         meta.push_str(&format!("{n}: {}\n", v.replace(['\r', '\n'], " ")));
@@ -80,6 +86,18 @@ pub fn read_body(mut r: impl Read, max: u64) -> std::io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_revalidation_keeps_the_full_response() {
+        let dir = std::env::temp_dir().join(format!("ironswift-rec-304-{}", std::process::id()));
+        let full = Saved { status: 200, status_text: "OK".into(), headers: vec![], body: b"{}".to_vec() };
+        let not_modified = Saved { status: 304, status_text: "Not Modified".into(), headers: vec![], body: Vec::new() };
+        save(&dir, "GET", "https://example.com/feed.json", &full);
+        save(&dir, "GET", "https://example.com/feed.json", &not_modified);
+        let back = load(&dir, "GET", "https://example.com/feed.json").unwrap();
+        assert_eq!((back.status, back.body.as_slice()), (200, &b"{}"[..]));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn saved_responses_come_back() {
