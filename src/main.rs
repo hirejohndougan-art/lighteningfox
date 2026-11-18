@@ -16,6 +16,7 @@ macro_rules! log {
 }
 
 mod a11y_remote;
+mod js_jit;
 mod dialog;
 mod shm;
 mod clicks;
@@ -1444,6 +1445,8 @@ fn browser_main() {
     let private_profile = start_private_profile();
     // The browser's language becomes the default for pages' Intl too (before threads start).
     i18n::apply_to_process();
+    // The "JavaScript JIT" setting, before any script runs (site processes start here too).
+    js_jit::apply(settings::get().js_jit);
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut url = String::from("about:home");
     // Whether a page was named on the command line (else: restore the last session or go home).

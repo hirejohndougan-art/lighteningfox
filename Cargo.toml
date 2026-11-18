@@ -75,11 +75,11 @@ zbus = { version = "5.19", default-features = false, features = ["async-io", "bl
 opt-level = 3
 
 [features]
-default = ["gpu"]
+default = ["gpu", "boa_jit"]
 # Draw with the graphics card (Vulkan or OpenGL); falls back to software drawing at run time.
 gpu = ["dep:wgpu", "dep:pollster"]
-# Baseline JIT for JavaScript (Cranelift), off by default while it's being built (tasks J1-J4,
-# docs/JIT.md). Set BOA_JIT=off|on|always at run time when it's built in.
+# Baseline JIT for JavaScript (Cranelift; docs/JIT.md). Built in by default; the "JavaScript JIT"
+# setting turns it off, and BOA_JIT=off|on|always overrides that at run time.
 boa_jit = ["boa_engine/jit"]
 
 # Ironswift's own copy of the Boa JavaScript engine (batch M: Boa speed work). The changes

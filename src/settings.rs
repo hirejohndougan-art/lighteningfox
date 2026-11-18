@@ -55,6 +55,8 @@ pub struct Settings {
     pub language: String,
     /// Draw pages and the browser in high-contrast colors.
     pub high_contrast: bool,
+    /// Compile busy JavaScript to machine code (Boa's baseline JIT; next start).
+    pub js_jit: bool,
 }
 
 impl Default for Settings {
@@ -87,6 +89,7 @@ impl Default for Settings {
             check_updates: true,
             language: "auto".into(),
             high_contrast: false,
+            js_jit: true,
         }
     }
 }
@@ -131,6 +134,11 @@ fn load() -> Settings {
     s
 }
 
+#[cfg(test)]
+pub(crate) fn apply_for_test(s: &mut Settings, k: &str, v: &str) {
+    apply(s, k, v);
+}
+
 fn apply(s: &mut Settings, k: &str, v: &str) {
     let on = |v: &str| matches!(v, "1" | "on" | "true" | "yes");
     match k {
@@ -159,6 +167,7 @@ fn apply(s: &mut Settings, k: &str, v: &str) {
         "check_updates" => s.check_updates = on(v),
         "language" if v == "auto" || crate::i18n::LANGUAGES.iter().any(|l| l.0 == v) => s.language = v.to_string(),
         "high_contrast" => s.high_contrast = on(v),
+        "js_jit" => s.js_jit = on(v),
         "no_blocking" => s.no_blocking = site_list(v),
         "cookies_allow" => s.cookies_allow = site_list(v),
         "cookies_block" => s.cookies_block = site_list(v),
@@ -245,6 +254,7 @@ fn save(s: &Settings) {
     ));
     body.push_str(&format!("language\t{}\nhigh_contrast\t{}\n", s.language, b(s.high_contrast)));
     body.push_str(&format!("site_isolation\t{}\n", b(s.site_processes)));
+    body.push_str(&format!("js_jit\t{}\n", b(s.js_jit)));
     let tmp = p.with_extension("tmp");
     if std::fs::write(&tmp, body).is_ok() {
         let _ = std::fs::rename(&tmp, &p);
@@ -403,6 +413,7 @@ pub fn page(query: &str) -> String {
         s.resist_fingerprinting = false;
         s.check_updates = false;
         s.high_contrast = false;
+        s.js_jit = false;
         for pair in query.trim_start_matches('?').split('&') {
             if let Some((k, v)) = pair.split_once('=') {
                 let v = crate::net::percent_decode_str(&v.replace('+', " "));
@@ -448,6 +459,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
 <p class="hint" style="margin-left:0">@@settings-sleep-hint@@</p>
 <div class="row"><label><input type="checkbox" name="use_gpu" value="1"{gpu_on}> @@settings-gpu@@</label><p class="hint">@@settings-gpu-hint@@</p></div>
 <div class="row"><label><input type="checkbox" name="site_isolation" value="1"{site_proc}> @@settings-site-processes@@</label><p class="hint">@@settings-site-processes-hint@@</p></div>
+<div class="row"><label><input type="checkbox" name="js_jit" value="1"{js_jit}> @@settings-js-jit@@</label><p class="hint">@@settings-js-jit-hint@@</p></div>
 </section>
 <section><h2>@@settings-privacy@@</h2>
 <div class="row"><label><input type="checkbox" name="third_party_cookies" value="1"{tpc}> @@settings-tpc@@</label><p class="hint">@@settings-tpc-hint@@</p></div>
@@ -516,6 +528,7 @@ button{{background:#4f46e5;color:white;border:none;border-radius:8px;padding:8px
         bmbar = check(s.show_bookmarks_bar),
         gpu_on = check(s.use_gpu),
         site_proc = check(s.site_processes),
+        js_jit = check(s.js_jit),
         cookie_sites = esc(&crate::i18n::tf("settings-cookie-sites", &[("count", &crate::cookies::sites().len().to_string())])),
         cookie_rows = cookie_rows(&s),
         ck_allow = esc(&s.cookies_allow.join("\n")),
