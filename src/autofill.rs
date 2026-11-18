@@ -326,22 +326,45 @@ pub fn take_offer() -> Option<Offer> {
     OFFER.lock().ok()?.take()
 }
 
-/// A form is being sent from `page_url`: remember its typed entries, and offer to save its
-/// login. Nothing is kept from private windows.
-pub fn form_submitted(dom: &Dom, form: NodeId, page_url: &str, private: bool) {
-    if private {
-        return;
-    }
-    let Some(origin) = origin_of(page_url) else { return };
-    let mut new_entries = Vec::new();
+/// What a sent form gives autofill: its typed entries (kind, value) and its login (user name,
+/// password). Read from the document where the form lives (a site process sends it over).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Submitted {
+    pub entries: Vec<(String, String)>,
+    pub login: Option<(String, String)>,
+}
+
+pub fn submitted_fields(dom: &Dom, form: NodeId) -> Submitted {
+    let mut out = Submitted::default();
     for n in forms::controls(dom, form) {
         if let Some(kind) = field_kind(dom, n) {
             let v = forms::value(dom, n).trim().to_string();
             if !v.is_empty() && v.chars().count() <= 200 && dom.form_state.dirty.contains(&n) {
-                new_entries.push((kind, v));
+                out.entries.push((kind, v));
             }
         }
     }
+    if let Some((user, pass)) = login_fields(dom, form) {
+        let password = forms::value(dom, pass);
+        if !password.is_empty() {
+            out.login = Some((user.map(|u| forms::value(dom, u)).unwrap_or_default(), password));
+        }
+    }
+    out
+}
+
+/// A form is being sent from `page_url`: remember its typed entries, and offer to save its
+/// login. Nothing is kept from private windows.
+pub fn form_submitted(dom: &Dom, form: NodeId, page_url: &str, private: bool) {
+    record_submitted(submitted_fields(dom, form), page_url, private);
+}
+
+pub fn record_submitted(sub: Submitted, page_url: &str, private: bool) {
+    if private {
+        return;
+    }
+    let Some(origin) = origin_of(page_url) else { return };
+    let new_entries: Vec<(String, String)> = sub.entries.into_iter().filter(|(k, v)| !k.is_empty() && !v.is_empty() && v.chars().count() <= 200).take(50).collect();
     if !new_entries.is_empty() {
         with_store(|s| {
             for e in new_entries {
@@ -354,12 +377,10 @@ pub fn form_submitted(dom: &Dom, form: NodeId, page_url: &str, private: bool) {
             save(s);
         });
     }
-    let Some((user, pass)) = login_fields(dom, form) else { return };
-    let password = forms::value(dom, pass);
+    let Some((username, password)) = sub.login else { return };
     if password.is_empty() || with_store(|s| s.never.contains(&origin)) {
         return;
     }
-    let username = user.map(|u| forms::value(dom, u)).unwrap_or_default();
     let existing = logins_for(&origin).into_iter().find(|l| l.username == username);
     if existing.as_ref().is_some_and(|l| l.password == password) {
         mark_used(&origin, &username);
@@ -381,31 +402,47 @@ pub struct Suggestion {
     pub login: Option<(String, String)>,
 }
 
+/// What autofill needs to know about a field to suggest for it: its kind, the login form's
+/// fields if it's one of them, and what's typed so far.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FieldInfo {
+    pub kind: Option<String>,
+    /// (user name field, password field), when the field is one of the two.
+    pub login: Option<(Option<NodeId>, NodeId)>,
+    pub typed: String,
+}
+
+pub fn field_info(dom: &Dom, field: NodeId) -> FieldInfo {
+    let login = forms::form_of(dom, field).and_then(|f| login_fields(dom, f)).filter(|&(user, pass)| field == pass || Some(field) == user);
+    FieldInfo { kind: field_kind(dom, field), login, typed: forms::value(dom, field) }
+}
+
 /// Suggestions for a field that was just clicked.
 pub fn suggestions(dom: &Dom, field: NodeId, page_url: &str) -> Vec<Suggestion> {
+    suggestions_for(field, &field_info(dom, field), page_url)
+}
+
+/// Suggestions for a field described by `info` (on a page in this process or a site process).
+pub fn suggestions_for(field: NodeId, info: &FieldInfo, page_url: &str) -> Vec<Suggestion> {
     let mut out = Vec::new();
     // Logins, for the user name and password fields of a login form.
-    if let (Some(form), Some(origin)) = (forms::form_of(dom, field), origin_of(page_url)) {
-        if let Some((user, pass)) = login_fields(dom, form) {
-            if field == pass || Some(field) == user {
-                for l in logins_for(&origin) {
-                    let mut fill = vec![(pass, l.password.clone())];
-                    if let Some(u) = user {
-                        fill.push((u, l.username.clone()));
-                    }
-                    let label = if l.username.is_empty() { "(no user name)".into() } else { l.username.clone() };
-                    out.push(Suggestion { label, detail: "Saved login".into(), fill, login: Some((l.origin.clone(), l.username.clone())) });
-                }
-                if !out.is_empty() {
-                    return out;
-                }
+    if let (Some((user, pass)), Some(origin)) = (info.login, origin_of(page_url)) {
+        for l in logins_for(&origin) {
+            let mut fill = vec![(pass, l.password.clone())];
+            if let Some(u) = user {
+                fill.push((u, l.username.clone()));
             }
+            let label = if l.username.is_empty() { "(no user name)".into() } else { l.username.clone() };
+            out.push(Suggestion { label, detail: "Saved login".into(), fill, login: Some((l.origin.clone(), l.username.clone())) });
+        }
+        if !out.is_empty() {
+            return out;
         }
     }
     // Form history for this kind of field, matching what's typed so far.
-    if let Some(kind) = field_kind(dom, field) {
-        let typed = forms::value(dom, field).to_lowercase();
-        let values: Vec<String> = with_store(|s| s.entries.iter().rev().filter(|(k, _)| *k == kind).map(|(_, v)| v.clone()).collect());
+    if let Some(kind) = &info.kind {
+        let typed = info.typed.to_lowercase();
+        let values: Vec<String> = with_store(|s| s.entries.iter().rev().filter(|(k, _)| k == kind).map(|(_, v)| v.clone()).collect());
         for v in values.into_iter().filter(|v| v.to_lowercase().starts_with(&typed) && v.to_lowercase() != typed).take(6) {
             out.push(Suggestion { label: v.clone(), detail: String::new(), fill: vec![(field, v)], login: None });
         }

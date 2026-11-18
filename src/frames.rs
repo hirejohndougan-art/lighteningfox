@@ -46,6 +46,8 @@ pub enum Event {
     /// A screen reader's request for a page element: 0 focus, 1 click, 2 scroll into view,
     /// 3 set the value of a text field to `value`.
     A11yAction { kind: u8, node: u32, value: String },
+    /// Fill these fields (a saved login or an earlier entry picked under a field).
+    Fill(Vec<(u32, String)>),
     /// An option was picked in the window's list for the <select> `id` (see Update::Select).
     SelectChoose { id: u32, index: u32 },
     /// Back or Forward moved within the page's own history entries (a top-level page in a site
@@ -74,6 +76,12 @@ pub enum Update {
     /// The page's accessibility tree (a11y_remote.rs), when it changed and a screen reader is
     /// listening (a top-level page in a site process).
     A11y(Vec<u8>),
+    /// A text field got the focus (a top-level page in a site process): what autofill needs to
+    /// suggest for it, and the field's box (x, bottom, width; frame pixels after scrolling).
+    Field { id: u32, x: f32, y: f32, w: f32, info: crate::autofill::FieldInfo },
+    /// A form is being sent (a top-level page in a site process): its entries and login, for the
+    /// window to remember or offer to save.
+    Submitted(crate::autofill::Submitted),
     /// The answer to Event::Ask.
     Answer { what: String, data: Vec<u8> },
     /// A right click the page didn't cancel (a top-level page in a site process): the link and
@@ -167,6 +175,10 @@ impl Event {
                 put(&mut m, b"scrollto");
                 put(&mut m, &f32s(&[*y]));
             }
+            Event::Fill(fields) => {
+                put(&mut m, b"fill");
+                put(&mut m, serde_json::json!(fields).to_string().as_bytes());
+            }
             Event::A11y(on) => {
                 put(&mut m, b"a11y");
                 put(&mut m, &[*on as u8]);
@@ -238,6 +250,7 @@ impl Event {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
                 _ => return Err(std::io::Error::other("bad scroll")),
             },
+            b"fill" => Event::Fill(serde_json::from_slice::<Vec<(u32, String)>>(&get(r)?).map_err(|_| std::io::Error::other("bad fill"))?.into_iter().take(20).collect()),
             b"a11y" => Event::A11y(get(r)? == [1]),
             b"a11yact" => match read_f32s(&get(r)?)[..] {
                 [kind, node] if (0.0..=3.0).contains(&kind) && node >= 0.0 => Event::A11yAction { kind: kind as u8, node: node as u32, value: String::from_utf8_lossy(&get(r)?).to_string() },
@@ -287,6 +300,16 @@ impl Update {
             Update::Title(t) => {
                 put(&mut m, b"title");
                 put(&mut m, t.as_bytes());
+            }
+            Update::Field { id, x, y, w, info } => {
+                put(&mut m, b"field");
+                put(&mut m, &f32s(&[*id as f32, *x, *y, *w]));
+                let login = info.login.map(|(u, p)| (u.map(|u| u as u32), p as u32));
+                put(&mut m, serde_json::json!({ "k": info.kind, "l": login, "t": info.typed }).to_string().as_bytes());
+            }
+            Update::Submitted(sub) => {
+                put(&mut m, b"submitted");
+                put(&mut m, serde_json::json!({ "e": sub.entries, "l": sub.login }).to_string().as_bytes());
             }
             Update::A11y(b) => {
                 put(&mut m, b"a11ytree");
@@ -354,6 +377,24 @@ impl Update {
                 Update::NavigatePost(u, ct, get(r)?)
             }
             b"title" => Update::Title(String::from_utf8_lossy(&get(r)?).to_string()),
+            b"field" => {
+                let [id, x, y, w] = read_f32s(&get(r)?)[..] else { return Err(std::io::Error::other("bad field")) };
+                let v: serde_json::Value = serde_json::from_slice(&get(r)?).map_err(|_| std::io::Error::other("bad field"))?;
+                let login = v.get("l").and_then(|l| serde_json::from_value::<Option<(Option<u32>, u32)>>(l.clone()).ok()).flatten();
+                let info = crate::autofill::FieldInfo {
+                    kind: v.get("k").and_then(|k| k.as_str()).map(String::from),
+                    login: login.map(|(u, p)| (u.map(|u| u as NodeId), p as NodeId)),
+                    typed: v.get("t").and_then(|t| t.as_str()).unwrap_or("").chars().take(500).collect(),
+                };
+                Update::Field { id: id.max(0.0) as u32, x, y, w, info }
+            }
+            b"submitted" => {
+                let v: serde_json::Value = serde_json::from_slice(&get(r)?).map_err(|_| std::io::Error::other("bad form"))?;
+                Update::Submitted(crate::autofill::Submitted {
+                    entries: v.get("e").and_then(|e| serde_json::from_value(e.clone()).ok()).unwrap_or_default(),
+                    login: v.get("l").and_then(|l| serde_json::from_value(l.clone()).ok()).flatten(),
+                })
+            }
             b"a11ytree" => Update::A11y(get(r)?),
             b"answer" => {
                 let what = String::from_utf8_lossy(&get(r)?).to_string();
@@ -638,6 +679,13 @@ impl Host {
         self.edit = None;
         if let Some(n) = to {
             self.fire(n, "focus");
+            // A text field on a top-level page: the window may suggest saved logins or entries.
+            if self.job.top_level && js::with_dom(|d| matches!(forms::control(d, n), Some(forms::Control::Text { .. }))) {
+                if let Some(r) = self.lay.hits.iter().rev().find(|(_, h)| *h == n).map(|(r, _)| *r) {
+                    let info = js::with_dom(|d| crate::autofill::field_info(d, n));
+                    self.outbox.push(Update::Field { id: n as u32, x: r.x, y: r.y + r.h - self.scroll + 2.0, w: r.w.max(220.0), info });
+                }
+            }
             if js::with_dom(|d| forms::is_editable(d, n)) {
                 let v = js::with_dom(|d| forms::value(d, n));
                 let mut e = crate::textedit::TextEdit::new(&v);
@@ -773,7 +821,16 @@ impl Host {
     }
 
     fn submit(&mut self, form: NodeId, submitter: Option<NodeId>) {
-        match crate::submit_form(&mut self.page, form, submitter, true) {
+        let go = crate::submit_form(&mut self.page, form, submitter, true);
+        // The window remembers its entries and offers to save its login (the saved ones never
+        // come into this process).
+        if go.is_some() && self.job.top_level {
+            let sub = js::with_dom(|d| crate::autofill::submitted_fields(d, form));
+            if sub != crate::autofill::Submitted::default() {
+                self.outbox.push(Update::Submitted(sub));
+            }
+        }
+        match go {
             Some(Go::To(u)) => self.navigate(&u, None),
             Some(Go::Post(u, body)) => self.navigate(&u, Some(&body)),
             _ => {}
@@ -927,6 +984,23 @@ impl Host {
                 }
             }
             Event::ScrollTo(y) => self.scroll = y,
+            Event::Fill(fields) => {
+                for (id, value) in fields {
+                    let n = id as NodeId;
+                    if js::with_dom(|d| n < d.nodes.len() && forms::is_editable(d, n)) {
+                        js::with_dom_mut(|d| forms::set_value(d, n, &value));
+                        if self.focused == Some(n) {
+                            let mut e = crate::textedit::TextEdit::new(&value);
+                            let len = e.len();
+                            e.move_to(len, false);
+                            self.edit = Some(e);
+                        }
+                        self.fire(n, "input");
+                        self.fire(n, "change");
+                    }
+                }
+                self.relayout();
+            }
             Event::A11y(on) => {
                 self.a11y_on = on;
                 self.sent_a11y.clear();
@@ -1226,6 +1300,11 @@ pub struct Pumped {
     pub post: Option<(String, forms::PostBody)>,
     /// A top-level page's new title.
     pub title: Option<String>,
+    /// A text field got the focus on a top-level page in a site process: (id, x, bottom, width,
+    /// what to suggest for it).
+    pub field: Option<(u32, f32, f32, f32, crate::autofill::FieldInfo)>,
+    /// A form it is sending (its entries and login, to remember or offer to save).
+    pub submitted: Option<crate::autofill::Submitted>,
     /// A top-level page in a site process asked for the right-click menu: (link, image).
     pub context: Option<(Option<String>, Option<String>)>,
     /// A top-level page in a site process opened a <select>: its id, where to show the list
@@ -1292,6 +1371,9 @@ pub fn pump(doc: u64, url: &str, images: &mut crate::images::Images) -> Pumped {
                     }
                 }
                 Update::A11y(_) => {}
+                Update::Field { id, x, y, w, info } if f.top_level => out.field = Some((id, x, y, w, info)),
+                Update::Submitted(sub) if f.top_level => out.submitted = Some(sub),
+                Update::Field { .. } | Update::Submitted(_) => {}
                 Update::History(_) => {}
             }
         }
@@ -1439,6 +1521,13 @@ pub fn site_a11y(doc: u64, lay: &layout::Layout, listening: bool) -> Option<(cra
 pub fn site_a11y_action(doc: u64, kind: u8, node: usize, value: &str) {
     if let Some(key) = site_frame(doc) {
         send(doc, &key, Event::A11yAction { kind, node: node as u32, value: value.to_string() });
+    }
+}
+
+/// Fill fields of the site-process page shown for `doc` (a picked autofill suggestion).
+pub fn site_fill(doc: u64, fields: Vec<(usize, String)>) {
+    if let Some(key) = site_frame(doc) {
+        send(doc, &key, Event::Fill(fields.into_iter().map(|(n, v)| (n as u32, v)).collect()));
     }
 }
 
@@ -1945,6 +2034,9 @@ mod tests {
             Event::ScrollTo(120.0),
             Event::SelectChoose { id: 42, index: 3 },
             Event::Ask { what: "run".into(), arg: "1 + 1".into() },
+            Event::Fill(vec![(3, "john".into()), (5, "pä55".into())]),
+            Event::A11y(true),
+            Event::A11yAction { kind: 3, node: 9, value: "typed".into() },
             Event::HistoryMoved { url: "https://a.com/x#y".into(), state: "{\"n\":1}".into(), popstate: true },
         ];
         for e in evs {
@@ -1967,6 +2059,12 @@ mod tests {
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Select { id: 7, options, .. } if options == ["Apple", "Bänana"]));
         let b = Update::Answer { what: "run".into(), data: b"ok:2".to_vec() }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Answer { what, data } if what == "run" && data == b"ok:2"));
+        let info = crate::autofill::FieldInfo { kind: Some("email".into()), login: Some((Some(3), 5)), typed: "jo".into() };
+        let b = Update::Field { id: 3, x: 1.0, y: 2.0, w: 220.0, info: info.clone() }.encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Field { id: 3, info: i, .. } if i == info));
+        let sub = crate::autofill::Submitted { entries: vec![("email".into(), "a@b.c".into())], login: Some(("john".into(), "pw".into())) };
+        let b = Update::Submitted(sub.clone()).encode();
+        assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::Submitted(x) if x == sub));
         let b = Update::ContextMenu { link: Some("https://a.com/l".into()), image: None }.encode();
         assert!(matches!(Update::decode(&mut b.as_slice()).unwrap(), Update::ContextMenu { link: Some(l), image: None } if l == "https://a.com/l"));
         let runs = vec![crate::chrome::TextRun { x: 4.0, y: 20.0, text: "Find me".into(), font: 2, size: 16.0, fixed: true }];

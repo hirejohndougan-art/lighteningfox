@@ -1955,8 +1955,11 @@ fn submit_form(page: &mut Page, form: dom::NodeId, submitter: Option<dom::NodeId
             return None;
         }
     }
-    // Remember typed entries, and offer to save a login.
-    js::with_dom(|d| autofill::form_submitted(d, form, &page.url, is_private()));
+    // Remember typed entries, and offer to save a login. (A site process can't see the saved
+    // ones: it sends the form's fields to the window instead, see frames.rs.)
+    if !process::in_renderer() {
+        js::with_dom(|d| autofill::form_submitted(d, form, &page.url, is_private()));
+    }
     Some(match sub.post {
         Some(body) => Go::Post(sub.url, body),
         None => Go::To(sub.url),
@@ -2422,6 +2425,19 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         }
         // A page in a site process: its title, its forms, and its size follows the window.
         frames::fit(page.doc, &lay);
+        // A form it sent: remember its entries and offer to save its login, for this page's origin.
+        if let Some(sub) = fr.submitted {
+            autofill::record_submitted(sub, &page.url, is_private());
+        }
+        // A text field it focused: saved logins or earlier entries under it.
+        if let Some((id, x, y, fw, info)) = fr.field {
+            let items = autofill::suggestions_for(id as dom::NodeId, &info, &page.url);
+            suggest = match (items.is_empty(), frames::site_origin(page.doc, &lay)) {
+                (false, Some((x0, y0))) => Some(formui::Suggest { node: id as dom::NodeId, doc: page.doc, x: x0 + x, y: y0 + y, w: fw, items, hover: None }),
+                _ => None,
+            };
+            dirty = true;
+        }
         // Its right-click menu, at the mouse.
         if let Some(hit) = fr.context {
             let (mx, my) = window.get_mouse_pos(MouseMode::Clamp).unwrap_or((0.0, 0.0));
@@ -2592,7 +2608,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             save_prompt = Some(formui::SavePrompt { offer, hover: None });
             dirty = true;
         }
-        if suggest.as_ref().is_some_and(|sg| sg.doc != page.doc || focused != Some(sg.node)) {
+        // (On a page in a site process the field's focus is there; a click closes the list.)
+        if suggest.as_ref().is_some_and(|sg| sg.doc != page.doc || (focused != Some(sg.node) && frames::site_frame(page.doc).is_none())) {
             suggest = None;
             dirty = true;
         }
@@ -3271,7 +3288,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             let view_y = my - bar_h() as f32;
             // Over a live iframe, the mouse belongs to the frame's document (frames.rs).
-            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() && dropdown.is_none() { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
+            let over_suggest = suggest.as_ref().is_some_and(|sg| sg.row_at(mx, my, sg.y - scroll + bar_h() as f32).is_some());
+            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() && dropdown.is_none() && !over_suggest { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
             if over_frame.as_ref().map(|f| &f.0) != frame_hover.as_ref() {
                 if let Some(k) = frame_hover.take() {
                     frames::leave(page.doc, &k);
@@ -3491,7 +3509,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     if let Some(i) = sg.row_at(mx, my, sg.y - scroll + bar_h() as f32) {
                         picked = true;
                         let it = &sg.items[i];
-                        for (node, value) in &it.fill {
+                        let remote = frames::site_frame(page.doc).is_some();
+                        if remote {
+                            frames::site_fill(page.doc, it.fill.clone());
+                        }
+                        for (node, value) in it.fill.iter().filter(|_| !remote) {
                             js::with_dom_mut(|d| forms::set_value(d, *node, value));
                             if focused == Some(*node) {
                                 fedit = Some(textedit::TextEdit::new(value));
