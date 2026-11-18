@@ -1347,3 +1347,12 @@ fn empty_custom_property_space_toggle() {
     assert_eq!(border(&mut page, "light"), "\"rgb(18, 18, 18)\"");
     assert_eq!(border(&mut page, "dark"), "\"rgb(248, 248, 248)\"");
 }
+
+/// NYT: createComment() made an empty text node and `new Text()`/`new Comment()` weren't
+/// nodes, so Svelte's hydration (comment anchors) broke.
+#[test]
+fn comments_and_text_constructors_make_nodes() {
+    let _serial = serial();
+    let _page = open("tests/sites/comment-nodes.html");
+    assert_eq!(text_of("out"), "8#comment[|<!--[0--><span>a</span><!--]--><!--[--><!--]-->|3xtruetrue|8ytrue|sibling|needs new");
+}

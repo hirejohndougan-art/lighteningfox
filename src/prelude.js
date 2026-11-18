@@ -737,7 +737,10 @@
       return wrap(r);
     }
     createTextNode(s) { return wrap(__createText(String(s))); }
-    createComment() { return wrap(__createText("")); }
+    createComment(s) {
+      if (arguments.length < 1) throw new TypeError("Failed to execute 'createComment' on 'Document': 1 argument required, but only 0 present.");
+      return wrap(__createComment(String(s)));
+    }
     createDocumentFragment() { const f = new DocumentFragment(__create("#fragment")); cache[f.__id] = f; return f; }
     createEvent() { return new Event(""); }
     getElementById(id) { return wrap(__byId(String(id))); }

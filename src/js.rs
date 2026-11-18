@@ -760,6 +760,13 @@ fn n_create_text(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsVa
     Ok(JsValue::from(id as f64))
 }
 
+/// `__createComment(data)`: a new, detached comment node (document.createComment, new Comment).
+fn n_create_comment(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let data = arg_str(a, 0, ctx)?;
+    let id = with_dom_mut(|d| d.create(NodeData::Comment(data)));
+    Ok(JsValue::from(id as f64))
+}
+
 fn n_write(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let markup = arg_str(a, 0, ctx)?;
     // While the page is being parsed, the text goes into the parser's input right after
@@ -1318,6 +1325,7 @@ const EXTRA_APIS: &[(&str, &str)] = &[
     ("docprops.js", include_str!("docprops.js")),
     ("hyperlink.js", include_str!("hyperlink.js")),
     ("childnode.js", include_str!("childnode.js")),
+    ("charnodes.js", include_str!("charnodes.js")),
     ("datetime.js", include_str!("datetime.js")),
     ("doctype.js", include_str!("doctype.js")),
     ("defaultvalue.js", include_str!("defaultvalue.js")),
@@ -1461,6 +1469,7 @@ impl Js {
             ("__wrapList", 1, n_wrap_list),
             ("__create", 1, n_create),
             ("__createText", 1, n_create_text),
+            ("__createComment", 1, n_create_comment),
             ("__write", 1, n_write),
             ("__log", 2, n_log),
             ("__navigate", 1, n_navigate),

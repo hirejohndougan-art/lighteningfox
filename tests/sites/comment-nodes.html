@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- NYT (2026-11): Svelte places blocks between comment anchors it makes with
+     document.createComment(""), which made an empty text node, and `new Text()` /
+     `new Comment()` made objects that weren't nodes. The elections and markets widgets
+     then walked off the end of their sibling lists during hydration. -->
+<html><head><title>comment nodes</title></head>
+<body><div id="host"><!--[0--><span>a</span><!--]--></div><p id="out"></p>
+<script>
+const r = [];
+const host = document.getElementById("host");
+const c = document.createComment("[");
+r.push(c.nodeType + c.nodeName + c.data);
+host.lastChild.after(c, document.createComment("]"));
+r.push(host.innerHTML);
+const t = new Text("x"), m = new Comment("y");
+r.push(t.nodeType + t.data + (t instanceof Text) + (t instanceof CharacterData));
+r.push(m.nodeType + m.data + (m instanceof Comment));
+const first = Object.getOwnPropertyDescriptor(Node.prototype, "nextSibling").get;
+host.append(t);
+r.push(first.call(host.childNodes[2]) === c ? "sibling" : "no");
+try { Comment("z"); r.push("called"); } catch (e) { r.push(e instanceof TypeError ? "needs new" : "other"); }
+document.getElementById("out").textContent = r.join("|");
+</script></body></html>
