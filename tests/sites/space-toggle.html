@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- NYT (2026-11): theme colors use the "space toggle": `--light: initial; --dark: ` (empty)
+     and `color: var(--light, black) var(--dark, white)`. An empty custom property is valid and
+     substitutes nothing, so only the light fallback is left. -->
+<html><head><title>space toggle</title>
+<style>
+:root { --light: initial; --dark: }
+.inverse { --light: ; --dark: initial }
+.box { --stroke: var(--light, rgb(18, 18, 18)) var(--dark, rgb(248, 248, 248)); border: 1px solid var(--stroke); width: 100px; height: 20px }
+</style></head>
+<body><div class="box" id="light"></div><div class="inverse"><div class="box" id="dark"></div></div>
+<script>/* scripts make the page measurable from tests */</script></body></html>

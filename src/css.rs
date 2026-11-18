@@ -205,7 +205,10 @@ fn decls_of(src: &[char], items: Vec<crate::csssyntax::Item>) -> Vec<Decl> {
                 // Custom property names are case-sensitive; everything else isn't.
                 let name = if name.starts_with("--") { name } else { name.to_ascii_lowercase() };
                 let value = crate::csssyntax::text(src, &value);
-                (!value.is_empty() && !name.is_empty()).then_some(Decl { name, value, important })
+                // `--x: ;` is valid: an empty custom property (the "space toggle" trick:
+                // `var(--x, fallback)` then gives nothing instead of the fallback).
+                let keep = !name.is_empty() && (!value.is_empty() || name.starts_with("--"));
+                keep.then_some(Decl { name, value, important })
             }
             _ => None,
         })

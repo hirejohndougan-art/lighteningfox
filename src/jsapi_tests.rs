@@ -1336,3 +1336,14 @@ fn webgl2_feedback_loops_and_level_rules() {
     );
     assert_eq!(r.trim_matches('"'), "true,0,true,true");
 }
+
+/// NYT: `--x: ;` is a valid, empty custom property ("space toggle"), so `var(--x, fallback)`
+/// gives nothing, not the fallback. The "free to read" box's border color depends on it.
+#[test]
+fn empty_custom_property_space_toggle() {
+    let _serial = serial();
+    let mut page = open("tests/sites/space-toggle.html");
+    let border = |page: &mut crate::Page, id: &str| eval(page, &format!("getComputedStyle(document.getElementById('{id}')).borderTopColor"));
+    assert_eq!(border(&mut page, "light"), "\"rgb(18, 18, 18)\"");
+    assert_eq!(border(&mut page, "dark"), "\"rgb(248, 248, 248)\"");
+}
