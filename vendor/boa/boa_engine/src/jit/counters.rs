@@ -1,6 +1,6 @@
 //! Per-code-block call and loop counters.
 
-use super::{mode, support::Rejection};
+use super::{compiler::JitFn, mode, support::Rejection};
 use std::cell::Cell;
 
 /// Where a code block is on the way to machine code.
@@ -11,17 +11,34 @@ pub enum TierState {
     Interpreted,
     /// Hot, and every opcode is one the first compiler handles. J2 compiles these.
     Eligible,
-    /// Hot, but it uses something the first compiler doesn't; it stays interpreted.
+    /// Compiled: calls and loop headers run machine code.
+    Compiled,
+    /// Hot, but it uses something the first compiler doesn't (or its code kept bailing out);
+    /// it stays interpreted.
     Rejected(Rejection),
 }
 
 /// Counters kept in every [`CodeBlock`](crate::vm::CodeBlock). Two `Cell<u32>` bumps per call
 /// or loop iteration, and only with the `jit` feature.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub(crate) struct JitCounters {
     calls: Cell<u32>,
     loop_iterations: Cell<u32>,
     state: Cell<TierState>,
+    code: Cell<Option<JitFn>>,
+    entries: Cell<u32>,
+    bailouts: Cell<u32>,
+}
+
+impl std::fmt::Debug for JitCounters {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JitCounters")
+            .field("calls", &self.calls.get())
+            .field("loop_iterations", &self.loop_iterations.get())
+            .field("state", &self.state.get())
+            .field("compiled", &self.code.get().is_some())
+            .finish()
+    }
 }
 
 impl JitCounters {
@@ -56,5 +73,33 @@ impl JitCounters {
 
     pub(crate) fn set_state(&self, state: TierState) {
         self.state.set(state);
+    }
+
+    #[inline]
+    pub(crate) fn code(&self) -> Option<JitFn> {
+        self.code.get()
+    }
+
+    pub(crate) fn set_code(&self, code: Option<JitFn>) {
+        self.code.set(code);
+    }
+
+    /// Counts an entry into compiled code; returns the total.
+    pub(crate) fn note_entry(&self) -> u32 {
+        let n = self.entries.get().saturating_add(1);
+        self.entries.set(n);
+        n
+    }
+
+    /// Counts a bailout; returns the total.
+    pub(crate) fn note_bailout(&self) -> u32 {
+        let n = self.bailouts.get().saturating_add(1);
+        self.bailouts.set(n);
+        n
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bailouts(&self) -> u32 {
+        self.bailouts.get()
     }
 }

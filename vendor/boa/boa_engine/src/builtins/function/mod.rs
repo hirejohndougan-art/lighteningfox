@@ -1097,6 +1097,11 @@ pub(crate) fn function_call(
         );
     }
 
+    // Ironswift change: run the function's machine code, if it has some (docs/JIT.md). It
+    // leaves the frame's pc where the interpreter goes on.
+    #[cfg(feature = "jit")]
+    crate::jit::enter(context);
+
     Ok(CallValue::Ready)
 }
 

@@ -117,6 +117,26 @@ pub use boa_macros::js_value;
 #[derive(Finalize, Debug, Clone, Trace)]
 pub struct JsValue(inner::InnerValue);
 
+// Ironswift change: raw NaN-boxed bits for the baseline JIT (src/jit/).
+#[cfg(feature = "jit")]
+impl JsValue {
+    /// The value's 64-bit NaN-boxed word.
+    #[inline(always)]
+    pub(crate) fn jit_bits(&self) -> u64 {
+        self.0.jit_bits()
+    }
+
+    /// A value from its 64-bit word.
+    ///
+    /// # Safety
+    /// `bits` must be a number, boolean, `null` or `undefined` (no pointer kinds).
+    #[inline(always)]
+    pub(crate) const unsafe fn jit_from_bits(bits: u64) -> Self {
+        // SAFETY: as documented above.
+        Self(unsafe { inner::InnerValue::jit_from_bits(bits) })
+    }
+}
+
 impl JsValue {
     /// Create a new [`JsValue`] from an inner value.
     #[inline]

@@ -45,13 +45,13 @@ fn mode_parses_boa_jit_values() {
 }
 
 #[test]
-fn number_loop_is_eligible() {
+fn number_loop_is_compiled() {
     with_mode(JitMode::Always, || {
         let mut context = Context::default();
         let code = code_of(&mut context, SUM);
         let result = context.eval(Source::from_bytes("sum(10)")).unwrap();
         assert_eq!(result, JsValue::new(80));
-        assert_eq!(code.jit.state(), TierState::Eligible);
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 
@@ -91,7 +91,7 @@ fn tier_up_after_call_threshold() {
         assert_eq!(code.jit.calls(), calls);
         assert_eq!(code.jit.state(), TierState::Interpreted);
         context.eval(Source::from_bytes("f(3, 4)")).unwrap();
-        assert_eq!(code.jit.state(), TierState::Eligible);
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 
@@ -105,7 +105,7 @@ fn tier_up_from_a_hot_loop_in_one_call() {
         context.eval(Source::from_bytes("sum(20000)")).unwrap();
         assert_eq!(code.jit.calls(), 2);
         assert!(code.jit.loop_iterations() >= super::LOOP_THRESHOLD);
-        assert_eq!(code.jit.state(), TierState::Eligible);
+        assert_eq!(code.jit.state(), TierState::Compiled);
     });
 }
 
@@ -174,4 +174,170 @@ fn executable_memory_is_never_writable() {
         })
         .expect("compiled code is mapped");
     assert!(perms.starts_with("r-x"), "code page is {perms}");
+}
+
+// ---- J2: compiled code gives the interpreter's results ----
+
+/// Runs `driver` after defining `functions` (only plain number code, so each one compiles
+/// with the JIT forced on), with the JIT off and with it forced on, and checks the results are
+/// the same, `-0` and `NaN` included. Also checks every named function really ran compiled.
+fn same(functions: &[(&str, &str)], driver: &str) {
+    let mut source = String::new();
+    for (name, body) in functions {
+        source.push_str(&format!("function {name}{body}\n"));
+    }
+    source.push_str(&format!(
+        "const __show = (x) => Object.is(x, -0) ? '-0' : typeof x === 'string' ? JSON.stringify(x) : String(x);\n\
+         const __out = []; const out = (...v) => __out.push(...v.map(__show));\n{driver}\n__out.join(',')"
+    ));
+    let run = |mode| {
+        with_mode(mode, || {
+            let mut context = Context::default();
+            let result = match context.eval(Source::from_bytes(&source)) {
+                Ok(v) => v.to_string(&mut context).unwrap().to_std_string_escaped(),
+                Err(e) => format!("threw {e}"),
+            };
+            let states: Vec<(String, TierState)> = functions
+                .iter()
+                .map(|(name, _)| {
+                    let f = context.global_object().get(crate::js_string!(*name), &mut context).unwrap();
+                    let object = f.as_object().unwrap();
+                    let state = object.downcast_ref::<OrdinaryFunction>().unwrap().code.jit.state();
+                    ((*name).to_string(), state)
+                })
+                .collect();
+            (result, states)
+        })
+    };
+    let (interpreted, _) = run(JitMode::Off);
+    let (compiled, states) = run(JitMode::Always);
+    assert_eq!(interpreted, compiled, "results differ for {source}");
+    for (name, state) in states {
+        assert!(
+            matches!(state, TierState::Compiled) || matches!(state, TierState::Rejected(r) if r.reason == "bails out"),
+            "{name} didn't run compiled: {state:?}"
+        );
+    }
+}
+
+const NUMBERS: &str = "[7, 3, -7, 0, -0, 1, -1, 1.5, 0.25, 2147483647, -2147483648, 2147483646, 65536, 31, 32, NaN, Infinity, -Infinity, 1e21, -5]";
+
+#[test]
+fn arithmetic_matches_the_interpreter() {
+    let ops = ["+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", ">>>"];
+    let names: Vec<String> = (0..ops.len()).map(|i| format!("op{i}")).collect();
+    let bodies: Vec<String> = ops.iter().map(|op| format!("(a, b) {{ return a {op} b; }}")).collect();
+    let functions: Vec<(&str, &str)> = names.iter().map(String::as_str).zip(bodies.iter().map(String::as_str)).collect();
+    let calls: String = names.iter().map(|n| format!("out({n}(a, b));")).collect();
+    same(&functions, &format!("for (const a of {NUMBERS}) for (const b of {NUMBERS}) {{ {calls} }}"));
+}
+
+#[test]
+fn unary_operators_match() {
+    same(
+        &[("neg", "(a) { return -a; }"), ("pos", "(a) { return +a; }"), ("bnot", "(a) { return ~a; }"), ("lnot", "(a) { return !a; }")],
+        &format!("for (const a of {NUMBERS}) out(neg(a), pos(a), bnot(a), lnot(a));"),
+    );
+}
+
+#[test]
+fn comparisons_and_branches_match() {
+    let ops = ["<", "<=", ">", ">=", "==", "!=", "===", "!=="];
+    let names: Vec<String> = (0..ops.len()).map(|i| format!("cmp{i}")).collect();
+    let bodies: Vec<String> = ops.iter().map(|op| format!("(a, b) {{ return a {op} b; }}")).collect();
+    let mut functions: Vec<(&str, &str)> = names.iter().map(String::as_str).zip(bodies.iter().map(String::as_str)).collect();
+    functions.push(("and", "(a, b) { return a && b; }"));
+    functions.push(("or", "(a, b) { return a || b; }"));
+    functions.push(("pick", "(a, b) { if (a < b) return 1; if (a > b) return 2; if (a === b) return 3; return 4; }"));
+    let calls: String = functions.iter().map(|(n, _)| format!("out({n}(a, b));")).collect();
+    same(&functions, &format!("for (const a of {NUMBERS}) for (const b of [0, -0, 1, 7, NaN, 1.5, true, false, undefined]) {{ {calls} }}"));
+}
+
+#[test]
+fn loops_match() {
+    same(
+        &[
+            ("g", "(n) { let c = 0; for (let i = 0; i < n; i++) { if (i % 3 === 0) c += 2; else if (i > 10) c -= 1; else c++; } while (c > 5) c = c - 4; do { c += 0.5; } while (c < 2); return c; }"),
+            ("fib", "(n) { let a = 0, b = 1; for (let i = 0; i < n; i++) { const t = a + b; a = b; b = t; } return a; }"),
+            ("down", "(n) { let s = 0; for (let i = n; i > 0; i--) s += i / 2; return s; }"),
+        ],
+        "for (const n of [0, 1, 2, 12, 100, 1000, 80]) out(g(n), fib(n), down(n));",
+    );
+}
+
+#[test]
+fn inc_and_dec_at_the_limits() {
+    same(
+        &[("inc", "(x) { let a = x; a++; ++a; return a; }"), ("dec", "(x) { let b = x; b--; --b; return b; }"), ("post", "(x) { let a = x; const old = a++; return old; }")],
+        "for (const x of [0, 2147483647, -2147483648, 2147483646, -2147483647, 1.5, -0, NaN, Infinity]) out(inc(x), dec(x), post(x));",
+    );
+}
+
+#[test]
+fn values_that_need_the_interpreter() {
+    // Strings, objects, null, booleans and missing arguments: each bails out where needed and
+    // the interpreter finishes.
+    same(
+        &[("mix", "(a, b) { let s = a + b; let t = a * 2; return s + t; }"), ("count", "(n) { let c = 0; for (let i = 0; i < n; i++) c++; return c; }")],
+        "for (const [a, b] of [[1, 2], ['1', 2], [1, '2'], [{}, 1], [null, 1], [true, 1], [undefined, 1], [1, undefined], [[1], [2]]]) out(mix(a, b));
+         out(mix(1), mix(), count(5), count('5'), count(null), count({ valueOf() { return 3; } }), count(true));",
+    );
+}
+
+#[test]
+fn compiled_code_runs_and_bails_out() {
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        let code = code_of(&mut context, SUM);
+        let r = context.eval(Source::from_bytes("let t = 0; for (let k = 0; k < 50; k++) t += sum(k); t")).unwrap();
+        assert!(r.is_number());
+        assert_eq!(code.jit.state(), TierState::Compiled);
+        assert!(code.jit.code().is_some());
+        assert_eq!(code.jit.bailouts(), 0, "numbers only");
+        // A string argument: `i < n` can't be done in machine code, so it bails out and the
+        // interpreter finishes with the right answer.
+        let r = context.eval(Source::from_bytes("sum('10')")).unwrap();
+        assert_eq!(r, JsValue::new(80));
+        assert!(code.jit.bailouts() >= 1);
+    });
+}
+
+#[test]
+fn a_function_that_keeps_bailing_out_stops_using_its_code() {
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        let code = code_of(&mut context, "function f(a) { return a + 1; } f");
+        context.eval(Source::from_bytes("for (let i = 0; i < 200; i++) f('x');")).unwrap();
+        assert!(matches!(code.jit.state(), TierState::Rejected(r) if r.reason == "bails out"), "{:?}", code.jit.state());
+        assert_eq!(context.eval(Source::from_bytes("f('y')")).unwrap().to_string(&mut context).unwrap().to_std_string_escaped(), "y1");
+    });
+}
+
+#[test]
+fn hot_loop_enters_compiled_code_mid_call() {
+    with_mode(JitMode::On, || {
+        let mut context = Context::default();
+        let code = code_of(&mut context, SUM);
+        let r = context.eval(Source::from_bytes("sum(100000)")).unwrap();
+        assert_eq!(code.jit.state(), TierState::Compiled);
+        assert_eq!(code.jit.calls(), 1);
+        // Same result as a fully interpreted run.
+        let expected = with_mode(JitMode::Off, || {
+            let mut c = Context::default();
+            c.eval(Source::from_bytes(&format!("{SUM}; sum(100000)"))).unwrap()
+        });
+        assert_eq!(r, expected);
+    });
+}
+
+#[test]
+fn loop_limit_still_applies_in_compiled_loops() {
+    with_mode(JitMode::Always, || {
+        let mut context = Context::default();
+        context.runtime_limits_mut().set_loop_iteration_limit(1000);
+        let code = code_of(&mut context, "function spin(n) { let c = 0; while (c < n) c++; return c; } spin");
+        assert_eq!(context.eval(Source::from_bytes("spin(500)")).unwrap(), JsValue::new(500));
+        assert_eq!(code.jit.state(), TierState::Compiled);
+        assert!(context.eval(Source::from_bytes("spin(5000)")).is_err());
+    });
 }

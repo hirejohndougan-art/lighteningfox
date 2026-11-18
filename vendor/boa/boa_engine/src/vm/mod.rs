@@ -174,6 +174,17 @@ impl Stack {
         None
     }
 
+    /// Ironswift change (baseline JIT): raw pointers to the frame's registers and arguments
+    /// and the argument count. Valid until the stack next grows or shrinks.
+    #[cfg(feature = "jit")]
+    pub(crate) fn jit_pointers(&mut self, frame: &CallFrame) -> (*mut JsValue, *const JsValue, usize) {
+        let args = frame.arguments_range();
+        let argc = args.len();
+        let base = self.stack.as_mut_ptr();
+        // SAFETY: `rp` and the argument range are inside the stack for a live frame.
+        unsafe { (base.add(frame.rp as usize), base.add(args.start).cast_const(), argc) }
+    }
+
     /// Get the function arguments of the given frame.
     pub(crate) fn get_arguments(&self, frame: &CallFrame) -> &[JsValue] {
         &self.stack[frame.arguments_range()]

@@ -11,8 +11,11 @@
 compile_error!("the baseline JIT reads NaN-boxed values; build without `jsvalue-enum`");
 
 mod backend;
+mod compiler;
 mod counters;
+mod helpers;
 mod mode;
+mod runtime;
 mod support;
 
 #[cfg(test)]
@@ -23,6 +26,7 @@ pub(crate) use counters::JitCounters;
 pub use counters::TierState;
 pub use mode::{JitMode, mode, set_mode};
 pub use support::Rejection;
+pub(crate) use runtime::enter;
 
 use crate::vm::CodeBlock;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -62,8 +66,8 @@ pub fn stats() -> JitStats {
 
 /// Called by the VM when a code block's call or loop counter crosses its threshold.
 ///
-/// Runs at most once per code block: it scans the bytecode and records whether the first
-/// compiler could take it. (J2 compiles eligible blocks here.)
+/// Runs at most once per code block: it scans the bytecode and compiles it if the first
+/// compiler can take it.
 #[cold]
 #[inline(never)]
 pub(crate) fn tier_up(code: &CodeBlock) {
@@ -75,6 +79,7 @@ pub(crate) fn tier_up(code: &CodeBlock) {
         Ok(()) => {
             ELIGIBLE.fetch_add(1, Ordering::Relaxed);
             code.jit.set_state(TierState::Eligible);
+            runtime::compile(code);
         }
         Err(rejection) => {
             REJECTED.fetch_add(1, Ordering::Relaxed);

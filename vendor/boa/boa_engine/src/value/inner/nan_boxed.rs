@@ -395,6 +395,23 @@ impl Clone for NanBoxedValue {
     }
 }
 
+// Ironswift change: raw bits for the baseline JIT (src/jit/), which reads and writes
+// registers as 64-bit words.
+#[cfg(feature = "jit")]
+impl NanBoxedValue {
+    #[inline(always)]
+    pub(crate) fn jit_bits(&self) -> u64 {
+        self.value()
+    }
+
+    /// # Safety
+    /// `bits` must be a number, boolean, `null` or `undefined` (no pointer kinds).
+    #[inline(always)]
+    pub(crate) const unsafe fn jit_from_bits(bits: u64) -> Self {
+        Self::from_inner_unchecked(bits)
+    }
+}
+
 impl NanBoxedValue {
     /// Creates a new `NanBoxedValue` from an u64 value without checking the validity
     /// of the value.
