@@ -1000,3 +1000,48 @@ fn webgl2_srgb_clear_and_blit() {
     );
     assert_eq!(r.trim_matches('"'), "188,128,0,true,true");
 }
+
+/// Multisampled renderbuffers: the one supported sample count, completeness, no direct
+/// readPixels, resolve by blit; renderbuffer depth starts at 1.
+#[test]
+fn webgl2_multisample_renderbuffers() {
+    let _serial = serial();
+    let mut page = open("tests/observers.html");
+    let r = eval(
+        &mut page,
+        r##"(() => {
+            const out = [];
+            const gl = document.createElement("canvas").getContext("webgl2");
+            out.push(Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA8, gl.SAMPLES)).join(" "),
+                     gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA8UI, gl.SAMPLES).length,
+                     gl.getParameter(gl.MAX_SAMPLES));
+            const rb = gl.createRenderbuffer();
+            gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+            gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 2, gl.RGBA8, 2, 2);
+            out.push(gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_SAMPLES));
+            gl.renderbufferStorageMultisample(gl.RENDERBUFFER, 1, gl.DEPTH_STENCIL, 2, 2);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            const ms = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, ms);
+            gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, rb);
+            const d = gl.createRenderbuffer();
+            gl.bindRenderbuffer(gl.RENDERBUFFER, d);
+            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 2, 2);
+            gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, d);
+            out.push(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_INCOMPLETE_MULTISAMPLE);
+            gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, null);
+            gl.clearColor(0, 1, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            const px = new Uint8Array(4);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            out.push(gl.getError() === gl.INVALID_OPERATION);
+            gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+            gl.blitFramebuffer(0, 0, 2, 2, 0, 0, 2, 2, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+            out.push(Array.from(px).join(" "), gl.getError());
+            return out.join(",");
+        })()"##,
+    );
+    assert_eq!(r.trim_matches('"'), "4,0,4,4,true,true,true,0 255 0 255,0");
+}

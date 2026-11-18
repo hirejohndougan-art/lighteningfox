@@ -31,6 +31,9 @@ const INVALID_FRAMEBUFFER_OPERATION: u32 = 0x506;
 const DEPTH_BUFFER_BIT: u32 = 0x100;
 const STENCIL_BUFFER_BIT: u32 = 0x400;
 const COLOR_BUFFER_BIT: u32 = 0x4000;
+/// The one sample count multisampled renderbuffers report (they draw single-sampled).
+const MAX_SAMPLES: u32 = 4;
+const FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: u32 = 0x8D56;
 const ARRAY_BUFFER: u32 = 0x8892;
 const ELEMENT_ARRAY_BUFFER: u32 = 0x8893;
 const COPY_READ_BUFFER: u32 = 0x8F36;
@@ -551,6 +554,16 @@ impl Gl {
         }
     }
 
+    fn samples_of(&self, a: &Att) -> u32 {
+        match a {
+            Att::Rbo(id) => match self.objs.get(id) {
+                Some(Obj::Rbo(r)) => r.samples,
+                _ => 0,
+            },
+            Att::Tex { .. } => 0,
+        }
+    }
+
     fn fbo_status(&self, id: u32) -> u32 {
         let Some(f) = self.fbo(id) else { return FRAMEBUFFER_COMPLETE };
         let mut size: Option<(u32, u32)> = None;
@@ -594,6 +607,13 @@ impl Gl {
         }
         if !any {
             return FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
+        }
+        // Every attachment must have the same number of samples.
+        let mut counts = f.color.iter().flatten().chain(f.depth.iter()).chain(f.stencil.iter()).map(|a| self.samples_of(a));
+        if let Some(first) = counts.next() {
+            if counts.any(|c| c != first) {
+                return FRAMEBUFFER_INCOMPLETE_MULTISAMPLE;
+            }
         }
         if !self.v2 && f.depth.is_some() && f.stencil.is_some() && f.depth != f.stencil {
             return FRAMEBUFFER_UNSUPPORTED;
@@ -1535,6 +1555,10 @@ impl Gl {
                 self.error(INVALID_OPERATION);
                 return None;
             };
+            if self.samples_of(&a) > 0 {
+                self.error(INVALID_OPERATION);
+                return None;
+            }
             let img = self.att_image(&a)?;
             (img, img.w, img.h)
         };
@@ -1865,6 +1889,7 @@ pub fn install(ctx: &mut Context) {
         ("__glGetIndexed", 3, n_get_indexed),
         ("__glTfPrimitives", 1, n_tf_primitives),
         ("__glBufState", 7, n_buf_state),
+        ("__glInternalformatSamples", 3, n_internalformat_samples),
         ("__glBindFramebuffer", 3, n_bind_framebuffer),
         ("__glFramebufferTexture", 7, n_framebuffer_texture),
         ("__glFramebufferRenderbuffer", 4, n_framebuffer_renderbuffer),
@@ -4006,7 +4031,7 @@ fn n_get_parameter(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<Js
             0x9125 if v2 => n(60),
             0x9111 if v2 => n(0),
             0x8D6B if v2 => P::N(u32::MAX as f64),
-            0x8D57 if v2 => n(1),
+            0x8D57 if v2 => n(MAX_SAMPLES),
             0x8A2B | 0x8A2D if v2 => n(12),
             0x8A2E if v2 => n(24),
             0x8A2F if v2 => n(MAX_UNIFORM_BINDINGS as u32),
@@ -4591,10 +4616,17 @@ fn n_renderbuffer_storage(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRe
             _ => tex::sized_format(internal, v2).filter(|f| v2 || matches!(f.internal, e::RGBA32F | e::RGBA16F | e::RGB16F | e::SRGB8_ALPHA8)),
         };
         let Some(fmt) = fmt else { return gl.error(INVALID_ENUM) };
-        if v2 && fmt.is_integer() && samples > 0 {
+        // WebGL 1's DEPTH_STENCIL alias isn't multisampled; integer formats have no samples.
+        if v2 && samples > 0 && (fmt.is_integer() || internal == DEPTH_STENCIL || samples as u32 > MAX_SAMPLES) {
             return gl.error(INVALID_OPERATION);
         }
-        let img = Image::new(w as u32, h as u32, 1, fmt, v2);
+        // Samples round up to the one supported count (drawing itself is single-sampled).
+        let samples = if samples > 0 { MAX_SAMPLES as i32 } else { 0 };
+        let mut img = Image::new(w as u32, h as u32, 1, fmt, v2);
+        if fmt.depth {
+            // Renderbuffers start at the default clear values: depth 1.
+            img.px.iter_mut().for_each(|p| p[0] = 1.0);
+        }
         let id = gl.rbo;
         if let Some(Obj::Rbo(r)) = gl.objs.get_mut(&id) {
             r.img = Some(img);
@@ -4603,6 +4635,22 @@ fn n_renderbuffer_storage(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsRe
         }
     });
     undef()
+}
+
+/// __glInternalformatSamples(cid, target, internal): the sample counts for a format as a
+/// count (0 or 1: the one supported count is MAX_SAMPLES), or -1 after INVALID_ENUM.
+fn n_internalformat_samples(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
+    let (target, internal) = (u(a, 1, ctx), u(a, 2, ctx));
+    let r = with_gl(a, ctx, |gl| {
+        let fmt = tex::sized_format(internal, true).filter(|f| f.internal == internal);
+        let ok = target == RENDERBUFFER && fmt.is_some_and(|f| f.color_renderable(true) || f.depth || f.stencil);
+        if !ok {
+            gl.error(INVALID_ENUM);
+            return -1;
+        }
+        if fmt.is_some_and(|f| f.is_integer()) { 0 } else { 1 }
+    });
+    Ok(JsValue::from(r.unwrap_or(-1)))
 }
 
 fn n_get_renderbuffer_param(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {

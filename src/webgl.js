@@ -697,7 +697,12 @@
   P.renderbufferStorage = function (t, f, w, h) { __glRenderbufferStorage(this.__cid, t, 0, f, w, h); };
   P.renderbufferStorageMultisample = function (t, s, f, w, h) { __glRenderbufferStorage(this.__cid, t, s, f, w, h); };
   P.getRenderbufferParameter = function (t, p) { return __glGetRenderbufferParam(this.__cid, t, p); };
-  P.getInternalformatParameter = function (t, f, p) { return p === 0x80a9 ? new Int32Array([]) : null; };
+  P.getInternalformatParameter = function (t, f, p) {
+    if (p !== 0x80a9 && p !== 0x9380) return this.__err(0x500), null; // SAMPLES, NUM_SAMPLE_COUNTS
+    const n = __glInternalformatSamples(this.__cid, t, f);
+    if (n < 0) return null;
+    return p === 0x80a9 ? new Int32Array(n ? [4] : []) : n;
+  };
   P.drawBuffers = function (b) { __glDrawBuffers(this.__cid, Array.from(b)); };
   P.readBuffer = function (s) { __glReadBuffer(this.__cid, s); };
   P.blitFramebuffer = function (...a) { __glBlitFramebuffer(this.__cid, ...a); };

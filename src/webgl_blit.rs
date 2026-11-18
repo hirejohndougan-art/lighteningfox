@@ -119,7 +119,7 @@ impl Gl {
                     if *dspot == spot {
                         return self.error(INVALID_OPERATION);
                     }
-                    if src_samples > 0 && (df.internal != sf.internal || !same_rects) {
+                    if src_samples > 0 && (sized(df) != sized(&sf) || !same_rects) {
                         return self.error(INVALID_OPERATION);
                     }
                 }
@@ -221,6 +221,15 @@ impl Gl {
         let img = self.att_image(&a)?;
         let n = (img.w * img.h) as usize;
         Some((if img.st.len() >= n { img.st[..n].to_vec() } else { vec![0; n] }, img.w, img.h))
+    }
+}
+
+/// The sized format of an unsized byte format (the default framebuffer is RGBA or RGB).
+fn sized(f: &Fmt) -> u32 {
+    match f.internal {
+        tex::e::RGBA => tex::e::RGBA8,
+        tex::e::RGB => tex::e::RGB8,
+        i => i,
     }
 }
 
