@@ -52,6 +52,10 @@ foldhash = "0.2"
 
 # WebAssembly (src/wasm/): the wasmi interpreter; why not wasmtime is in docs/ARCHITECTURE.md.
 wasmi = { version = "2", default-features = false, features = ["std", "validate", "simd", "memory64", "auto-dispatch"] }
+# Lowering atomic instructions in modules without shared memory (src/wasm/atomics.rs); the
+# same wasmparser release wasmi uses, and the wasm-encoder that pairs with it.
+wasmparser = "0.228"
+wasm-encoder = { version = "0.228", features = ["wasmparser"] }
 
 # Linux only: screen readers over AT-SPI and the location service (GeoClue), both on D-Bus.
 [target.'cfg(target_os = "linux")'.dependencies]

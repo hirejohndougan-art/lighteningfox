@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- CanvasKit (canvaskit-wasm, Emscripten, 2026-11): start-up runs
+     new TextDecoder("utf-16le") and failed with "Unsupported encoding". TextDecoder must know
+     every WHATWG encoding. -->
+<html><head><title>utf-16 TextDecoder</title></head>
+<body><pre id="out"></pre>
+<script>
+const out = [];
+try {
+  const d = new TextDecoder("utf-16le");
+  out.push(d.encoding, d.decode(new Uint8Array([0x57, 0, 0x61, 0, 0x73, 0, 0x6d, 0])));
+  out.push(new TextDecoder("utf-16be").decode(new Uint8Array([0, 0x4f, 0, 0x4b])));
+  out.push(new TextDecoder("euc-kr").encoding);
+} catch (err) {
+  out.push("error " + err);
+}
+document.getElementById("out").textContent = out.join(",");
+</script></body></html>

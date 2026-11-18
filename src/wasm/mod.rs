@@ -13,6 +13,7 @@
 //! wasm `Caller` it was given stands in for the store (`CALLERS`), and the script engine the
 //! outermost call came from is reached through `CONTEXTS`.
 
+mod atomics;
 mod objects;
 mod values;
 // Streaming, `.wasm` ES modules, CSP and postMessage (task P1c).
@@ -277,7 +278,9 @@ fn n_errors(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> 
 fn n_validate(_: &JsValue, a: &[JsValue], ctx: &mut Context) -> JsResult<JsValue> {
     let bytes = bytes_arg(a, ctx)?;
     let st = state(ctx);
-    Ok(Module::validate(&st.engine, &bytes).is_ok().into())
+    let ok = Module::validate(&st.engine, &bytes).is_ok()
+        || atomics::lower(&bytes).is_some_and(|b| Module::validate(&st.engine, &b).is_ok());
+    Ok(ok.into())
 }
 
 /// __wasmCompile(bytes) -> module id; throws a CompileError (also when the page's CSP
@@ -294,7 +297,11 @@ fn compile_bytes(ctx: &mut Context, bytes: Arc<[u8]>) -> JsResult<usize> {
     let st = state(ctx);
     let module = match Module::new(&st.engine, &bytes) {
         Ok(m) => m,
-        Err(e) => return Err(throw(ctx, &st, Kind::Compile, &e.to_string())),
+        // Atomics with no shared memory: rewritten to plain instructions (atomics.rs).
+        Err(e) => match atomics::lower(&bytes).map(|b| Module::new(&st.engine, &b)) {
+            Some(Ok(m)) => m,
+            _ => return Err(throw(ctx, &st, Kind::Compile, &e.to_string())),
+        },
     };
     let exports = values::exports_in_order(&bytes);
     let imports = values::imports_in_order(&bytes);

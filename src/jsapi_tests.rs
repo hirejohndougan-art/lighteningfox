@@ -1374,3 +1374,26 @@ fn inner_html_uses_its_element_as_context() {
     let _page = open("tests/sites/innerhtml-context.html");
     assert_eq!(text_of("out"), "TR2|TD|1<tr><td>c</td></tr>|d");
 }
+
+// Causes found running WebAssembly apps and WPT wasm/ (task P1d); each page says where from.
+
+#[test]
+fn wasm_atomics_without_shared_memory() {
+    let _serial = serial();
+    let _page = open("tests/sites/wasm-atomics.html");
+    assert_eq!(text_of("out"), "true,40,42,255,263,7,263,0,5,42,0,false");
+}
+
+#[test]
+fn text_decoder_knows_utf16() {
+    let _serial = serial();
+    let _page = open("tests/sites/emscripten-utf16.html");
+    assert_eq!(text_of("out"), "utf-16le,Wasm,OK,euc-kr");
+}
+
+#[test]
+fn function_sees_a_later_scripts_let() {
+    let _serial = serial();
+    let _page = open("tests/sites/global-let-later.html");
+    assert_eq!(text_of("out"), "number:7");
+}

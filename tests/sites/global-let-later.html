@@ -1,0 +1,10 @@
+<!doctype html>
+<!-- WPT wasm/jsapi (2026-11): instanceTestFactory.js defines functions that read
+     emptyModuleBinary, a top-level `let` in the test file loaded after it. A function must see
+     a global let/const that a later script declares. -->
+<html><head><title>later global let</title></head>
+<body><pre id="out"></pre>
+<script>function readLater() { return typeof later + ":" + later; }</script>
+<script>let later = 7;</script>
+<script>document.getElementById("out").textContent = readLater();</script>
+</body></html>
