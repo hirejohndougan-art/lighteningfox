@@ -188,3 +188,11 @@ entered from `function_call` and `IncrementLoopIteration`. Small `jit`-only acce
 every operator over edge values; the 1,116 engine tests pass with `BOA_JIT=always`. Number
 loops 2.9× faster; V8 suite unchanged (`docs/boa-speed.md`).
 
+
+### boa_engine: storing an array's `length` isn't cached (`src/builtins/array/mod.rs`)
+
+`a.length = 0` goes through ArraySetLength, which deletes elements. The named-store inline
+cache recorded it as a plain slot write, so from the second run of the same code on, only the
+`length` slot changed: the elements stayed, and `a[0] = x` then overwrote one in place while
+`length` stayed 0. Apollo's cache (`optimism`) empties its value arrays this way and threw
+"unknown value" on NYT. Array `length` stores are now marked not cacheable (reads still are).

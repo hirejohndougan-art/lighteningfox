@@ -3457,6 +3457,10 @@ fn array_exotic_define_own_property(
         PropertyKey::String(s) if s == &StaticJsStrings::LENGTH => {
             // a. Return ? ArraySetLength(A, Desc).
 
+            // Ironswift: setting "length" may delete elements, so a cached store that only
+            // writes the slot (set_by_name's inline cache) would leave them behind:
+            // `a.length = 0; a[0] = x` then kept length 0 on the second run (Apollo's cache).
+            context.slot().attributes |= crate::object::shape::slot::SlotAttributes::NOT_CACHEABLE;
             array_set_length(obj, desc, context)
         }
         // 3. Else if P is an array index, then

@@ -1440,3 +1440,11 @@ fn dom_collections_have_their_own_prototypes() {
     let _page = open("tests/sites/dom-collections.html");
     assert_eq!(text_of("out"), "[object Array]|true|true|true|true|function");
 }
+
+/// NYT (Apollo): `a.length = 0` then `a[0] = x`, run more than once, keeps length right.
+#[test]
+fn array_length_store_in_a_loop() {
+    let _serial = serial();
+    let _page = open("tests/sites/array-length-loop.html");
+    assert_eq!(text_of("out"), "-1|1|49|[2]");
+}

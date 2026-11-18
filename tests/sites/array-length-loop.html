@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- NYT (2026-11): Apollo's cache empties an array with `a.length = 0` and then sets a[0].
+     From the second time the same code ran, the store to length was taken from an inline
+     cache that only wrote the length, so the old elements stayed and length stayed 0
+     ("Error fetching personalized packages: Error: unknown value"). -->
+<html><head><title>array length in a loop</title></head>
+<body><p id="out"></p>
+<script>
+const box = { value: [7] };
+function recompute(e, f) { e.value.length = 0; try { e.value[0] = f(); } catch (x) { e.value[1] = x; } }
+let firstBad = -1;
+for (let i = 0; i < 50; i++) { recompute(box, () => i); if (box.value.length !== 1 && firstBad < 0) firstBad = i; }
+const b = [1, 2, 3];
+for (let i = 0; i < 3; i++) { b.length = 0; b.push(i); }
+document.getElementById("out").textContent = [firstBad, box.value.length, box.value[0], JSON.stringify(b)].join("|");
+</script></body></html>
