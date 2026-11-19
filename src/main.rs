@@ -5146,7 +5146,7 @@ mod screenshot_tests {
         for (url, width) in PAGES {
             let name = url.trim_start_matches("tests/").trim_end_matches(".html").replace([':', '/'], "-");
             let reference = format!("tests/reference/{name}.png");
-            let (_, _, canvas) = render_page(fonts, url, *width);
+            let (_page, _, canvas) = render_page(fonts, url, *width);
             if update || !std::path::Path::new(&reference).exists() {
                 save_png(&canvas, &reference).unwrap();
                 log!("approved {reference}");
@@ -5168,7 +5168,20 @@ mod screenshot_tests {
                 .count();
             let share = differing as f64 / (rw * rh) as f64;
             if share > 0.001 {
-                failures.push(format!("{url}: {differing} pixels differ ({:.2}%), see {actual}", share * 100.0));
+                // The page's text too, so a CI log shows what changed without the image (a
+                // line of a test page's results is often the whole difference).
+                let text = js::with_dom(|d| {
+                    let body = d.descendants(dom::Dom::ROOT).into_iter().find(|&n| d.tag(n) == Some("body"));
+                    let kids = body.map(|b| d.nodes[b].children.clone()).unwrap_or_default();
+                    kids.into_iter()
+                        .filter(|&n| !matches!(d.tag(n), Some("script" | "style")))
+                        .map(|n| d.text_content(n))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                });
+                let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                let text: String = text.chars().take(1500).collect();
+                failures.push(format!("{url}: {differing} pixels differ ({:.2}%), see {actual}\n  text: {text}", share * 100.0));
             }
         }
         assert!(failures.is_empty(), "screenshot mismatches:\n{}", failures.join("\n"));
