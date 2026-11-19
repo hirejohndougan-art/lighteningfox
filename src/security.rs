@@ -567,9 +567,21 @@ impl Sandbox {
 
 // ---------------------------------------------------------------- fingerprinting
 
+#[cfg(test)]
+thread_local! {
+    /// Tests that read pixels back expect exact values, but the session seed is random, so a
+    /// noised value (about one in a hundred) landed on a checked pixel in about one test run in
+    /// ten (X32). Page readouts in tests get no noise unless a test turns it on for its thread.
+    pub static TEST_NOISE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// A per-site, per-session number for fingerprinting noise (0 when protection is off).
 pub fn fingerprint_seed(top: &str) -> u32 {
     if !crate::settings::get().resist_fingerprinting {
+        return 0;
+    }
+    #[cfg(test)]
+    if !TEST_NOISE.with(std::cell::Cell::get) {
         return 0;
     }
     use std::hash::{Hash, Hasher};

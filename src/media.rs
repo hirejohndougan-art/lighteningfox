@@ -1270,6 +1270,8 @@ mod page_tests {
         // SAFETY: tests only read this variable; every test sets the same kind of value.
         unsafe { std::env::set_var("IRONSWIFT_PROFILE", &profile) };
         crate::load_fonts().expect("fonts");
+        // This test checks the noise itself: turn it on for this thread (X32).
+        crate::security::TEST_NOISE.with(|n| n.set(true));
         let url = crate::net::normalize_input("tests/webaudio.html");
         let mut page = crate::load(&url);
         let js = page.js.as_mut().expect("scripts");
