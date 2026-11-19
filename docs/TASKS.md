@@ -689,6 +689,16 @@ Added at John's request. `jsapi_tests::webgl2_pixel_buffers_and_layers` (and in 
 `BOA_JIT=always`. Alone the tests pass. Find the source of the nondeterminism and fix it in
 the engine.
 
+### X33. Speed: the slowdowns perf_check shows against its baselines
+**Status:** claimed by chat-wasm-1 2026-11-19 01:50
+**After:** —
+**Checklist:** none
+**Files:** to be found (profiling)
+Added at John's request ("continue to do optimizations"). perf_check.py on 2026-11-19, now vs
+baseline (ms): render tests/real-world/react.html 290 vs 167, DOM create+append 2000 nodes 102
+vs 30, startup 154 vs 116; DOM tree walks (parentNode/firstElementChild 100k: 145) are slow in
+absolute terms. Profile, fix in the engine, keep every other check within its limit.
+
 ## Review and cleanup of the overnight work
 
 ### R1. Re-run the official test suites
