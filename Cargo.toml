@@ -65,6 +65,10 @@ zbus = { version = "5.19", default-features = false, features = ["async-io", "bl
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[build-dependencies]
+# The Windows app icon in ironswift.exe (build.rs).
+winresource = "0.1"
+
 [dev-dependencies]
 # WebAssembly tests write their modules as text (src/wasm/tests.rs).
 wat = "1"

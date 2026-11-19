@@ -116,6 +116,14 @@ jobs:
         run: powershell -ExecutionPolicy Bypass -File tools/windows_smoke.ps1
       - name: Unit tests that don't depend on Linux fonts
         run: cargo test --release --bin ironswift -- --skip screenshot --skip text_shaping --skip page_tests
+      - name: The app icon is in ironswift.exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # build.rs embeds the icon and the version info together; if the product name is
+        # there, so is the icon (the build only warns when it can't embed them).
+        run: |
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("$PWD\target\release\ironswift.exe")
+          if ($info.ProductName -ne "Ironswift") { throw "no version info or icon in ironswift.exe (product name: '$($info.ProductName)')" }
       - name: The JIT on this platform
         shell: bash
         env:
