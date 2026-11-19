@@ -426,7 +426,18 @@
       return root;
     }
     get shadowRoot() { return wrap(__shadowRoot(this.__id)); }
-    get content() { return this.localName === "template" ? wrap(__templateContent(this.__id)) : undefined; }
+    // <template>'s fragment (read-only) and <meta>'s attribute. Other elements have no
+    // `content`: setting it makes an ordinary property, as in other browsers (a getter alone
+    // here made `el.content = x` throw in strict code, which broke GitHub's React views).
+    get content() {
+      if (this.localName === "template") return wrap(__templateContent(this.__id));
+      if (this.localName === "meta") return this.getAttribute("content") ?? "";
+      return undefined;
+    }
+    set content(v) {
+      if (this.localName === "meta") this.setAttribute("content", String(v));
+      else if (this.localName !== "template") Object.defineProperty(this, "content", { value: v, writable: true, enumerable: true, configurable: true });
+    }
     getRootNode(opts) {
       let n = this;
       for (;;) {
