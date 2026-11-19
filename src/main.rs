@@ -19,6 +19,7 @@ mod a11y_remote;
 mod js_jit;
 mod dialog;
 mod shm;
+mod warm_threads;
 mod clicks;
 mod mcp;
 mod cookies;

@@ -133,7 +133,8 @@ pub fn start(s: Start) -> bool {
     if let Ok(mut w) = WORKERS.lock() {
         w.insert((s.epoch, s.id), Handle { tx, pending: pending.clone(), active: active.clone() });
     }
-    let spawned = std::thread::Builder::new().name("worker".into()).stack_size(64 << 20).spawn(move || {
+    // A kept worker thread when there is one: its compiled scripts are cached (warm_threads.rs).
+    let spawned = crate::warm_threads::spawn("worker", 64 << 20, move || {
         let (epoch, id) = (s.epoch, s.id);
         SELF.with(|c| c.set(Some((epoch, id))));
         let error = |msg: &str| push(epoch, format!("__workerEvent({id},\"error\",{},{},0)", js_str(msg), js_str(&s.url)));
@@ -207,8 +208,10 @@ pub fn start(s: Start) -> bool {
         if let Ok(mut w) = WORKERS.lock() {
             w.remove(&(epoch, id));
         }
+        // The thread may be kept for another worker.
+        SELF.with(|c| c.set(None));
     });
-    spawned.is_ok()
+    spawned
 }
 
 /// Fetch a worker script or an importScripts() script: it must load (2xx) and, from a web

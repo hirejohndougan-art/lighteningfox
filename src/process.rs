@@ -954,7 +954,8 @@ pub fn serve(site: &str) {
                     let job = FrameJob { src: FrameSrc::Url(url.clone()), w, h, parent: url.clone(), top: url, sandbox: None, reply, top_level: true };
                     let (etx, erx) = channel();
                     pages.insert(id, etx);
-                    let _ = std::thread::Builder::new().name("page".into()).stack_size(crate::MAIN_STACK).spawn(move || {
+                    // A kept thread when there is one: its compiled scripts are cached.
+                    let _ = crate::warm_threads::spawn("page", crate::MAIN_STACK, move || {
                         let send = |u: Update| {
                             let mut m = Vec::new();
                             // A picture goes through shared memory when there's a free slot.
@@ -971,7 +972,7 @@ pub fn serve(site: &str) {
                             m.extend(u.encode());
                             send_out(&m)
                         };
-                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::frames::run_host(job, erx, send)));
+                        crate::frames::run_host(job, erx, send);
                     });
                 }
                 b"event" => {
