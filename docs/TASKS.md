@@ -670,7 +670,16 @@ off. Find the change that slowed it and fix it in the engine; the rest of the sp
 stay within its limits.
 
 ### X32. WebGL2 pixel tests intermittently off by one
-**Status:** claimed by chat-wasm-1 2026-11-18 17:45
+**Status:** done
+**Result:** not WebGL: anti-fingerprinting noise. Canvas and WebGL readouts move about one
+value in a hundred by one, at positions from a random per-session seed (`security::
+fingerprint_seed`, on by default), so in roughly one test process in ten a nudged value hit a
+pixel a test checks, and every pixel test in that process failed together. In test builds,
+page readouts now get noise only on threads that set `security::TEST_NOISE`;
+`web_audio_readouts`, which checks the noise, sets it. New `src/webgl_noise_tests.rs`: WebGL
+readouts get noise with it on (within one step, the same on every read) and are exact without
+it. `cargo test webgl`: 0 failures in 20 runs (1 in 12 before). Product behaviour unchanged.
+**Left undone:** nothing.
 **After:** —
 **Checklist:** none
 **Files:** `src/webgl*.rs` (to be found)
