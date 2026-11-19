@@ -9,7 +9,7 @@
 use crate::dom::NodeId;
 use crate::images::Images;
 use boa_engine::object::builtins::{JsArray, JsFloat64Array, JsUint8ClampedArray};
-use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction, Source};
+use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use tiny_skia::{
@@ -74,10 +74,10 @@ pub fn install(ctx: &mut Context) {
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register canvas native");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("dommatrix.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("dommatrix.js").as_bytes()) {
         log!("[ironswift] DOMMatrix setup failed: {e}");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("canvas.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("canvas.js").as_bytes()) {
         log!("[ironswift] canvas setup failed: {e}");
     }
     // WebGL contexts come from the same getContext().

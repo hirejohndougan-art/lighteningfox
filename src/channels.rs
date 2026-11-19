@@ -35,11 +35,11 @@ pub fn install(ctx: &mut Context) {
         let _ = ctx.eval(Source::from_bytes(b"globalThis.__isWorker = true;"));
     }
     for (name, code) in [("structured clone", CLONE), ("workers and sockets", CHANNELS)] {
-        if let Err(e) = ctx.eval(Source::from_bytes(code.as_bytes())) {
+        if let Err(e) = ctx.eval_cached(code.as_bytes()) {
             log!("[ironswift] {name} setup failed: {e}");
         }
     }
-    if worker && let Err(e) = ctx.eval(Source::from_bytes(WORKER_SCOPE.as_bytes())) {
+    if worker && let Err(e) = ctx.eval_cached(WORKER_SCOPE.as_bytes()) {
         log!("[ironswift] worker scope setup failed: {e}");
     }
 }

@@ -17,7 +17,7 @@ use crate::webgl_raster::{g, Attr, AttrSrc, BufState, Pipeline, RState, StencilF
 use crate::webgl_tf::{Tf, TfVar};
 use crate::webgl_tex::{self as tex, e, Fmt, Image, Num, Sampler, TexParams, Texture, Unpack, UnitView};
 use boa_engine::object::builtins::{JsArray, JsArrayBuffer, JsDataView, JsFloat32Array, JsInt32Array, JsSharedArrayBuffer, JsTypedArray, JsUint32Array};
-use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction, Source};
+use boa_engine::{js_string, Context, JsResult, JsString, JsValue, NativeFunction};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -1996,7 +1996,7 @@ pub fn install(ctx: &mut Context) {
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register webgl native");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("webgl.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("webgl.js").as_bytes()) {
         log!("[ironswift] WebGL setup failed: {e}");
     }
 }

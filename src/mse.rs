@@ -14,7 +14,7 @@
 //! doesn't decode from the start.
 
 use boa_engine::object::builtins::{JsArray, JsUint8Array};
-use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction, Source};
+use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -1209,7 +1209,7 @@ pub fn install(ctx: &mut Context) {
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register mse native");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("mse.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("mse.js").as_bytes()) {
         log!("[ironswift] Media Source Extensions setup failed: {e}");
     }
 }

@@ -4,7 +4,7 @@
 //! Loaded pixels go to the canvas store, where drawImage and WebGL's texImage2D find them.
 
 use boa_engine::object::builtins::JsArray;
-use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction, Source};
+use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction};
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -24,7 +24,7 @@ pub fn install(ctx: &mut Context) {
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register image native");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("img.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("img.js").as_bytes()) {
         log!("[ironswift] image loading setup failed: {e}");
     }
 }

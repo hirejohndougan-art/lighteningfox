@@ -184,6 +184,15 @@ pub fn stats() -> (u64, u64, usize) {
         .unwrap_or_default()
 }
 
+/// Whether compiled code for `source` is cached on this thread (tests: that a script goes
+/// through the cache at all).
+#[must_use]
+pub fn contains(source: &[u8]) -> bool {
+    CACHE
+        .try_with(|c| c.borrow().map.get(&key(source)).is_some_and(|l| l.iter().any(|e| *e.source == *source)))
+        .unwrap_or(false)
+}
+
 /// Drops every cached script on this thread (for memory pressure).
 pub fn clear() {
     let _ = CACHE.try_with(|c| {

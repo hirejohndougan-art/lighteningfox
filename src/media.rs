@@ -20,7 +20,7 @@
 use crate::dom::NodeId;
 use crate::images::Images;
 use boa_engine::object::builtins::JsArray;
-use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction, Source};
+use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -621,11 +621,11 @@ pub fn install(ctx: &mut Context) {
     for (name, len, f) in natives {
         ctx.register_global_callable(JsString::from(*name), *len, NativeFunction::from_fn_ptr(*f)).expect("register media native");
     }
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("media.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("media.js").as_bytes()) {
         log!("[ironswift] media setup failed: {e}");
     }
     // Web Audio (built and measured in JavaScript; readouts carry fingerprinting noise).
-    if let Err(e) = ctx.eval(Source::from_bytes(include_str!("webaudio.js").as_bytes())) {
+    if let Err(e) = ctx.eval_cached(include_str!("webaudio.js").as_bytes()) {
         log!("[ironswift] Web Audio setup failed: {e}");
     }
     crate::mse::install(ctx);

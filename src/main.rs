@@ -110,6 +110,8 @@ mod reload_tests;
 #[cfg(test)]
 mod content_prop_tests;
 #[cfg(test)]
+mod js_setup_cache_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;
