@@ -1815,10 +1815,13 @@ pub mod isolated {
             .arg(site)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| log!("[frames] couldn't start the frame process for {site}: {e}"))
             .ok()?;
+        if let Some(err) = child.stderr.take() {
+            crate::process::relay_stderr(err, site);
+        }
         let stdin = child.stdin.take()?;
         let mut stdout = child.stdout.take()?;
         let key = NEXT_PROC.fetch_add(1, Ordering::SeqCst);

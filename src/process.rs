@@ -259,7 +259,7 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     let _ = crate::sysfonts::index();
     let exe = std::env::current_exe().ok()?;
     let mut cmd = std::process::Command::new(exe);
-    cmd.arg("--site-renderer").arg(site).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::inherit());
+    cmd.arg("--site-renderer").arg(site).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     // A socket for asking the browser to start media decoders (media_broker.rs).
     #[cfg(target_os = "linux")]
     let media = crate::media_broker::pair();
@@ -271,6 +271,9 @@ fn ensure(site: &str) -> Option<(u32, Arc<Mutex<std::process::ChildStdin>>)> {
     let shared = crate::shm::share_with(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| log!("[process] couldn't start the process for {site}: {e}")).ok()?;
     let pictures = shared.map(|(s, _fd)| s);
+    if let Some(err) = child.stderr.take() {
+        relay_stderr(err, site);
+    }
     #[cfg(target_os = "linux")]
     if let Some((mine, _child_end)) = media {
         crate::media_broker::serve(mine, site.to_string());
@@ -488,6 +491,21 @@ fn key_ok(sites: &[String], key: &str) -> bool {
     }
 }
 
+/// A child process's own messages (its log lines, and a panic or "has overflowed its stack"
+/// before it dies) into the browser's log, so about:log shows why a site's process ended. On
+/// Windows the browser has no console, so before this they went nowhere.
+pub(crate) fn relay_stderr(err: std::process::ChildStderr, site: &str) {
+    let site = site.to_string();
+    let _ = std::thread::Builder::new().name(format!("stderr-{site}")).spawn(move || {
+        use std::io::BufRead;
+        for line in std::io::BufReader::new(err).lines().map_while(Result::ok) {
+            if !line.trim().is_empty() {
+                log!("[{site}] {line}");
+            }
+        }
+    });
+}
+
 /// Answer one request from a renderer allowed `auth`.
 pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
     let sites = &auth.sites;
@@ -597,7 +615,9 @@ pub(crate) fn serve_request(auth: &Auth, parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
         }
         // Anything else (or another site's data) is refused.
         _ => {
-            log!("[process] refused a request from the process for {}", sites.join(", "));
+            // Which request (never its arguments: they may hold another site's data).
+            let what = parts.first().map(|k| text(k)).unwrap_or_default();
+            log!("[process] refused a {what:?} request from the process for {}", sites.join(", "));
             Vec::new()
         }
     }
