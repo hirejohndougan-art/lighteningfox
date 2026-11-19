@@ -98,6 +98,8 @@ mod mutation_tests;
 #[cfg(test)]
 mod webgl_noise_tests;
 #[cfg(test)]
+mod edit_keys_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;
@@ -1712,6 +1714,9 @@ fn edit_keys(ed: &mut textedit::TextEdit, keys: &[KeyPress], chars: &[char], ctr
                 ed.move_to(n, shift)
             }
             Key::End => ed.end(shift),
+            // The Enter key itself: the window doesn't pass Enter's "\r" on as typed text.
+            Key::Enter | Key::NumPadEnter if multiline => ed.insert("\n"),
+            Key::Enter | Key::NumPadEnter => enter = true,
             Key::Up if multiline => ed.vertical(false, shift),
             Key::Down if multiline => ed.vertical(true, shift),
             Key::Backspace => ed.backspace(ctrl),
@@ -1733,8 +1738,11 @@ fn edit_keys(ed: &mut textedit::TextEdit, keys: &[KeyPress], chars: &[char], ctr
             _ => {}
         }
     }
+    // A "\r" typed alongside the Enter key (a window that passes both) isn't a second Enter.
+    let enter_key = keys.iter().any(|p| matches!(p.key, Key::Enter | Key::NumPadEnter));
     for &c in chars {
         match c {
+            '\r' | '\n' if enter_key => {}
             '\r' | '\n' if multiline => ed.insert("\n"),
             '\r' | '\n' => enter = true,
             c if !c.is_control() && c != '\u{7f}' && !ctrl_now => ed.insert(c.encode_utf8(&mut [0; 4])),
