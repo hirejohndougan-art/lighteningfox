@@ -4,6 +4,11 @@
 (function () {
   const g = globalThis;
   if (typeof g.CanvasRenderingContext2D === "function") return;
+  // The hidden canvases behind OffscreenCanvas, ImageBitmap and copies. Kept from setup:
+  // a worker loses `document` afterwards (worker_scope.js) but has OffscreenCanvas, and pages
+  // run it there (a "document is not defined" error from dickinsonhistoricalsociety.org).
+  const setupDocument = g.document;
+  const hiddenCanvas = () => setupDocument.createElement("canvas");
 
   const OPS = {
     "source-over": 0, "source-in": 1, "source-out": 2, "source-atop": 3, "destination-over": 4, "destination-in": 5,
@@ -741,7 +746,7 @@
       if (!src) return null;
       // A canvas pattern is a copy of the canvas as it is now.
       if (src[0] === 1) {
-        const copy = document.createElement("canvas");
+        const copy = hiddenCanvas();
         copy.__offscreenSize = [src[2], src[3]];
         getContext.call(copy, "2d").drawImage(img, 0, 0);
         src = [1, String(copy.__id), src[2], src[3]];
@@ -923,7 +928,7 @@
   // OffscreenCanvas: a canvas element that isn't in the document.
   class OffscreenCanvas {
     constructor(w, h) {
-      this.__offscreen = document.createElement("canvas");
+      this.__offscreen = hiddenCanvas();
       this.__offscreen.__offscreenSize = [Math.max(0, w | 0), Math.max(0, h | 0)];
       this.__offscreen.__offscreenOwner = this;
     }
@@ -945,7 +950,7 @@
   // ImageBitmap: a copy of an image's pixels, held in a hidden canvas.
   class ImageBitmap {
     constructor(w, h) {
-      this.__bitmap = document.createElement("canvas");
+      this.__bitmap = hiddenCanvas();
       this.__bitmap.__offscreenSize = [w, h];
       this.__ctx = getContext.call(this.__bitmap, "2d");
     }
@@ -987,14 +992,14 @@
       };
       try {
         if (img instanceof ImageData) {
-          const c = document.createElement("canvas");
+          const c = hiddenCanvas();
           c.__offscreenSize = [img.width, img.height];
           getContext.call(c, "2d").putImageData(img, 0, 0);
           return resolve(make(c, img.width, img.height, { data: img.data }));
         }
         if (typeof Blob === "function" && img instanceof Blob) {
           return img.arrayBuffer().then((buf) => {
-            const c = document.createElement("canvas");
+            const c = hiddenCanvas();
             c.__offscreenSize = [0, 0];
             const cx = getContext.call(c, "2d");
             const size = __cvDecodeInto(c.__id, new Uint8Array(buf));

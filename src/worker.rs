@@ -360,6 +360,15 @@ mod tests {
     }
 
     #[test]
+    fn offscreen_canvas_works_in_a_worker() {
+        // It made its hidden canvas with `document`, which a worker hasn't got.
+        let epoch = 800_010;
+        start_with(epoch, "const c = new OffscreenCanvas(4, 4); const x = c.getContext('2d'); x.fillStyle = 'rgb(255,0,0)'; x.fillRect(0, 0, 4, 4); postMessage('px:' + Array.from(x.getImageData(1, 1, 1, 1).data).join('-'));");
+        let ev = wait(epoch, "\"message\"");
+        assert!(ev.iter().any(|e| e.contains("px:255-0-0-255")), "{ev:?}");
+    }
+
+    #[test]
     fn errors_reach_the_page() {
         let epoch = 800_003;
         start_with(epoch, "onmessage = () => { throw new Error('boom'); };");
