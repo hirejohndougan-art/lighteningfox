@@ -18,16 +18,21 @@ pub fn on() -> bool {
 
 /// Mirror the whole window while drawing browser UI (no-op left to right).
 pub fn begin(canvas: &mut Canvas) {
-    canvas.mirror = on().then_some((0.0, canvas.w as f32));
+    canvas.ui_scale = crate::zoom::device_scale();
+    canvas.mirror = on().then_some((0.0, canvas.ui_w()));
 }
 
 /// Mirror within a panel's own box (a menu that opens where it was asked to).
 pub fn begin_in(canvas: &mut Canvas, x: f32, w: f32) {
+    canvas.ui_scale = crate::zoom::device_scale();
     canvas.mirror = on().then_some((x, x + w));
 }
 
+/// The UI is drawn from `begin` to here: mirrored right to left, and in logical pixels on a
+/// HiDPI screen.
 pub fn end(canvas: &mut Canvas) {
     canvas.mirror = None;
+    canvas.ui_scale = 1.0;
 }
 
 /// The x a mouse position has in left-to-right UI coordinates.

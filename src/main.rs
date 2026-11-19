@@ -100,6 +100,8 @@ mod webgl_noise_tests;
 #[cfg(test)]
 mod edit_keys_tests;
 #[cfg(test)]
+mod ui_scale_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;
@@ -186,6 +188,17 @@ fn page_runs(doc: u64, lay: &layout::Layout) -> Vec<chrome::TextRun> {
 /// or scroll position did.
 fn runs_key(page_version: u64, doc: u64) -> u64 {
     page_version ^ frames::runs_version(doc).rotate_left(17)
+}
+
+/// The browser UI's scale: logical pixels to device pixels on a HiDPI screen (pages already
+/// follow it through their zoom; the toolbar is drawn scaled between rtl::begin and end).
+fn ui_scale() -> f32 {
+    zoom::device_scale()
+}
+
+/// Where the page starts on the canvas, in device pixels (bar_h is in logical pixels).
+fn page_top() -> usize {
+    (bar_h() as f32 * ui_scale()).round() as usize
 }
 
 fn bar_h() -> usize {
@@ -278,7 +291,7 @@ impl FolderMenu {
 }
 
 fn draw_folder_menu(canvas: &mut Canvas, fonts: &Fonts, menu: &FolderMenu, list: &[library::Bookmark]) {
-    let w = canvas.w as f32;
+    let w = canvas.ui_w();
     let entries = menu.entries(list);
     let (x, y) = (menu.left(w), bar_h() as f32);
     let hgt = entries.len() as f32 * MENU_ROW_H + 8.0;
@@ -1971,7 +1984,7 @@ fn draw_edit_caret(canvas: &mut Canvas, fonts: &Fonts, page: &Page, lay: &layout
     let (pad_l, pad_t, size, color) = st.map_or((0.0, 0.0, 16.0, Color::rgb(0, 0, 0)), |s| (s.padding[3].resolve(0.0) + s.border[3], s.padding[0].resolve(0.0) + s.border[0], s.font_size, s.color));
     let host_box = lay.boxes.get(&c.host).map(|(r, _)| r).or_else(|| lay.hits.iter().rev().find(|(_, n)| *n == c.host).map(|(r, _)| r)).map_or((0.0, 0.0), |r| (r.x / z + pad_l, r.y / z + pad_t));
     let (x, top, hgt) = js::with_dom(|d| editing::caret_rect(d, fonts, c, host_box, size));
-    canvas.fill_rect((x * z).round(), top * z - scroll + bar_h() as f32, (z.round()).max(1.0), hgt * z, color);
+    canvas.fill_rect((x * z).round(), top * z - scroll + page_top() as f32, (z.round()).max(1.0), hgt * z, color);
 }
 
 /// Open the file chooser for a file input.
@@ -2131,12 +2144,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
     let mut was_right = false;
     let mut last_spin = Instant::now();
     let (mut w, mut h) = window.get_size();
-    geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
-    css::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32); // vw/vh and @media while scripts run at load
+    geometry::set_viewport(w as f32, h.saturating_sub(page_top()) as f32);
+    css::set_viewport(w as f32, h.saturating_sub(page_top()) as f32); // vw/vh and @media while scripts run at load
     let mut page = load(start);
     crashlog::set_url(&page.url);
     library::visit(&page.url, &page.title);
-    let mut lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+    let mut lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
     // Bumped whenever the layout is replaced: the stored page tiles are then out of date.
     let mut page_version: u64 = 1;
     let mut page_tiles = tiles::PageTiles::default();
@@ -2281,9 +2294,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             hovered = None;
             style::set_hover(None);
             layout::set_focus(focused.map(|f| (f, js::with_dom(|d| forms::is_editable(d, f)))));
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
             page_version += 1;
-            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(page_top()) as f32).max(0.0));
             window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
             dirty = true;
         }};
@@ -2418,16 +2431,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let want_bar = !bm_list.is_empty() && settings::get().show_bookmarks_bar;
         if want_bar != BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) {
             BOOKMARKS_BAR.store(want_bar, std::sync::atomic::Ordering::Relaxed);
-            geometry::set_viewport(w as f32, h.saturating_sub(bar_h()) as f32);
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            geometry::set_viewport(w as f32, h.saturating_sub(page_top()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
             page_version += 1;
-            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(page_top()) as f32).max(0.0));
             dirty = true;
         }
         // Resize -> relayout.
         let (nw, nh) = window.get_size();
         if (nw, nh) != (w, h) && nw > 0 && nh > 0 {
-            lay = page.layout(fonts, nw as f32, nh.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, nw as f32, nh.saturating_sub(page_top()) as f32);
             page_version += 1;
             (w, h) = (nw, nh);
             canvas = Canvas::new(w, h);
@@ -2446,7 +2459,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // CSS transitions and animations move every frame while they run.
         if js::take_dirty() || anim::active() {
             page.restyle();
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
             page_version += 1;
             dirty = true;
         }
@@ -2462,9 +2475,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             js.after_layout();
         }
         // Images: lazy ones scrolling into reach, and animation frames (page_images.rs).
-        let it = page.images_tick(&lay, scroll, h.saturating_sub(bar_h()) as f32);
+        let it = page.images_tick(&lay, scroll, h.saturating_sub(page_top()) as f32);
         if it.relayout {
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
         }
         if it.relayout || it.repaint {
             page_version += 1;
@@ -2510,7 +2523,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         // Its right-click menu, at the mouse.
         if let Some(hit) = fr.context {
             let (mx, my) = window.get_mouse_pos(MouseMode::Clamp).unwrap_or((0.0, 0.0));
-            ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, my - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, Some(hit)));
+            ctx_menu = Some(context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), mx, my, my - page_top() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, Some(hit)));
             dl_panel = None;
             dirty = true;
         }
@@ -2598,7 +2611,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 _ => {}
             }
         }
-        let view_h = h.saturating_sub(bar_h()) as f32;
+        let view_h = h.saturating_sub(page_top()) as f32;
         // Requests from screen readers: focus, press, scroll to or fill in an element; the
         // browser's own buttons and tabs.
         if let Some(bridge) = a11y.as_mut() {
@@ -2648,7 +2661,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             if let Some(s) = keynav::scroll_into_view(r, fixed, scroll, view_h, max_scroll) {
                                 scroll = s;
                             }
-                            key_click = Some(keynav::center_on_screen(r, fixed, bar_h() as f32, scroll));
+                            key_click = Some(keynav::center_on_screen(r, fixed, page_top() as f32, scroll));
                             dirty = true;
                         }
                     }
@@ -2866,7 +2879,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if jump {
                 if let Some((y, false)) = f.current_y(&runs_cache.1) {
-                    let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
+                    let view = h.saturating_sub(page_top()) as f32 - chrome::FIND_H * ui_scale();
                     if !frames::site_reveal(page.doc, &lay, y, view) && (y < scroll + 20.0 || y > scroll + view - 40.0) {
                         scroll = (y - view / 3.0).max(0.0);
                     }
@@ -3002,7 +3015,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
                 // Keyboard focus in the toolbar (reached with F6).
                 if let Some(i) = ui_focus {
-                    let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
+                    let targets = ui_targets(fonts, w as f32 / ui_scale(), tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
                     let i = i.min(targets.len().saturating_sub(1));
                     match key {
                         Key::Right | Key::Left | Key::Tab => {
@@ -3016,7 +3029,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         }
                         Key::Enter | Key::NumPadEnter | Key::Space => {
                             if let Some(&t) = targets.get(i) {
-                                key_click = Some(uikeys::click_point(t, w as f32));
+                                // The target is in logical pixels; the click comes in as the mouse would.
+                                let (x, y) = uikeys::click_point(t, w as f32 / ui_scale());
+                                key_click = Some((x * ui_scale(), y * ui_scale()));
                             }
                         }
                         Key::Escape | Key::F6 => {
@@ -3065,7 +3080,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                 && !(key == Key::Space && js::with_dom(|d| a11y::role_of(d, f)) == "link") =>
                         {
                             if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
-                                key_click = Some(keynav::center_on_screen(r, fixed, bar_h() as f32, scroll));
+                                key_click = Some(keynav::center_on_screen(r, fixed, page_top() as f32, scroll));
                             }
                             true
                         }
@@ -3184,9 +3199,9 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     Key::Menu | Key::F10 if key == Key::Menu || p.shift => {
                         let at = focused
                             .and_then(|f| js::with_dom(|d| keynav::element_rect(&lay, d, f)))
-                            .map(|(r, fixed)| keynav::center_on_screen(r, fixed, bar_h() as f32, scroll))
-                            .unwrap_or((40.0, bar_h() as f32 + 40.0));
-                        let mut m = context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), at.0, at.1, at.1 - bar_h() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, None);
+                            .map(|(r, fixed)| keynav::center_on_screen(r, fixed, page_top() as f32, scroll))
+                            .unwrap_or((40.0, page_top() as f32 + 40.0));
+                        let mut m = context_menu(&page, &lay, &runs_cache.1, fonts, selection.map(|s| s.1), at.0, at.1, at.1 - page_top() as f32, scroll, !back.is_empty(), !forward.is_empty(), w as f32, h as f32, None);
                         m.hover = uikeys::menu_step(&m.actionable(), None, 1);
                         ctx_menu = Some(m);
                         dirty = true;
@@ -3216,24 +3231,24 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
         } else if let Some((_, dy)) = window.get_scroll_wheel().filter(|&(_, dy)| {
             // Over a live iframe that can scroll that way, the frame scrolls (frames.rs).
-            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= bar_h() as f32);
-            let fr = mouse.and_then(|(mx, my)| frames::frame_at(page.doc, &lay, mx, my - bar_h() as f32 + scroll));
+            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= page_top() as f32);
+            let fr = mouse.and_then(|(mx, my)| frames::frame_at(page.doc, &lay, mx, my - page_top() as f32 + scroll));
             !fr.is_some_and(|(k, fx, fy)| frames::wheel(page.doc, &k, fx, fy, -dy * 22.0 / page.zoom()))
         }) {
             // About 45px per wheel click (minifb reports roughly 2 per click on X11).
             let delta = -dy * 22.0;
             // The page may cancel the wheel event (maps, carousels); then nothing scrolls.
-            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= bar_h() as f32);
+            let mouse = window.get_mouse_pos(MouseMode::Discard).filter(|&(_, my)| my >= page_top() as f32);
             let z = page.zoom();
             let wanted = match (page.js.as_mut(), mouse) {
                 (Some(js), Some((mx, my))) => {
-                    let node = lay.hit_at(mx, my - bar_h() as f32, scroll);
-                    userinput::wheel(js, node, mx / z, (my - bar_h() as f32) / z, 0.0, delta / z, userinput::Mods::default())
+                    let node = lay.hit_at(mx, my - page_top() as f32, scroll);
+                    userinput::wheel(js, node, mx / z, (my - page_top() as f32) / z, 0.0, delta / z, userinput::Mods::default())
                 }
                 _ => true,
             };
             // The wheel scrolls the innermost scrollable box under the mouse, else the page.
-            let inner = mouse.filter(|_| wanted).and_then(|(mx, my)| lay.scroller_at(mx, my - bar_h() as f32, scroll, delta));
+            let inner = mouse.filter(|_| wanted).and_then(|(mx, my)| lay.scroller_at(mx, my - page_top() as f32, scroll, delta));
             match inner {
                 Some((id, max)) => {
                     layout::set_element_scroll(id, (layout::element_scroll(id) + delta).clamp(0.0, max));
@@ -3273,14 +3288,18 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
         let mid = window.get_mouse_down(MouseButton::Middle);
         let right = window.get_mouse_down(MouseButton::Right);
         if let Some((mx, my)) = synthetic.or_else(|| window.get_mouse_pos(MouseMode::Discard)) {
-            // Right to left, the browser UI is mirrored: over it, x is flipped so the hit tests
-            // below work in their usual left-to-right coordinates. Pages and the menus that
-            // open where they're asked to keep the real x.
-            let over_ui = my < bar_h() as f32
-                || (editing && !suggestions.is_empty() && my < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H)
+            // The page and what's attached to it use device pixels (mx, my); the browser UI uses
+            // logical pixels (ux, uy in a window uw × uh: the same on a 100% screen, half on a
+            // 200% one). Right to left, the browser UI is mirrored: over it, ux is flipped so the
+            // hit tests below work in their usual left-to-right coordinates. Pages and the menus
+            // that open where they're asked to keep the real x.
+            let (uw, uh) = (w as f32 / ui_scale(), h as f32 / ui_scale());
+            let (ux, uy) = (mx / ui_scale(), my / ui_scale());
+            let over_ui = uy < bar_h() as f32
+                || (editing && !suggestions.is_empty() && uy < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H)
                 || folder_menu.is_some()
-                || perm_queue.first().is_some_and(|p| p.contains(w as f32 - mx, my));
-            let mx = if over_ui { rtl::ui_x(mx, w as f32) } else { mx };
+                || perm_queue.first().is_some_and(|p| p.contains(uw - ux, uy));
+            let ux = if over_ui { rtl::ui_x(ux, uw) } else { ux };
             // Menus follow the mouse only when it moves (so arrow keys can drive them); a real
             // click ends keyboard focus in the toolbar.
             let mouse_moved = (mx, my) != last_mouse;
@@ -3288,12 +3307,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if down && !was_down && synthetic.is_none() && ui_focus.take().is_some() {
                 dirty = true;
             }
-            let sh = (editing && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X).then(|| ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
+            let sh = (editing && uy >= TOOL_BOTTOM as f32 && ux >= FIELD_X).then(|| ((uy - TOOL_BOTTOM as f32) / SUGGEST_H) as usize).filter(|&i| i < suggestions.len());
             if sh != sugg_hover {
                 sugg_hover = sh;
                 dirty = true;
             }
-            let th = tab_at(mx, my, w as f32, tabs.len());
+            let th = tab_at(ux, uy, uw, tabs.len());
             if th != tab_hover {
                 tab_hover = th;
                 dirty = true;
@@ -3302,12 +3321,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if !down {
                 tab_drag = None;
             } else if let Some((x0, moving)) = tab_drag {
-                if moving || (mx - x0).abs() > 6.0 {
+                if moving || (ux - x0).abs() > 6.0 {
                     tab_drag = Some((x0, true));
-                    let rects = tab_rects(w as f32, tabs.len());
-                    let target = match rects.iter().position(|&(tx, tw)| mx >= tx && mx < tx + tw) {
+                    let rects = tab_rects(uw, tabs.len());
+                    let target = match rects.iter().position(|&(tx, tw)| ux >= tx && ux < tx + tw) {
                         Some(t) => t,
-                        None if mx < rects.first().map_or(0.0, |r| r.0) => 0,
+                        None if ux < rects.first().map_or(0.0, |r| r.0) => 0,
                         None => tabs.len() - 1,
                     };
                     if target != active && tab_cmd.is_none() {
@@ -3319,12 +3338,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             // Which bookmarks-bar chip is under the mouse.
-            let bh = (my >= TOOL_BOTTOM as f32 && my < bar_h() as f32)
+            let bh = (uy >= TOOL_BOTTOM as f32 && uy < bar_h() as f32)
                 .then(|| {
-                    let rects = bookmark_rects(fonts, w as f32, &bm_list);
-                    match rects.iter().position(|&(x, cw)| mx >= x && mx < x + cw) {
+                    let rects = bookmark_rects(fonts, uw, &bm_list);
+                    match rects.iter().position(|&(x, cw)| ux >= x && ux < x + cw) {
                         Some(i) => Some(i),
-                        None if rects.len() < bar_items(&bm_list).len() && mx >= w as f32 - 8.0 - BOOK_MORE_W => Some(usize::MAX),
+                        None if rects.len() < bar_items(&bm_list).len() && ux >= uw - 8.0 - BOOK_MORE_W => Some(usize::MAX),
                         None => None,
                     }
                 })
@@ -3344,8 +3363,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             tab_cmd = Some(TabCmd::Open(bm_list[*j].url.clone(), true));
                         }
                     }
-                    _ if my >= bar_h() as f32 => {
-                        if let Some(href) = lay.link_at(mx, my - bar_h() as f32, scroll) {
+                    _ if my >= page_top() as f32 => {
+                        if let Some(href) = lay.link_at(mx, my - page_top() as f32, scroll) {
                             let target = net::resolve(&page.url, href);
                             if !target.starts_with("javascript:") && !target.starts_with("mailto:") && security::page_may_navigate(&page.url, &target) {
                                 tab_cmd = Some(TabCmd::Open(target, true));
@@ -3355,10 +3374,10 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     _ => {}
                 }
             }
-            let view_y = my - bar_h() as f32;
+            let view_y = my - page_top() as f32;
             // Over a live iframe, the mouse belongs to the frame's document (frames.rs).
-            let over_suggest = suggest.as_ref().is_some_and(|sg| sg.row_at(mx, my, sg.y - scroll + bar_h() as f32).is_some());
-            let over_frame = if my >= bar_h() as f32 && ctx_menu.is_none() && dropdown.is_none() && !over_suggest { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
+            let over_suggest = suggest.as_ref().is_some_and(|sg| sg.row_at(mx, my, sg.y - scroll + page_top() as f32).is_some());
+            let over_frame = if my >= page_top() as f32 && ctx_menu.is_none() && dropdown.is_none() && !over_suggest { frames::frame_at(page.doc, &lay, mx, view_y + scroll) } else { None };
             if over_frame.as_ref().map(|f| &f.0) != frame_hover.as_ref() {
                 if let Some(k) = frame_hover.take() {
                     frames::leave(page.doc, &k);
@@ -3368,13 +3387,13 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if let Some((k, fx, fy)) = &over_frame {
                 frames::mouse(page.doc, k, *fx, *fy, [down, mid, right]);
             }
-            let hit = if my >= bar_h() as f32 && over_frame.is_none() { lay.link_at(mx, view_y, scroll).cloned() } else { None };
+            let hit = if my >= page_top() as f32 && over_frame.is_none() { lay.link_at(mx, view_y, scroll).cloned() } else { None };
             // Mouse events for the page's scripts (moves, hover changes, button presses).
             let mut mousedown_cancelled = false;
             if pointer.changed(mx, my, [down, mid, right]) {
                 let z = page.zoom();
                 if let Some(js) = page.js.as_mut() {
-                    if my >= bar_h() as f32 && ctx_menu.is_none() {
+                    if my >= page_top() as f32 && ctx_menu.is_none() {
                         let node = lay.hit_at(mx, view_y, scroll);
                         let mods = userinput::Mods { ctrl: ctrl_down, shift: shift_down, alt: false };
                         mousedown_cancelled = pointer.update(js, node, mx / z, view_y / z, [down, mid, right], mods);
@@ -3404,7 +3423,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // Right click: the context menu for what's under the mouse.
             // (A page in a site process asks for the menu itself, after its contextmenu event.)
-            let page_menu = right && !was_right && my >= bar_h() as f32 && !frames::frame_at(page.doc, &lay, mx, view_y + scroll).is_some_and(|f| frames::site_frame(page.doc).as_ref() == Some(&f.0)) && {
+            let page_menu = right && !was_right && my >= page_top() as f32 && !frames::frame_at(page.doc, &lay, mx, view_y + scroll).is_some_and(|f| frames::site_frame(page.doc).as_ref() == Some(&f.0)) && {
                 // The page's scripts see contextmenu first and may show their own menu instead.
                 let z = page.zoom();
                 match (lay.hit_at(mx, view_y, scroll), page.js.as_mut()) {
@@ -3421,17 +3440,17 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 if !open || !(mouse_moved || down) {
                     continue;
                 }
-                let row = if m == 0 { ctx_menu.as_ref().unwrap().row_at(mx, my) } else { dl_panel.as_ref().unwrap().row_at(mx, my) };
+                let row = if m == 0 { ctx_menu.as_ref().unwrap().row_at(ux, uy) } else { dl_panel.as_ref().unwrap().row_at(ux, uy) };
                 let cur = if m == 0 { &mut ctx_menu.as_mut().unwrap().hover } else { &mut dl_panel.as_mut().unwrap().hover };
                 if row != *cur {
                     *cur = row;
                     dirty = true;
                 }
             }
-            let btn = button_at(mx, my);
+            let btn = button_at(ux, uy);
             // :hover — restyle when the element under the mouse changes.
             if page.hover_rules {
-                let over = if my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                let over = if my >= page_top() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
                 if over != hovered {
                     hovered = over;
                     style::set_hover(over);
@@ -3441,7 +3460,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // :active — the element the left button is held down on.
             if style::uses_active() {
-                let now = if down && my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                let now = if down && my >= page_top() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
                 if now != active_node {
                     active_node = now;
                     style::set_active(now);
@@ -3455,7 +3474,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // The page's own `cursor` property, for what's under the mouse (nearest
             // ancestor with one set, since the property is inherited).
-            let page_cursor = if my >= bar_h() as f32 && hit.is_none() && btn.is_none() {
+            let page_cursor = if my >= page_top() as f32 && hit.is_none() && btn.is_none() {
                 lay.hit_at(mx, view_y, scroll).and_then(|n| page.styles.get(n)).map(|s| s.cursor).unwrap_or(0)
             } else {
                 0
@@ -3466,14 +3485,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 CursorStyle::Ibeam
             } else if page_cursor == 5 {
                 CursorStyle::ResizeAll
-            } else if my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= FIELD_X {
+            } else if uy >= TAB_H && (uy as usize) < TOOL_BOTTOM && ux >= FIELD_X {
                 CursorStyle::Ibeam
             } else {
                 CursorStyle::Arrow
             });
             // An open bookmarks folder: hover, then a click opens a bookmark or closes the menu.
             if let Some(menu) = folder_menu.as_mut() {
-                let row = menu.row_at(&bm_list, w as f32, mx, my);
+                let row = menu.row_at(&bm_list, uw, ux, uy);
                 if row != menu.hover {
                     menu.hover = row;
                     dirty = true;
@@ -3498,14 +3517,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // Highlight the option under the mouse in an open list.
             if let Some(sg) = suggest.as_mut() {
-                let row = sg.row_at(mx, my, sg.y - scroll + bar_h() as f32);
+                let row = sg.row_at(mx, my, sg.y - scroll + page_top() as f32);
                 if row != sg.hover {
                     sg.hover = row;
                     dirty = true;
                 }
             }
             if let Some(sp) = save_prompt.as_mut() {
-                dirty |= sp.hover_at(mx, my, w as f32, bar_h() as f32);
+                dirty |= sp.hover_at(mx, my, w as f32, page_top() as f32);
             }
             if let Some(p) = picker.as_mut() {
                 if p.hover != Some((mx, my)) {
@@ -3514,15 +3533,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 }
             }
             if let Some(dd) = dropdown.as_mut() {
-                let row = dd.row_at(mx, my - bar_h() as f32 + scroll);
+                let row = dd.row_at(mx, my - page_top() as f32 + scroll);
                 if row != dd.hover {
                     dd.hover = row;
                     dirty = true;
                 }
             }
             // A click on a permission question: Allow or Block (remembered for the site).
-            if down && !was_down && perm_queue.first().is_some_and(|p| p.contains(mx, my)) {
-                if let Some(allow) = perm_queue[0].button_at(mx, my) {
+            if down && !was_down && perm_queue.first().is_some_and(|p| p.contains(ux, uy)) {
+                if let Some(allow) = perm_queue[0].button_at(ux, uy) {
                     let p = perm_queue.remove(0);
                     permissions::set(&p.origin, p.kind, allow);
                     // Site processes learn it first (the page may check the state right away).
@@ -3534,7 +3553,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                     if js::take_dirty() {
                         page.restyle();
-                        lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                        lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
                         page_version += 1;
                     }
                 }
@@ -3543,21 +3562,21 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // A click with a menu open: do the item, or just close the menu.
             if down && !was_down && (ctx_menu.is_some() || dl_panel.is_some()) {
-                let on_chip = my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W;
+                let on_chip = uy >= TAB_H && (uy as usize) < TOOL_BOTTOM && ux >= uw - 8.0 - STAR_W - DL_W && ux < uw - 8.0 - STAR_W;
                 if let Some(m) = ctx_menu.take() {
-                    if let Some(a) = m.row_at(mx, my).and_then(|r| m.action(r)) {
+                    if let Some(a) = m.row_at(ux, uy).and_then(|r| m.action(r)) {
                         ui_action = Some(a);
                     }
                     was_down = down;
                 } else if let Some(m) = dl_panel.take() {
-                    if let Some(a) = m.row_at(mx, my).and_then(|r| m.action(r)) {
+                    if let Some(a) = m.row_at(ux, uy).and_then(|r| m.action(r)) {
                         match a {
                             DlAct::Open(id) => drop(downloads::page(&format!("open={id}"))),
                             DlAct::Folder => drop(downloads::page("folder")),
                             DlAct::ShowAll => tab_cmd = Some(TabCmd::Open("about:downloads".into(), false)),
                         }
                     }
-                    if m.contains(mx, my) || on_chip {
+                    if m.contains(ux, uy) || on_chip {
                         was_down = down;
                     }
                 }
@@ -3566,7 +3585,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             // A click in an open date/time/color picker; a click elsewhere closes it and goes on.
             let mut picked = false;
             if down && !was_down {
-                if let Some(hit) = save_prompt.as_ref().and_then(|sp| sp.hit(mx, my, w as f32, bar_h() as f32)) {
+                if let Some(hit) = save_prompt.as_ref().and_then(|sp| sp.hit(mx, my, w as f32, page_top() as f32)) {
                     picked = true;
                     if let Some(choice) = hit {
                         let offer = save_prompt.take().unwrap().offer;
@@ -3579,7 +3598,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     }
                 } else if let Some(sg) = suggest.take() {
                     dirty = true;
-                    if let Some(i) = sg.row_at(mx, my, sg.y - scroll + bar_h() as f32) {
+                    if let Some(i) = sg.row_at(mx, my, sg.y - scroll + page_top() as f32) {
                         picked = true;
                         let it = &sg.items[i];
                         let remote = frames::site_frame(page.doc).is_some();
@@ -3603,7 +3622,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if down && !was_down && !picked {
                 if let Some(p) = picker.as_mut() {
-                    let top = p.y - scroll + bar_h() as f32;
+                    let top = p.y - scroll + page_top() as f32;
                     match p.click(mx, my, top) {
                         formui::Pick::Outside => picker = None,
                         formui::Pick::Nothing => picked = true,
@@ -3630,41 +3649,41 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             } else if down && !was_down && dropdown.is_some() {
                 // A click while a list is open picks an option or closes the list.
                 let dd = dropdown.take().unwrap();
-                if let (Some(i), true) = (dd.row_at(mx, my - bar_h() as f32 + scroll), dd.remote) {
+                if let (Some(i), true) = (dd.row_at(mx, my - page_top() as f32 + scroll), dd.remote) {
                     frames::site_select(page.doc, dd.select as u32, dd.options[i].0 as u32);
-                } else if let Some(i) = dd.row_at(mx, my - bar_h() as f32 + scroll) {
+                } else if let Some(i) = dd.row_at(mx, my - page_top() as f32 + scroll) {
                     let opt = dd.options[i].0;
                     js::with_dom_mut(|d| forms::select_option(d, dd.select, opt));
                     fire(&mut page, dd.select, "input");
                     fire(&mut page, dd.select, "change");
                 }
                 form_changed = true;
-            } else if down && !was_down && editing && !suggestions.is_empty() && my >= TOOL_BOTTOM as f32 && mx >= FIELD_X && my < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H {
+            } else if down && !was_down && editing && !suggestions.is_empty() && uy >= TOOL_BOTTOM as f32 && ux >= FIELD_X && uy < TOOL_BOTTOM as f32 + suggestions.len() as f32 * SUGGEST_H {
                 // A click on an address suggestion opens it.
-                let i = ((my - TOOL_BOTTOM as f32) / SUGGEST_H) as usize;
+                let i = ((uy - TOOL_BOTTOM as f32) / SUGGEST_H) as usize;
                 if let Some(sg) = suggestions.get(i) {
                     navigate = Some(Go::To(sg.url.clone()));
                 }
                 editing = false;
                 suggestions.clear();
                 dirty = true;
-            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && blocklist::blocking_on(&page.url).is_some() && {
-                let sx = shield_x(w as f32, !downloads::list().is_empty());
-                mx >= sx && mx < sx + SHIELD_W
+            } else if down && !was_down && uy >= TAB_H && (uy as usize) < TOOL_BOTTOM && blocklist::blocking_on(&page.url).is_some() && {
+                let sx = shield_x(uw, !downloads::list().is_empty());
+                ux >= sx && ux < sx + SHIELD_W
             } {
-                let sx = shield_x(w as f32, !downloads::list().is_empty());
-                ctx_menu = Some(shield_menu(&page.url, if rtl::on() { w as f32 - sx - 300.0 } else { sx + SHIELD_W - 300.0 }, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
+                let sx = shield_x(uw, !downloads::list().is_empty());
+                ctx_menu = Some(shield_menu(&page.url, if rtl::on() { uw - sx - 300.0 } else { sx + SHIELD_W - 300.0 }, TOOL_BOTTOM as f32 + 2.0, uw, uh));
                 dirty = true;
-            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && !downloads::list().is_empty() && mx >= w as f32 - 8.0 - STAR_W - DL_W && mx < w as f32 - 8.0 - STAR_W {
-                let px = w as f32 - 8.0 - STAR_W - 330.0;
-                dl_panel = Some(downloads_panel(if rtl::on() { w as f32 - px - 330.0 } else { px }, TOOL_BOTTOM as f32 + 2.0, w as f32, h as f32));
+            } else if down && !was_down && uy >= TAB_H && (uy as usize) < TOOL_BOTTOM && !downloads::list().is_empty() && ux >= uw - 8.0 - STAR_W - DL_W && ux < uw - 8.0 - STAR_W {
+                let px = uw - 8.0 - STAR_W - 330.0;
+                dl_panel = Some(downloads_panel(if rtl::on() { uw - px - 330.0 } else { px }, TOOL_BOTTOM as f32 + 2.0, uw, uh));
                 dirty = true;
-            } else if down && !was_down && my >= TAB_H && (my as usize) < TOOL_BOTTOM && mx >= w as f32 - 8.0 - STAR_W {
+            } else if down && !was_down && uy >= TAB_H && (uy as usize) < TOOL_BOTTOM && ux >= uw - 8.0 - STAR_W {
                 library::toggle_bookmark(&page.url, &page.title);
                 dirty = true;
-            } else if down && !was_down && my < TAB_H {
+            } else if down && !was_down && uy < TAB_H {
                 if matches!(th, Some(TabHit::Tab(_))) {
-                    tab_drag = Some((mx, false));
+                    tab_drag = Some((ux, false));
                 }
                 tab_cmd = match th {
                     Some(TabHit::Tab(i)) => Some(TabCmd::Switch(i)),
@@ -3680,7 +3699,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         1 => Go::Forward,
                         _ => Go::Reload,
                     });
-                } else if (my as usize) < TOOL_BOTTOM && mx >= FIELD_X {
+                } else if (uy as usize) < TOOL_BOTTOM && ux >= FIELD_X {
                     let double = last_click.0.elapsed().as_millis() < 450 && (mx - last_click.1).abs() < 5.0 && (my - last_click.2).abs() < 5.0;
                     if !editing {
                         // First click selects the whole address, ready to type over.
@@ -3688,7 +3707,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         aedit = textedit::TextEdit::select_all(&address);
                     } else {
                         let full = fonts.width(font::REGULAR, &aedit.text, 14.0);
-                        let i = char_index_at(fonts, font::REGULAR, 14.0, &aedit.text, rtl::field_offset(FIELD_X + 8.0, mx, full));
+                        let i = char_index_at(fonts, font::REGULAR, 14.0, &aedit.text, rtl::field_offset(FIELD_X + 8.0, ux, full));
                         if double {
                             aedit.select_word_at(i);
                         } else {
@@ -3696,7 +3715,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         }
                     }
                     dirty = true;
-                } else if (my as usize) < bar_h() {
+                } else if (uy as usize) < bar_h() {
                     // Bookmarks bar: open the bookmark (Ctrl: in a background tab), or "»" for all.
                     editing = false;
                     let items = bar_items(&bm_list);
@@ -3712,7 +3731,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                                 }
                             }
                             Some(BarItem::Folder(f)) => {
-                                let x = bookmark_rects(fonts, w as f32, &bm_list).get(i).map_or(8.0, |r| r.0);
+                                let x = bookmark_rects(fonts, uw, &bm_list).get(i).map_or(8.0, |r| r.0);
                                 folder_menu = Some(FolderMenu { folder: f.clone(), x, hover: None });
                                 dirty = true;
                             }
@@ -3739,7 +3758,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             dirty = true;
                         }
                     }
-                } else if (my as usize) >= bar_h() {
+                } else if (my as usize) >= page_top() {
                     if let Some(k) = frame_focus.take() {
                         frames::blur(page.doc, &k);
                     }
@@ -3807,7 +3826,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             if ce.map(|c| c.host) != Some(hst) {
                                 // Lay out once with the host known, so its words' positions are recorded.
                                 editing::set_host(Some(hst));
-                                lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                                lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
                                 fire(&mut page, hst, "focus");
                             }
                             let z = page.scale();
@@ -3854,7 +3873,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             } else if !down && was_down && page_press.is_some() {
                 // The release after a press on the page: a click at the element both were over.
                 let press = page_press.take().unwrap();
-                let up = if press.synthetic { press.node } else if my >= bar_h() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
+                let up = if press.synthetic { press.node } else if my >= page_top() as f32 { lay.hit_at(mx, view_y, scroll) } else { None };
                 let node = js::with_dom(|d| clicks::target(d, press.node, up));
                 if press.doc == page.doc && (press.node.is_none() || node.is_some()) {
                     let hit = if node == press.node { press.hit.clone() } else { None };
@@ -4023,7 +4042,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             if restyle || js::take_dirty() {
                 page.restyle();
             }
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
             page_version += 1;
             dirty = true;
         }
@@ -4078,7 +4097,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     if let Some(f) = find.as_mut() {
                         f.next(matches!(a, Ctx::FindPrev));
                         if let Some((y, false)) = f.current_y(&runs_cache.1) {
-                            let view = h.saturating_sub(bar_h()) as f32 - chrome::FIND_H;
+                            let view = h.saturating_sub(page_top()) as f32 - chrome::FIND_H * ui_scale();
                             if !frames::site_reveal(page.doc, &lay, y, view) && (y < scroll + 20.0 || y > scroll + view - 40.0) {
                                 scroll = (y - view / 3.0).max(0.0);
                             }
@@ -4229,14 +4248,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if !popstate || old.split('#').nth(1) != current.url.split('#').nth(1) {
                 if let Some(y) = fragment_target(&current.url) {
-                    scroll = y.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+                    scroll = y.clamp(0.0, (lay.height - h.saturating_sub(page_top()) as f32).max(0.0));
                 }
             }
             address = page.url.clone();
             editing = false;
             if js::take_dirty() {
                 page.restyle();
-                lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
                 page_version += 1;
             }
             dirty = true;
@@ -4279,12 +4298,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     suggest = None;
                     stop_editing(&mut ce);
                     layout::set_focus(None);
-                    lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+                    lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
                     page_version += 1;
                     if preview_of != Some(g) {
                         scroll = 0.0;
                     }
-                    scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+                    scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(page_top()) as f32).max(0.0));
                     preview_of = Some(g);
                     dirty = true;
                 }
@@ -4347,7 +4366,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             stop_editing(&mut ce);
             layout::set_focus(None);
             release_free_memory();
-            lay = page.layout(fonts, w as f32, h.saturating_sub(bar_h()) as f32);
+            lay = page.layout(fonts, w as f32, h.saturating_sub(page_top()) as f32);
             page_version += 1;
             // A URL with a #fragment opens scrolled to it; a page shown while it loaded keeps
             // where the reader scrolled.
@@ -4355,7 +4374,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 scroll = fragment_target(&page.url).unwrap_or(0.0);
             }
             preview_of = None;
-            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(bar_h()) as f32).max(0.0));
+            scroll = scroll.clamp(0.0, (lay.height - h.saturating_sub(page_top()) as f32).max(0.0));
             address = page.url.clone();
             window.set_title(&format!("{} — Ironswift{}", page.label(), if is_private() { " (private)" } else { "" }));
             dirty = true;
@@ -4492,7 +4511,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                         can_forward: !forward.is_empty(),
                         win_w: w as f32,
                         win_h: h as f32,
-                        page_top: bar_h() as f32,
+                        page_top: page_top() as f32,
                         buttons: [BUTTONS[0].0, BUTTONS[1].0, BUTTONS[2].0],
                         button_w: BTN_W,
                         field_x: FIELD_X,
@@ -4522,7 +4541,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             let gpu_tiled = false;
             if gpu_tiled {
                 // The GPU draws the page from tiles: make sure the visible ones are painted.
-                let range = tiles::PageTiles::visible(scroll.round().max(0.0), h.saturating_sub(bar_h()));
+                let range = tiles::PageTiles::visible(scroll.round().max(0.0), h.saturating_sub(page_top()));
                 for idx in range.clone() {
                     page_tiles.tile(idx, fonts, &page.images, &lay);
                 }
@@ -4541,13 +4560,15 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             // High contrast: the toolbars now, and whatever is drawn over the page from here on.
             let contrast_before = contrast::on().then(|| {
-                contrast::recolor_rect(&mut canvas, 0, 0, w, bar_h());
+                contrast::recolor_rect(&mut canvas, 0, 0, w, page_top());
                 canvas.buf.clone()
             });
             if let Some(i) = ui_focus {
-                let targets = ui_targets(fonts, w as f32, tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
+                let targets = ui_targets(fonts, w as f32 / ui_scale(), tabs.len(), if BOOKMARKS_BAR.load(std::sync::atomic::Ordering::Relaxed) { &bm_list } else { &[] }, !downloads::list().is_empty(), blocklist::blocking_on(&page.url).is_some(), perm_queue.first());
                 if let Some(&t) = targets.get(i.min(targets.len().saturating_sub(1))) {
+                    canvas.ui_scale = ui_scale();
                     uikeys::draw_ring(&mut canvas, t);
+                    canvas.ui_scale = 1.0;
                 }
             }
             if let Some(menu) = &folder_menu {
@@ -4560,24 +4581,24 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             }
             if let (true, Some(f)) = (focus_visible, focused) {
                 if let Some((r, fixed)) = js::with_dom(|d| keynav::element_rect(&lay, d, f)) {
-                    keynav::draw_ring(&mut canvas, r, fixed, bar_h() as f32, scroll.round(), h as f32, settings::get().high_contrast);
+                    keynav::draw_ring(&mut canvas, r, fixed, page_top() as f32, scroll.round(), h as f32, settings::get().high_contrast);
                 }
             }
             if let Some(sg) = &suggest {
-                sg.draw(&mut canvas, fonts, sg.y - scroll + bar_h() as f32);
+                sg.draw(&mut canvas, fonts, sg.y - scroll + page_top() as f32);
             }
             if let Some(sp) = &save_prompt {
-                sp.draw(&mut canvas, fonts, bar_h() as f32);
+                sp.draw(&mut canvas, fonts, page_top() as f32);
             }
             if let Some(c) = &ce {
                 draw_edit_caret(&mut canvas, fonts, &page, &lay, c, scroll);
             }
             if let Some(p) = &picker {
-                p.draw(&mut canvas, fonts, p.y - scroll + bar_h() as f32);
+                p.draw(&mut canvas, fonts, p.y - scroll + page_top() as f32);
             }
             if let Some(b) = &bubble {
                 if let Some(r) = lay.hits.iter().rev().find(|(_, n)| *n == b.node).map(|(r, _)| *r) {
-                    b.draw(&mut canvas, fonts, r.x, r.y + r.h - scroll + bar_h() as f32);
+                    b.draw(&mut canvas, fonts, r.x, r.y + r.h - scroll + page_top() as f32);
                 }
             }
             if editing && !suggestions.is_empty() {
@@ -4592,12 +4613,12 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                     f.search(&runs_cache.1);
                 }
             }
-            let view_bottom = h as f32 - if find.is_some() { chrome::FIND_H } else { 0.0 };
+            let view_bottom = h as f32 - if find.is_some() { chrome::FIND_H * ui_scale() } else { 0.0 };
             if let Some((_, sel)) = &selection {
-                sel.draw(&mut canvas, fonts, &runs_cache.1, bar_h() as f32, scroll.round(), view_bottom);
+                sel.draw(&mut canvas, fonts, &runs_cache.1, page_top() as f32, scroll.round(), view_bottom);
             }
             if let Some(f) = &find {
-                f.draw_highlights(&mut canvas, fonts, &runs_cache.1, bar_h() as f32, scroll.round(), view_bottom);
+                f.draw_highlights(&mut canvas, fonts, &runs_cache.1, page_top() as f32, scroll.round(), view_bottom);
                 rtl::begin(&mut canvas);
                 f.draw_bar(&mut canvas, fonts, Some(find_edit.caret));
                 rtl::end(&mut canvas);
@@ -4632,7 +4653,7 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             #[cfg(feature = "gpu")]
             let presented = match gpu.as_mut() {
                 Some(g) => {
-                    let top = if gpu_tiled { bar_h() as u32 } else { h as u32 };
+                    let top = if gpu_tiled { page_top() as u32 } else { h as u32 };
                     g.present(&canvas.buf, w as u32, h as u32, top, gpu_tiled.then_some((&page_tiles, page_version, scroll.round().max(0.0))));
                     window.update();
                     true
@@ -4763,7 +4784,9 @@ fn context_menu(page: &Page, lay: &layout::Layout, runs: &[chrome::TextRun], fon
         rows.push(R::item(&format!("{}   Ctrl+U", i18n::t("menu-view-source")), Ctx::ViewSource));
     }
     rows.push(R::item(&format!("{}   F12", i18n::t("menu-inspect")), Ctx::Inspect));
-    chrome::Menu::new(mx, my, 240.0, rows, win_w, win_h)
+    // The page parts above are in device pixels; the menu itself is UI, in logical pixels.
+    let s = ui_scale();
+    chrome::Menu::new(mx / s, my / s, 240.0, rows, win_w / s, win_h / s)
 }
 
 /// The downloads panel under the toolbar's ⬇ chip: the latest downloads, then links.
@@ -4868,7 +4891,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
         PagePaint::Tiles(t, version) => {
             let ok = t.sync(version, canvas.w, lay, images);
             if ok {
-                t.compose(canvas, fonts, images, lay, bar_h(), scroll);
+                t.compose(canvas, fonts, images, lay, page_top(), scroll);
             }
             ok
         }
@@ -4877,11 +4900,11 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
     };
     if !tiled {
         canvas.clear(lay.page_bg);
-        canvas.paint(fonts, images, &lay.items, bar_h() as f32, scroll);
+        canvas.paint(fonts, images, &lay.items, page_top() as f32, scroll);
     }
     // Right to left: the browser UI below is drawn mirrored.
     rtl::begin(canvas);
-    let w = canvas.w as f32;
+    let w = canvas.ui_w();
     let bar = TOOL_BOTTOM as f32;
     let top = TAB_H;
     // Tab strip
@@ -5032,7 +5055,7 @@ fn draw(canvas: &mut Canvas, fonts: &Fonts, images: &images::Images, lay: &layou
 /// Address bar suggestions: a panel under the field, one row per page (title, then address).
 fn draw_suggestions(canvas: &mut Canvas, fonts: &Fonts, list: &[library::Suggestion], hot: Option<usize>) {
     let (x, y0) = (FIELD_X, TOOL_BOTTOM as f32);
-    let w = canvas.w as f32 - FIELD_X - 8.0;
+    let w = canvas.ui_w() - FIELD_X - 8.0;
     let h = list.len() as f32 * SUGGEST_H;
     canvas.fill_rect(x + 2.0, y0 + 2.0, w, h + 2.0, Color { r: 0, g: 0, b: 0, a: 35 });
     canvas.fill_rect(x, y0, w, h + 2.0, Color::rgb(200, 200, 208));
@@ -5062,7 +5085,7 @@ fn draw_suggestions(canvas: &mut Canvas, fonts: &Fonts, list: &[library::Suggest
 
 /// An open <select> list: a white panel of options below the control.
 fn draw_dropdown(canvas: &mut Canvas, fonts: &Fonts, dd: &Dropdown, scroll: f32) {
-    let top = dd.y - scroll + bar_h() as f32;
+    let top = dd.y - scroll + page_top() as f32;
     let h = dd.options.len() as f32 * OPTION_H + 2.0;
     canvas.fill_rect(dd.x + 2.0, top + 2.0, dd.w, h, Color { r: 0, g: 0, b: 0, a: 40 });
     canvas.fill_rect(dd.x, top, dd.w, h, Color::rgb(140, 140, 150));

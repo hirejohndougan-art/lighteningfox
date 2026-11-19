@@ -118,11 +118,24 @@ pub struct Canvas {
     /// Right-to-left browser UI: while set to (left, right), rectangles, text and icons are
     /// drawn mirrored across that span (text keeps its own reading order). Pages never use it.
     pub mirror: Option<(f32, f32)>,
+    /// The browser UI's scale on a HiDPI screen (rtl::begin sets it while the UI is drawn):
+    /// rectangles, text and icons are given in logical pixels and drawn this many device
+    /// pixels each, so the toolbar is as big on a 200% screen as pages are. Pages never use it.
+    pub ui_scale: f32,
 }
 
 impl Canvas {
     pub fn new(w: usize, h: usize) -> Canvas {
-        Canvas { w, h, buf: vec![0xFFFFFF; w * h], clips: Vec::new(), mirror: None }
+        Canvas { w, h, buf: vec![0xFFFFFF; w * h], clips: Vec::new(), mirror: None, ui_scale: 1.0 }
+    }
+
+    /// The canvas size in the coordinates being drawn in (logical pixels while the UI is).
+    pub fn ui_w(&self) -> f32 {
+        self.w as f32 / self.ui_scale
+    }
+
+    pub fn ui_h(&self) -> f32 {
+        self.h as f32 / self.ui_scale
     }
 
     pub fn clear(&mut self, c: Color) {
@@ -180,6 +193,23 @@ impl Canvas {
             Some((a, b)) => (a + b) as i32 - x - w as i32,
             None => x,
         };
+        let s = self.ui_scale;
+        if s != 1.0 && w > 0 {
+            // Each icon pixel becomes a block of device pixels.
+            let (x0, y0) = (x as f32 * s, y as f32 * s);
+            for (i, &p) in px.iter().enumerate() {
+                let c = Color { r: (p >> 16) as u8, g: (p >> 8) as u8, b: p as u8, a: (p >> 24) as u8 };
+                let (cx, cy) = ((i % w) as f32, (i / w) as f32);
+                let (ax, ay) = ((x0 + cx * s).round() as i32, (y0 + cy * s).round() as i32);
+                let (bx, by) = ((x0 + (cx + 1.0) * s).round() as i32, (y0 + (cy + 1.0) * s).round() as i32);
+                for yy in ay..by {
+                    for xx in ax..bx {
+                        self.blend(xx, yy, c, 1.0);
+                    }
+                }
+            }
+            return;
+        }
         for (i, &p) in px.iter().enumerate() {
             let c = Color { r: (p >> 16) as u8, g: (p >> 8) as u8, b: p as u8, a: (p >> 24) as u8 };
             self.blend(x + (i % w) as i32, y + (i / w) as i32, c, 1.0);
@@ -194,6 +224,8 @@ impl Canvas {
             Some((a, b)) => a + b - x - w,
             None => x,
         };
+        let s = self.ui_scale;
+        let (x, y, w, h) = (x * s, y * s, w * s, h * s);
         let x0 = (x.round() as i32).max(0);
         let y0 = (y.round() as i32).max(0);
         let x1 = ((x + w).round() as i32).min(self.w as i32);
@@ -206,6 +238,19 @@ impl Canvas {
     }
 
     pub fn draw_text(&mut self, fonts: &Fonts, x: f32, baseline: f32, text: &str, font: u8, size: f32, c: Color) {
+        if self.ui_scale != 1.0 {
+            // UI text: mirrored in logical pixels, then shaped at the device size so it stays
+            // sharp (not an enlarged small rendering).
+            let s = self.ui_scale;
+            let x = match self.mirror {
+                Some((a, b)) => a + b - x - fonts.shape(font, text, size).width,
+                None => x,
+            };
+            let (mirror, scale) = (self.mirror.take(), std::mem::replace(&mut self.ui_scale, 1.0));
+            self.draw_text(fonts, x * s, baseline * s, text, font, size * s, c);
+            (self.mirror, self.ui_scale) = (mirror, scale);
+            return;
+        }
         if baseline + size < 0.0 || baseline - size > self.h as f32 {
             return;
         }

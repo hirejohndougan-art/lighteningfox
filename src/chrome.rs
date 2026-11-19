@@ -75,7 +75,7 @@ pub fn text_runs(lay: &Layout) -> Vec<TextRun> {
 /// The link under the mouse, shown in the bottom-left corner of the window.
 pub fn draw_status(canvas: &mut Canvas, fonts: &Fonts, text: &str) {
     let size = 12.5;
-    let max_w = (canvas.w as f32 * 0.6).max(120.0);
+    let max_w = (canvas.ui_w() * 0.6).max(120.0);
     let mut shown = text.to_string();
     if fonts.width(font::REGULAR, &shown, size) > max_w - 16.0 {
         while !shown.is_empty() && fonts.width(font::REGULAR, &format!("{shown}…"), size) > max_w - 16.0 {
@@ -85,7 +85,7 @@ pub fn draw_status(canvas: &mut Canvas, fonts: &Fonts, text: &str) {
     }
     let w = fonts.width(font::REGULAR, &shown, size) + 16.0;
     let h = 22.0;
-    let y = canvas.h as f32 - h;
+    let y = canvas.ui_h() - h;
     canvas.fill_rect(0.0, y, w, h, Color::rgb(244, 244, 247));
     canvas.fill_rect(0.0, y, w, 1.0, Color::rgb(200, 200, 208));
     canvas.fill_rect(w - 1.0, y, 1.0, h, Color::rgb(200, 200, 208));
@@ -95,7 +95,7 @@ pub fn draw_status(canvas: &mut Canvas, fonts: &Fonts, text: &str) {
 /// A short note under the toolbar's right end ("Zoom 125%", "Saved page.pdf to Downloads").
 pub fn draw_toast(canvas: &mut Canvas, fonts: &Fonts, top: f32, label: &str) {
     let w = fonts.width(font::REGULAR, &label, 13.0) + 24.0;
-    let x = canvas.w as f32 - w - 12.0;
+    let x = canvas.ui_w() - w - 12.0;
     let y = top + 8.0;
     canvas.fill_rect(x, y, w, 30.0, Color::rgb(255, 255, 255));
     canvas.fill_rect(x, y, w, 1.0, Color::rgb(200, 200, 208));
@@ -326,7 +326,7 @@ impl Find {
     }
 
     pub fn draw_bar(&self, canvas: &mut Canvas, fonts: &Fonts, caret: Option<usize>) {
-        let (w, h) = (canvas.w as f32, canvas.h as f32);
+        let (w, h) = (canvas.ui_w(), canvas.ui_h());
         let y = h - FIND_H;
         canvas.fill_rect(0.0, y, w, FIND_H, Color::rgb(236, 236, 240));
         canvas.fill_rect(0.0, y, w, 1.0, Color::rgb(200, 200, 205));

@@ -92,11 +92,21 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// A screen scale for tests that draw the browser UI as a HiDPI window would.
+    pub static TEST_SCALE: std::cell::Cell<Option<f32>> = const { std::cell::Cell::new(None) };
+}
+
 /// The screen's scale factor for HiDPI displays: IRONSWIFT_SCALE, GDK_SCALE × GDK_DPI_SCALE
 /// or QT_SCALE_FACTOR when set, else what the window system reports for the window (it
 /// changes when the window moves to another screen), else the X server's Xft.dpi ÷ 96.
 /// Pages are laid out in CSS pixels and drawn this many device pixels per CSS pixel.
 pub fn device_scale() -> f32 {
+    #[cfg(test)]
+    if let Some(s) = TEST_SCALE.with(std::cell::Cell::get) {
+        return s;
+    }
     // Only the window uses it; PNG renders and printing stay at 1 CSS px = 1 px.
     if !WINDOWED.load(std::sync::atomic::Ordering::Relaxed) {
         return 1.0;
