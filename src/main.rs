@@ -104,6 +104,10 @@ mod ui_scale_tests;
 #[cfg(test)]
 mod site_scale_tests;
 #[cfg(test)]
+mod relay_tests;
+#[cfg(test)]
+mod reload_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;
@@ -3183,12 +3187,14 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                             toast = Some((i18n::tf("toast-zoom", &[("pct", &format!("{:.0}", nz * 100.0))]), Instant::now()));
                         }
                     }
-                    Key::A if ctrl && !typing => {
+                    // The page's own select all and copy, unless a text field has the keyboard:
+                    // a page field, the address bar or the find bar (each does its own).
+                    Key::A if ctrl && !typing && !editing && !finding => {
                         selection = Some((page.doc, chrome::Selection { all: true, ..Default::default() }));
                         runs_cache.0 = u64::MAX;
                         dirty = true;
                     }
-                    Key::C if ctrl && !typing => ui_action = Some(Ctx::CopySelection),
+                    Key::C if ctrl && !typing && !editing && !finding => ui_action = Some(Ctx::CopySelection),
                     Key::Escape if selection.is_some() || ctx_menu.is_some() || dl_panel.is_some() => {
                         selection = None;
                         ctx_menu = None;
@@ -3696,11 +3702,16 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             } else if down && !was_down {
                 if let Some(b) = btn {
                     editing = false;
-                    navigate = Some(match b {
-                        0 => Go::Back,
-                        1 => Go::Forward,
-                        _ => Go::Reload,
-                    });
+                    // While a page loads, the reload button shows ✕ and stops it.
+                    if b == 2 && loading.is_some() {
+                        stop_key = true;
+                    } else {
+                        navigate = Some(match b {
+                            0 => Go::Back,
+                            1 => Go::Forward,
+                            _ => Go::Reload,
+                        });
+                    }
                 } else if (uy as usize) < TOOL_BOTTOM && ux >= FIELD_X {
                     let double = last_click.0.elapsed().as_millis() < 450 && (mx - last_click.1).abs() < 5.0 && (my - last_click.2).abs() < 5.0;
                     if !editing {
@@ -4157,8 +4168,11 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             selection = None;
         }
 
-        // The reload button (and Esc) stop a load in progress.
-        if matches!(navigate, Some(Go::Reload)) && loading.is_some() || (stop_key && loading.is_some()) {
+        // The ✕ button (the reload button while loading) and Esc stop a load in progress. F5,
+        // Ctrl+R and the menu's Reload start it again (below), as in other browsers: before,
+        // they stopped it too, so F5 on a tab restored from the last session, still loading,
+        // left it on about:blank.
+        if stop_key && loading.is_some() {
             navigate = None;
             loading = None;
             address = page.url.clone();
@@ -4268,7 +4282,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
             Some(Go::To(t)) | Some(Go::Post(t, _)) => Some(t.clone()),
             Some(Go::Back) => back.last().map(|e| e.url.clone()),
             Some(Go::Forward) => forward.last().map(|e| e.url.clone()),
-            Some(Go::Reload) => Some(page.url.clone()),
+            // Reloading while a page loads starts that page again, not the one it replaces.
+            Some(Go::Reload) => Some(reload_target(loading.as_ref().map(|l| &l.kind), &page.url)),
             None => None,
         };
         if let (Some(target), Some(kind)) = (target, navigate) {
@@ -4358,6 +4373,8 @@ fn run_window(fonts: &Fonts, start: &str, width: usize, explicit: bool) {
                 Go::Reload => state = current.state.clone(),
             }
             page = build_page(prepared);
+            // A selection belongs to the page it was made on.
+            selection = None;
             crashlog::set_url(&page.url);
             library::visit(&page.url, &page.title);
             current = Entry { url: page.url.clone(), doc: page.doc, state };
@@ -4868,6 +4885,15 @@ struct Toolbar<'a> {
     /// The shield: requests blocked on this page, and whether blocking is on for its site
     /// (None on pages blocking doesn't apply to).
     shield: Option<(usize, bool)>,
+}
+
+/// What Reload loads: the page being loaded, if one is (a tab restored from the last session
+/// shows about:blank until its page arrives), else the page shown.
+fn reload_target(loading: Option<&Go>, shown: &str) -> String {
+    match loading {
+        Some(Go::To(t) | Go::Post(t, _)) => t.clone(),
+        _ => shown.to_string(),
+    }
 }
 
 struct Loading {
