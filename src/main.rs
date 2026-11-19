@@ -102,6 +102,8 @@ mod edit_keys_tests;
 #[cfg(test)]
 mod ui_scale_tests;
 #[cfg(test)]
+mod site_scale_tests;
+#[cfg(test)]
 mod global_lexical_tests;
 mod wasm;
 mod textdecode;

@@ -34,7 +34,8 @@ pub enum Event {
     /// Focus moved out of the frame.
     Blur,
     /// The frame's box changed size (a top-level page in a site process follows the window).
-    Resize { w: u32, h: u32 },
+    /// The page's new size in device pixels, and the window's screen scale.
+    Resize { w: u32, h: u32, scale: f32 },
     /// Scroll the page to this y (find in page jumping to a match).
     ScrollTo(f32),
     /// The window asks the page something: "devtools" (a snapshot for the developer tools),
@@ -172,9 +173,9 @@ impl Event {
                 put(&mut m, text.as_bytes());
             }
             Event::Blur => put(&mut m, b"blur"),
-            Event::Resize { w, h } => {
+            Event::Resize { w, h, scale } => {
                 put(&mut m, b"resize");
-                put(&mut m, &f32s(&[*w as f32, *h as f32]));
+                put(&mut m, &f32s(&[*w as f32, *h as f32, *scale]));
             }
             Event::ScrollTo(y) => {
                 put(&mut m, b"scrollto");
@@ -251,10 +252,10 @@ impl Event {
             b"blur" => Event::Blur,
             b"resize" => {
                 let v = read_f32s(&get(r)?);
-                if v.len() != 2 {
+                if v.len() != 3 {
                     return Err(std::io::Error::other("bad resize event"));
                 }
-                Event::Resize { w: (v[0] as u32).clamp(1, 8000), h: (v[1] as u32).clamp(1, 8000) }
+                Event::Resize { w: (v[0] as u32).clamp(1, 8000), h: (v[1] as u32).clamp(1, 8000), scale: v[2] }
             }
             b"scrollto" => match read_f32s(&get(r)?)[..] {
                 [y] if y.is_finite() => Event::ScrollTo(y.max(0.0)),
@@ -1005,8 +1006,11 @@ impl Host {
             Event::Wheel { x, y, dy } => self.wheel(x, y, dy),
             Event::Keys { keys, text } => self.keys(&keys, &text),
             Event::Blur => self.change_focus(None),
-            Event::Resize { w, h } => {
-                if (w, h) != (self.w, self.h) {
+            Event::Resize { w, h, scale } => {
+                // The window may have moved to a screen with another scale.
+                let rescaled = (scale - crate::zoom::device_scale()).abs() > 1e-3;
+                crate::zoom::set_render_scale(scale);
+                if (w, h) != (self.w, self.h) || rescaled {
                     (self.w, self.h) = (w, h);
                     self.relayout();
                 }
@@ -1633,7 +1637,7 @@ pub fn fit(doc: u64, lay: &layout::Layout) {
         });
         if let Some((w, h)) = size.filter(|&s| s != (f.w, f.h)) {
             (f.w, f.h) = (w, h);
-            crate::process::event(id, &Event::Resize { w, h });
+            crate::process::event(id, &Event::Resize { w, h, scale: crate::zoom::device_scale() });
         }
     }
 }

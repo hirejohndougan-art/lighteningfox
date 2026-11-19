@@ -382,6 +382,8 @@ pub fn open(job: &FrameJob, updates: Sender<Update>) -> Option<u32> {
     put(&mut m, url.as_bytes());
     put(&mut m, &job.w.to_le_bytes());
     put(&mut m, &job.h.to_le_bytes());
+    // The window's screen scale: the site process has no window to ask.
+    put(&mut m, &crate::zoom::device_scale().to_le_bytes());
     put(&mut m, &[post.is_some() as u8]);
     put(&mut m, post.as_ref().map_or(&b""[..], |p| p.content_type.as_bytes()));
     put(&mut m, post.as_ref().map_or(&b""[..], |p| &p.bytes[..]));
@@ -914,6 +916,10 @@ pub fn serve(site: &str) {
                     let url = text(&get(&mut input)?);
                     let w = get_u32(&mut input)?.clamp(1, 8000);
                     let h = get_u32(&mut input)?.clamp(1, 8000);
+                    let scale = get(&mut input)?;
+                    if let Ok(b) = <[u8; 4]>::try_from(&scale[..]) {
+                        crate::zoom::set_render_scale(f32::from_le_bytes(b));
+                    }
                     let has_post = get(&mut input)?.first() == Some(&1);
                     let content_type = text(&get(&mut input)?);
                     let bytes = get(&mut input)?;
