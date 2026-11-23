@@ -1,554 +1,509 @@
 {
- "last_run": "2026-11-17",
+ "last_run": "2026-11-23",
  "sites": {
   "https://accounts.google.com/": {
    "category": "Email and accounts",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] inline script #68: TypeError: not a callable function (unknown at :7:424)"
-   ],
-   "grade": "Usable",
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
    "likeness": 99.3,
    "name": "Google sign-in (Gmail)",
-   "script_errors": 1,
-   "seconds": 0.9,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 1.1,
+   "version": "0.1.0 (68c074c)"
   },
   "https://apnews.com/": {
    "category": "News",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] inline script #140: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :28:11)",
-    "[js error] https://apcdp.apnews.com/script.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :278:3)",
-    "[js error] https://client.threenoodles.com/dist/embed/embed.js?game=strands&partnerid=YtUP5pFgG3NV3EGrs2Mf&partnername=AP&strandspuzzleid=f55fd9f6-5da7-4e70-bfb2-c0f440d98ae0&target=threenoodles-widge",
-    "[js error] https://cdn.viafoura.net/entry/index.js: TypeError: not a callable function (unknown at :1:53726)",
-    "[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object"
-   ],
-   "grade": "Broken",
-   "likeness": 41.8,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
+   "likeness": 99.1,
    "name": "AP News",
-   "previous_grade": "Crashes",
-   "script_errors": 5,
-   "seconds": 42.6,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Broken",
+   "script_errors": 0,
+   "seconds": 0.2,
+   "version": "0.1.0 (68c074c)"
   },
   "https://developer.mozilla.org/en-US/": {
    "category": "Reference",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] Uncaught (in promise): TypeError: not a callable function"
-   ],
+   "checked": "2026-11-23",
+   "first_errors": [],
    "grade": "Broken",
-   "likeness": 33.8,
+   "likeness": 29.4,
    "name": "MDN Web Docs",
-   "script_errors": 1,
-   "seconds": 0.7,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 0,
+   "seconds": 1.5,
+   "version": "0.1.0 (68c074c)"
   },
   "https://docs.rs/": {
    "category": "Developer",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
-   "likeness": 97.5,
+   "likeness": 98.4,
    "name": "docs.rs",
    "script_errors": 0,
-   "seconds": 1.1,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.9,
+   "version": "0.1.0 (68c074c)"
   },
   "https://duckduckgo.com/": {
    "category": "Search",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] {}",
-    "[js error] {}",
-    "[js error] A client-side exception has occurred, see here for more info: https://nextjs.org/docs/messages/client-side-exception-occurred",
-    "[js error] {}",
-    "[js error] {}"
-   ],
+   "checked": "2026-11-23",
+   "first_errors": [],
    "grade": "Works",
-   "likeness": 92.2,
+   "likeness": 94.8,
    "name": "DuckDuckGo",
    "script_errors": 0,
-   "seconds": 0.9,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 1.4,
+   "version": "0.1.0 (68c074c)"
   },
   "https://en.wikipedia.org/wiki/Web_browser": {
    "category": "Reference",
-   "checked": "2026-11-17",
-   "first_errors": [],
-   "grade": "Works",
-   "likeness": 88.1,
+   "checked": "2026-11-23",
+   "first_errors": [
+    "[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object"
+   ],
+   "grade": "Usable",
+   "likeness": 89.9,
    "name": "Wikipedia article",
-   "script_errors": 0,
-   "seconds": 0.8,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Works",
+   "script_errors": 1,
+   "seconds": 3.4,
+   "version": "0.1.0 (68c074c)"
   },
   "https://example.com/": {
    "category": "Basics",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
-   "grade": "Usable",
-   "likeness": 83.4,
+   "grade": "Works",
+   "likeness": 88.5,
    "name": "Example Domain",
+   "previous_grade": "Usable",
    "script_errors": 0,
-   "seconds": 1.7,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.7,
+   "version": "0.1.0 (68c074c)"
   },
   "https://github.com/": {
    "category": "Developer",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] https://github.githubassets.com/assets/core-49c185d4b1ed7aaa.js: TypeError: not a callable function",
-    "[js error] Uncaught (in promise): TypeError: not a callable function",
-    "[js error] https://github.githubassets.com/assets/marketing-essentials-c0911720bd12400e.js: TypeError: not a callable function",
-    "[js error] Uncaught (in promise): TypeError: not a callable function",
-    "[js error] https://github.githubassets.com/assets/landing-pages-faa7a09124a7a8a7.js: TypeError: not a callable function"
-   ],
-   "grade": "Broken",
-   "likeness": 49.4,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
+   "likeness": 92.9,
    "name": "GitHub",
-   "previous_grade": "Works",
-   "script_errors": 6,
-   "seconds": 12.8,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Broken",
+   "script_errors": 0,
+   "seconds": 9.8,
+   "version": "0.1.0 (68c074c)"
   },
   "https://github.com/hirejohndougan-art/lighteningfox": {
    "category": "Developer",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] https://github.githubassets.com/assets/core-49c185d4b1ed7aaa.js: TypeError: not a callable function",
-    "[js error] Uncaught (in promise): TypeError: not a callable function",
-    "[js error] https://github.githubassets.com/assets/codespaces-aa2205fa541c00fe.js: TypeError: not a callable function",
-    "[js error] Uncaught (in promise): TypeError: not a callable function",
-    "[js error] https://github.githubassets.com/assets/repositories-9a08b8801ff30458.js: TypeError: not a callable function"
-   ],
-   "grade": "Usable",
-   "likeness": 84.7,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
+   "likeness": 93.6,
    "name": "GitHub repository page",
-   "script_errors": 10,
-   "seconds": 8.9,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 8.3,
+   "version": "0.1.0 (68c074c)"
   },
   "https://html.duckduckgo.com/html/?q=ironswift": {
    "category": "Search",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Usable",
-   "likeness": 69.6,
+   "likeness": 69.2,
    "name": "DuckDuckGo results (HTML)",
    "script_errors": 0,
    "seconds": 2.9,
-   "version": "0.1.0 (f9e827a)"
+   "version": "0.1.0 (68c074c)"
   },
   "https://lite.cnn.com/": {
    "category": "News",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
-   "likeness": 87.5,
+   "likeness": 91.7,
    "name": "CNN (lite)",
    "script_errors": 0,
-   "seconds": 0.3,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.4,
+   "version": "0.1.0 (68c074c)"
   },
   "https://mastodon.social/explore": {
    "category": "Social and forums",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] https://mastodon.social/packs/application-BYEwgS3C.js: ReferenceError: crypto is not defined",
-    "[js error] Uncaught (in promise): ReferenceError: crypto is not defined"
+    "[js error] TypeError: cannot convert 'null' or 'undefined' to object",
+    "[js error] TypeError: cannot convert 'null' or 'undefined' to object"
    ],
    "grade": "Usable",
-   "likeness": 95.1,
+   "likeness": 84.4,
    "name": "Mastodon",
    "previous_grade": "Works",
-   "script_errors": 2,
-   "seconds": 8.5,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 0,
+   "seconds": 30.7,
+   "version": "0.1.0 (68c074c)"
   },
   "https://medium.com/": {
    "category": "Sites and blogs",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] inline script #299: ReferenceError: ReadableStream is not defined (unknown at :1:258)",
-    "[js error] inline script #304: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:29)",
-    "[js error] inline script #307: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:29)",
-    "[js error] https://cdn-client.medium.com/lite/assets/chunk-DhAOvaicGq.js: ReferenceError: crypto is not defined",
-    "[js error] Uncaught (in promise): ReferenceError: crypto is not defined"
+    "[js error] inline script #303: ReferenceError: ReadableStream is not defined (unknown at :1:258)",
+    "[js error] inline script #308: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:29)",
+    "[js error] inline script #311: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:29)",
+    "[js error] Error: No stream found for single fetch decoding",
+    "[js error] TypeError: Cannot destructure 'null' value"
    ],
    "grade": "Usable",
-   "likeness": 96.0,
+   "likeness": 99.1,
    "name": "Medium",
-   "script_errors": 7,
-   "seconds": 4.4,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 3,
+   "seconds": 9.1,
+   "version": "0.1.0 (68c074c)"
   },
   "https://news.ycombinator.com/": {
    "category": "Social and forums",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
    "likeness": 91.6,
    "name": "Hacker News",
    "script_errors": 0,
-   "seconds": 0.7,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.8,
+   "version": "0.1.0 (68c074c)"
   },
   "https://old.reddit.com/": {
    "category": "Social and forums",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
    "likeness": 98.2,
    "name": "Reddit (old)",
    "script_errors": 0,
-   "seconds": 0.1,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.2,
+   "version": "0.1.0 (68c074c)"
   },
   "https://outlook.live.com/": {
    "category": "Email and accounts",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] blob:https://outlook.live.com/952927ba-1df2-42ef-9a3f-83d2e17d4600: NetworkError: importScripts failed: https://res-2.cdn.office.net/owamail//scripts/owa.worker.data.17150f31.js: HTTP 404 (",
-    "[js error] Uncaught error in worker: Uncaught NetworkError: importScripts failed: https://res-2.cdn.office.net/owamail//scripts/owa.worker.data.17150f31.js: HTTP 404 (unknown at :1:1097)"
-   ],
+   "checked": "2026-11-23",
+   "first_errors": [],
    "grade": "Works",
    "likeness": 99.0,
    "name": "Outlook",
    "script_errors": 0,
-   "seconds": 1.8,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 1.2,
+   "version": "0.1.0 (68c074c)"
   },
   "https://proton.me/": {
    "category": "Email and accounts",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] {\"stack\":\"\"}"
+    "[js error] Error: Minified React error #419; visit https://react.dev/errors/419 for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
    ],
    "grade": "Usable",
-   "likeness": 77.7,
+   "likeness": 77.0,
    "name": "Proton",
    "script_errors": 0,
-   "seconds": 19.2,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 23.5,
+   "version": "0.1.0 (68c074c)"
   },
   "https://stackoverflow.com/questions": {
    "category": "Social and forums",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
    "likeness": 100.0,
    "name": "Stack Overflow",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.3,
+   "version": "0.1.0 (68c074c)"
   },
   "https://text.npr.org/": {
    "category": "News",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
-   "likeness": 94.7,
+   "likeness": 94.9,
    "name": "NPR (text)",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.3,
+   "version": "0.1.0 (68c074c)"
   },
   "https://wordpress.org/": {
    "category": "Sites and blogs",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] https://wordpress.org/wp-content/plugins/gutenberg/build/modules/block-library/navigation/view.min.js?ver=459046a3816f848f72d6-20240308: TypeError: cannot convert 'null' or 'undefined' to o",
-    "[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object",
-    "[js error] https://stats.wp.com/e-202647.js: ReferenceError: Image is not defined (unknown at :1:3810)",
-    "[js error] inline script #1347: SyntaxError: expected value at line 1 column 1",
-    "[js error] Uncaught (in promise): SyntaxError: expected value at line 1 column 1"
-   ],
-   "grade": "Usable",
-   "likeness": 65.2,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
+   "likeness": 94.2,
    "name": "WordPress.org",
-   "previous_grade": "Broken",
-   "script_errors": 5,
-   "seconds": 1.7,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 2.1,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.amazon.com/": {
    "category": "Shopping",
-   "checked": "2026-11-17",
-   "first_errors": [],
-   "grade": "Works",
-   "likeness": 99.9,
+   "checked": "2026-11-23",
+   "first_errors": [
+    "[js error] Uncaught (in promise): NotSupportedError: crypto.subtle.importKey isn't supported yet"
+   ],
+   "grade": "Usable",
+   "likeness": 100.0,
    "name": "Amazon",
-   "previous_grade": "Usable",
-   "script_errors": 0,
-   "seconds": 0.6,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Works",
+   "script_errors": 1,
+   "seconds": 5.7,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.archive.org/": {
    "category": "Reference",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] https://archive.org/offshoot_assets/index-D6hie04-.js: TypeError: not a callable function",
-    "[js error] Uncaught (in promise): TypeError: not a callable function"
+    "[js error] Uncaught (in promise): TypeError: cannot set non-writable property: options",
+    "[js error] Uncaught (in promise): TypeError: cannot set non-writable property: options",
+    "[js error] Uncaught (in promise): TypeError: cannot set non-writable property: options",
+    "[js error] Uncaught (in promise): TypeError: cannot set non-writable property: options",
+    "[js error] Uncaught (in promise): TypeError: cannot set non-writable property: options"
    ],
-   "grade": "Usable",
-   "likeness": 74.1,
+   "grade": "Broken",
+   "likeness": 22.0,
    "name": "Internet Archive",
-   "previous_grade": "Broken",
-   "script_errors": 2,
-   "seconds": 1.5,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 13,
+   "seconds": 6.4,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.bbc.com/news": {
    "category": "News",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] https://cdn.tinypass.com/api/tinypass.min.js: TypeError: not a callable function (unknown at :1:504579)",
-    "[js error] Uncaught (in promise): TypeError: cannot convert 'null' or 'undefined' to object",
-    "[js error] {}",
-    "[js error] A client-side exception has occurred, see here for more info: https://nextjs.org/docs/messages/client-side-exception-occurred"
-   ],
+   "checked": "2026-11-23",
+   "first_errors": [],
    "grade": "Usable",
-   "likeness": 72.1,
+   "likeness": 83.0,
    "name": "BBC News",
    "previous_grade": "Broken",
-   "script_errors": 2,
-   "seconds": 2.3,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 0,
+   "seconds": 11.1,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.bing.com/": {
    "category": "Search",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] inline script #45: ReferenceError: PerformanceObserver is not defined (unknown at :3:4266)",
     "[js error] https://www.bing.com/rp/y0FIYYexdcTnfTPn_eeXWjGKdT8.br.js: ReferenceError: sj_be is not defined (unknown at :1:885)",
-    "[js error] https://www.bing.com/rp/s8ZU1MEe7U8FbDrqIJSB7aDTHHU.br.js: ReferenceError: _w is not defined (unknown at :1:6051)",
-    "[js error] TypeError: cannot convert 'null' or 'undefined' to object"
+    "[js error] https://www.bing.com/rp/s8ZU1MEe7U8FbDrqIJSB7aDTHHU.br.js: ReferenceError: _w is not defined (unknown at :1:6051)"
    ],
    "grade": "Broken",
    "likeness": -7.7,
    "name": "Bing",
-   "script_errors": 3,
+   "script_errors": 2,
    "seconds": 1.5,
-   "version": "0.1.0 (f9e827a)"
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.craigslist.org/": {
    "category": "Shopping",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
-   "likeness": 90.0,
+   "likeness": 92.0,
    "name": "Craigslist",
    "script_errors": 0,
-   "seconds": 0.8,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 2.7,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.dickinsonhistoricalsociety.org/": {
    "category": "Sites and blogs",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] inline script #38: ReferenceError: writeEmbed is not defined (unknown at :?:?)",
-    "[js error] TypeError: not a callable function",
-    "[js error] inline script #1222: SyntaxError: expected value at line 1 column 1",
-    "[js error] Uncaught (in promise): SyntaxError: expected value at line 1 column 1"
-   ],
-   "grade": "Usable",
-   "likeness": 60.4,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Broken",
+   "likeness": 21.5,
    "name": "Dickinson Historical Society (WordPress)",
-   "previous_grade": "Rendered",
-   "script_errors": 2,
-   "seconds": 9.9,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 28.7,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.ebay.com/": {
    "category": "Shopping",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] https://www.ebay.com/jIT35/T_/P/l/YtZyTvMeAOl/tmz7b4uEimOa/UB1pM1UD/EBVUZy/1JHRQHAQ?v=c787dc30-c854-e2f6-05ff-4329a8071730: TypeError: not a callable function (unknown at :1:484819)"
-   ],
-   "grade": "Usable",
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
    "likeness": 99.7,
    "name": "eBay",
-   "script_errors": 1,
-   "seconds": 0.8,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Usable",
+   "script_errors": 0,
+   "seconds": 0.5,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.etsy.com/": {
    "category": "Shopping",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
    "likeness": 99.7,
    "name": "Etsy",
    "script_errors": 0,
    "seconds": 0.4,
-   "version": "0.1.0 (f9e827a)"
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.google.com/": {
    "category": "Search",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
-   "likeness": 98.1,
+   "likeness": 98.5,
    "name": "Google",
    "script_errors": 0,
-   "seconds": 0.6,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 1.9,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.imdb.com/": {
    "category": "Video and media",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] https://fb423e1ef94f.6277d64d.us-east-1.token.awswaf.com/fb423e1ef94f/c3382d439950/916d943f6a58/challenge.js: TypeError: not a callable function (unknown at :1:701765)",
-    "[js error] inline script #25: ReferenceError: AwsWafIntegration is not defined (unknown at :?:?)"
+    "[js error] Uncaught (in promise): NotSupportedError: crypto.subtle.importKey isn't supported yet"
    ],
    "grade": "Usable",
    "likeness": 99.8,
    "name": "IMDb",
-   "script_errors": 2,
-   "seconds": 0.6,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 1,
+   "seconds": 5.8,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.irs.gov/": {
    "category": "Government",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] https://www.irs.gov/pub/js/js_GpkHw-4I3h3zTqLGUWkuny5qGTQFA41tVADQQKI0DuU.js?scope=footer&delta=2&language=en&theme=pup_irs_barrio&include=eJx1j2tywyAMhC9kzJEYGWRQDYgI0SS3r-M0M82jP0Ds7icQ4D",
-    "[js error] https://static.addtoany.com/menu/page.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:3440)"
+    "[js error] https://www.irs.gov/pub/js/js_NELSiN_9nLTaQ3wSHTpA1N0HPVrnP-L_wf4ZThhYf6s.js?scope=footer&delta=2&language=en&theme=pup_irs_barrio&include=eJx1j2tywyAMhC9kzJEYGWRQDYgI0SS3r-M0M82jP0Ds7icQ4D"
    ],
    "grade": "Usable",
-   "likeness": 92.1,
+   "likeness": 86.2,
    "name": "IRS",
-   "script_errors": 2,
-   "seconds": 2.7,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 1,
+   "seconds": 3.1,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.nytimes.com/": {
    "category": "News",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] inline script #10898: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:2687)",
-    "[js error] https://static01.nyt.com/video-static/betamax/video-feed-0.3.50-DaA5I5pM.js: Error: Custom element with tag nyt-betamax is already defined",
-    "[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax is already defined",
-    "[js error] https://static01.nyt.com/video-static/betamax/pool-0.3.50-DvQFLz0N.js: Error: Custom element with tag nyt-betamax-pool is already defined",
-    "[js error] Uncaught (in promise): Error: Custom element with tag nyt-betamax-pool is already defined"
+    "[js error] https://rumcdn.geoedge.be/b3960cc6-bfd2-4adc-910c-6e917e8a6a0e/grumi-ip.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :1:18861)",
+    "[js error] Unhandled Promise Rejection (unhandledrejection): Error: Failed to fetch market data",
+    "[js error] Unhandled Promise Rejection (unhandledrejection): Error: Failed to fetch market data"
    ],
-   "grade": "Broken",
-   "likeness": 33.9,
+   "grade": "Usable",
+   "likeness": 89.4,
    "name": "New York Times",
-   "script_errors": 14,
-   "seconds": 23.3,
-   "version": "0.1.0 (f9e827a)"
+   "previous_grade": "Broken",
+   "script_errors": 1,
+   "seconds": 47.3,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.reddit.com/": {
    "category": "Social and forums",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Works",
    "likeness": 98.6,
    "name": "Reddit",
    "script_errors": 0,
    "seconds": 0.2,
-   "version": "0.1.0 (f9e827a)"
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.rust-lang.org/": {
    "category": "Developer",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Usable",
-   "likeness": 82.5,
+   "likeness": 77.4,
    "name": "Rust",
    "previous_grade": "Broken",
    "script_errors": 0,
-   "seconds": 0.7,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 1.0,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.texas.gov/": {
    "category": "Government",
-   "checked": "2026-11-17",
-   "first_errors": [],
-   "grade": "Works",
-   "likeness": 98.6,
+   "checked": "2026-11-23",
+   "first_errors": [
+    "[js error] ReferenceError: access of uninitialized binding"
+   ],
+   "grade": "Broken",
+   "likeness": 15.6,
    "name": "Texas.gov",
-   "previous_grade": "Usable",
+   "previous_grade": "Works",
    "script_errors": 0,
-   "seconds": 0.2,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 3.5,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.theguardian.com/": {
    "category": "News",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] TypeError: cannot convert 'null' or 'undefined' to object",
+    "[js error] Uncaught (in promise): TypeError: Failed to fetch",
     "[js error] Uncaught (in promise): TypeError: Failed to fetch",
     "[js error] Uncaught (in promise): TypeError: Failed to fetch",
     "[js error] Uncaught (in promise): TypeError: Failed to fetch",
     "[js error] Uncaught (in promise): TypeError: Failed to fetch"
    ],
    "grade": "Broken",
-   "likeness": 49.2,
+   "likeness": 30.4,
    "name": "The Guardian",
-   "script_errors": 8,
-   "seconds": 8.3,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 13,
+   "seconds": 11.0,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.usa.gov/": {
    "category": "Government",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [],
    "grade": "Usable",
-   "likeness": 77.6,
+   "likeness": 79.3,
    "name": "USA.gov",
    "script_errors": 0,
-   "seconds": 2.0,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 2.2,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.weather.gov/": {
    "category": "Reference",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] https://www.weather.gov/js/jquery-1.12.4.min.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :2:212)",
-    "[js error] https://www.weather.gov/js/jquery-migrate-1.4.1.js: ReferenceError: jQuery is not defined (unknown at :752:3)",
-    "[js error] https://www.weather.gov/js/jquery-ui-1.10.3.custom.min.js: ReferenceError: jQuery is not defined (unknown at :6:4147)",
-    "[js error] https://www.weather.gov/js/jquery.hoverIntent.minified.js: ReferenceError: jQuery is not defined (unknown at :9:1132)",
-    "[js error] https://www.weather.gov/js/ForecastSearch.js: ReferenceError: jQuery is not defined (unknown at :8:167)"
+    "[js error] https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=DOC&sub-agency=NOAA&yt=true&pga4=G-736JJ6NL0V: TypeError: not a callable function (unknown at :67:237)",
+    "[js error] https://www.weather.gov/source/nws/govshutdown.js: SyntaxError: unexpected token '<', primary expression at line 1, col 1 (native)"
    ],
    "grade": "Usable",
-   "likeness": 91.4,
+   "likeness": 95.6,
    "name": "National Weather Service",
-   "script_errors": 12,
-   "seconds": 1.2,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 2,
+   "seconds": 1.5,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.wikipedia.org/": {
    "category": "Reference",
-   "checked": "2026-11-17",
-   "first_errors": [
-    "[js error] ReferenceError: Image is not defined"
-   ],
-   "grade": "Usable",
-   "likeness": 81.5,
+   "checked": "2026-11-23",
+   "first_errors": [],
+   "grade": "Works",
+   "likeness": 92.7,
    "name": "Wikipedia portal",
+   "previous_grade": "Usable",
    "script_errors": 0,
-   "seconds": 0.5,
-   "version": "0.1.0 (f9e827a)"
+   "seconds": 0.8,
+   "version": "0.1.0 (68c074c)"
   },
   "https://www.youtube.com/": {
    "category": "Video and media",
-   "checked": "2026-11-17",
+   "checked": "2026-11-23",
    "first_errors": [
-    "[js error] inline script #36: ReferenceError: Image is not defined (unknown at :1:94)",
-    "[js error] https://www.youtube.com/s/desktop/bf021a32/jsbin/webcomponents-all-noPatch.vflset/webcomponents-all-noPatch.js: TypeError: not a callable function (unknown at :291:440)",
-    "[js error] https://www.youtube.com/s/desktop/bf021a32/jsbin/spf.vflset/spf.js: TypeError: not a callable function (unknown at :88:287)",
-    "[js error] https://www.youtube.com/s/_/ytmainappweb/_/js/k=ytmainappweb.kevlar_base.en_US.D8inKuSEOVg.es5.O/am=AAAAAIAAAEAAICU/d=1/br=1/rs=AGKMywFFJ-x4dC8xHx19ZxFyHfOIAySIyQ/m=kevlar_base_module,kevla"
+    "[js error] https://www.youtube.com/s/desktop/db37c5a5/jsbin/webcomponents-all-noPatch.vflset/webcomponents-all-noPatch.js: TypeError: cannot convert 'null' or 'undefined' to object (unknown at :291:44",
+    "[js error] https://www.youtube.com/s/desktop/db37c5a5/jsbin/spf.vflset/spf.js: TypeError: not a callable function (unknown at :88:287)",
+    "[js error] https://www.youtube.com/s/_/ytmainappweb/_/js/k=ytmainappweb.kevlar_base.en_US.x8cb5wUsAZU.es5.O/am=AAAAAIAAAABAAKQE/d=1/br=1/rs=AGKMywHOsmXox42Y82HfJMedHMU7V_IL4w/m=kevlar_base_module,kevl"
    ],
    "grade": "Usable",
-   "likeness": 89.3,
+   "likeness": 80.1,
    "name": "YouTube (page only; no video yet)",
-   "script_errors": 4,
-   "seconds": 6.2,
-   "version": "0.1.0 (f9e827a)"
+   "script_errors": 3,
+   "seconds": 7.0,
+   "version": "0.1.0 (68c074c)"
   }
  }
 }
